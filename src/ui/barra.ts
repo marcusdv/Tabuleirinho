@@ -103,12 +103,12 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
     });
 
     // Botão de recolher/expandir: alterna a classe "recolhida" na barra.
-    // O CSS esconde o conteúdo e deixa só o botão de reabrir.
+    // O CSS esconde só o conteúdo: o nome "Ferramentas", o botão e a largura continuam, e ao expandir ela cresce para baixo.
     const barra = pegar("barra");
     const alternar = pegar<HTMLButtonElement>("barra-alternar");
     alternar.addEventListener("click", () => {
         const recolhida = barra.classList.toggle("recolhida"); // true se acabou de recolher
-        alternar.textContent = recolhida ? "‹" : "›"; // seta aponta para onde a barra vai
+        alternar.textContent = recolhida ? "▾" : "▴"; // ▾ = expandir (para baixo), ▴ = recolher
         alternar.title = recolhida ? "Expandir barra" : "Recolher barra";
         alternar.setAttribute("aria-expanded", String(!recolhida)); // acessibilidade
     });

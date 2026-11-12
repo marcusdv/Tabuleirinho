@@ -3,17 +3,19 @@
 //   - O ESTADO (posição, tamanho, condições) mora em estado.ts.
 //   - Aqui ficam só as VIEWS (objetos do PixiJS) que mostram esse estado.
 //
-// Cada token é um Container com três partes:
+// Cada token é um Container com estas partes (do fundo para a frente):
 //   raiz      Container "pai": é ele que se move e recebe os eventos do mouse
-//    ├─ corpo      Graphics: o círculo colorido do token
+//    ├─ corpo      Graphics: o círculo de PREENCHIMENTO do token (cor `cor`)
+//    ├─ foto       Sprite: a imagem recortada do token (só se o token tem imagem; as partes transparentes mostram o preenchimento)
+//    ├─ borda      Graphics: o contorno (cor `corBorda`), por cima do preenchimento e da foto
 //    ├─ marca      Graphics: o X vermelho da condição "Morto" (vazio nos outros casos)
 //    └─ condicoes  Container: os ícones das condições, em anel na borda do token
 // (O PixiJS 8 só aceita filhos em Containers, não em um Graphics solto.)
 // =====================================================================
 
-import { Container, FederatedPointerEvent, Graphics, PointData, Sprite, Text, Texture } from "pixi.js";
+import { Assets, Container, FederatedPointerEvent, Graphics, PointData, Sprite, Text, Texture } from "pixi.js";
 import { buscarCondicao } from "../condicoes";
-import { FOLGA_TOKEN, MAX_ICONES_CONDICAO, TAMANHO_CASA } from "../config";
+import { FOLGA_TOKEN, LARGURA_BORDA_TOKEN, MAX_ICONES_CONDICAO, TAMANHO_CASA } from "../config";
 import { casaMaisProxima, diametroDoIcone, posicoesNoAnel } from "../coordenadas";
 import { buscarToken, colocarToken, estado, guardarToken, Token } from "../estado";
 import type { Camera } from "./camera";
@@ -35,9 +37,29 @@ export interface OpcoesTokens {
     aoMudarSobreBolsa(sobre: boolean): void;
     /** Um token foi guardado ou tirado da bolsa (a lista da bolsa precisa ser refeita). */
     aoMudarBolsa(): void;
+    /**
+     * O usuário SOLTOU um token (já aplicado ao estado local: `token.guardado`, `col` e `row` valem). No modo online, quem
+     * criou esta camada manda o pedido ao servidor, que é quem decide.
+     */
+    aoSoltarToken(token: Token): void;
+    /**
+     * O token arrastado está SOBRE a bolsa. O canvas fica atrás dos painéis HTML, então o token do canvas
+     * se esconde e quem criou esta camada mostra uma cópia em HTML POR CIMA da bolsa: centro e diâmetro
+     * em pixels da TELA, e a espessura da borda (já com o zoom). Chamada a cada movimento do mouse.
+     */
+    aoMostrarSobreBolsa(token: Token, centro: PointData, diametro: number, borda: number): void;
+    /** O token arrastado saiu de cima da bolsa (ou foi solto): some a cópia em HTML. */
+    aoEsconderSobreBolsa(): void;
 }
 
 export interface CamadaTokens {
+    /** Cria o desenho de um token que acabou de entrar no estado (ex.: criado na bolsa). */
+    adicionar(token: Token): void;
+    /**
+     * Mostra o token onde o ESTADO diz que ele está (no mapa, ou escondido se está na bolsa). Usado quando a posição
+     * vem de FORA (do servidor). Se o usuário está segurando este token agora, não mexe: o que ele soltar vale.
+     */
+    aplicarPosicao(token: Token): void;
     /** true enquanto um token está sendo arrastado. */
     readonly arrastando: boolean;
     /** Move o token arrastado para acompanhar o mouse (ponto na TELA). */
@@ -76,6 +98,9 @@ export interface AncoraBalao {
 interface ViewToken {
     raiz: Container;
     corpo: Graphics;
+    foto: Sprite;
+    borda: Graphics;
+    fotoUrl: string | null; // a imagem que a `foto` mostra agora (para saber se mudou)
     marca: Graphics;
     condicoes: Container;
 }
@@ -119,10 +144,51 @@ export function criarTokens(
     /** Desenha o círculo do token. O raio acompanha o tamanho (size). */
     function desenharCorpo(token: Token, view: ViewToken): void {
         view.corpo.clear(); // apaga o desenho anterior (necessário ao redesenhar)
-        view.corpo
-            .circle(0, 0, raioDoToken(token.size)) // centro em (0,0): a posição da raiz é o centro
-            .fill(token.cor)
-            .stroke({ width: 3, color: 0xffffff });
+        view.borda.clear();
+        const raio = raioDoToken(token.size);
+        // O preenchimento fica por baixo (e aparece através das partes transparentes da imagem)...
+        view.corpo.circle(0, 0, raio).fill(token.cor); // centro em (0,0): a posição da raiz é o centro
+        // ...e a borda por cima de tudo, com a mesma espessura com ou sem imagem.
+        view.borda.circle(0, 0, raio).stroke({ width: LARGURA_BORDA_TOKEN, color: token.corBorda });
+    }
+
+    /**
+     * Mostra (ou tira) a imagem do token. A imagem é uma miniatura já recortada em círculo (com cantos
+     * transparentes), então basta esticar a textura até o diâmetro do token. O carregamento é assíncrono:
+     * se o token mudar de imagem enquanto carrega, a resposta velha é ignorada.
+     */
+    async function desenharFoto(token: Token, view: ViewToken): Promise<void> {
+        const url = token.imagem;
+        if (url === view.fotoUrl) {
+            // A imagem é a mesma: só o tamanho do token pode ter mudado.
+            const lado = raioDoToken(token.size) * 2;
+            view.foto.width = lado;
+            view.foto.height = lado;
+            return;
+        }
+        const antiga = view.fotoUrl;
+        view.fotoUrl = url;
+        if (!url) {
+            view.foto.visible = false;
+        } else {
+            let textura: Texture;
+            try {
+                textura = await Assets.load<Texture>(url);
+            } catch (erro) {
+                console.warn(`Não foi possível carregar a imagem do token ${token.id}.`, erro);
+                view.fotoUrl = null; // sem imagem: o token mostra só o fundo escuro e a borda
+                return;
+            }
+            textura.source.autoGenerateMipmaps = true; // reduzir bem em tamanho pequeno, como nos ícones
+            if (token.imagem !== url) return; // trocou de imagem enquanto carregava
+            view.foto.texture = textura;
+            const lado = raioDoToken(token.size) * 2;
+            view.foto.width = lado;
+            view.foto.height = lado;
+            view.foto.visible = true;
+        }
+        // A textura antiga só sai da memória se nenhum outro token usa a mesma imagem.
+        if (antiga && !estado.tokens.some((t) => t.imagem === antiga)) void Assets.unload(antiga);
     }
 
     /**
@@ -232,25 +298,35 @@ export function criarTokens(
     }
 
     // --- Criação das views ---
-    for (const token of estado.tokens) {
+    // Se o mouse está desligado nos tokens (uma ferramenta de desenho ligada), os novos também nascem assim.
+    let interativo = true;
+
+    /** Cria o desenho (view) de UM token e liga os eventos dele. Usada ao abrir e ao criar tokens novos. */
+    function criarView(token: Token): void {
         const raiz = new Container();
         const corpo = new Graphics();
+        const foto = new Sprite();
+        foto.anchor.set(0.5); // o centro da foto fica no centro do token
+        foto.visible = false;
+        const borda = new Graphics();
         const marca = new Graphics();
         const condicoes = new Container();
-        raiz.addChild(corpo, marca, condicoes); // do fundo para a frente: corpo, X, ícones
-        const view: ViewToken = { raiz, corpo, marca, condicoes };
+        raiz.addChild(corpo, foto, borda, marca, condicoes); // do fundo para a frente
+        const view: ViewToken = { raiz, corpo, foto, borda, fotoUrl: null, marca, condicoes };
 
         desenharCorpo(token, view);
+        void desenharFoto(token, view);
         desenharMarca(token, view);
         desenharCondicoes(token, view);
         posicionar(token, view);
         views.set(token.id, view);
         mundo.addChild(raiz);
+        raiz.visible = !token.guardado; // token guardado na bolsa não aparece no mapa
 
         // eventMode "static": o objeto passa a receber eventos do mouse/toque.
         // (O padrão é "passive", que ignora os eventos.) Os filhos (círculo e
         // ícones) contam como parte do token na hora de clicar ou passar o mouse.
-        raiz.eventMode = "static";
+        raiz.eventMode = interativo ? "static" : "none";
         raiz.cursor = "grab"; // cursor de mãozinha ao passar por cima
 
         // --- Mouse entrando/saindo: mostra/esconde o balão de condições ---
@@ -286,9 +362,22 @@ export function criarTokens(
             grade.mostrarDestaque(token.size, token.col, token.row);
         });
     }
+    for (const token of estado.tokens) criarView(token);
     reordenar(); // garante a ordem "maiores por baixo" desde o início
 
     return {
+        adicionar(token) {
+            criarView(token);
+            reordenar();
+        },
+
+        aplicarPosicao(token) {
+            const view = views.get(token.id);
+            if (!view || arrastando?.token.id === token.id) return;
+            view.raiz.visible = !token.guardado;
+            posicionar(token, view);
+        },
+
         get arrastando() {
             return arrastando !== null;
         },
@@ -317,6 +406,17 @@ export function criarTokens(
                 else grade.mostrarDestaque(token.size, col, row);
             }
             if (!sobre) grade.moverDestaque(col, row);
+
+            // Sobre a bolsa o token do canvas ficaria ESCONDIDO atrás do painel: ele some (alpha 0) e uma cópia
+            // em HTML, por cima da bolsa, ocupa o lugar dele. Fora da bolsa, volta o token do canvas.
+            if (sobre) {
+                const centro = camera.mundoParaTela(view.raiz.x, view.raiz.y);
+                opcoes.aoMostrarSobreBolsa(token, centro, raioDoToken(token.size) * 2 * camera.zoom, LARGURA_BORDA_TOKEN * camera.zoom);
+                view.raiz.alpha = 0;
+            } else {
+                view.raiz.alpha = 1;
+                opcoes.aoEsconderSobreBolsa();
+            }
         },
 
         soltar() {
@@ -339,12 +439,15 @@ export function criarTokens(
             }
 
             view.raiz.cursor = "grab";
+            view.raiz.alpha = 1; // (estava escondido enquanto a cópia em HTML aparecia sobre a bolsa)
+            opcoes.aoEsconderSobreBolsa();
             grade.esconderDestaque();
             arrastando = null;
             if (sobreBolsa) opcoes.aoMudarSobreBolsa(false);
             sobreBolsa = false;
             // A lista da bolsa muda se o token foi guardado, ou se veio de lá e foi colocado.
             if (guardar !== veioDaBolsa) opcoes.aoMudarBolsa();
+            opcoes.aoSoltarToken(token); // (no modo online o servidor é avisado aqui)
         },
 
         iniciarArrastoDaBolsa(id, ponto) {
@@ -368,6 +471,7 @@ export function criarTokens(
 
         definirInterativo(ativo) {
             // "none": o token (e seus filhos) ignora o mouse e os eventos passam para o palco.
+            interativo = ativo;
             for (const view of views.values()) view.raiz.eventMode = ativo ? "static" : "none";
         },
 
@@ -382,6 +486,7 @@ export function criarTokens(
             const view = views.get(token.id);
             if (!view) return;
             desenharCorpo(token, view);
+            void desenharFoto(token, view);
             desenharMarca(token, view);
             desenharCondicoes(token, view);
             posicionar(token, view);

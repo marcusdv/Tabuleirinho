@@ -8,8 +8,8 @@ let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
 await abrirPagina(p);
 
-const cores = () => p.locator(".amostra").evaluateAll((a) => a.map((x) => x.dataset.cor));
-const escolhida = () => p.locator(".amostra.escolhida").evaluateAll((a) => a.map((x) => x.dataset.cor));
+const cores = () => p.locator("#desenho-amostras .amostra").evaluateAll((a) => a.map((x) => x.dataset.cor));
+const escolhida = () => p.locator("#desenho-amostras .amostra.escolhida").evaluateAll((a) => a.map((x) => x.dataset.cor));
 async function arrastar(de, para) {
   await p.mouse.move(de.x, de.y); await p.waitForTimeout(60); await p.mouse.down();
   for (let i = 1; i <= 6; i++) { await p.mouse.move(de.x + ((para.x - de.x) * i) / 6, de.y + ((para.y - de.y) * i) / 6); await p.waitForTimeout(25); }
@@ -25,7 +25,7 @@ ok("1) começa: 6 recentes (vermelho, laranja, amarelo, verde, azul, roxo) + bra
 ok("2) a cor inicial (vermelho) está destacada", iguais(await escolhida(), ["#ff5252"]));
 
 // escolher uma amostra SEM desenhar: não reordena; só muda o destaque
-await p.locator('.amostra[data-cor="#4caf50"]').click();
+await p.locator('#desenho-amostras .amostra[data-cor="#4caf50"]').click();
 ok("3) escolher o verde sem desenhar NÃO reordena a pilha", iguais(await cores(), inicial));
 ok("3b) ...mas o destaque vai para o verde", iguais(await escolhida(), ["#4caf50"]));
 
@@ -42,14 +42,14 @@ ok("6) desenhar com a cor nova: ela entra na frente e a mais ANTIGA (roxo) sai",
 ok("6b) a pilha continua com 6 recentes e as duas últimas são branco e preto", (await cores()).length === 8 && (await cores()).slice(6).join() === "#ffffff,#000000");
 
 // reutilizar uma cor que já está na pilha: ela sobe sem duplicar
-await p.locator('.amostra[data-cor="#ff9800"]').click();
+await p.locator('#desenho-amostras .amostra[data-cor="#ff9800"]').click();
 await riscar();
 ok("7) usar de novo o laranja (que já estava na pilha) o leva para a frente, sem duplicar", iguais(await cores(), ["#ff9800", "#ff00ff", "#4caf50", "#ff5252", "#ffd54f", "#29b6f6", "#ffffff", "#000000"]), (await cores()).join(" "));
 
 // branco e preto: desenhar com eles não mexe na pilha
-await p.locator('.amostra[data-cor="#ffffff"]').click();
+await p.locator('#desenho-amostras .amostra[data-cor="#ffffff"]').click();
 await riscar();
-await p.locator('.amostra[data-cor="#000000"]').click();
+await p.locator('#desenho-amostras .amostra[data-cor="#000000"]').click();
 await riscar();
 ok("8) desenhar com branco e preto NÃO altera a pilha (eles já são fixos)", iguais(await cores(), ["#ff9800", "#ff00ff", "#4caf50", "#ff5252", "#ffd54f", "#29b6f6", "#ffffff", "#000000"]), (await cores()).join(" "));
 ok("8b) o destaque está no preto (última amostra)", iguais(await escolhida(), ["#000000"]));

@@ -5,18 +5,37 @@
 // navegadores apenas desenharão o que vier daqui.
 // =====================================================================
 
-import { COLUNAS_INICIAIS, LINHAS_INICIAIS, MAPA_INICIAL, MAX_CARACTERES_MENSAGEM, MAX_CASAS, MAX_MENSAGENS_CHAT, MIN_CASAS, TAMANHO_MAX_TOKEN, TAMANHO_MIN_TOKEN } from "./config";
-import { buscarCondicao } from "./condicoes";
-import { limitar } from "./coordenadas";
+import {
+    COLUNAS_INICIAIS,
+    COR_BORDA_INICIAL_TOKEN,
+    LINHAS_INICIAIS,
+    MAPA_INICIAL,
+    MAX_CARACTERES_MENSAGEM,
+    MAX_CARACTERES_IMAGEM_TOKEN,
+    MAX_CARACTERES_NOME_TOKEN,
+    MAX_CASAS,
+    MAX_MENSAGENS_CHAT,
+    MAX_TOKENS,
+    MIN_CASAS,
+    TAMANHO_MAX_TOKEN,
+    TAMANHO_MIN_TOKEN,
+} from "./config.ts";
+import { DADOS_DISPONIVEIS, MAX_MODIFICADOR_DADOS, MAX_QUANTIDADE_DADOS } from "./config.ts";
+import { buscarCondicao } from "./condicoes.ts";
+import { limitar } from "./coordenadas.ts";
+import { formulaDosDados, type Rolagem } from "./dados.ts";
 
 /** Quantas casas (por lado) um token ocupa: 1 = 1x1, 2 = 2x2, 3 = 3x3, 4 = 4x4. */
 export type TamanhoToken = 1 | 2 | 3 | 4;
 
 export interface Token {
     id: number;
+    nome: string; // aparece na bolsa; nunca vazio (sem nome, vira "Token N")
+    imagem: string | null; // miniatura recortada (texto "data:image/webp;base64,..."); null = sem imagem (o token é preenchido com a cor)
     col: number; // coluna do CANTO SUPERIOR ESQUERDO do token (0 = primeira)
     row: number; // linha do CANTO SUPERIOR ESQUERDO do token (0 = primeira)
-    cor: number; // cor em hexadecimal, ex.: 0xff0000 = vermelho
+    cor: number; // cor do PREENCHIMENTO em hexadecimal, ex.: 0xff0000 = vermelho
+    corBorda: number; // cor da BORDA (por cima da imagem, se houver)
     size: TamanhoToken; // ocupa size x size casas (ex.: 3 = bloco de 3x3)
     condicoes: string[]; // ids das condições (ver condicoes.ts), na ORDEM em que foram aplicadas
     guardado: boolean; // true = está na BOLSA (fora do tabuleiro); col/row só valem quando false
@@ -37,11 +56,11 @@ export const estado = {
     // Mensagens do chat, da mais antiga para a mais nova.
     mensagens: [] as Mensagem[],
     tokens: [
-        { id: 1, col: 3, row: 3, cor: 0xe74c3c, size: 1, condicoes: [], guardado: false }, // vermelho
-        { id: 2, col: 6, row: 5, cor: 0x3498db, size: 1, condicoes: [], guardado: false }, // azul
-        { id: 3, col: 15, row: 1, cor: 0x3498db, size: 3, condicoes: [], guardado: false }, // azul
-        { id: 4, col: 10, row: 2, cor: 0x2ecc71, size: 2, condicoes: [], guardado: false }, // verde 2x2
-        { id: 5, col: 12, row: 6, cor: 0x9b59b6, size: 4, condicoes: [], guardado: false }, // roxo 4x4
+        { id: 1, nome: "Token 1", imagem: null, col: 3, row: 3, cor: 0x2ecc71, corBorda: 0xffffff, size: 1, condicoes: [], guardado: false }, //
+        { id: 2, nome: "Token 2", imagem: null, col: 6, row: 5, cor: 0x3498db, corBorda: 0xffffff, size: 1, condicoes: [], guardado: false }, //
+        { id: 3, nome: "Token 3", imagem: null, col: 15, row: 1, cor: 0xf098fb, corBorda: 0xffffff, size: 1, condicoes: [], guardado: false }, //
+        { id: 4, nome: "Token 4", imagem: null, col: 10, row: 2, cor: 0xe74c3c, corBorda: 0xffffff, size: 2, condicoes: [], guardado: false }, //
+        { id: 5, nome: "Token 5", imagem: null, col: 12, row: 6, cor: 0x9b59b6, corBorda: 0xffffff, size: 1, condicoes: [], guardado: false }, //
     ] as Token[],
 };
 
@@ -50,11 +69,11 @@ export interface Mensagem {
     id: number;
     autor: string;
     texto: string;
+    rolagem?: Rolagem; // só nas mensagens de rolagem de dados (o `texto` então é a fórmula e o total)
     hora: number; // quando foi enviada (milissegundos desde 1970, como Date.now())
 }
 
 let proximoIdMensagem = 1;
-
 
 /**
  * Guarda uma mensagem do chat (as mais antigas saem quando passa de MAX_MENSAGENS_CHAT).
@@ -65,9 +84,54 @@ let proximoIdMensagem = 1;
 export function adicionarMensagem(autor: string, texto: string): Mensagem | null {
     const limpo = texto.trim();
     if (limpo === "" || limpo.length > MAX_CARACTERES_MENSAGEM) return null;
-    const mensagem: Mensagem = { id: proximoIdMensagem++, autor, texto: limpo, hora: Date.now() };
+    return guardarMensagem({ id: proximoIdMensagem++, autor, texto: limpo, hora: Date.now() });
+}
+
+/**
+ * Guarda no chat o resultado de uma rolagem de dados. O limite de caracteres NÃO vale aqui: ele é
+ * para o que se DIGITA (o texto da rolagem é montado pelo programa). O `texto` guarda a fórmula e o
+ * total (ex.: "2d6+3 = 12") para quem só lê texto.
+ * No multiplayer, o servidor sorteia e envia este evento.
+ */
+export function adicionarRolagem(autor: string, rolagem: Rolagem): Mensagem {
+    const texto = `${formulaDosDados(rolagem.quantidade, rolagem.lados, rolagem.modificador)} = ${rolagem.total}`;
+    return guardarMensagem({ id: proximoIdMensagem++, autor, texto, rolagem, hora: Date.now() });
+}
+
+/**
+ * Guarda uma mensagem que chegou PRONTA do servidor (com o id e a hora que ELE deu). Ignora se já existe.
+ * (adicionarMensagem/adicionarRolagem são para quem CRIA a mensagem: no servidor, ou no modo local.)
+ */
+export function receberMensagem(mensagem: Mensagem): void {
+    if (estado.mensagens.some((m) => m.id === mensagem.id)) return;
+    guardarMensagem(mensagem);
+}
+
+/** Troca todo o histórico do chat pelo que o servidor mandou ao entrar na mesa. */
+export function definirMensagens(lista: Mensagem[]): void {
+    estado.mensagens = lista.slice(-MAX_MENSAGENS_CHAT);
+}
+
+/**
+ * Uma rolagem PEDIDA é válida? (dado que existe, quantidade e modificador inteiros e dentro dos limites.)
+ * O servidor confere isto ANTES de sortear: sem limites, alguém pediria 9999999d9999999 e travaria a mesa.
+ */
+export function rolagemValida(lados: number, quantidade: number, modificador: number): boolean {
+    return (
+        (DADOS_DISPONIVEIS as readonly number[]).includes(lados) &&
+        Number.isInteger(quantidade) &&
+        quantidade >= 1 &&
+        quantidade <= MAX_QUANTIDADE_DADOS &&
+        Number.isInteger(modificador) &&
+        Math.abs(modificador) <= MAX_MODIFICADOR_DADOS
+    );
+}
+
+/** Coloca a mensagem no fim da lista; passando de MAX_MENSAGENS_CHAT, as mais antigas saem. */
+function guardarMensagem(mensagem: Mensagem): Mensagem {
     estado.mensagens.push(mensagem);
-    if (estado.mensagens.length > MAX_MENSAGENS_CHAT) estado.mensagens.splice(0, estado.mensagens.length - MAX_MENSAGENS_CHAT);
+    if (estado.mensagens.length > MAX_MENSAGENS_CHAT)
+        estado.mensagens.splice(0, estado.mensagens.length - MAX_MENSAGENS_CHAT);
     return mensagem;
 }
 
@@ -147,6 +211,103 @@ export function guardarToken(id: number): void {
     if (token) token.guardado = true;
 }
 
+/**
+ * Cria um token NOVO, que já nasce guardado na BOLSA (o usuário o coloca no mapa depois, arrastando).
+ * O tamanho e a cor são limitados aos valores válidos, e o nome é aparado e cortado a
+ * MAX_CARACTERES_NOME_TOKEN (vazio, vira "Token N"). A regra vale aqui, e não só na interface:
+ * o servidor precisará dela. Devolve o token criado, ou null se a mesa já tem MAX_TOKENS.
+ * No multiplayer, é aqui que enviaremos o evento "criar_token" (o servidor é quem dá o id).
+ */
+export function criarToken(
+    cor: number,
+    size: number,
+    nome = "",
+    imagem: string | null = null,
+    corBorda: number = COR_BORDA_INICIAL_TOKEN,
+): Token | null {
+    if (estado.tokens.length >= MAX_TOKENS) return null;
+    const id = Math.max(0, ...estado.tokens.map((t) => t.id)) + 1; // sempre maior que os existentes
+    const token: Token = {
+        id,
+        nome: nome.trim().slice(0, MAX_CARACTERES_NOME_TOKEN) || `Token ${id}`,
+        imagem: imagemValida(imagem) ? imagem : null,
+        col: 0,
+        row: 0, // só valem quando o token for colocado no mapa
+        cor: limitar(Math.round(cor), 0, 0xffffff),
+        corBorda: limitar(Math.round(corBorda), 0, 0xffffff),
+        size: limitar(Math.round(size), TAMANHO_MIN_TOKEN, TAMANHO_MAX_TOKEN) as TamanhoToken,
+        condicoes: [],
+        guardado: true,
+    };
+    estado.tokens.push(token);
+    return token;
+}
+
+/**
+ * A imagem de um token só vale se for uma miniatura em texto ("data:image/...") e não passar do limite:
+ * assim ninguém enche a memória (nem a rede, no multiplayer) com uma foto inteira. O servidor precisará desta regra.
+ */
+function imagemValida(imagem: string | null): imagem is string {
+    return imagem !== null && imagem.startsWith("data:image/") && imagem.length <= MAX_CARACTERES_IMAGEM_TOKEN;
+}
+
+/** O que dá para mudar num token que já existe (o que faltar fica como está). */
+export interface MudancasToken {
+    nome?: string;
+    size?: number;
+    cor?: number; // preenchimento
+    corBorda?: number;
+    imagem?: string | null; // miniatura nova, ou null para tirar a imagem (uma imagem inválida é ignorada)
+}
+
+/**
+ * Edita nome, tamanho, cores e imagem de um token. As mesmas
+ * regras da criação valem aqui: nome aparado e cortado a MAX_CARACTERES_NOME_TOKEN (vazio volta a "Token N"),
+ * tamanho de 1 a 4 e cores válidas. Se o token cresce e passaria da borda do tabuleiro, é empurrado para dentro.
+ * Devolve o token alterado, ou null se ele não existe. No multiplayer, aqui enviaremos o evento "editar_token".
+ */
+export function editarToken(id: number, mudancas: MudancasToken): Token | null {
+    const token = buscarToken(id);
+    if (!token) return null;
+    if (mudancas.nome !== undefined) token.nome = mudancas.nome.trim().slice(0, MAX_CARACTERES_NOME_TOKEN) || `Token ${token.id}`;
+    if (mudancas.cor !== undefined) token.cor = limitar(Math.round(mudancas.cor), 0, 0xffffff);
+    if (mudancas.corBorda !== undefined) token.corBorda = limitar(Math.round(mudancas.corBorda), 0, 0xffffff);
+    if (mudancas.imagem !== undefined && (mudancas.imagem === null || imagemValida(mudancas.imagem))) token.imagem = mudancas.imagem;
+    if (mudancas.size !== undefined) {
+        token.size = limitar(Math.round(mudancas.size), TAMANHO_MIN_TOKEN, TAMANHO_MAX_TOKEN) as TamanhoToken;
+        token.col = limitar(token.col, 0, estado.colunas - token.size);
+        token.row = limitar(token.row, 0, estado.linhas - token.size);
+    }
+    return token;
+}
+
+/**
+ * Troca a imagem de um token (null = tirar a imagem; o token volta a ser preenchido com a cor).
+ * Devolve o token alterado, ou null se o token não existe ou a imagem não é válida.
+ * No multiplayer, é aqui que enviaremos o evento "mudar_imagem_token".
+ */
+export function definirImagemToken(id: number, imagem: string | null): Token | null {
+    const token = buscarToken(id);
+    if (!token || (imagem !== null && !imagemValida(imagem))) return null;
+    token.imagem = imagem;
+    return token;
+}
+
+/**
+ * O token pode ficar com o canto superior esquerdo em (col, row)? Só vale com números INTEIROS e o bloco
+ * inteiro dentro do tabuleiro (é o mesmo encaixe que a interface faz; o servidor repete a conta, não confia nela).
+ */
+export function posicaoValida(token: Token, col: number, row: number): boolean {
+    return (
+        Number.isInteger(col) &&
+        Number.isInteger(row) &&
+        col >= 0 &&
+        row >= 0 &&
+        col <= estado.colunas - token.size &&
+        row <= estado.linhas - token.size
+    );
+}
+
 /** Tira um token da bolsa e o coloca no tabuleiro, com o canto superior esquerdo em (col, row). */
 export function colocarToken(id: number, col: number, row: number): void {
     const token = buscarToken(id);
@@ -209,26 +370,5 @@ export function alternarCondicao(tokenId: number, condicaoId: string): Token | n
     } else {
         token.condicoes.push(condicaoId); // não tinha: adiciona
     }
-    return token;
-}
-
-/**
- * Aumenta (+1) ou diminui (-1) o tamanho de um token.
- * O canto superior esquerdo é mantido, e se o token crescido passaria da
- * borda do tabuleiro, ele é empurrado para dentro.
- *
- * Devolve o token alterado, ou null se nada mudou (já estava no limite
- * ou o id não existe).
- */
-export function mudarTamanhoToken(id: number, delta: number): Token | null {
-    const token = buscarToken(id);
-    if (!token) return null;
-
-    const novo = limitar(token.size + delta, TAMANHO_MIN_TOKEN, TAMANHO_MAX_TOKEN) as TamanhoToken;
-    if (novo === token.size) return null;
-
-    token.size = novo;
-    token.col = limitar(token.col, 0, estado.colunas - novo);
-    token.row = limitar(token.row, 0, estado.linhas - novo);
     return token;
 }

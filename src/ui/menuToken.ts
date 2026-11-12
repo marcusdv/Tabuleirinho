@@ -8,7 +8,8 @@
 //            [ Add dano ]       <- provisório, sem função ainda
 //            [ Add cura ]       <- provisório, sem função ainda
 //        - no canto superior DIREITO, a engrenagem.
-//   2) clique na engrenagem     -> abre/fecha o painel de TAMANHO;
+//   2) clique na engrenagem     -> abre/fecha o painel da ENGRENAGEM (hoje: "Editar token", que abre a
+//                                  janela de edição de nome, tamanho e cores; novas opções entram aqui);
 //      clique em "Add condição"   -> abre/fecha o painel de CONDIÇÕES.
 //      (Só um painel fica aberto por vez.)
 //   3) no painel de condições, clicar numa condição a ADICIONA ao token;
@@ -23,7 +24,7 @@
 // =====================================================================
 
 import { CONDICOES, urlDoIcone } from "../condicoes";
-import { AFASTAMENTO_OPCOES_TOKEN, ALTURA_MIN_PAINEL, DISTANCIA_PAINEL, TAMANHO_MAX_TOKEN, TAMANHO_MIN_TOKEN } from "../config";
+import { AFASTAMENTO_OPCOES_TOKEN, ALTURA_MIN_PAINEL, DISTANCIA_PAINEL } from "../config";
 import { limitar } from "../coordenadas";
 import { buscarToken } from "../estado";
 import type { DicaCondicao } from "./dicaCondicao";
@@ -33,8 +34,8 @@ export interface OpcoesMenuToken {
     dica: DicaCondicao;
     /** Onde (em pixels da tela) está o bloco de um token: canto superior esquerdo e largura. */
     ancora(id: number): { x: number; y: number; largura: number } | null;
-    /** Pediu para mudar o tamanho do token: +1 aumenta, -1 diminui. */
-    aoMudarTamanho(id: number, delta: number): void;
+    /** Clicou em "Editar token" (no painel da engrenagem): abrir a janela de edição (nome, tamanho e cores) deste token. */
+    aoEditar(id: number): void;
     /** Clicou numa condição: liga se estava desligada, desliga se estava ligada. */
     aoAlternarCondicao(id: number, condicaoId: string): void;
 }
@@ -48,7 +49,7 @@ export interface MenuToken {
     fechar(): void;
 }
 
-type Painel = "tamanho" | "condicoes";
+type Painel = "engrenagem" | "condicoes";
 
 const LADO_ENGRENAGEM = 28; // px, igual ao CSS (largura da engrenagem)
 const VAO_ENGRENAGEM = 6; // px entre a lista de ações e a engrenagem quando ela vai para o lado da lista
@@ -58,19 +59,17 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
     const acoes = document.getElementById("acoes-token") as HTMLDivElement; // a lista de ações (canto superior esquerdo)
     const engrenagem = document.getElementById("engrenagem") as HTMLButtonElement;
     const botaoCondicoes = document.getElementById("botao-condicoes") as HTMLButtonElement;
+    const botaoEditar = document.getElementById("botao-editar-token") as HTMLButtonElement;
 
-    const menuTamanho = document.getElementById("menu-token") as HTMLDivElement;
+    const menuEngrenagem = document.getElementById("menu-token") as HTMLDivElement;
     const titulo = document.getElementById("menu-token-titulo") as HTMLElement;
-    const valor = document.getElementById("token-tamanho-valor") as HTMLElement;
-    const menos = document.getElementById("token-tamanho-menos") as HTMLButtonElement;
-    const mais = document.getElementById("token-tamanho-mais") as HTMLButtonElement;
 
     const menuCondicoes = document.getElementById("menu-condicoes") as HTMLDivElement;
     const gradeCondicoes = document.getElementById("grade-condicoes") as HTMLDivElement;
 
     // Todos os painéis do menu. Um painel NOVO só precisa ser registrado aqui para abrir
     // para cima, rolar se faltar espaço e fechar junto com os outros.
-    const paineis: Record<Painel, HTMLElement> = { tamanho: menuTamanho, condicoes: menuCondicoes };
+    const paineis: Record<Painel, HTMLElement> = { engrenagem: menuEngrenagem, condicoes: menuCondicoes };
 
     // Id do token cujas opções estão abertas (null = nada aberto) e qual painel está aberto.
     let tokenAberto: number | null = null;
@@ -106,17 +105,14 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
     // Ao rolar a grade, a descrição aberta ficaria alinhada a um botão que mudou de lugar: some.
     gradeCondicoes.addEventListener("scroll", () => opcoes.dica.esconder(menuCondicoes));
 
-    /** Atualiza título, tamanho exibido, botões desativados e condições marcadas. */
+    /** Atualiza o título e as condições marcadas. */
     function atualizarConteudo(): void {
         if (tokenAberto === null) return;
         const token = buscarToken(tokenAberto);
         if (!token) return fechar();
 
-        // Painel de tamanho
-        titulo.textContent = `Token ${token.id}`;
-        valor.textContent = `${token.size}×${token.size}`;
-        menos.disabled = token.size <= TAMANHO_MIN_TOKEN;
-        mais.disabled = token.size >= TAMANHO_MAX_TOKEN;
+        // Painel da engrenagem: o título é o nome do token.
+        titulo.textContent = token.nome;
 
         // Painel de condições: destaca as que o token já sofre.
         for (const [id, botao] of botoesCondicao) {
@@ -184,9 +180,9 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
         engrenagem.style.top = `${topoEngrenagem}px`;
 
         // Cada painel abre para cima a partir do botão que o abriu: o de condições, do primeiro
-        // item da lista ("Add condição", no topo dela); o de tamanho, da engrenagem.
+        // item da lista ("Add condição", no topo dela); o da engrenagem, dela.
         if (painelAberto === "condicoes") posicionarPainel(menuCondicoes, esquerdaLista, topoLista, botaoCondicoes.offsetHeight);
-        else if (painelAberto === "tamanho") posicionarPainel(menuTamanho, esquerdaEngrenagem, topoEngrenagem, LADO_ENGRENAGEM);
+        else if (painelAberto === "engrenagem") posicionarPainel(menuEngrenagem, esquerdaEngrenagem, topoEngrenagem, LADO_ENGRENAGEM);
     }
 
     /** Abre o painel pedido (fechando o outro). Pedir o painel já aberto o fecha. */
@@ -207,15 +203,13 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
         for (const elemento of Object.values(paineis)) elemento.hidden = true;
     }
 
-    engrenagem.addEventListener("click", () => alternarPainel("tamanho"));
+    engrenagem.addEventListener("click", () => alternarPainel("engrenagem"));
     botaoCondicoes.addEventListener("click", () => alternarPainel("condicoes"));
-
-    // Botões de tamanho: delegam a decisão (a regra vive em estado.ts).
-    menos.addEventListener("click", () => {
-        if (tokenAberto !== null) opcoes.aoMudarTamanho(tokenAberto, -1);
-    });
-    mais.addEventListener("click", () => {
-        if (tokenAberto !== null) opcoes.aoMudarTamanho(tokenAberto, 1);
+    // "Editar token" (dentro do painel da engrenagem): fecha os botões do mapa e abre a janela de edição (por cima de tudo).
+    botaoEditar.addEventListener("click", () => {
+        const id = tokenAberto;
+        fechar();
+        if (id !== null) opcoes.aoEditar(id);
     });
 
     // Esc fecha tudo.

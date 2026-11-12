@@ -18,4 +18,9 @@ export interface FerramentaDeArrasto {
     arrastar(ponto: PointData): void;
     /** Soltou o botão. */
     soltar(): void;
+    /**
+     * OPCIONAL. O botão DIREITO foi apertado enquanto o esquerdo continua apertado (no meio de um arrasto).
+     * A régua usa isso para fixar um ponto e continuar medindo (distâncias com curvas).
+     */
+    cliqueDireito?(): void;
 }

@@ -10,8 +10,11 @@ const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FA
 const perto = (a, c, tol = 3) => Math.abs(a - c) <= tol;
 await abrirPagina(p);
 
-const VERMELHO = [0xe7, 0x4c, 0x3c], ROXO = [0x9b, 0x59, 0xb6], AZUL = [0x34, 0x98, 0xdb], XVERM = [0xe5, 0x39, 0x35];
-// Centro/tamanho de uma cor na região do tabuleiro (x < 1160, longe da barra e da bolsa)
+const VERDE = [0x2e, 0xcc, 0x71], ROXO = [0x9b, 0x59, 0xb6], AZUL = [0x34, 0x98, 0xdb], XVERM = [0xe5, 0x39, 0x35];
+// Centro/tamanho de uma cor na região do tabuleiro (x < 1160, longe da barra). A bolsa (268 px) começa em x = 1120 e CRESCE PARA CIMA
+// ao receber fichas, então o disco de uma ficha pode cair nesta região: para o token VERDE (que está em x ~ 324..371) a região
+// termina antes da bolsa (REGIAO_VERDE); o roxo 4×4 vai até x = 1148 e usa a região padrão (nesses passos a bolsa está vazia).
+const REGIAO_VERDE = { x0: 0, x1: 1100, y0: 0, y1: 800 };
 async function achar(cor, arq = `${S}/b_tmp.png`, tol = 8, regiao = { x0: 0, x1: 1160, y0: 0, y1: 800 }) {
   const png = PNG.sync.read(await p.screenshot({ path: arq }));
   let n = 0, sx = 0, sy = 0, x0 = 1e9, x1 = -1;
@@ -30,6 +33,15 @@ async function arrastar(de, para, { soltar = true } = {}) {
 const texto = (s) => p.locator(s).textContent();
 const fichas = () => p.locator(".ficha").count();
 
+// Os tokens iniciais mudaram (estado.ts): o token 5 (roxo, coluna 12, linha 6) hoje é 1×1. Este teste quer um token 4×4 ali,
+// então ele cresce pela janela "Editar token" (engrenagem). Bloco depois disso: (892,464), 256 px.
+await p.mouse.click(124 + 12.5 * 64, 80 + 6.5 * 64, { button: "right" });
+await p.click("#engrenagem");
+await p.click("#botao-editar-token");
+await p.click('#editor-token button[data-tamanho="4"]');
+await p.click("#editor-token-salvar");
+await p.waitForTimeout(300);
+
 // ---- 1) a bolsa existe, no canto inferior direito
 const bolsa = await p.locator("#bolsa").boundingBox();
 ok("1a) bolsa visível no canto inferior direito", perto(bolsa.x + bolsa.width, 1388, 2) && perto(bolsa.y + bolsa.height, 788, 2), `${(bolsa.x + bolsa.width).toFixed(0)}, ${(bolsa.y + bolsa.height).toFixed(0)}`);
@@ -37,14 +49,14 @@ ok("1b) começa vazia, com a dica", (await fichas()) === 0 && (await p.locator("
 await p.screenshot({ path: `${S}/b0_vazia.png` });
 const alvo = centro(bolsa);
 
-// ---- 2) guardar o token vermelho (1x1, centro em (348,304))
-const v0 = await achar(VERMELHO);
-ok("2a) token vermelho está no mapa em (348,304)", perto(v0.cx, 348, 3) && perto(v0.cy, 304, 3), `(${v0.cx?.toFixed(0)}, ${v0.cy?.toFixed(0)})`);
+// ---- 2) guardar o token verde (1x1, centro em (348,304))
+const v0 = await achar(VERDE, undefined, 8, REGIAO_VERDE);
+ok("2a) token verde está no mapa em (348,304)", perto(v0.cx, 348, 3) && perto(v0.cy, 304, 3), `(${v0.cx?.toFixed(0)}, ${v0.cy?.toFixed(0)})`);
 await arrastar({ x: v0.cx, y: v0.cy }, alvo, { soltar: false });
 ok("2b) a bolsa se destaca enquanto o token está sobre ela", (await p.locator("#bolsa").getAttribute("class")).includes("alvo"));
 await p.screenshot({ path: `${S}/b1_sobre_bolsa.png` });
 await p.mouse.up(); await p.waitForTimeout(400);
-ok("2c) o token sumiu do mapa", (await achar(VERMELHO)).n === 0);
+ok("2c) o token sumiu do mapa", (await achar(VERDE, undefined, 8, REGIAO_VERDE)).n === 0);
 ok("2d) a bolsa mostra 1 fichinha (1×1) e (1)", (await fichas()) === 1 && (await texto("#bolsa-itens")).includes("1×1") && (await texto("#bolsa-contagem")) === "(1)", await texto("#bolsa-contagem"));
 ok("2e) o destaque da bolsa apagou", !(await p.locator("#bolsa").getAttribute("class") || "").includes("alvo"));
 ok("2f) a dica 'vazia' sumiu", !(await p.locator("#bolsa-vazia").isVisible()));
@@ -55,11 +67,11 @@ const r0 = await achar(ROXO);
 await arrastar({ x: r0.cx, y: r0.cy }, alvo);
 ok("3) segundo token guardado: 2 fichinhas, contagem (2), uma 4×4", (await fichas()) === 2 && (await texto("#bolsa-contagem")) === "(2)" && (await texto("#bolsa-itens")).includes("4×4"));
 
-// ---- 4) colocar o vermelho no mapa: solta no centro da casa col 3, row 3 => centro (348,304) (longe do roxo, que voltará à posição original)
+// ---- 4) colocar o verde no mapa: solta no centro da casa col 3, row 3 => centro (348,304) (longe do roxo, que voltará à posição original)
 const fv = p.locator(".ficha", { hasText: "1×1" });
 await arrastar(centro(await fv.boundingBox()), { x: 348, y: 304 });
-const v1 = await achar(VERMELHO);
-ok("4a) vermelho voltou ao mapa, encaixado em (348,304)", perto(v1.cx, 348, 3) && perto(v1.cy, 304, 3), `(${v1.cx?.toFixed(0)}, ${v1.cy?.toFixed(0)})`);
+const v1 = await achar(VERDE, undefined, 8, REGIAO_VERDE);
+ok("4a) verde voltou ao mapa, encaixado em (348,304)", perto(v1.cx, 348, 3) && perto(v1.cy, 304, 3), `(${v1.cx?.toFixed(0)}, ${v1.cy?.toFixed(0)})`);
 ok("4b) a bolsa ficou só com o roxo (1)", (await fichas()) === 1 && (await texto("#bolsa-contagem")) === "(1)");
 
 // ---- 5) colocar o roxo (4x4) soltando num vértice: centro (1020,592) => col 12, row 6 (a posição original)
@@ -71,10 +83,10 @@ ok("5b) mantém o tamanho (244 px) e a bolsa fica vazia", perto(r1.largura, 244,
 await p.screenshot({ path: `${S}/b3_colocado.png` });
 
 // ---- 6) soltar a fichinha de volta na bolsa: continua guardado
-await arrastar({ x: v1.cx, y: v1.cy }, alvo); // guarda de novo o vermelho
+await arrastar({ x: v1.cx, y: v1.cy }, alvo); // guarda de novo o verde
 const fv2 = p.locator(".ficha", { hasText: "1×1" });
 await arrastar(centro(await fv2.boundingBox()), alvo); // pega e solta na bolsa
-ok("6) soltar a fichinha de volta na bolsa: continua guardado (1), fora do mapa", (await fichas()) === 1 && (await achar(VERMELHO)).n === 0);
+ok("6) soltar a fichinha de volta na bolsa: continua guardado (1), fora do mapa", (await fichas()) === 1 && (await achar(VERDE, undefined, 8, REGIAO_VERDE)).n === 0);
 await arrastar(centro(await p.locator(".ficha").first().boundingBox()), { x: 348, y: 304 }); // devolve ao mapa
 
 // ---- 7) condições sobrevivem a guardar e colocar (Morto = X vermelho no token azul 1x1, centro (540,432))

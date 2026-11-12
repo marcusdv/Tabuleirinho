@@ -5,14 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && tsc -p servidor/tsconfig.json && vite build",
     "preview": "vite preview",
+    "servidor": "node servidor/servidor.ts",
     "test:e2e": "node tests/e2e/rodar.mjs"
   },
   "dependencies": {
-    "pixi.js": "^8.23.0"
+    "pixi.js": "^8.23.0",
+    "ws": "^8.22.2"
   },
   "devDependencies": {
+    "@types/node": "^24.19.2",
+    "@types/ws": "^8.18.2",
     "playwright-core": "^1.65.0",
     "pngjs": "^7.0.0",
     "typescript": "^7.0.2",

@@ -37,7 +37,7 @@ const casa = (c, r) => ({ x: 124 + (c + 0.5) * 64, y: 80 + (r + 0.5) * 64 });
 // ================= A) painel
 ok("A1) painel de desenho visível à esquerda", await p.locator("#ferramentas-desenho").isVisible() && perto((await p.locator("#ferramentas-desenho").boundingBox()).x, 12, 2));
 ok("A2) 7 ferramentas e 'Mover' ativa", (await p.locator("button[data-ferramenta]").count()) === 7 && (await cls("mover")).includes("ativo"));
-ok("A3) 8 cores prontas", (await p.locator(".amostra").count()) === 8);
+ok("A3) 8 cores prontas", (await p.locator("#desenho-amostras .amostra").count()) === 8);
 ok("A4) 'Apagar tudo' desativado sem pinturas", await p.locator("#desenho-apagar-tudo").isDisabled());
 await p.screenshot({ path: `${S}/d0_painel.png` });
 
@@ -46,7 +46,7 @@ await ferr("regua");
 ok("B1) Régua ficou ativa e Mover não", (await cls("regua")).includes("ativo") && !(await cls("mover")).includes("ativo"));
 await arrastar(casa(2, 2), casa(6, 5)); // dc=4, dr=3 -> 4 casas
 ok("B2) (2,2)->(6,5): 4 □ = 6 m", (await dist()) === "Distância: 4 □ = 6 m", await dist());
-const linha = await cor(AMARELO, undefined, `${S}/d1_regua.png`);
+const linha = await cor(AMARELO, { x0: 170, x1: 1225, y0: 0, y1: 560 }, `${S}/d1_regua.png`);
 ok("B3) a linha amarela da régua aparece (e continua após soltar)", linha.n > 200 && linha.x0 < 300 && linha.x1 > 520, `${linha.n} px, x ${linha.x0}..${linha.x1}`);
 await arrastar(casa(2, 2), casa(3, 2));
 ok("B4) uma casa: '1 □ = 1,5 m' (vírgula decimal)", (await dist()) === "Distância: 1 □ = 1,5 m", await dist());
@@ -59,7 +59,7 @@ await p.click("#zoom-mais"); await p.waitForTimeout(300); // zoom com a régua v
 ok("B7) mudar o zoom com a régua na tela mantém a medida", (await dist()) === "Distância: 4 □ = 6 m");
 await p.click("#voltar-padrao"); await p.waitForTimeout(500);
 await ferr("mover");
-ok("B8) voltar a 'Mover' apaga a medida (painel e linha)", (await dist()) === null && (await cor(AMARELO, undefined, `${S}/d1b.png`)).n < 20);
+ok("B8) voltar a 'Mover' apaga a medida (painel e linha)", (await dist()) === null && (await cor(AMARELO, { x0: 170, x1: 1225, y0: 0, y1: 560 }, `${S}/d1b.png`)).n < 20);
 
 // ================= C) lápis e cor
 await ferr("lapis"); await fill("#ff00ff");
@@ -77,10 +77,10 @@ ok("C4) um clique com o lápis faz um pontinho", (await cor(VERDE, { x0: 690, x1
 
 // ================= D) camadas: o desenho fica POR BAIXO dos tokens
 await fill("#ff00ff");
-await arrastar({ x: 300, y: 304 }, { x: 400, y: 304 }); // atravessa o token vermelho 1x1 (centro 348,304)
+await arrastar({ x: 300, y: 304 }, { x: 400, y: 304 }); // atravessa o token verde 1x1 (centro 348,304)
 const meio = PNG.sync.read(await p.screenshot());
 const i = (304 * meio.width + 348) * 4;
-ok("D1) o token vermelho fica POR CIMA do traço (pixel central continua vermelho)", Math.abs(meio.data[i] - 231) < 12 && Math.abs(meio.data[i + 1] - 76) < 12 && Math.abs(meio.data[i + 2] - 60) < 12, `rgb ${meio.data[i]},${meio.data[i + 1]},${meio.data[i + 2]}`);
+ok("D1) o token verde fica POR CIMA do traço (pixel central continua verde)", Math.abs(meio.data[i] - 46) < 12 && Math.abs(meio.data[i + 1] - 204) < 12 && Math.abs(meio.data[i + 2] - 113) < 12, `rgb ${meio.data[i]},${meio.data[i + 1]},${meio.data[i + 2]}`);
 
 // ================= E) borracha
 await ferr("borracha");

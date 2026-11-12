@@ -27,7 +27,80 @@
 - O **servidor valida as permissões** ("esse token é seu, ou você é o mestre?"). Validar só no navegador permitiria trapaça.
 - Durante um arrasto, enviar a posição com limite de frequência e interpolar do outro lado; ao soltar, enviar a posição final.
 - Quem entra tarde (ou reconecta) recebe o estado completo uma vez, depois só os eventos.
-- Estado salvo em banco para a mesa continuar no dia seguinte.
+- O estado da mesa é salvo para continuar no dia seguinte: **em arquivos na máquina do mestre**, não em banco central (ver a próxima seção).
+
+### Protótipo do servidor (decisões tomadas em conversa; implementado)
+- **Tecnologia:** Node 24 + biblioteca `ws` (WebSocket); o Node já traz só o cliente, por isso a `ws`. Tipos `@types/ws` e `@types/node` só como ferramenta de desenvolvimento. O próprio servidor entrega o site (`dist/`).
+- **TypeScript compartilhado (opção "a" escolhida pelo dono):** os arquivos que o servidor reaproveita importam uns aos outros com a extensão `.ts` e usam só TypeScript apagável; nenhuma ferramenta nova (sem `tsx`, `esbuild` nem Vite para o servidor). Custo real: 6 linhas de import. Bônus: dá para testar `estado.ts` direto no Node.
+- **Escopo do protótipo (decidido pelo dono):** mover tokens (soltar no mapa e na bolsa), chat e dados. O resto fica local por enquanto.
+- **Como testar (decidido pelo dono): só no próprio computador, com duas abas** (sem túnel e sem expor o computador). **Em aberto:** quando testar com amigos, usar a mesma rede Wi-Fi (`HOST=0.0.0.0`) ou o túnel (Cloudflare)? O servidor escuta só em `127.0.0.1` por padrão.
+- **Porta 3737** (a 3000 é muito usada por outros projetos).
+- **Aprendido ao construir:** `crypto.randomInt` só aceita faixas menores que 2⁴⁸; o Vite só lê o `vite.config.ts` ao iniciar; o servidor guarda tudo na memória (reiniciar zera a mesa), então testes automáticos precisam subir um servidor limpo.
+- **Persistência (conversada, ainda NÃO feita):** hoje nada sobrevive a recarregar a página ou reiniciar o servidor. Plano: uma função de serializar e restaurar o estado com número de versão (e migrações), usada tanto para salvar no navegador/exportar arquivo quanto, no servidor, para gravar a pasta da mesa em JSON (gravando em arquivo temporário e renomeando; uma ficha por arquivo e uma lixeira, para apagar durante o jogo sem risco).
+
+### Regras de segurança do servidor (decididas em conversa; valem quando o servidor for escrito)
+**Princípio:** tudo que chega de um navegador é **dado não confiável**, mesmo vindo de um amigo (o programa dele pode estar modificado). O servidor **valida tudo** e **só executa o que está numa lista permitida**. Nada que chega é executado como código.
+
+- **NUNCA `eval`** (nem `new Function`, nem equivalentes) em texto vindo de jogadores: chat, comandos, fórmulas de ficha, nomes. Expressões são lidas por **analisadores próprios** com gramática estrita.
+- **Comandos de chat (`/r` e os futuros):** o servidor recebe o texto bruto e decide sozinho. Começou com `/`? Procura numa **lista fechada** de comandos; desconhecido = erro, **só para quem digitou**. O argumento passa por gramática estrita (ex.: `^\d{1,2}d\d{1,4}([+-]\d{1,3})?$`) e é recusado antes de qualquer cálculo se fugir dela. Cada comando é uma **intenção estruturada** que passa pelas mesmas funções e **pelas mesmas checagens de permissão** dos botões da interface ("esse token é seu, ou você é o mestre?"): um comando nunca é um caminho para fazer o que o botão não deixaria.
+- **Dados:** o **servidor sorteia** (`rolarDados`) com `crypto.randomInt` (imprevisível e sem viés), nunca `Math.random` nem o navegador. A rolagem é um **tipo de mensagem à parte**, criado só pelo servidor: um texto digitado no chat NUNCA vira cartão de rolagem (ninguém finge "Fulano rolou 20"). Rolagem **secreta do mestre** (`/gr`): o servidor só envia o resultado ao mestre.
+- **Limites ANTES de calcular** (contra sobrecarga): quantidade de dados (`MAX_QUANTIDADE_DADOS` = 99), lados (até 1000), modificador (±`MAX_MODIFICADOR_DADOS` = 99), tamanho do texto, número de termos de uma expressão, número máximo de tokens, de desenhos (e de pontos por traço), de mensagens guardadas, de mapas e tamanho de cada imagem. Estourou = recusa com erro claro.
+- **Fórmulas da ficha (`[1d20 + DEX + FOR + PROF]`):** o MESMO analisador do `/r` (uma regra de segurança escrita uma vez só). Só dados, números, variáveis e `+`/`-` (talvez parênteses e `*`); **sem funções de programação**; as variáveis só são lidas da **ficha de quem rolou**; variável inexistente = erro visível (nunca zero silencioso); tamanho máximo do texto, de termos e de profundidade.
+- **Limite de frequência (rate limit)** por conexão: mensagens de chat, comandos, rolagens e, sobretudo, **eventos de arrasto** (o servidor descarta o excesso). Conexão que insiste é desconectada.
+- **Permissões no servidor, sempre** (validar só no navegador permite trapaça): jogador mexe no que é dele (tokens, ficha, itens), o mestre mexe em tudo. Vale para mover, criar, editar, apagar, guardar, desenhar, condições, vida. O servidor **nunca confia em ids, donos, papéis ou nomes que vêm na mensagem**: usa a identidade da conexão (do token de entrada).
+- **Validar a FORMA de cada evento:** tipos certos, números inteiros e dentro dos limites (colunas/linhas, tamanho do token 1 a 4, cor 0 a 0xffffff), ids que existem, campos desconhecidos ignorados. As regras já escritas em `estado.ts` (`criarToken`, `editarToken`, `imagemValida`, limites de nome e de mensagem) são a base: o servidor as reutiliza, e elas **continuam valendo no estado**, não só na interface.
+- **Texto na tela:** sempre `textContent`, **nunca HTML** (nomes, chat, fichas, comandos). Já é a convenção da interface; o servidor também não deve devolver texto como se fosse marcação.
+- **Imagens:** só tipos conhecidos (`data:image/...` das miniaturas, ou arquivos de imagem para mapas), com tamanho máximo; nunca guardar com o nome que o usuário mandou (gerar o nome no servidor).
+- **Arquivos do servidor (a pasta da mesa):** servir **só** a pasta da mesa; bloquear `../` e caminhos absolutos (senão vaza o computador do mestre); nomes gerados pelo servidor; a pasta de backup fora da pasta servida.
+- **Identidade:** o token de entrada (JWT) é conferido com a **chave pública**; vence em minutos, vale para UMA mesa e pode ser de uso único. A **chave privada** fica SÓ no site central, nunca no código, no repositório, nas capturas nem no programa do mestre. Usar **par de chaves** (ex.: EdDSA), NUNCA segredo compartilhado (HS256): quem confere não pode assinar. O servidor do mestre nunca vê senhas.
+- **Mensagens de erro e registros (logs):** nunca incluir segredos (chaves, tokens de entrada) nem dados pessoais; erros para o jogador são curtos e sem detalhes internos.
+- **Teste:** cada regra acima deve ter um teste "malicioso" (comando inválido, número gigante, evento com dono falso, caminho com `../`, texto com HTML), que precisa ser **recusado** sem derrubar o servidor.
+
+### Hospedagem, contas e salvamento (arquitetura escolhida pelo dono; ainda não implementada)
+**Visão geral:** cada mestre roda o PRÓPRIO servidor na máquina dele (como um servidor de Minecraft); existe um **site central** só para cadastro/login e para conectar jogador à mesa.
+
+- **Servidor do mestre:** Node + WebSocket na máquina dele, com os arquivos da mesa (estado, mapas). Para ficar acessível pela internet usa um **túnel grátis** (ver "Túneis" abaixo). Ideal: um programa único com botão "Abrir mesa" que já liga o túnel.
+- **Site central:** cadastro e login **obrigatórios** para todos (mestre e jogadores). Custo baixo: só contas e diretório, o jogo pesado roda no mestre. Sugestão: login com **Discord/Google** em vez de senha própria (menos atrito e nada de senhas para proteger).
+- **Código de conexão:** ao ligar, o servidor se registra no site e recebe um **código curto** (ex.: `K7QM-4XD2`); o mestre passa o código e o jogador logado o digita no site. Assim ninguém digita endereço, o endereço do túnel pode mudar à vontade, o site só conecta a servidores registrados e confere a versão.
+  - Código com 8+ caracteres sem letras confundíveis (0/O, 1/I), limite de tentativas por conta, expira quando o servidor desliga (sinal periódico de "estou vivo"), um novo por sessão.
+  - **Entrada só por CONVITE do mestre (decidido pelo dono):** cadastro e login são feitos no site, e o jogador só entra na sala se o mestre o **convidou**. Ter o código sozinho não basta: o site só emite o token de entrada para contas convidadas àquela mesa (lista de convidados da mesa; o mestre pode remover/expulsar e o site para de emitir tokens para essa conta). Assim, se o código vazar, quem não foi convidado não entra.
+  - Em aberto: como o mestre convida (pelo nome de usuário/e-mail da conta, por um link de convite pessoal ou os dois) e onde fica a lista de convidados (no site central ou no servidor do mestre, junto do estado da mesa); o convite é por mesa fixa ou vale por sessão; o convite expira?
+  - O servidor precisa se identificar ao registrar (login do mestre ou chave do servidor), senão alguém registraria servidor falso.
+- **Identidade do jogador (decidido: JWT):** o site entrega um **token de entrada** (nome para não confundir com os "tokens" do tabuleiro), no formato **JWT** assinado e temporário, vale ~2 minutos e para UMA mesa. Conteúdo: `sub` (id da conta), `nome`, `mesa` (código) e `exp` (validade); sem senha nem e-mail dentro (o conteúdo é legível, a assinatura só impede alterar). A **chave privada** (que assina) fica SÓ no site central; a **chave pública** (que só confere) fica no servidor do mestre, que recusa token adulterado, vencido ou de outra mesa. O token vai no redirecionamento do site para o servidor e é removido do endereço assim que a sessão abre. Usar biblioteca pronta (ex.: `jose`, no Node). O site precisa poder trocar o par de chaves (o servidor baixa a nova chave pública). O servidor do mestre NUNCA vê senhas. O navegador trata tudo que vem do servidor como não confiável (texto sempre como texto, nunca HTML).
+- **Salvamento no computador do mestre:** uma pasta por mesa, ex.: `mesas/nome/` com `estado.json` (tokens, colunas/linhas, desenhos, condições, fichas, chat recente) e `mapas/` (as imagens, hoje `blob:` temporários).
+  - O servidor grava depois de cada mudança relevante (token ao SOLTAR, não a cada pixel do arrasto), **agrupando** (esperar ~300 ms após a última mudança).
+  - **Gravar sem corromper:** escrever num arquivo temporário e renomear; se o computador desligar no meio, o arquivo anterior fica intacto.
+  - Ao ligar, o servidor lê a pasta e a mesa volta como estava. Se o estado crescer: foto completa de tempos em tempos + registro de eventos desde a última foto.
+  - Incluir **número de versão** no `estado.json` (servidor novo converte arquivo antigo). **Backup rotativo** (últimos N estados) e "exportar mesa" (zip), porque se o disco do mestre falhar a mesa some. Limite de tamanho e compressão para os mapas.
+  - Servir arquivos **só da pasta da mesa** (proteger contra `../../`, que vazaria o computador do mestre).
+- **Pedir ao mestre que faça BACKUP (decisão do dono: vamos pedir; o MODO de fazer fica para DECIDIR DEPOIS):** como a mesa mora só no computador dele, o programa deve **lembrar e facilitar**, sem depender da memória do mestre. As ideias abaixo são só opções para essa decisão futura:
+  - Ao abrir o servidor pela primeira vez, um aviso claro: "sua mesa fica só neste computador; faça backup".
+  - Ao **desligar o servidor**, perguntar "Fazer backup agora?" (botão que gera o zip da pasta da mesa), e lembrar se o último backup é antigo (ex.: mais de 7 dias).
+  - Botão "Exportar mesa" sempre à mão, e "Importar mesa" para restaurar ou levar para outro computador.
+  - Backup **automático rotativo** (últimos N estados) numa pasta separada, como rede de segurança contra erro do próprio mestre; e um backup **antes de qualquer atualização** ou conversão de arquivo.
+  - Sugerir guardar uma cópia FORA do computador (nuvem pessoal, pen drive). Em aberto: o programa poderia mandar o zip para uma pasta escolhida pelo mestre (ex.: Google Drive/Dropbox sincronizado).
+- **ATUALIZAÇÃO e compatibilidade entre todos (decisão do dono):** todos na mesma mesa precisam falar a mesma "língua", senão dá erro ou trapaça.
+  - Todo servidor e toda interface têm um **número de versão** e um **número de protocolo** (o formato das mensagens trocadas). Ao conectar, os dois se apresentam; se o protocolo for incompatível, a entrada é recusada com uma mensagem clara ("o mestre precisa atualizar" ou "atualize a página").
+  - Caminho decidido: o **servidor do mestre serve a própria interface** (ver "A interface vem do servidor" acima): quem entra sempre recebe a interface exata daquele servidor, e jogadores nunca ficam em versão diferente da do mestre. A atualização passa a ser só a do servidor (a checagem de protocolo continua útil contra páginas antigas em cache).
+  - O programa do mestre **checa se há versão nova ao abrir** (consultando o site central) e avisa; pode oferecer "Atualizar agora" (baixa e reinicia), com **backup automático antes**. O site pode definir uma **versão mínima** aceita: abaixo dela, o servidor não consegue registrar o código de conexão até atualizar.
+  - **Arquivos antigos de mesa** são convertidos por "migrações" (versão no `estado.json`): o servidor novo lê o formato antigo e converte, sempre depois do backup. Voltar para uma versão mais velha não é garantido (por isso o backup).
+  - Mudanças que quebram o protocolo devem ser raras e avisadas; mudanças compatíveis (campo novo opcional) não exigem que todos atualizem juntos.
+  - Em aberto: atualização totalmente automática ou sempre com confirmação do mestre? Como avisar os jogadores durante uma sessão, se sai versão nova (provavelmente só aplicar na próxima abertura da mesa, nunca no meio do jogo).
+- **Benefícios:** dados nas mãos do mestre (backup é copiar a pasta); custo de infraestrutura e armazenamento quase zero para o projeto; identidade confiável por conta; os mapas não passam pelo site central (alivia o problema de licença das imagens).
+- **Riscos:** (1) o mestre precisa instalar/rodar um programa (maior atrito); (2) o navegador do jogador conecta a um servidor escolhido por outra pessoa (por isso só servidores registrados + token temporário); (3) versões diferentes de site e servidor (mandar a versão no registro e recusar incompatíveis); (4) site central fora do ar = ninguém entra (talvez aceitar por um tempo quem já estava logado); (5) o servidor do mestre fica exposto na internet (validar tudo no servidor, servir só a pasta da mesa); (6) cadastro obrigatório afasta alguns; (7) LGPD: ao guardar e-mail/conta, política de privacidade e exclusão de conta; (8) mapas grandes sobem pela internet de casa do mestre (comprimir); (9) se o mestre desliga, a mesa some até ele voltar.
+- **A interface vem do servidor do mestre (decidido pelo dono):** o jogador abre a mesa e o navegador recebe a interface DO PRÓPRIO servidor da mesa; as ações dos jogadores (mover token, rolar dados, escrever no chat...) são mandadas a esse servidor, que valida, aplica e repassa a todos. Assim a versão da interface sempre combina com a do servidor. O site central não serve a interface do jogo: só cadastro/login, código de conexão e emissão do token. Consequência a resolver: o login acontece no site central e o jogo, no endereço do servidor, então o token assinado precisa passar de um para o outro (ex.: o site redireciona o jogador ao servidor levando o token temporário).
+- **Ordem sugerida:** (1) servidor do mestre funcionando, com salas e só apelido, e o salvamento em arquivo; (2) depois o site central com login, código de conexão e token. O servidor já nasce validando tokens para a segunda fase entrar sem refazer o resto.
+- **Em aberto:** a **carteira** do jogador (ficha, tokens, itens) vale só na mesa onde foi criada, ou vai de mesa em mesa (aí precisa morar no site central)? Um servidor deve hospedar uma mesa ou várias salas? (recomendado: salas desde o início; o mesmo código serve para o mestre rodar em casa ou numa hospedagem de verdade no futuro.)
+
+### Túneis grátis para o servidor do mestre (comparação feita em conversa; conferir os limites atuais antes de depender de um)
+- **Cloudflare Tunnel, modo rápido** (`cloudflared tunnel --url http://localhost:PORTA`): sem conta, URL muda a cada vez (`*.trycloudflare.com`), aceita WebSocket. **Recomendado para começar e testar.** Cada mestre abre o seu, sem limite prático de quantos existem.
+- **Cloudflare Tunnel nomeado:** conta grátis + domínio próprio (único custo, ~R$ 40/ano); URL fixa.
+- **ngrok (plano grátis):** 1 endereço fixo grátis por conta, aceita WebSocket, limite mensal de tráfego, tela de aviso para navegadores na 1ª visita.
+- **Tailscale Funnel / Tailscale comum:** Funnel dá URL pública fixa; o comum cria rede privada (cada amigo instala o programa).
+- **localhost.run / Pinggy:** só SSH, sem instalar nada, menos estáveis. **Playit.gg:** feito para jogos, menos natural para site web.
+- **Sem túnel:** abrir porta no roteador + DNS dinâmico (DuckDNS); muitas operadoras brasileiras usam CGNAT e impedem. Redes virtuais (ZeroTier, Radmin VPN, Hamachi): cada jogador instala o programa.
+- Em produção, o servidor serve a versão compilada (`npm run build`), não o servidor de desenvolvimento do Vite (que recusa endereços desconhecidos).
+- Um serviço único para todos (tipo Roll20) pede servidor sempre ligado (VPS/hospedagem) e armazenamento de imagens (ex.: Cloudflare R2): caminho futuro, não necessário agora.
 
 ### Regras do tabuleiro já definidas
 - **Tokens** de 1×1 a 4×4 casas (criaturas Pequenas/Médias até Imensas), encaixados na grade.
@@ -67,7 +140,10 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 - Tokens arrastáveis, com encaixe na grade, e tamanhos 1×1 a 4×4.
 - Pan (arrastar a visão), zoom e "ajustar à tela".
 - Barra de ferramentas flutuante, fixa na direita e retrátil.
-- Engrenagem do token (clique direito), com aumentar/diminuir o tamanho.
+- Clique direito num token: engrenagem com **"Editar token"** (nome, tamanho, imagem e duas cores) e lista com "Add condição".
+- **Régua** (inclusive em curvas) e **desenho** (lápis, borracha, elipse, retângulo, triângulo, cores), calibragem de grade e "Escolher mapa".
+- **Bolsa de tokens** em três tamanhos (pequena; média com pesquisa e arrasto; tela cheia para criar e editar), tokens com **nome**, **imagem recortada** e cores de preenchimento e borda.
+- **Dados** (d4 a d1000) e **chat** (só a interface, no navegador; com mensagem nova avisando por uma setinha).
 - **18 condições** (ícones + descrições) aplicáveis aos tokens, com anel de ícones, "+N", balão com rolagem, descrições e o X vermelho do Morto.
 
 ### Essenciais (pedidas por você para o tabuleiro)
@@ -81,6 +157,10 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 - Rolagem de dados e chat.
 - Fog of war e iluminação dinâmica.
 
+### Dados (feitos no navegador; falta o servidor)
+- Já existe a barra de dados ao lado do chat (d4 a d1000, quantidade, modificador) e o cartão de rolagem no chat.
+- **Em aberto:** (1) o servidor deve sortear (anti-trapaça) e mandar o resultado a todos; (2) rolagens secretas do mestre (que só ele vê); (3) rolar com vantagem/desvantagem (2d20, pegando o maior/menor); (4) destacar 20 natural e 1 natural no d20; (5) dados diferentes na mesma rolagem (ex.: 1d8+2d6+3); (6) atalho de texto no chat (`/r 2d6+3`).
+
 ### Chat (só a interface feita; ideias e perguntas)
 - Já existe: faixa horizontal embaixo (a mais nova à esquerda), campo com limite de 72 caracteres, animações e barra de rolagem própria. Ainda é local: nada é enviado a outros jogadores.
 - **Próximo:** rolagem de dados no chat (ex.: `/r 1d20+3`, ou botões de dado), mostrando o resultado em cartões diferentes das mensagens; o servidor deve sortear os dados (validar no servidor, como o resto).
@@ -88,13 +168,29 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 
 ### Régua e desenho (feitos; ideias e perguntas)
 - Já funciona: régua (1 casa = 1,5 m), lápis, borracha, elipse, retângulo, triângulo, cores recentes e "Apagar tudo".
+- **Régua com curvas (feito):** esquerdo apertado + clique direito fixa um ponto e a medida segue; o total soma os trechos. Ideias: desfazer o último ponto fixado (ex.: Backspace), mostrar o parcial de cada trecho, um jeito de continuar uma medida depois de soltar.
 - **Em aberto:** (1) a diagonal da régua conta 1 casa; preferem a regra 5-10-5 do D&D (a cada duas diagonais, uma conta dobrada)? (2) a borracha apaga o desenho inteiro; querem apagar pedaços (pixel a pixel)? (3) as formas não "encaixam" na grade; querem encaixe nos cantos das casas (útil para áreas de magia)? (4) círculo/cone/linha de área de efeito como formas prontas; (5) desfazer/refazer; (6) quem pode desenhar: só o mestre, ou cada jogador (e se os desenhos podem ser privados); (7) os desenhos ainda não são salvos nem enviados (entram junto com o servidor).
 
 ### Bolsa de tokens (feita; ideias para evoluir)
 - Já funciona: guardar arrastando o token até a bolsa; colocar arrastando a fichinha para o mapa.
+- **Bolsa expandida (feita):** clicar na bolsa a expande (quase a tela toda) e abre a área **Criar token**, com tamanho (1×1 a 4×4) e cor (paleta + seletor livre); o token novo nasce guardado na bolsa e é arrastado para o mapa com a bolsa fechada. A bolsa expandida é o lugar das **funções futuras**.
+- **Imagem do token (feita):** escolher uma foto, arrastar/dar zoom num círculo de recorte e confirmar; guarda só uma miniatura WebP de 256 px (a foto original é descartada na hora). O token tem duas cores independentes (preenchimento e borda); a imagem fica por cima do preenchimento, e as partes transparentes herdam a cor de preenchimento. O botão direito numa ficha da bolsa altera ou remove a imagem. Nome, tamanho e cores de um token que já existe se editam pelo clique direito (item "Editar token" no mapa e na ficha da bolsa); a imagem se troca/remove pelo menu da ficha. Em aberto: editar a imagem também pelo token no mapa; quem pode editar um token no multiplayer (só o mestre, ou o dono do token?). Em aberto: formato quadrado (ou outros recortes)?; imagens do token enviadas ao servidor do mestre e aos jogadores (a miniatura de ~10 KB torna isso leve); biblioteca de imagens reaproveitáveis entre tokens; trocar a imagem de um token que já está no mapa (hoje só pela ficha, na bolsa); GIF animado vira um quadro só; resolução 256 px fica mole em zoom acima de ~250%.
+- **Nome do token (feito):** definido ao criar (campo "Nome", até 20 caracteres; vazio vira "Token N") e mostrado na ficha da bolsa. Em aberto: renomear depois; mostrar o nome no token do mapa (ao passar o mouse ou sempre embaixo); nomes repetidos são permitidos?
+- **Ideias para a bolsa expandida:** imagem no lugar da cor (o PixiJS já faz: `Sprite` com máscara circular); editar/apagar/duplicar um token guardado (hoje não dá para apagar um token criado); arrastar da bolsa expandida direto para o mapa (ela fecharia ao pegar a ficha); salvar "modelos" de token (ex.: goblin 1×1 vermelho) para criar vários; limite `MAX_TOKENS` = 100 (muda?); quem pode criar tokens no multiplayer (só o mestre, ou cada jogador na própria carteira?) e quem vê cada ficha.
 - **Multiplayer:** a bolsa é a candidata natural a "carteira" de cada jogador: o que está guardado não aparece para os outros, e o mestre vê todas.
 - Ideias: mostrar as condições na fichinha, dar nome aos tokens, outros itens além de tokens (dinheiro, objetos), recolher/expandir a bolsa, limite de itens.
 - **Em aberto:** a bolsa fica no canto da JANELA (como hoje) ou presa ao mapa? Soltar o token na bolsa deve pedir confirmação?
+
+### Fichas e personagens (planejado; ainda NÃO implementado)
+- **Modelo conversado:** o **personagem** é o objeto que une as peças (token(s), ficha e, depois, itens, a bolsa dele e o dono). Token e ficha podem existir sozinhos e ser ligados depois, **em qualquer ordem** (criar o token e depois a ficha, ou o contrário). Cada ligação fica guardada em UM lugar só (ex.: `token.personagemId` e `ficha.personagemId`; "quais tokens tem este personagem" é uma busca), para nada ficar inconsistente no multiplayer.
+- **Primeira versão (decidido pelo dono): a ficha é só um TEXTO LIVRE.**
+- **Interface desejada pelo dono:** na bolsa, uma **segunda aba "Personagens"**, para criar personagens; dali (e do token) dá para clicar na ficha ou no token e **atribuir um ao outro**.
+- **Ficha FUTURA (só documentada, para não esquecer; não fazer agora): texto livre com ÁREAS separadas e um sistema de cálculo em texto.**
+  - A ficha terá áreas (ex.: atributos, ataques, magias, notas) e **modificadores que são VARIÁVEIS** (ex.: `DEX`, `FOR`, `PROF`), que poderão ser usadas dentro do texto.
+  - **Exemplo do dono:** `Ataque com arma.[1d20 + DEX + FOR + PROF]`. O texto fora dos colchetes é só um rótulo; o que está entre `[ ]` é uma **expressão calculável**: dados (`1d20`), números e variáveis da ficha somados.
+  - Ideias de como funcionaria: (1) a expressão vira um botão/link na ficha, e clicar nela **rola** (reaproveitando `rolarDados` e o cartão de rolagem do chat, que já mostra a fórmula, os dados e o total); (2) as variáveis valem o que está na ficha naquele momento (mudar `DEX` muda todas as fórmulas); (3) a fórmula é lida por um **analisador próprio** de expressões (dados, números, variáveis, `+`/`-`, talvez parênteses e `*`), **nunca `eval`** (segurança: o texto vem de jogadores); (4) no multiplayer, **o servidor sorteia** e calcula, como nos dados de hoje.
+  - Perguntas em aberto desse sistema: sintaxe das áreas e das variáveis; modificador derivado (ex.: `DEX` calculado a partir do atributo, ou digitado direto?); variável inexistente (erro visível na ficha); vantagem/desvantagem e críticos dentro da expressão; dados de dano separados do ataque; condições e bônus temporários que mudam as variáveis.
+- **Em aberto (conversa anterior):** uma ficha pode ter vários tokens (ex.: 5 goblins com a mesma ficha-modelo, cada um com a própria vida)? Quem vê a ficha (só o dono e o mestre, ou uma parte pública)? A ficha mora na mesa ou na conta do jogador (ver a "carteira" e a hospedagem acima)? O personagem precisa existir como objeto próprio desde já?
 
 ### Ideias malucas
 -
@@ -115,8 +211,8 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 ## 6. Tecnologia
 - **Front-end:** PixiJS 8 + TypeScript + Vite (decidido).
 - **Servidor (a decidir):** sugestão de Node.js + TypeScript, para compartilhar tipos e o `estado.ts` / `condicoes.ts` com o front-end.
-- Precisa de banco de dados / login? (sim, para salvar mesas e separar mestre/jogadores; escolha em aberto)
-- Onde vai ficar hospedado?
+- Banco de dados / login: **decidido o desenho** (ver "Hospedagem, contas e salvamento"): estado da mesa em arquivos na máquina do mestre; cadastro/login num site central. Em aberto: qual login (Discord/Google ou senha própria) e onde hospedar o site central.
+- Onde vai ficar hospedado? Servidor de cada mesa: na máquina do mestre, com túnel grátis. Site central: a decidir (hospedagem grátis basta no começo).
 
 ## 7. Conteúdo
 - Textos, imagens, regras de jogos, etc. — quem produz e de onde vem?
@@ -152,9 +248,14 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 - [x] Imagem de fundo (teste fixo, presa ao tabuleiro)
 - [x] Calibrar grade (arrastar um retângulo sobre N×N casas do mapa)
 - [x] Botão "Escolher mapa" (arquivo local; falta enviar ao servidor)
-- [ ] Régua
-- [ ] Desenho livre
-- [ ] Servidor em tempo real (WebSocket) e salas
+- [x] Régua (com curvas)
+- [x] Desenho livre (lápis, borracha e formas)
+- [x] Bolsa de tokens em três tamanhos, com criação, edição, nome, imagem e pesquisa de tokens
+- [x] Dados e chat (interface no navegador; falta o servidor sortear e distribuir)
+- [x] **Protótipo do servidor** (Node + `ws`, na máquina do mestre): dois navegadores veem o mesmo tabuleiro; sincroniza soltar token (mapa e bolsa), chat e dados, com sorteio no servidor e as regras de segurança aplicadas; testado só no próprio computador, com duas abas (`servidor/servidor.ts`, `tests/e2e/rede.teste.mjs`)
+- [ ] Servidor em tempo real: migrar o RESTO das ações (criar e editar tokens, imagens, condições, desenho, régua, mapa, tamanho do tabuleiro), salas, permissões (mestre e jogadores) e salvamento do estado em arquivo (1ª fase)
+- [ ] Túnel (Cloudflare rápido) para os amigos entrarem; testar de verdade
+- [ ] Site central: cadastro/login, código de conexão e token assinado (2ª fase)
 - [ ] Contas e papéis (mestre/jogador) com validação no servidor
-- [ ] Fichas e dados
+- [ ] Fichas de personagem (os dados já existem no navegador)
 - [ ] Esboçar as páginas além da mesa

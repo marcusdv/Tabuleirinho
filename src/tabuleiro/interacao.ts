@@ -4,6 +4,8 @@
 //   - Repassa o movimento do mouse e o soltar para os tokens (arrasto).
 //   - Com uma FERRAMENTA ligada (calibrar grade, régua, lápis, borracha, formas):
 //     o botão esquerdo é dela, e o direito ou o do meio faz o pan.
+//   - Exceção: no MEIO de uma medida (esquerdo apertado), o clique DIREITO vai para a
+//     ferramenta (cliqueDireito): a régua fixa um ponto e continua medindo.
 //
 // Por que mover e soltar ficam no stage e não no token? Se o mouse anda rápido,
 // ele sai de cima do token por um instante, e o token deixaria de receber
@@ -45,6 +47,20 @@ export function ativarInteracao(
     /** A ferramenta que está no meio de um arrasto. */
     const ferramentaArrastando = (): FerramentaDeArrasto | undefined => ferramentas.find((f) => f.medindo);
 
+    // O botão direito está apertado AGORA? Evita tratar o mesmo aperto duas vezes.
+    let direitoApertado = false;
+
+    /**
+     * Botão direito apertado no meio de um arrasto: se a ferramenta usa isso (a régua), ela recebe
+     * o aviso. Devolve true se ela tratou (então o evento NÃO deve virar pan nem outra coisa).
+     */
+    function fixarPonto(): boolean {
+        const ferramenta = ferramentaArrastando();
+        if (!ferramenta?.cliqueDireito) return false;
+        ferramenta.cliqueDireito();
+        return true;
+    }
+
     app.stage.on("pointerdown", (evento: FederatedPointerEvent) => {
         // evento.target é quem recebeu o clique. Se for o próprio stage, o clique
         // foi num espaço vazio (e não num token).
@@ -56,6 +72,11 @@ export function ativarInteracao(
             if (evento.button === 0) {
                 ferramenta.comecar(evento.global);
                 return;
+            }
+            // Direito com uma medida em andamento: fixa um ponto em vez de mover a visão.
+            if (evento.button === 2 && !direitoApertado) {
+                direitoApertado = true;
+                if (fixarPonto()) return;
             }
         } else if (evento.button !== 0) {
             return; // normal: só o botão esquerdo faz pan
@@ -70,6 +91,18 @@ export function ativarInteracao(
     });
 
     app.stage.on("pointermove", (evento: FederatedPointerEvent) => {
+        // Apertar um SEGUNDO botão com o primeiro já apertado NÃO gera "pointerdown" (regra dos eventos
+        // de ponteiro): chega como "pointermove" com `button` = o botão que mudou e `buttons` = os que
+        // estão apertados agora. É assim que pegamos o direito apertado com o esquerdo segurando.
+        if (evento.button === 2) {
+            const apertado = (evento.buttons & 2) !== 0;
+            if (apertado && !direitoApertado) {
+                direitoApertado = true;
+                if (fixarPonto()) return;
+            } else if (!apertado) {
+                direitoApertado = false;
+            }
+        }
         if (panning) {
             // Move a câmera pela DIFERENÇA entre a posição atual do mouse e a
             // anterior. Usamos coordenadas da tela (global), não do mundo,
@@ -86,7 +119,8 @@ export function ativarInteracao(
         tokens.arrastarPara(evento.global);
     });
 
-    function soltar(): void {
+    function soltar(evento?: FederatedPointerEvent): void {
+        if (evento?.button === 2) direitoApertado = false;
         if (panning) {
             // Era um pan: apenas encerra, não há token para encaixar.
             panning = null;

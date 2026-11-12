@@ -14,10 +14,19 @@ const direito = (x, y) => p.mouse.click(x, y, { button: "right" });
 const cruza = (a, c) => a.x < c.x + c.width && a.x + a.width > c.x && a.y < c.y + c.height && a.y + a.height > c.y;
 const dentro = (a) => a.x >= 0 && a.y >= 0 && a.x + a.width <= 1400 && a.y + a.height <= 800;
 
+// Os tokens iniciais mudaram (estado.ts): o token 5 (roxo, coluna 12, linha 6) hoje é 1×1. Este teste quer um token 4×4 ali,
+// então ele cresce pela janela "Editar token" (engrenagem). Bloco depois disso: (892,464), 256 px.
+await p.mouse.click(124 + 12.5 * 64, 80 + 6.5 * 64, { button: "right" });
+await p.click("#engrenagem");
+await p.click("#botao-editar-token");
+await p.click('#editor-token button[data-tamanho="4"]');
+await p.click("#editor-token-salvar");
+await p.waitForTimeout(300);
+
 // Tabuleiro 18x10 a 100%, origem (124,80). Token 5 (roxo 4x4, col 12,row 6): bloco (892,464), largura 256.
 await direito(1020, 592);
 const lista = await caixa("#acoes-token"), eng = await caixa("#engrenagem");
-ok("1a) os 3 itens da lista aparecem, em ordem: Add condição, Add dano, Add cura", (await p.locator("#acoes-token button").allTextContents()).join("|") === "Add condição|Add dano|Add cura");
+ok("1a) os 3 itens da lista aparecem, em ordem: Add condição, Add dano, Add cura (o 'Editar token' fica dentro da engrenagem)", (await p.locator("#acoes-token button").allTextContents()).join("|") === "Add condição|Add dano|Add cura");
 ok("1b) 'Add condição' é o PRIMEIRO (o de cima) da lista", (await caixa("#botao-condicoes")).y < (await caixa("#botao-dano")).y && (await caixa("#botao-dano")).y < (await caixa("#botao-cura")).y);
 ok("1c) a lista está no canto superior ESQUERDO (borda esquerda = x do token, 892)", perto(lista.x, 892), `x=${lista.x}`);
 ok("1d) a base da lista fica 12 px acima do topo do token (y=464 - 12 = 452)", perto(lista.y + lista.height, 452), `base=${(lista.y + lista.height).toFixed(0)}`);
@@ -31,10 +40,11 @@ let pc = await caixa("#menu-condicoes");
 ok("2a) o painel de condições abre ACIMA da lista", pc.y + pc.height <= lista.y - 3, `base do painel ${(pc.y + pc.height).toFixed(0)} <= topo da lista ${lista.y.toFixed(0)}`);
 ok("2b) ...alinhado à esquerda da lista", perto(pc.x, lista.x));
 ok("2c) ...e dentro da janela", dentro(pc));
-// painel de tamanho: abre para cima a partir da engrenagem
+// painel da engrenagem (só 'Editar token'): abre para cima a partir da engrenagem
 await p.click("#engrenagem");
 const pt = await caixa("#menu-token");
-ok("3a) o painel de tamanho abre ACIMA da engrenagem, alinhado à esquerda dela", pt.y + pt.height <= eng.y - 3 && perto(pt.x, eng.x), `base ${(pt.y + pt.height).toFixed(0)} <= ${eng.y.toFixed(0)}; x ${pt.x.toFixed(0)} vs ${eng.x.toFixed(0)}`);
+ok("3a) o painel da engrenagem abre ACIMA dela, alinhado à esquerda dela", pt.y + pt.height <= eng.y - 3 && perto(pt.x, eng.x), `base ${(pt.y + pt.height).toFixed(0)} <= ${eng.y.toFixed(0)}; x ${pt.x.toFixed(0)} vs ${eng.x.toFixed(0)}`);
+ok("3a2) o painel tem o botão 'Editar token' e NÃO tem mais o controle de tamanho (− / +)", (await p.locator("#menu-token button:visible").allTextContents()).join("|") === "Editar token" && (await p.locator("#token-tamanho-mais").count()) === 0);
 ok("3b) só um painel por vez (o de condições fechou)", !(await vis("#menu-condicoes")));
 
 // botões provisórios: não fazem nada (e não quebram)
@@ -54,7 +64,7 @@ await p.screenshot({ path: `${S}/m2_azul_pequeno.png`, clip: { x: 400, y: 250, w
 await p.keyboard.press("Escape");
 
 // todos os tokens: tudo dentro da janela e sem sobreposição
-const tokens = { vermelho: [348, 304], verde: [828, 272], "azul grande": [1180, 240], roxo: [1020, 592] };
+const tokens = { "verde 1×1": [348, 304], "vermelho 2×2": [828, 272], "rosa 1×1": [1116, 176], "roxo 4×4": [1020, 592] };
 for (const [nome, [x, y]] of Object.entries(tokens)) {
   await direito(x, y);
   const l = await caixa("#acoes-token"), e = await caixa("#engrenagem");
@@ -62,9 +72,10 @@ for (const [nome, [x, y]] of Object.entries(tokens)) {
   await p.keyboard.press("Escape");
 }
 
-// crescer o token pela engrenagem: a engrenagem acompanha o canto direito (vermelho 1x1 -> 2x2 -> 3x3)
-await direito(348, 304); await p.click("#engrenagem");
-await p.click("#token-tamanho-mais"); await p.click("#token-tamanho-mais"); // 3x3: bloco (316,240)... largura 192
+// crescer o token pela janela 'Editar token' (engrenagem): a engrenagem acompanha o canto direito (verde 1x1 -> 3x3)
+await direito(348, 304); await p.click("#engrenagem"); await p.click("#botao-editar-token");
+await p.click('#editor-token button[data-tamanho="3"]'); await p.click("#editor-token-salvar"); // 3x3: bloco (316,272), largura 192
+await direito(348, 304); // reabre os botões do token já crescido
 const l3 = await caixa("#acoes-token"), e3 = await caixa("#engrenagem");
 // col 3,row 3 => canto (316, 272); 3x3 => direita = 316 + 192 = 508 => engrenagem.direita = 508
 ok("8) token crescido para 3×3: a engrenagem acompanha o canto superior direito (direita = 508)", perto(e3.x + e3.width, 508) && perto(l3.x, 316), `engrenagem.direita=${(e3.x + e3.width).toFixed(0)} lista.x=${l3.x.toFixed(0)}`);

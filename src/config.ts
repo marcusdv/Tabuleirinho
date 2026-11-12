@@ -20,6 +20,7 @@ export const MAPA_INICIAL: string | null = "/images/maps/lago_arruinado.png";
 
 // --- Régua ---
 export const METROS_POR_CASA = 1.5; // cada casa do tabuleiro vale 1,5 m (5 pés do livro)
+export const MAX_PONTOS_REGUA = 30; // quantos pontos (início + curvas) cabem numa medida da régua
 
 // --- Desenho (lápis, borracha e formas: elipse, retângulo e triângulo, só contorno) ---
 export const ESPESSURA_DESENHO = 4; // espessura do traço, em pixels do MUNDO (cresce e encolhe com o zoom)
@@ -39,7 +40,22 @@ export const AUTOR_PROVISORIO = "Você"; // nome nas mensagens enquanto não há
 export const MAX_MENSAGENS_CHAT = 100; // quantas mensagens são guardadas (as mais antigas saem)
 export const MAX_CARACTERES_MENSAGEM = 72; // limite de caracteres de uma mensagem
 export const DURACAO_ANIMACAO_CHAT = 320; // ms: a mensagem nova entra e as outras deslizam para a direita
+export const SUAVIDADE_ROLAGEM_CHAT = 90; // ms: quanto maior, mais macia (e lenta) a rolagem da roda do mouse no chat; 0 = sem suavização
 export const MAX_CARTOES_ANIMADOS = 20; // só os primeiros cartões (os visíveis) deslizam; os outros estão fora da tela
+
+// --- Rede (protótipo do servidor; ver servidor/servidor.ts e src/protocolo.ts) ---
+export const PORTA_SERVIDOR = 3737; // porta do servidor (o Vite, no desenvolvimento, repassa o endereço /ws para ela). Incomum de propósito: a 3000 costuma estar ocupada por outros projetos
+export const MAX_CARACTERES_APELIDO = 20; // o apelido de quem entra na mesa é cortado a este tamanho
+export const TAMANHO_MAX_MENSAGEM_REDE = 4096; // bytes: o servidor recusa mensagens maiores que isto (os pedidos são pequenos)
+export const MAX_MENSAGENS_POR_SEGUNDO = 40; // por conexão: o excesso é ignorado (e quem insiste é desconectado)
+export const SEGUNDOS_PARA_ENTRAR = 5; // quem conecta e não se apresenta ("entrar") neste tempo é desconectado
+
+// --- Dados (a barra de dados ao lado do chat) ---
+export const DADOS_DISPONIVEIS = [4, 6, 8, 10, 12, 20, 100, 1000]; // d4, d6, d8, d10, d12, d20, d100, d1000
+export const DADO_INICIAL = 20; // dado escolhido ao abrir
+export const MAX_QUANTIDADE_DADOS = 99; // quantos dados de uma vez (mínimo 1)
+export const MAX_MODIFICADOR_DADOS = 99; // o modificador vai de -99 a +99
+export const MAX_DADOS_NO_CARTAO = 12; // o cartão do chat mostra no máximo estes dados individuais (e "…")
 
 // --- Zoom --- (1 = 100%). Cada clique multiplica/divide por PASSO_ZOOM.
 export const ZOOM_MIN = 0.2;
@@ -58,6 +74,34 @@ export const MARGEM_AJUSTE = 24;
 export const TAMANHO_MIN_TOKEN = 1; // um token ocupa no mínimo 1x1 casa
 export const TAMANHO_MAX_TOKEN = 4; // e no máximo 4x4 casas
 export const FOLGA_TOKEN = 6; // espaço (px) entre o círculo do token e a borda do bloco
+export const MAX_TOKENS = 100; // quantos tokens a mesa aceita no total (no mapa + na bolsa)
+export const MAX_CARACTERES_NOME_TOKEN = 20; // o nome do token é cortado a este tamanho
+
+// --- Imagem do token ---
+// A imagem escolhida é RECORTADA e REDUZIDA na hora (como um "print"): só essa miniatura é guardada,
+// e a foto original é descartada. A imagem fica POR CIMA do preenchimento (as partes transparentes
+// mostram a cor de preenchimento) e a borda colorida fica por cima de tudo.
+export const TAMANHO_IMAGEM_TOKEN = 256; // lado (px) da miniatura guardada (um token 4×4 mede ~244 px no zoom 100%)
+export const QUALIDADE_IMAGEM_TOKEN = 0.85; // qualidade do WebP (0 a 1): menor = arquivo mais leve
+export const MAX_CARACTERES_IMAGEM_TOKEN = 150_000; // tamanho máximo do texto da miniatura ("data:image/webp;base64,...")
+export const LARGURA_BORDA_TOKEN = 3; // espessura (px) da borda do token (a mesma com ou sem imagem)
+export const COR_BORDA_INICIAL_TOKEN = 0xffffff; // cor da borda marcada ao abrir a bolsa (branco, como sempre foi)
+export const LADO_MAX_EDICAO_IMAGEM = 2048; // fotos maiores são reduzidas ao abrir o editor (poupa memória)
+export const VISAO_RECORTE = 320; // lado (px) da área do editor de recorte
+export const DIAMETRO_RECORTE = 280; // diâmetro (px) do círculo de recorte dentro dessa área
+// Zoom do recorte: 1 = a imagem mal cobre o círculo. Abaixo de 1 a imagem fica MENOR que o círculo (sobra espaço
+// vazio em volta, que sai transparente e herda o preenchimento do token); acima de 1 aproxima.
+export const ZOOM_MIN_RECORTE = 0.2;
+export const ZOOM_MAX_RECORTE = 6;
+
+// --- Bolsa expandida: criação de tokens ---
+// Paleta de cores do token: as coloridas primeiro; branco e preto, fixos, por último.
+export const CORES_TOKEN = [
+    0xe74c3c, 0xf39c12, 0xf1c40f, 0x2ecc71, 0x1abc9c, 0x3498db,
+    0x9b59b6, 0xf098fb, 0x8d6e63, 0x95a5a6, 0xffffff, 0x000000,
+];
+export const COR_INICIAL_TOKEN = 0x3498db; // cor marcada ao abrir a bolsa
+export const TAMANHO_INICIAL_TOKEN = 1; // tamanho marcado ao abrir a bolsa (1 = 1×1)
 
 // --- Ícones de condições (desenhados em anel na borda do token) ---
 // Diâmetro do ícone = TAMANHO_CASA * (BASE + POR_CASA * size): cresce com o token.

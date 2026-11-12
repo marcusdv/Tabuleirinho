@@ -15,6 +15,7 @@
 //   tabuleiro/calibragem         retângulo de medição para casar a grade com o mapa
 //   ui/painelCalibragem          painel da calibragem (HTML)
 //   ui/chat                      chat embaixo, com as mensagens da esquerda para a direita (HTML)
+//   ui/painelDados               barra de dados grudada à esquerda do chat (HTML)
 //   ui/barra                     barra de ferramentas (HTML)
 //   ui/menuToken                 engrenagem, tamanho e condições do token (HTML)
 //   ui/balaoToken                balão com as condições ao passar o mouse (HTML)
@@ -28,11 +29,19 @@
 import { Application } from "pixi.js";
 import {
     adicionarMensagem,
+    adicionarRolagem,
     alternarCondicao,
+    colocarToken,
+    definirMensagens,
+    guardarToken,
+    receberMensagem,
+    buscarToken,
     apagarTodosDesenhos,
+    criarToken,
+    definirImagemToken,
     definirTamanhoTabuleiro,
+    editarToken,
     estado,
-    mudarTamanhoToken,
     redimensionarTabuleiro,
     type Token,
 } from "./estado";
@@ -48,12 +57,19 @@ import { criarRegua } from "./tabuleiro/regua";
 import { criarTokens } from "./tabuleiro/tokens";
 import { criarBalaoToken } from "./ui/balaoToken";
 import { criarBolsa } from "./ui/bolsa";
+import { criarEditorImagem } from "./ui/editorImagem";
+import { criarEditorToken } from "./ui/editorToken";
+import { rolarDados } from "./dados";
+import type { EventoDoServidor } from "./protocolo";
+import { criarRede, type Rede } from "./rede";
 import { criarChat } from "./ui/chat";
 import { criarBarra } from "./ui/barra";
 import { criarDicaCondicao } from "./ui/dicaCondicao";
 import { criarMenuToken } from "./ui/menuToken";
 import { criarPainelCalibragem } from "./ui/painelCalibragem";
+import { criarPainelDados } from "./ui/painelDados";
 import { criarPainelDesenho, type NomeFerramenta } from "./ui/painelDesenho";
+import { criarStatusRede } from "./ui/statusRede";
 
 async function iniciar(): Promise<void> {
     const app = new Application();
@@ -87,10 +103,31 @@ async function iniciar(): Promise<void> {
 
     const barra = criarBarra(camera, { aoMudarTamanhoTabuleiro, aoAlternarCalibragem: alternarCalibragem, aoEscolherMapa: escolherMapa, aoVoltarAoPadrao: voltarAoPadrao });
 
-    // O chat (embaixo, fixo). Por enquanto só a interface: enviar guarda a mensagem no estado e refaz a faixa.
+    // O modo ONLINE (protótipo, só com ?online no endereço): enquanto `rede.ativa`, as ações abaixo vão para o SERVIDOR, que
+    // valida, aplica e avisa todos; sem isso (ou sem conexão) tudo vale só localmente, como sempre foi.
+    let rede: Rede | null = null;
+
+    // O chat (embaixo, fixo). Local: enviar guarda a mensagem no estado e refaz a faixa. Online: o servidor cria e avisa.
     const chat = criarChat({
         aoEnviar: (texto) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "enviar_mensagem", texto });
+                return;
+            }
             adicionarMensagem(AUTOR_PROVISORIO, texto); // 1) estado
+            chat.atualizar(); // 2) interface
+        },
+    });
+
+    // A barra de dados (grudada à esquerda do chat): rola e coloca o resultado no chat.
+    // Local: o sorteio é aqui, no navegador. Online: o SERVIDOR sorteia (senão dava para trapacear). Ver dados.ts.
+    criarPainelDados({
+        aoRolar: (lados, quantidade, modificador) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "rolar_dados", lados, quantidade, modificador });
+                return;
+            }
+            adicionarRolagem(AUTOR_PROVISORIO, rolarDados(lados, quantidade, modificador)); // 1) estado
             chat.atualizar(); // 2) interface
         },
     });
@@ -111,9 +148,27 @@ async function iniciar(): Promise<void> {
     // e pelo balão do token.
     const dica = criarDicaCondicao();
 
+    // O editor de recorte da imagem do token (arrastar, zoom, confirmar).
+    const editorImagem = criarEditorImagem();
+
+    // A janela de edição do token (nome, tamanho e cores): abre pelo menu do token (mapa) e pelo da ficha (bolsa).
+    const editorToken = criarEditorToken({
+        aoSalvar: (id, mudancas) => {
+            const token = editarToken(id, mudancas); // 1) estado
+            if (!token) return;
+            tokens.redesenhar(token); // 2) desenho no mapa (o token pode estar escondido, guardado)
+            menu.atualizar(); // 3) os botões do token acompanham o novo tamanho
+            bolsa.atualizar(); // 4) a ficha da bolsa
+        },
+        editarImagem: (arquivo, corFundo) => editorImagem.editar(arquivo, corFundo),
+    });
+
     const menu = criarMenuToken({
         ancora: (id) => tokens.ancoraNaTela(id), // "tokens" já existe quando isto for chamado
-        aoMudarTamanho: mudarTamanhoDoToken,
+        aoEditar: (id) => {
+            const token = buscarToken(id);
+            if (token) editorToken.editar(token);
+        },
         aoAlternarCondicao: alternarCondicaoDoToken,
         dica,
     });
@@ -132,12 +187,36 @@ async function iniciar(): Promise<void> {
         },
         aoArrastar: (ponto) => tokens.arrastarPara(ponto),
         aoSoltar: () => tokens.soltar(),
+        aoCriarToken: ({ nome, cor, corBorda, tamanho, imagem }) => {
+            const token = criarToken(cor, tamanho, nome, imagem, corBorda); // 1) estado (o token nasce guardado na bolsa)
+            if (token) tokens.adicionar(token); // 2) desenho (escondido, até ser colocado no mapa)
+            return token; // a bolsa refaz a própria lista
+        },
+        aoAbrir: () => {
+            menu.fechar(); // menus e balões ficariam soltos por baixo da bolsa expandida
+            balao.esconder();
+        },
+        aoEditar: (token) => editorToken.editar(token),
+        editarImagem: (arquivo, corFundo) => editorImagem.editar(arquivo, corFundo),
+        aoMudarImagem: (id, imagem) => {
+            const token = definirImagemToken(id, imagem); // 1) estado
+            if (!token) return;
+            tokens.redesenhar(token); // 2) desenho no mapa (o token pode estar escondido, guardado)
+            bolsa.atualizar(); // 3) a ficha da bolsa
+        },
     });
 
     const tokens = criarTokens(camera, grade, texturas, {
         sobreBolsa: (ponto) => bolsa.contem(ponto),
         aoMudarSobreBolsa: (sobre) => bolsa.marcarAlvo(sobre),
         aoMudarBolsa: () => bolsa.atualizar(),
+        aoMostrarSobreBolsa: (token, centro, diametro, borda) => bolsa.mostrarFantasma(token, centro, diametro, borda),
+        aoEsconderSobreBolsa: () => bolsa.esconderFantasma(),
+        // Online: o token já mudou aqui (para o arrasto ficar fluido) e o servidor é avisado; ele confere e avisa todos.
+        aoSoltarToken: (token) => {
+            if (!rede?.ativa) return;
+            rede.enviar(token.guardado ? { tipo: "guardar_token", id: token.id } : { tipo: "colocar_token", id: token.id, col: token.col, row: token.row });
+        },
         aoIniciarArrasto: () => {
             menu.fechar();
             balao.esconder();
@@ -261,14 +340,6 @@ async function iniciar(): Promise<void> {
         else painelCalibragem.fechar();
     }
 
-    /** Botões de tamanho do token no menu: muda o ESTADO e atualiza o desenho. */
-    function mudarTamanhoDoToken(id: number, delta: number): void {
-        const token = mudarTamanhoToken(id, delta); // 1) estado (null = nada mudou)
-        if (!token) return;
-        tokens.redesenhar(token); // 2) desenho
-        menu.atualizar(); // os botões acompanham o novo tamanho
-    }
-
     /** Clique numa condição do menu: liga/desliga no ESTADO e redesenha os ícones do token. */
     function alternarCondicaoDoToken(id: number, condicaoId: string): void {
         const token = alternarCondicao(id, condicaoId); // 1) estado (null = token/condição inexistente)
@@ -285,11 +356,74 @@ async function iniciar(): Promise<void> {
     // O mapa carrega por último: o tabuleiro já aparece e a imagem entra quando chegar.
     await mapa.carregar();
 
+    // --- Modo online (protótipo): só liga com ?online no endereço, ex.: /?online&nome=Ana ---
+    const parametros = new URLSearchParams(location.search);
+    if (parametros.has("online")) {
+        const status = criarStatusRede();
+        /** Um evento do servidor: aplica no ESTADO (as mesmas funções de estado.ts) e atualiza o desenho. */
+        const aplicarEventoDoServidor = (evento: EventoDoServidor): void => {
+            switch (evento.tipo) {
+                case "estado_inicial":
+                    // Neste protótipo os tokens do servidor e os locais são os mesmos (mesmos ids): copia onde cada um está.
+                    for (const remoto of evento.tokens) {
+                        const local = buscarToken(remoto.id);
+                        if (!local) continue;
+                        if (remoto.guardado) guardarToken(local.id);
+                        else colocarToken(local.id, remoto.col, remoto.row);
+                        tokens.aplicarPosicao(local);
+                    }
+                    definirMensagens(evento.mensagens);
+                    chat.atualizar();
+                    bolsa.atualizar();
+                    status.mostrarEntrada(evento.voce.apelido);
+                    return;
+                case "jogadores":
+                    status.mostrarJogadores(evento.lista);
+                    return;
+                case "token_colocado": {
+                    const token = buscarToken(evento.id);
+                    if (!token) return;
+                    colocarToken(token.id, evento.col, evento.row);
+                    tokens.aplicarPosicao(token);
+                    bolsa.atualizar();
+                    return;
+                }
+                case "token_guardado": {
+                    const token = buscarToken(evento.id);
+                    if (!token) return;
+                    guardarToken(token.id);
+                    tokens.aplicarPosicao(token);
+                    bolsa.atualizar();
+                    return;
+                }
+                case "mensagem":
+                    receberMensagem(evento.mensagem); // já vem pronta do servidor (com id e hora dele)
+                    chat.atualizar();
+                    return;
+                case "erro":
+                    status.mostrarErro(evento.motivo);
+                    return;
+            }
+        };
+        rede = criarRede({
+            apelido: parametros.get("nome") ?? "Jogador",
+            aoReceber: aplicarEventoDoServidor,
+            aoMudarConexao: (conectada) => status.mostrarConexao(conectada),
+        });
+    }
+
     // SÓ no modo de desenvolvimento (npm run dev; some na versão final): deixa os testes automáticos
     // (tests/e2e) saberem quando a página está pronta e lerem o estado e a câmera direto, em vez de
     // esperar tempos fixos e medir pixels. Não é usado pelo site.
     if (import.meta.env.DEV) {
-        (window as unknown as Record<string, unknown>).__tabuleirinho = { pronto: true, estado, camera };
+        (window as unknown as Record<string, unknown>).__tabuleirinho = {
+            pronto: true,
+            estado,
+            camera,
+            get rede() {
+                return rede;
+            },
+        };
     }
 }
 

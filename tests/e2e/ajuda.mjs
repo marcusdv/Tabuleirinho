@@ -45,9 +45,9 @@ const MAPA_DE_TESTE = (() => {
  * Abre o site na página `p` e espera ele avisar que está pronto (sem esperas fixas).
  * O mapa de verdade é trocado pelo mapa de teste; mapas escolhidos por arquivo (blob:) não são trocados.
  */
-export async function abrirPagina(p) {
+export async function abrirPagina(p, consulta = "") {
     await p.route("**/images/maps/*.png", (rota) => rota.fulfill({ status: 200, contentType: "image/png", body: MAPA_DE_TESTE }));
-    await p.goto(URL_SITE);
+    await p.goto(URL_SITE + consulta); // `consulta` = o que vem depois do endereço, ex.: "?online&nome=Ana" (modo online)
     await p.waitForFunction(() => window.__tabuleirinho?.pronto === true, null, { timeout: 30000 });
 }
 

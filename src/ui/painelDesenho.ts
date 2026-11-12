@@ -113,7 +113,7 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
     const alternar = pegar<HTMLButtonElement>("desenho-alternar");
     alternar.addEventListener("click", () => {
         const recolhido = painel.classList.toggle("recolhida");
-        alternar.textContent = recolhido ? "›" : "‹"; // a seta aponta para onde o painel vai
+        alternar.textContent = recolhido ? "▾" : "▴"; // ▾ = expandir (para baixo), ▴ = recolher
         alternar.title = recolhido ? "Expandir painel" : "Recolher painel";
         alternar.setAttribute("aria-expanded", String(!recolhido));
     });

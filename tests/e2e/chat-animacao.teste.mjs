@@ -71,14 +71,6 @@ const fimB = await p.evaluate(() => ({ xs: Array.from(document.querySelectorAll(
 ok("B2) no fim tudo assenta: ordem crescente em x, sem animações nem transform residual", fimB.xs.every((x, i) => i === 0 || x > fimB.xs[i - 1]) && fimB.animacoes === 0 && fimB.transforms.every((t) => t === "none"), `${fimB.animacoes} animações`);
 ok("B3) o cartão mais novo está encostado na ponta esquerda da faixa", perto(fimB.xs[0], (await p.locator("#chat-faixa").boundingBox()).x, 1.5));
 
-// ================= C) a faixa estava rolada para a direita: ao chegar mensagem, volta ao início
-for (let i = 1; i <= 8; i++) { await enviar(p, `extra ${i}`); await p.waitForTimeout(60); } // garante que há o que rolar
-await p.waitForTimeout(500);
-const fx = await p.locator("#chat-faixa").boundingBox(); await p.mouse.move(fx.x + fx.width / 2, fx.y + fx.height / 2); await p.mouse.wheel(0, 400); await p.waitForTimeout(250);
-const rolada = await p.locator("#chat-faixa").evaluate((f) => f.scrollLeft);
-await enviar(p, "com a faixa rolada"); await p.waitForTimeout(500);
-ok("C) com a faixa rolada para as antigas, a mensagem nova leva ao início (scrollLeft 0) e aparece", rolada > 100 && (await p.locator("#chat-faixa").evaluate((f) => f.scrollLeft)) === 0 && (await p.locator(".chat-mensagem p").first().textContent()) === "com a faixa rolada", `rolada ${rolada.toFixed(0)} → 0`);
-
 // ================= D) a primeira mensagem (faixa vazia) também anima
 await p.close();
 p = await abrir();

@@ -4,7 +4,7 @@
 // sozinhas e, no futuro, reaproveitadas no servidor.
 // =====================================================================
 
-import { ESPACO_ICONES, ICONE_CONDICAO_BASE, ICONE_CONDICAO_POR_CASA, PARTE_VISIVEL_CAMERA, TAMANHO_CASA } from "./config";
+import { ESPACO_ICONES, ICONE_CONDICAO_BASE, ICONE_CONDICAO_POR_CASA, PARTE_VISIVEL_CAMERA, TAMANHO_CASA } from "./config.ts";
 
 /** Limita um valor ao intervalo [min, max]. */
 export function limitar(valor: number, min: number, max: number): number {

@@ -3,8 +3,8 @@
 // Todas as medidas estão em CASAS, como no estado.
 // =====================================================================
 
-import { METROS_POR_CASA } from "./config";
-import type { Desenho, Ponto } from "./estado";
+import { METROS_POR_CASA } from "./config.ts";
+import type { Desenho, Ponto } from "./estado.ts";
 
 /** Distância do ponto `p` ao segmento de `a` até `b`. */
 function distanciaAoSegmento(p: Ponto, a: Ponto, b: Ponto): number {
