@@ -81,6 +81,11 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 - Rolagem de dados e chat.
 - Fog of war e iluminação dinâmica.
 
+### Chat (só a interface feita; ideias e perguntas)
+- Já existe: faixa horizontal embaixo (a mais nova à esquerda), campo com limite de 72 caracteres, animações e barra de rolagem própria. Ainda é local: nada é enviado a outros jogadores.
+- **Próximo:** rolagem de dados no chat (ex.: `/r 1d20+3`, ou botões de dado), mostrando o resultado em cartões diferentes das mensagens; o servidor deve sortear os dados (validar no servidor, como o resto).
+- **Em aberto:** (1) 72 caracteres basta para comandos e falas (ex.: `/r 2d6+1d4+5` cabe)? (2) mensagens privadas (sussurro) entre jogador e mestre; (3) histórico guardado no servidor e por quanto tempo; (4) nomes e cores dos jogadores nas mensagens (hoje "Você"); (5) o chat recolher/expandir como os outros painéis.
+
 ### Régua e desenho (feitos; ideias e perguntas)
 - Já funciona: régua (1 casa = 1,5 m), lápis, borracha, elipse, retângulo, triângulo, cores recentes e "Apagar tudo".
 - **Em aberto:** (1) a diagonal da régua conta 1 casa; preferem a regra 5-10-5 do D&D (a cada duas diagonais, uma conta dobrada)? (2) a borracha apaga o desenho inteiro; querem apagar pedaços (pixel a pixel)? (3) as formas não "encaixam" na grade; querem encaixe nos cantos das casas (útil para áreas de magia)? (4) círculo/cone/linha de área de efeito como formas prontas; (5) desfazer/refazer; (6) quem pode desenhar: só o mestre, ou cada jogador (e se os desenhos podem ser privados); (7) os desenhos ainda não são salvos nem enviados (entram junto com o servidor).

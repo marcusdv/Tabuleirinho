@@ -5,7 +5,7 @@
 // navegadores apenas desenharão o que vier daqui.
 // =====================================================================
 
-import { COLUNAS_INICIAIS, LINHAS_INICIAIS, MAPA_INICIAL, MAX_CASAS, MIN_CASAS, TAMANHO_MAX_TOKEN, TAMANHO_MIN_TOKEN } from "./config";
+import { COLUNAS_INICIAIS, LINHAS_INICIAIS, MAPA_INICIAL, MAX_CARACTERES_MENSAGEM, MAX_CASAS, MAX_MENSAGENS_CHAT, MIN_CASAS, TAMANHO_MAX_TOKEN, TAMANHO_MIN_TOKEN } from "./config";
 import { buscarCondicao } from "./condicoes";
 import { limitar } from "./coordenadas";
 
@@ -34,6 +34,8 @@ export const estado = {
     mapa: (MAPA_INICIAL ? { url: MAPA_INICIAL } : null) as { url: string } | null,
     // Pinturas feitas no mapa (lápis e formas), da mais antiga para a mais nova.
     desenhos: [] as Desenho[],
+    // Mensagens do chat, da mais antiga para a mais nova.
+    mensagens: [] as Mensagem[],
     tokens: [
         { id: 1, col: 3, row: 3, cor: 0xe74c3c, size: 1, condicoes: [], guardado: false }, // vermelho
         { id: 2, col: 6, row: 5, cor: 0x3498db, size: 1, condicoes: [], guardado: false }, // azul
@@ -42,6 +44,32 @@ export const estado = {
         { id: 5, col: 12, row: 6, cor: 0x9b59b6, size: 4, condicoes: [], guardado: false }, // roxo 4x4
     ] as Token[],
 };
+
+/** Uma mensagem do chat. */
+export interface Mensagem {
+    id: number;
+    autor: string;
+    texto: string;
+    hora: number; // quando foi enviada (milissegundos desde 1970, como Date.now())
+}
+
+let proximoIdMensagem = 1;
+
+
+/**
+ * Guarda uma mensagem do chat (as mais antigas saem quando passa de MAX_MENSAGENS_CHAT).
+ * No multiplayer, aqui enviaremos o evento "enviar_mensagem" ao servidor.
+ * Devolve a mensagem criada, ou null se o texto está vazio ou passa de MAX_CARACTERES_MENSAGEM caracteres
+ * (a regra também vale aqui, e não só na interface: o servidor precisará dela).
+ */
+export function adicionarMensagem(autor: string, texto: string): Mensagem | null {
+    const limpo = texto.trim();
+    if (limpo === "" || limpo.length > MAX_CARACTERES_MENSAGEM) return null;
+    const mensagem: Mensagem = { id: proximoIdMensagem++, autor, texto: limpo, hora: Date.now() };
+    estado.mensagens.push(mensagem);
+    if (estado.mensagens.length > MAX_MENSAGENS_CHAT) estado.mensagens.splice(0, estado.mensagens.length - MAX_MENSAGENS_CHAT);
+    return mensagem;
+}
 
 /** Um ponto em CASAS (pode ser fracionário: 3,5 = o meio da quarta casa). */
 export interface Ponto {

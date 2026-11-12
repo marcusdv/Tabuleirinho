@@ -14,6 +14,7 @@
 //   tabuleiro/interacao          eventos do mouse no palco (pan)
 //   tabuleiro/calibragem         retângulo de medição para casar a grade com o mapa
 //   ui/painelCalibragem          painel da calibragem (HTML)
+//   ui/chat                      chat embaixo, com as mensagens da esquerda para a direita (HTML)
 //   ui/barra                     barra de ferramentas (HTML)
 //   ui/menuToken                 engrenagem, tamanho e condições do token (HTML)
 //   ui/balaoToken                balão com as condições ao passar o mouse (HTML)
@@ -26,6 +27,7 @@
 
 import { Application } from "pixi.js";
 import {
+    adicionarMensagem,
     alternarCondicao,
     apagarTodosDesenhos,
     definirTamanhoTabuleiro,
@@ -34,7 +36,7 @@ import {
     redimensionarTabuleiro,
     type Token,
 } from "./estado";
-import { COLUNAS_INICIAIS, LINHAS_INICIAIS } from "./config";
+import { AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS } from "./config";
 import { criarCalibragem } from "./tabuleiro/calibragem";
 import { criarCamera } from "./tabuleiro/camera";
 import { criarDesenho, type FerramentaDesenho } from "./tabuleiro/desenho";
@@ -46,6 +48,7 @@ import { criarRegua } from "./tabuleiro/regua";
 import { criarTokens } from "./tabuleiro/tokens";
 import { criarBalaoToken } from "./ui/balaoToken";
 import { criarBolsa } from "./ui/bolsa";
+import { criarChat } from "./ui/chat";
 import { criarBarra } from "./ui/barra";
 import { criarDicaCondicao } from "./ui/dicaCondicao";
 import { criarMenuToken } from "./ui/menuToken";
@@ -83,6 +86,14 @@ async function iniciar(): Promise<void> {
     });
 
     const barra = criarBarra(camera, { aoMudarTamanhoTabuleiro, aoAlternarCalibragem: alternarCalibragem, aoEscolherMapa: escolherMapa, aoVoltarAoPadrao: voltarAoPadrao });
+
+    // O chat (embaixo, fixo). Por enquanto só a interface: enviar guarda a mensagem no estado e refaz a faixa.
+    const chat = criarChat({
+        aoEnviar: (texto) => {
+            adicionarMensagem(AUTOR_PROVISORIO, texto); // 1) estado
+            chat.atualizar(); // 2) interface
+        },
+    });
 
     const painelCalibragem = criarPainelCalibragem({ aoConcluir: () => ligarCalibragem(false) });
 
@@ -273,6 +284,13 @@ async function iniciar(): Promise<void> {
 
     // O mapa carrega por último: o tabuleiro já aparece e a imagem entra quando chegar.
     await mapa.carregar();
+
+    // SÓ no modo de desenvolvimento (npm run dev; some na versão final): deixa os testes automáticos
+    // (tests/e2e) saberem quando a página está pronta e lerem o estado e a câmera direto, em vez de
+    // esperar tempos fixos e medir pixels. Não é usado pelo site.
+    if (import.meta.env.DEV) {
+        (window as unknown as Record<string, unknown>).__tabuleirinho = { pronto: true, estado, camera };
+    }
 }
 
 iniciar();

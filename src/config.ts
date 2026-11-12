@@ -34,6 +34,13 @@ export const COR_INICIAL_DESENHO = 0xff5252;
 export const CORES_RECENTES_INICIAIS = [0xff5252, 0xff9800, 0xffd54f, 0x4caf50, 0x29b6f6, 0x7e57c2];
 export const CORES_FIXAS_DESENHO = [0xffffff, 0x000000];
 
+// --- Chat ---
+export const AUTOR_PROVISORIO = "Você"; // nome nas mensagens enquanto não há contas de usuário
+export const MAX_MENSAGENS_CHAT = 100; // quantas mensagens são guardadas (as mais antigas saem)
+export const MAX_CARACTERES_MENSAGEM = 72; // limite de caracteres de uma mensagem
+export const DURACAO_ANIMACAO_CHAT = 320; // ms: a mensagem nova entra e as outras deslizam para a direita
+export const MAX_CARTOES_ANIMADOS = 20; // só os primeiros cartões (os visíveis) deslizam; os outros estão fora da tela
+
 // --- Zoom --- (1 = 100%). Cada clique multiplica/divide por PASSO_ZOOM.
 export const ZOOM_MIN = 0.2;
 export const ZOOM_MAX = 3;
