@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Tabuleirinho</title>
+    <style>
+      /* Remove a margem padrão e esconde barras de rolagem. */
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1a1f; }
+      body { font-family: system-ui, sans-serif; color: #e6e6ea; }
+
+      /* O atributo "hidden" precisa vencer o display definido por outras regras. */
+      [hidden] { display: none !important; }
+
+      /* O PixiJS cria o <canvas> dentro desta div, que ocupa a janela inteira.
+         A barra de ferramentas e os menus flutuam POR CIMA dele (position: fixed). */
+      #app { width: 100%; height: 100%; }
+
+      /* ===================================================================
+         BARRA DE FERRAMENTAS: flutuante, fixa na direita, retrátil
+         =================================================================== */
+      #barra {
+        position: fixed; /* fica parada na janela, não acompanha pan/zoom */
+        top: 12px;
+        right: 12px;
+        z-index: 10; /* acima do canvas */
+        width: 156px;
+        box-sizing: border-box;
+        padding: 10px;
+        background: rgba(34, 34, 42, 0.94);
+        border: 1px solid #3a3a45;
+        border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        user-select: none; /* evita selecionar texto ao clicar rápido */
+      }
+
+      /* Cabeçalho: título à esquerda e botão de recolher à direita. */
+      .cabecalho { display: flex; align-items: center; justify-content: space-between; }
+      .cabecalho h1 {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #c9c9d4;
+      }
+      #barra-alternar {
+        width: 26px; height: 26px;
+        border: 1px solid #4a4a58; border-radius: 6px;
+        background: #2f2f3a; color: inherit;
+        font-size: 16px; line-height: 1; cursor: pointer;
+      }
+      #barra-alternar:hover { background: #3b3b49; }
+
+      /* Conteúdo (grupos de botões), escondido quando a barra está recolhida. */
+      .conteudo { display: flex; flex-direction: column; gap: 16px; margin-top: 12px; }
+
+      /* Recolhida: sobra só o botão de reabrir, num quadradinho flutuante. */
+      #barra.recolhida { width: auto; padding: 6px; }
+      #barra.recolhida h1,
+      #barra.recolhida .conteudo { display: none; }
+
+      .conteudo h2 {
+        margin: 0 0 6px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #9a9aa8;
+      }
+
+      /* Uma linha: [ − ]  valor  [ + ]  (usada na barra e no menu do token) */
+      .controle { display: flex; align-items: center; gap: 6px; }
+      .controle span { flex: 1; text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; }
+      /* Número que também pode ser DIGITADO (colunas e linhas). Sem as setinhas do navegador. */
+      .controle input {
+        flex: 1; width: 0; min-width: 0; height: 32px; box-sizing: border-box;
+        padding: 0 2px; text-align: center;
+        font: inherit; font-size: 14px; font-variant-numeric: tabular-nums;
+        color: inherit; background: #26262f;
+        border: 1px solid #3a3a45; border-radius: 6px;
+        appearance: textfield; -moz-appearance: textfield;
+      }
+      .controle input:focus { outline: none; border-color: #ffd54f; }
+      .controle input::-webkit-inner-spin-button,
+      .controle input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+      .controle button {
+        width: 32px; height: 32px;
+        border: 1px solid #4a4a58; border-radius: 6px;
+        background: #2f2f3a; color: inherit;
+        font-size: 18px; line-height: 1; cursor: pointer;
+      }
+      .controle button:hover:not(:disabled) { background: #3b3b49; }
+      .controle button:active:not(:disabled) { background: #46465a; }
+      .controle button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+      /* Botão de largura total, abaixo de um controle (ex.: "Ajustar à tela"). */
+      .botao-largo {
+        width: 100%; height: 28px; margin-top: 6px;
+        border: 1px solid #4a4a58; border-radius: 6px;
+        background: #2f2f3a; color: inherit;
+        font: inherit; font-size: 12px; cursor: pointer;
+      }
+      .botao-largo:hover:not(:disabled) { background: #3b3b49; }
+      .botao-largo:disabled { opacity: 0.35; cursor: not-allowed; }
+      /* Botão de ferramenta ligada (ex.: "Calibrar grade" em uso). */
+      .botao-largo.ativo { background: #5a4a1f; border-color: #ffd54f; }
+
+      /* Painel da calibragem da grade: fixo no canto inferior direito, abaixo da barra de ferramentas. */
+      #painel-calibragem {
+        width: 340px; max-width: calc(100vw - 24px);
+        box-sizing: border-box;
+        padding: 12px 14px;
+        background: rgba(34, 34, 42, 0.96);
+        border: 1px solid #ffd54f; border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        font-size: 13px; line-height: 1.45;
+        user-select: none;
+      }
+      /* Janela baixa: o painel não cabe acima da bolsa sem cobrir a barra, então vai para baixo, ao lado do painel de desenho. */
+      @media (max-height: 720px) {
+        #painel-calibragem { position: fixed; left: 180px; bottom: 12px; z-index: 10; } /* 180 = ao lado do painel de desenho (12 + 156 + folga) */
+      }
+
+      /* ===================================================================
+         PAINEL DE DESENHO: flutuante, fixo na esquerda, retrátil (como a barra da direita)
+         =================================================================== */
+      #ferramentas-desenho {
+        position: fixed; top: 12px; left: 12px; z-index: 10;
+        width: 156px; box-sizing: border-box; padding: 10px;
+        background: rgba(34, 34, 42, 0.94);
+        border: 1px solid #3a3a45; border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        user-select: none;
+      }
+      #ferramentas-desenho.recolhida { width: auto; padding: 6px; }
+      #ferramentas-desenho.recolhida h1,
+      #ferramentas-desenho.recolhida .conteudo { display: none; }
+      #desenho-alternar {
+        width: 26px; height: 26px;
+        border: 1px solid #4a4a58; border-radius: 6px;
+        background: #2f2f3a; color: inherit;
+        font-size: 16px; line-height: 1; cursor: pointer;
+      }
+      #desenho-alternar:hover { background: #3b3b49; }
+      #ferramentas-desenho .conteudo { gap: 12px; }
+      #lista-ferramentas { display: flex; flex-direction: column; gap: 4px; }
+      #lista-ferramentas .botao-largo { margin: 0; height: 28px; text-align: left; padding: 0 10px; }
+      #desenho-amostras { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+      .amostra {
+        height: 22px; border-radius: 5px; padding: 0; cursor: pointer;
+        border: 1px solid #5a5a68;
+      }
+      .amostra.escolhida { outline: 2px solid #ffd54f; outline-offset: 1px; }
+      #desenho-cor { width: 100%; height: 26px; margin-top: 6px; padding: 0; border: 1px solid #4a4a58; border-radius: 6px; background: #2f2f3a; cursor: pointer; }
+      #regua-resultado { margin-top: 6px; font-size: 12px; color: #ffd54f; }
+      #desenho-apagar-tudo { margin-top: 0; border-color: #7a3a3a; color: #ff9a9a; }
+      #desenho-apagar-tudo:hover:not(:disabled) { background: #4a2a2a; }
+
+      /* Canto inferior direito: o painel da calibragem (quando ligado) fica EM CIMA da bolsa. */
+      #canto-inferior-direito {
+        position: fixed; right: 12px; bottom: 12px; z-index: 10;
+        display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+      }
+
+      /* Bolsa: guarda tokens. Arraste um token do mapa para cá; arraste uma fichinha daqui para o mapa. */
+      #bolsa {
+        width: 220px; box-sizing: border-box;
+        padding: 8px 10px 10px;
+        background: rgba(34, 34, 42, 0.94);
+        border: 1px solid #3a3a45; border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        user-select: none;
+      }
+      #bolsa.alvo { border-color: #ffd54f; background: rgba(70, 60, 25, 0.96); } /* "pode soltar aqui" */
+      #bolsa h2 {
+        margin: 0 0 6px; font-size: 11px; font-weight: 600;
+        letter-spacing: 0.08em; text-transform: uppercase; color: #9a9aa8;
+      }
+      #bolsa-vazia { margin: 0; font-size: 12px; color: #7d7d8c; }
+      #bolsa-itens { display: flex; flex-wrap: wrap; gap: 8px; max-height: 120px; overflow-y: auto; }
+      .ficha {
+        display: flex; flex-direction: column; align-items: center; gap: 2px;
+        padding: 4px; width: 52px; box-sizing: border-box;
+        background: #2f2f3a; color: inherit; font: inherit;
+        border: 1px solid #4a4a58; border-radius: 8px;
+        cursor: grab; touch-action: none;
+      }
+      .ficha:hover { background: #3b3b49; }
+      .ficha .disco { width: 30px; height: 30px; border-radius: 50%; border: 2px solid #fff; box-sizing: border-box; }
+      .ficha small { font-size: 11px; color: #c9c9d4; }
+      #painel-calibragem h2 { margin: 0 0 6px; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: #ffd54f; }
+      #painel-calibragem p { margin: 0 0 8px; color: #c9c9d4; }
+      #painel-calibragem p.secundario { color: #9a9aa8; }
+      #painel-calibragem input {
+        width: 54px; padding: 2px 4px; box-sizing: border-box;
+        background: #2f2f3a; color: inherit; font: inherit; text-align: center;
+        border: 1px solid #4a4a58; border-radius: 4px;
+      }
+      #calibragem-resultado { margin-bottom: 10px; font-variant-numeric: tabular-nums; }
+      #painel-calibragem .botao-largo { width: auto; margin: 0; padding: 0 14px; }
+
+      /* ===================================================================
+         BOTÕES DO TOKEN: aparecem ao clicar com o botão DIREITO num token.
+           - engrenagem: canto superior DIREITO do token;
+           - lista de ações ("Add condição", ...): canto superior ESQUERDO, uma embaixo da outra.
+         A posição (left/top) de cada um vem do menuToken.ts.
+         =================================================================== */
+      #acoes-token {
+        position: fixed;
+        z-index: 20;
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 4px;
+      }
+      #engrenagem, .acao-token {
+        height: 28px;
+        border: 1px solid #4a4a58;
+        background: #22222a; color: #e6e6ea;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+        cursor: pointer;
+      }
+      #engrenagem:hover, .acao-token:hover { background: #33333f; }
+      #engrenagem {
+        position: fixed; z-index: 20;
+        width: 28px; padding: 0;
+        display: flex; align-items: center; justify-content: center;
+        border-radius: 50%;
+      }
+      #engrenagem .furo { fill: #22222a; } /* o "buraco" no meio da engrenagem */
+      #engrenagem:hover .furo { fill: #33333f; }
+      .acao-token {
+        padding: 0 11px;
+        border-radius: 14px;
+        font: inherit; font-size: 12px; font-weight: 600;
+        white-space: nowrap;
+      }
+
+      /* ===================================================================
+         PAINÉIS FLUTUANTES: menu de tamanho, menu de condições e o balão
+         =================================================================== */
+      .painel {
+        position: fixed;
+        z-index: 20;
+        box-sizing: border-box;
+        padding: 10px;
+        background: rgba(34, 34, 42, 0.97);
+        border: 1px solid #3a3a45;
+        border-radius: 10px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+        user-select: none;
+      }
+      .painel h1 {
+        margin: 0 0 10px;
+        font-size: 12px; font-weight: 600;
+        letter-spacing: 0.08em; text-transform: uppercase;
+        color: #c9c9d4;
+      }
+      .painel h2 {
+        margin: 0 0 6px;
+        font-size: 11px; font-weight: 600;
+        letter-spacing: 0.08em; text-transform: uppercase;
+        color: #9a9aa8;
+      }
+      #menu-token { width: 150px; }
+
+      /* --- Menu de condições: grade de 4 colunas (ícone + nome) --- */
+      /* A largura do painel se ajusta ao NOME MAIS COMPRIDO ("max-content"), seja qual for a
+         fonte do sistema (as monoespaçadas são bem mais largas). Assim nenhum nome quebra de
+         linha. O max-width só evita passar da janela. */
+      /* Coluna: o título fica fixo e só a grade rola quando o painel precisa ser menor que o conteúdo
+         (o max-height é calculado pelo menuToken.ts conforme o espaço livre acima dos botões).
+         O padding-right menor compensa o espaço reservado para a barra de rolagem da grade. */
+      #menu-condicoes { width: max-content; max-width: calc(100vw - 12px); display: flex; flex-direction: column; padding-right: 2px; }
+      #menu-condicoes h1 { flex-shrink: 0; }
+      /* 4 colunas iguais: num container "max-content", "1fr" dá a todas a largura do maior
+         nome (com minmax(0, 1fr) elas ficariam espremidas ao tamanho do painel). */
+      #grade-condicoes {
+        display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+        min-height: 0; overflow-y: auto; overflow-x: hidden;
+        scrollbar-width: thin; scrollbar-color: #5a5a6a transparent;
+        scrollbar-gutter: stable; /* reserva o espaço da barra: as colunas não mudam de largura ao rolar */
+      }
+      .condicao {
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        padding: 6px 8px; /* folga nos lados, para o nome não encostar na borda do botão */
+        border: 1px solid #4a4a58; border-radius: 8px;
+        background: #2f2f3a; color: inherit;
+        font: inherit; font-size: 10px; line-height: 1.1;
+        cursor: pointer;
+      }
+      .condicao:hover { background: #3b3b49; }
+      /* O nome nunca quebra de linha: é o painel que cresce para acomodá-lo. */
+      .condicao span { white-space: nowrap; text-align: center; }
+      /* Os ícones são pretos/brancos com fundo transparente: ficam sobre um disco claro. */
+      .condicao img {
+        width: 34px; height: 34px;
+        box-sizing: border-box; padding: 4px;
+        border-radius: 50%;
+        background: #f2f2f6;
+        pointer-events: none;
+      }
+      /* Condição que o token já sofre: destacada. Clicar de novo a remove. */
+      .condicao.ativa {
+        border-color: #6aa7ff;
+        background: #2c4469;
+        box-shadow: inset 0 0 0 1px #6aa7ff;
+      }
+
+      /* --- Balão ao passar o mouse no token --- */
+      /* O balão é interativo: o mouse pode ir do token até ele e passar numa condição
+         para ver a descrição. (O atraso para sumir está no balaoToken.ts.) */
+      #balao-token {
+        z-index: 30;
+        max-width: 230px;
+        /* Coluna: o título fica fixo e só a lista rola quando passa da altura máxima
+           (o max-height é calculado pelo balaoToken.ts conforme o espaço livre). */
+        display: flex;
+        flex-direction: column;
+      }
+      #balao-token h1 { flex-shrink: 0; }
+      /* Setinha apontando para o token. A posição horizontal vem do balaoToken.ts. */
+      #balao-token::after {
+        content: "";
+        position: absolute;
+        top: 100%;
+        left: var(--seta-x, 50%);
+        transform: translateX(-50%);
+        border: 7px solid transparent;
+        border-top-color: rgba(34, 34, 42, 0.97);
+      }
+      #balao-lista {
+        list-style: none; margin: 0; padding: 0;
+        display: flex; flex-direction: column; gap: 2px;
+        /* Com condições demais, a lista rola dentro do balão (sem barra horizontal). */
+        min-height: 0; overflow-y: auto; overflow-x: hidden;
+        scrollbar-width: thin; scrollbar-color: #5a5a6a transparent;
+      }
+
+      /* --- Descrição de uma condição (ao passar o mouse numa condição do menu ou do balão) ---
+         Fica ao lado do painel de origem; a posição vem do dicaCondicao.ts. */
+      #dica-condicao {
+        z-index: 40; /* acima de tudo */
+        width: 290px;
+        pointer-events: none; /* nunca captura o mouse: quem a abriu continua recebendo-o */
+      }
+      #dica-condicao h1 {
+        margin: 0 0 6px;
+        font-size: 14px;
+        letter-spacing: 0; text-transform: none; /* aqui o nome aparece por extenso, não em caixa alta */
+        color: #fff;
+      }
+      #dica-condicao-lista { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.4; color: #d6d6de; }
+      #dica-condicao-lista li + li { margin-top: 4px; }
+      #balao-lista li {
+        display: flex; align-items: center; gap: 8px;
+        padding: 3px 6px; flex-shrink: 0; /* área de passar o mouse um pouco maior; as linhas não encolhem (a lista rola) */
+        border-radius: 6px;
+        font-size: 13px;
+        cursor: help; /* indica que há mais informação ao passar o mouse */
+      }
+      #balao-lista li:hover { background: #33333f; }
+      /* Quando o balão fica ABAIXO do token, a setinha vai para cima, apontando para ele. */
+      #balao-token.abaixo::after {
+        top: auto; bottom: 100%;
+        border-top-color: transparent;
+        border-bottom-color: rgba(34, 34, 42, 0.97);
+      }
+      #balao-lista img {
+        width: 22px; height: 22px; flex-shrink: 0;
+        box-sizing: border-box; padding: 2px;
+        border-radius: 50%;
+        background: #f2f2f6;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <!-- Painel de desenho (esquerda): ferramentas, cor e "Apagar tudo". Ids usados no ui/painelDesenho.ts. -->
+    <aside id="ferramentas-desenho">
+      <div class="cabecalho">
+        <h1>Desenho</h1>
+        <button id="desenho-alternar" title="Recolher painel" aria-expanded="true">‹</button>
+      </div>
+
+      <div class="conteudo">
+        <section>
+          <h2>Ferramenta</h2>
+          <div id="lista-ferramentas">
+            <button class="botao-largo ativo" data-ferramenta="mover" aria-pressed="true" title="Mover tokens e a visão (Esc)">Mover</button>
+            <button class="botao-largo" data-ferramenta="regua" aria-pressed="false" title="Medir a distância entre duas casas (1 casa = 1,5 m)">Régua</button>
+            <button class="botao-largo" data-ferramenta="lapis" aria-pressed="false" title="Desenhar à mão livre">✎ Lápis</button>
+            <button class="botao-largo" data-ferramenta="borracha" aria-pressed="false" title="Apagar o desenho que ela tocar">⌫ Borracha</button>
+            <button class="botao-largo" data-ferramenta="elipse" aria-pressed="false" title="Elipse: arraste de um canto ao oposto da caixa (só contorno)">◯ Elipse</button>
+            <button class="botao-largo" data-ferramenta="retangulo" aria-pressed="false" title="Retângulo: arraste de um canto ao oposto (só contorno)">▭ Retângulo</button>
+            <button class="botao-largo" data-ferramenta="triangulo" aria-pressed="false" title="Triângulo: arraste os cantos da caixa dele (só contorno)">△ Triângulo</button>
+          </div>
+          <div id="regua-resultado" hidden></div>
+        </section>
+
+        <section>
+          <h2>Cor</h2>
+          <div id="desenho-amostras"></div>
+          <input id="desenho-cor" type="color" value="#ff5252" aria-label="Escolher outra cor" title="Escolher outra cor" />
+        </section>
+
+        <section>
+          <button id="desenho-apagar-tudo" class="botao-largo" title="Apagar todas as pinturas do mapa">Apagar tudo</button>
+        </section>
+      </div>
+    </aside>
+
+    <!-- Barra de ferramentas. Os ids são usados no ui/barra.ts. -->
+    <aside id="barra">
+      <div class="cabecalho">
+        <h1>Ferramentas</h1>
+        <button id="barra-alternar" title="Recolher barra" aria-expanded="true">›</button>
+      </div>
+
+      <div class="conteudo">
+        <section>
+          <h2>Zoom</h2>
+          <div class="controle">
+            <button id="zoom-menos" title="Diminuir zoom (afastar)">−</button>
+            <span id="zoom-valor">100%</span>
+            <button id="zoom-mais" title="Aumentar zoom (aproximar)">+</button>
+          </div>
+          <button id="zoom-ajustar" class="botao-largo" title="Ajustar o tabuleiro inteiro à janela">Ajustar à tela</button>
+        </section>
+
+        <section>
+          <h2>Colunas</h2>
+          <div class="controle">
+            <button id="colunas-menos" title="Remover uma coluna">−</button>
+            <input id="colunas-valor" type="number" min="5" max="100" step="1" value="18" aria-label="Número de colunas" title="Digite o número de colunas e aperte Enter" />
+            <button id="colunas-mais" title="Adicionar uma coluna">+</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Linhas</h2>
+          <div class="controle">
+            <button id="linhas-menos" title="Remover uma linha">−</button>
+            <input id="linhas-valor" type="number" min="5" max="100" step="1" value="10" aria-label="Número de linhas" title="Digite o número de linhas e aperte Enter" />
+            <button id="linhas-mais" title="Adicionar uma linha">+</button>
+          </div>
+        </section>
+
+        <section>
+          <h2>Mapa</h2>
+          <button id="mapa-escolher" class="botao-largo" style="margin-top: 0" title="Escolher uma imagem do seu computador como mapa">Escolher mapa</button>
+          <input id="mapa-arquivo" type="file" accept="image/*" hidden />
+          <button id="calibrar-alternar" class="botao-largo" aria-pressed="false" title="Descobrir as colunas e linhas medindo as casas do mapa">Calibrar grade</button>
+        </section>
+
+        <section>
+          <button id="voltar-padrao" class="botao-largo" style="margin-top: 0" title="Zoom em 100% e tabuleiro com o tamanho inicial (18 × 10)">Voltar ao padrão</button>
+        </section>
+      </div>
+    </aside>
+
+    <!-- Painel da calibragem, no canto inferior direito (escondido até ligar "Calibrar grade"). Ids usados no ui/painelCalibragem.ts. -->
+    <div id="canto-inferior-direito">
+    <div id="painel-calibragem" hidden title="Dica: o botão direito (ou o do meio) do mouse move a visão enquanto você calibra.">
+      <h2>Calibrar grade</h2>
+      <p>
+        Para calibrar, selecione
+        <input id="calibragem-casas" type="number" min="1" max="50" value="5" aria-label="Quadrados por lado" />
+        × <span id="calibragem-casas-eco">5</span> quadrados de altura e largura.
+      </p>
+      <p class="secundario">
+        OU, você pode contar o total de quadrados vertical e horizontal e aplicar manualmente.
+      </p>
+      <div id="calibragem-resultado" aria-live="polite"></div>
+      <button id="calibragem-concluir" class="botao-largo">Concluir</button>
+    </div>
+
+    <!-- Bolsa: guarda tokens (arrastar do mapa para cá e daqui para o mapa). Ids usados no ui/bolsa.ts. -->
+    <aside id="bolsa" aria-label="Bolsa de tokens">
+      <h2>Bolsa <span id="bolsa-contagem"></span></h2>
+      <p id="bolsa-vazia">Arraste tokens para cá para guardá-los.</p>
+      <div id="bolsa-itens"></div>
+    </aside>
+    </div>
+
+    <!-- Botões do token (escondidos até o clique direito num token). Ids usados no ui/menuToken.ts. -->
+    <!-- Engrenagem: canto superior DIREITO do token (abre o painel de tamanho). Id usado no ui/menuToken.ts. -->
+    <button id="engrenagem" hidden title="Opções do token" aria-label="Opções do token">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+          <g fill="currentColor">
+            <circle cx="12" cy="12" r="6.5" />
+            <!-- 8 dentes: o mesmo retângulo girado de 45 em 45 graus -->
+            <rect x="10.5" y="1.5" width="3" height="5" rx="1" />
+            <rect x="10.5" y="1.5" width="3" height="5" rx="1" transform="rotate(45 12 12)" />
+            <rect x="10.5" y="1.5" width="3" height="5" rx="1" transform="rotate(90 12 12)" />
+            <rect x="10.5" y="1.5" width="3" height="5" rx="1" transform="rotate(135 12 12)" />
+            <rect x="10.5" y="1.5" width="3" height="5" rx="1" transform="rotate(180 12 12)" />
+            <rect x="10.5" y="1.5" width="3" height="5" rx="1" transform="rotate(225 12 12)" />
+            <rect x="10.5" y="1.5" width="3" height="5" rx="1" transform="rotate(270 12 12)" />
+            <rect x="10.5" y="1.5" width="3" height="5" rx="1" transform="rotate(315 12 12)" />
+          </g>
+          <circle class="furo" cx="12" cy="12" r="2.8" />
+        </svg>
+      </button>
+
+    <!-- Lista de ações do token: canto superior ESQUERDO, de cima para baixo. "Add condição" é o primeiro item;
+         "Add dano" e "Add cura" são PROVISÓRIOS (ainda sem função). -->
+    <div id="acoes-token" hidden>
+      
+      <button id="botao-condicoes" class="acao-token" title="Adicionar condição">Add condição</button>
+      <button id="botao-dano" class="acao-token" title="Provisório: ainda sem função">Add dano</button>
+      <button id="botao-cura" class="acao-token" title="Provisório: ainda sem função">Add cura</button>
+    </div>
+
+    <!-- Painel de tamanho do token (abre ao clicar na engrenagem). -->
+    <div id="menu-token" class="painel" hidden>
+      <h1 id="menu-token-titulo">Token</h1>
+      <section>
+        <h2>Tamanho</h2>
+        <div class="controle">
+          <button id="token-tamanho-menos" title="Diminuir o token">−</button>
+          <span id="token-tamanho-valor">1×1</span>
+          <button id="token-tamanho-mais" title="Aumentar o token">+</button>
+        </div>
+      </section>
+    </div>
+
+    <!-- Painel de condições (abre ao clicar em "Add condição"). Os botões são criados pelo menuToken.ts. -->
+    <div id="menu-condicoes" class="painel" hidden>
+      <h1>Condições</h1>
+      <div id="grade-condicoes"></div>
+    </div>
+
+    <!-- Balão ao passar o mouse no token (lista as condições). Preenchido pelo balaoToken.ts. -->
+    <div id="balao-token" class="painel" role="tooltip" hidden>
+      <h1>Condições</h1>
+      <ul id="balao-lista"></ul>
+    </div>
+
+    <!-- Descrição de uma condição (aparece ao passar o mouse nela). Preenchida pelo dicaCondicao.ts. -->
+    <div id="dica-condicao" class="painel" role="tooltip" hidden>
+      <h1 id="dica-condicao-titulo"></h1>
+      <ul id="dica-condicao-lista"></ul>
+    </div>
+
+    <!-- Vite entende este import e converte o TypeScript para o navegador. -->
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
