@@ -12,8 +12,11 @@ import {
     MAPA_INICIAL,
     MAX_CARACTERES_MENSAGEM,
     MAX_CARACTERES_IMAGEM_TOKEN,
+    MAX_CARACTERES_NOME_FICHA,
     MAX_CARACTERES_NOME_TOKEN,
+    MAX_CARACTERES_TEXTO_FICHA,
     MAX_CASAS,
+    MAX_FICHAS,
     MAX_MENSAGENS_CHAT,
     MAX_TOKENS,
     MIN_CASAS,
@@ -24,6 +27,7 @@ import { DADOS_DISPONIVEIS, MAX_MODIFICADOR_DADOS, MAX_QUANTIDADE_DADOS } from "
 import { buscarCondicao } from "./condicoes.ts";
 import { limitar } from "./coordenadas.ts";
 import { formulaDosDados, type Rolagem } from "./dados.ts";
+import type { RolagemDeFicha } from "./formulas.ts";
 
 /** Quantas casas (por lado) um token ocupa: 1 = 1x1, 2 = 2x2, 3 = 3x3, 4 = 4x4. */
 export type TamanhoToken = 1 | 2 | 3 | 4;
@@ -55,13 +59,11 @@ export const estado = {
     desenhos: [] as Desenho[],
     // Mensagens do chat, da mais antiga para a mais nova.
     mensagens: [] as Mensagem[],
-    tokens: [
-        { id: 1, nome: "Token 1", imagem: null, col: 3, row: 3, cor: 0x2ecc71, corBorda: 0xffffff, size: 1, condicoes: [], guardado: false }, //
-        { id: 2, nome: "Token 2", imagem: null, col: 6, row: 5, cor: 0x3498db, corBorda: 0xffffff, size: 1, condicoes: [], guardado: false }, //
-        { id: 3, nome: "Token 3", imagem: null, col: 15, row: 1, cor: 0xf098fb, corBorda: 0xffffff, size: 1, condicoes: [], guardado: false }, //
-        { id: 4, nome: "Token 4", imagem: null, col: 10, row: 2, cor: 0xe74c3c, corBorda: 0xffffff, size: 2, condicoes: [], guardado: false }, //
-        { id: 5, nome: "Token 5", imagem: null, col: 12, row: 6, cor: 0x9b59b6, corBorda: 0xffffff, size: 1, condicoes: [], guardado: false }, //
-    ] as Token[],
+    // Fichas de personagem (documentos), da mais antiga para a mais nova. No multiplayer o SERVIDOR as guarda em arquivos.
+    fichas: [] as Ficha[],
+    // Tokens da mesa. Começa VAZIO: os tokens nascem pela bolsa ("Criar token") ou vêm dos arquivos de `dados/tokens/` do servidor
+    // (ver servidor/dados.ts). Cada token é um arquivo; excluir o token apaga o arquivo.
+    tokens: [] as Token[],
 };
 
 /** Uma mensagem do chat. */
@@ -70,6 +72,7 @@ export interface Mensagem {
     autor: string;
     texto: string;
     rolagem?: Rolagem; // só nas mensagens de rolagem de dados (o `texto` então é a fórmula e o total)
+    rolagemFicha?: RolagemDeFicha; // só nas mensagens de uma ROLAGEM DE FICHA (o `texto` então é o nome, a fórmula e o total)
     hora: number; // quando foi enviada (milissegundos desde 1970, como Date.now())
 }
 
@@ -96,6 +99,16 @@ export function adicionarMensagem(autor: string, texto: string): Mensagem | null
 export function adicionarRolagem(autor: string, rolagem: Rolagem): Mensagem {
     const texto = `${formulaDosDados(rolagem.quantidade, rolagem.lados, rolagem.modificador)} = ${rolagem.total}`;
     return guardarMensagem({ id: proximoIdMensagem++, autor, texto, rolagem, hora: Date.now() });
+}
+
+/**
+ * Guarda no chat o resultado de uma ROLAGEM DE FICHA (ex.: o "Ataque com espada" de uma ficha). Como nas rolagens de dados, o limite de
+ * caracteres não vale (o texto é montado pelo programa). O `texto` guarda o nome, a fórmula e o total para quem só lê texto.
+ * No multiplayer, o servidor sorteia e envia este evento.
+ */
+export function adicionarRolagemDeFicha(autor: string, rolagemFicha: RolagemDeFicha): Mensagem {
+    const texto = `${rolagemFicha.nome}: ${rolagemFicha.formula} = ${rolagemFicha.total}`;
+    return guardarMensagem({ id: proximoIdMensagem++, autor, texto, rolagemFicha, hora: Date.now() });
 }
 
 /**
@@ -133,6 +146,132 @@ function guardarMensagem(mensagem: Mensagem): Mensagem {
     if (estado.mensagens.length > MAX_MENSAGENS_CHAT)
         estado.mensagens.splice(0, estado.mensagens.length - MAX_MENSAGENS_CHAT);
     return mensagem;
+}
+
+// ---------------------------------------------------------------------
+// FICHAS: cada ficha é um DOCUMENTO (nome + texto). No multiplayer o servidor guarda cada uma num arquivo JSON.
+// A ficha é CRIADA NO MESMO INSTANTE do clique em "Criar ficha": nasce VAZIA (só com o nome) e o arquivo já existe. O texto se
+// escreve depois, abrindo a ficha, e pode levar muito tempo (abrir, fechar, voltar): por isso não se espera ele ficar pronto.
+// Toda ficha tem um número de VERSÃO: começa em 1 e sobe 1 a cada vez que é salva por cima. Assim, quando duas pessoas
+// editam a mesma ficha, o servidor percebe que uma delas está com uma cópia ANTIGA e recusa o salvamento dela (em vez de
+// apagar, sem aviso, o que a outra fez). Existem CRIAR, EDITAR (nome e texto, com a checagem de versão) e EXCLUIR.
+// Por enquanto a ficha não se liga a nenhum token.
+// ---------------------------------------------------------------------
+
+export interface Ficha {
+    id: number;
+    nome: string; // nunca vazio (sem nome, vira "Ficha N")
+    texto: string; // o conteúdo livre da ficha (no futuro: variáveis e fórmulas)
+    versao: number; // 1, 2, 3... (sobe a cada salvamento)
+    criadaEm: number; // milissegundos desde 1970 (Date.now())
+    alteradaEm: number;
+}
+
+let proximoIdFicha = 1;
+
+/**
+ * Monta uma ficha NOVA e VAZIA (chamada "Ficha N", versão 1, sem texto) SEM guardá-la na lista: o nome e o texto se definem
+ * depois, ao abrir a ficha. Devolve null se a mesa já tem MAX_FICHAS (a regra vale aqui, e não só na interface: o servidor a
+ * repete). O servidor usa esta função (para gravar o arquivo ANTES de guardar a ficha) e o modo local usa `criarFicha`.
+ */
+export function montarFicha(): Ficha | null {
+    if (estado.fichas.length >= MAX_FICHAS) return null;
+    const id = proximoIdFicha++;
+    const agora = Date.now();
+    return { id, nome: `Ficha ${id}`, texto: "", versao: 1, criadaEm: agora, alteradaEm: agora };
+}
+
+/** Guarda na lista uma ficha que já está pronta (a que o servidor mandou, ou a que acabou de ser montada). Mesma id: substitui. */
+export function receberFicha(ficha: Ficha): void {
+    const posicao = estado.fichas.findIndex((f) => f.id === ficha.id);
+    if (posicao >= 0) estado.fichas[posicao] = ficha;
+    else {
+        estado.fichas.push(ficha);
+        estado.fichas.sort((a, b) => a.id - b.id);
+    }
+    proximoIdFicha = Math.max(proximoIdFicha, ficha.id + 1);
+}
+
+/** Troca todas as fichas pela lista que o servidor mandou ao entrar na mesa (ou pela que foi lida dos arquivos ao ligar o servidor). */
+export function definirFichas(lista: Ficha[], proximoIdMinimo = 1): void {
+    estado.fichas = [...lista].sort((a, b) => a.id - b.id);
+    proximoIdFicha = estado.fichas.reduce((maior, f) => Math.max(maior, f.id + 1), proximoIdMinimo);
+}
+
+/** Nome da ficha: sem caracteres de controle, espaços aparados e repetidos juntados, cortado ao máximo. Vazio vira "Ficha N". */
+export function normalizarNomeFicha(id: number, nome: string): string {
+    const limpo = nome.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_CARACTERES_NOME_FICHA).trim();
+    return limpo || `Ficha ${id}`;
+}
+
+/** Texto da ficha: quebras de linha normalizadas (\r\n vira \n) e sem caracteres de controle (menos quebra de linha e tabulação). */
+export function normalizarTextoFicha(texto: string): string {
+    return texto.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "");
+}
+
+/** O que dá para mudar numa ficha que já existe (o que faltar fica como está). */
+export interface MudancasFicha {
+    nome?: string;
+    texto?: string;
+}
+
+/** O resultado de pedir uma edição: a ficha como ficaria, ou o motivo de a edição ser recusada. */
+export type ResultadoEdicaoFicha =
+    | { ok: true; ficha: Ficha; mudou: boolean } // `mudou` = false: nada mudou de verdade (a versão não sobe)
+    | { ok: false; erro: "nao_existe" | "versao_antiga" | "texto_longo" };
+
+/**
+ * Monta a ficha como ela ficaria depois da edição, SEM guardá-la na lista (o servidor grava o arquivo ANTES de guardar).
+ * `versaoBase` é a versão que a pessoa tinha na tela ao abrir: se a ficha já está numa versão MAIS NOVA, alguém a salvou nesse meio
+ * tempo e a edição é recusada ("versao_antiga"), para ninguém apagar o trabalho do outro sem perceber. Nome e texto passam pela mesma
+ * limpeza da criação; um texto acima de MAX_CARACTERES_TEXTO_FICHA é recusado (não cortado, para não perder o fim sem avisar). Se nada
+ * mudou, a versão NÃO sobe. A regra vale aqui, e não só na interface: o servidor a repete.
+ */
+export function montarEdicaoDaFicha(id: number, versaoBase: number, mudancas: MudancasFicha): ResultadoEdicaoFicha {
+    const atual = estado.fichas.find((f) => f.id === id);
+    if (!atual) return { ok: false, erro: "nao_existe" };
+    if (atual.versao !== versaoBase) return { ok: false, erro: "versao_antiga" };
+    const nome = mudancas.nome === undefined ? atual.nome : normalizarNomeFicha(id, mudancas.nome);
+    const texto = mudancas.texto === undefined ? atual.texto : normalizarTextoFicha(mudancas.texto);
+    if (texto.length > MAX_CARACTERES_TEXTO_FICHA) return { ok: false, erro: "texto_longo" };
+    if (nome === atual.nome && texto === atual.texto) return { ok: true, ficha: atual, mudou: false };
+    return { ok: true, ficha: { ...atual, nome, texto, versao: atual.versao + 1, alteradaEm: Date.now() }, mudou: true };
+}
+
+/** Modo local: monta a edição e já a guarda (só na memória da aba). */
+export function editarFicha(id: number, versaoBase: number, mudancas: MudancasFicha): ResultadoEdicaoFicha {
+    const resultado = montarEdicaoDaFicha(id, versaoBase, mudancas);
+    if (resultado.ok && resultado.mudou) receberFicha(resultado.ficha);
+    return resultado;
+}
+
+/** Modo local: monta a ficha vazia e já a guarda. Devolve null se a mesa já tem o máximo de fichas. */
+export function criarFicha(): Ficha | null {
+    const ficha = montarFicha();
+    if (ficha) receberFicha(ficha);
+    return ficha;
+}
+
+/** Tira a ficha da lista (o arquivo e o editor aberto são problema de quem chama). O id NÃO é reaproveitado. Devolve false se ela não existe. */
+export function excluirFicha(id: number): boolean {
+    const posicao = estado.fichas.findIndex((f) => f.id === id);
+    if (posicao < 0) return false;
+    estado.fichas.splice(posicao, 1);
+    return true;
+}
+
+/**
+ * Confere uma ficha que veio de FORA (um arquivo lido do disco, que alguém pode ter editado à mão). Devolve uma ficha limpa
+ * (só os campos conhecidos) ou null se qualquer campo estiver errado. Nunca lança erro.
+ */
+export function fichaValida(bruto: unknown): Ficha | null {
+    if (typeof bruto !== "object" || bruto === null || Array.isArray(bruto)) return null;
+    const f = bruto as Record<string, unknown>;
+    const inteiro = (valor: unknown): valor is number => typeof valor === "number" && Number.isSafeInteger(valor);
+    if (!inteiro(f.id) || f.id < 1 || !inteiro(f.versao) || f.versao < 1 || !inteiro(f.criadaEm) || !inteiro(f.alteradaEm)) return null;
+    if (typeof f.nome !== "string" || f.nome.trim() === "" || f.nome.length > MAX_CARACTERES_NOME_FICHA) return null;
+    if (typeof f.texto !== "string" || f.texto.length > MAX_CARACTERES_TEXTO_FICHA) return null;
+    return { id: f.id, nome: f.nome, texto: f.texto, versao: f.versao, criadaEm: f.criadaEm, alteradaEm: f.alteradaEm };
 }
 
 /** Um ponto em CASAS (pode ser fracionário: 3,5 = o meio da quarta casa). */
@@ -211,14 +350,18 @@ export function guardarToken(id: number): void {
     if (token) token.guardado = true;
 }
 
+let proximoIdToken = 1; // sempre sobe (um id apagado não é reaproveitado)
+
+/** Nome do token: sem caracteres de controle (quebra de linha, etc.), aparado e cortado a MAX_CARACTERES_NOME_TOKEN. */
+const limparNomeToken = (nome: string): string => nome.replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, MAX_CARACTERES_NOME_TOKEN).trim();
+
 /**
- * Cria um token NOVO, que já nasce guardado na BOLSA (o usuário o coloca no mapa depois, arrastando).
- * O tamanho e a cor são limitados aos valores válidos, e o nome é aparado e cortado a
- * MAX_CARACTERES_NOME_TOKEN (vazio, vira "Token N"). A regra vale aqui, e não só na interface:
- * o servidor precisará dela. Devolve o token criado, ou null se a mesa já tem MAX_TOKENS.
- * No multiplayer, é aqui que enviaremos o evento "criar_token" (o servidor é quem dá o id).
+ * Monta um token NOVO, que já nasce guardado na BOLSA (o usuário o coloca no mapa depois, arrastando), SEM guardá-lo na lista.
+ * O tamanho e a cor são limitados aos valores válidos, e o nome é aparado e cortado a MAX_CARACTERES_NOME_TOKEN (vazio, vira
+ * "Token N"). A regra vale aqui, e não só na interface: o servidor a repete (ele dá o id e grava o arquivo ANTES de guardar o
+ * token). Devolve null se a mesa já tem MAX_TOKENS. O modo local usa `criarToken`.
  */
-export function criarToken(
+export function montarToken(
     cor: number,
     size: number,
     nome = "",
@@ -226,10 +369,10 @@ export function criarToken(
     corBorda: number = COR_BORDA_INICIAL_TOKEN,
 ): Token | null {
     if (estado.tokens.length >= MAX_TOKENS) return null;
-    const id = Math.max(0, ...estado.tokens.map((t) => t.id)) + 1; // sempre maior que os existentes
-    const token: Token = {
+    const id = proximoIdToken++;
+    return {
         id,
-        nome: nome.trim().slice(0, MAX_CARACTERES_NOME_TOKEN) || `Token ${id}`,
+        nome: limparNomeToken(nome) || `Token ${id}`,
         imagem: imagemValida(imagem) ? imagem : null,
         col: 0,
         row: 0, // só valem quando o token for colocado no mapa
@@ -239,7 +382,78 @@ export function criarToken(
         condicoes: [],
         guardado: true,
     };
-    estado.tokens.push(token);
+}
+
+/**
+ * Guarda na lista um token que já está pronto (o que o servidor mandou, ou o que acabou de ser montado). Se o id já existe,
+ * ATUALIZA o objeto que está lá (campo a campo): o desenho e os menus guardam referências a ele. Devolve o token que ficou na lista.
+ */
+export function receberToken(token: Token): Token {
+    proximoIdToken = Math.max(proximoIdToken, token.id + 1);
+    const existente = buscarToken(token.id);
+    if (!existente) {
+        estado.tokens.push(token);
+        return token;
+    }
+    Object.assign(existente, token, { condicoes: [...token.condicoes] });
+    return existente;
+}
+
+/** Troca todos os tokens pela lista que o servidor mandou ao entrar na mesa (ou pela que foi lida dos arquivos ao ligar o servidor). */
+export function definirTokens(lista: Token[], proximoIdMinimo = 1): void {
+    estado.tokens = [...lista];
+    proximoIdToken = estado.tokens.reduce((maior, t) => Math.max(maior, t.id + 1), proximoIdMinimo);
+}
+
+/** Modo local: monta o token e já o guarda na lista. Devolve null se a mesa já tem o máximo de tokens. */
+export function criarToken(
+    cor: number,
+    size: number,
+    nome = "",
+    imagem: string | null = null,
+    corBorda: number = COR_BORDA_INICIAL_TOKEN,
+): Token | null {
+    const token = montarToken(cor, size, nome, imagem, corBorda);
+    return token ? receberToken(token) : null;
+}
+
+/** Tira o token da lista (o desenho e o arquivo são problema de quem chama). Devolve false se ele não existe. */
+export function excluirToken(id: number): boolean {
+    const posicao = estado.tokens.findIndex((t) => t.id === id);
+    if (posicao < 0) return false;
+    estado.tokens.splice(posicao, 1);
+    return true;
+}
+
+/**
+ * Confere um token que veio de FORA (um arquivo lido do disco, que alguém pode ter editado à mão). Devolve um token limpo (só os
+ * campos conhecidos) ou null se qualquer campo estiver errado. Um token que diz estar no mapa mas fora do tabuleiro volta para a
+ * bolsa. Nunca lança erro.
+ */
+export function tokenValido(bruto: unknown): Token | null {
+    if (typeof bruto !== "object" || bruto === null || Array.isArray(bruto)) return null;
+    const t = bruto as Record<string, unknown>;
+    const inteiro = (valor: unknown): valor is number => typeof valor === "number" && Number.isSafeInteger(valor);
+    const cor = (valor: unknown): valor is number => inteiro(valor) && valor >= 0 && valor <= 0xffffff;
+    if (!inteiro(t.id) || t.id < 1 || !inteiro(t.col) || !inteiro(t.row) || !cor(t.cor) || !cor(t.corBorda)) return null;
+    if (!inteiro(t.size) || t.size < TAMANHO_MIN_TOKEN || t.size > TAMANHO_MAX_TOKEN) return null;
+    if (typeof t.nome !== "string" || t.nome.trim() === "" || t.nome.length > MAX_CARACTERES_NOME_TOKEN) return null;
+    if (t.imagem !== null && (typeof t.imagem !== "string" || !imagemValida(t.imagem))) return null;
+    if (typeof t.guardado !== "boolean") return null;
+    if (!Array.isArray(t.condicoes) || t.condicoes.some((c) => typeof c !== "string" || !buscarCondicao(c))) return null;
+    const token: Token = {
+        id: t.id,
+        nome: t.nome,
+        imagem: t.imagem,
+        col: t.col,
+        row: t.row,
+        cor: t.cor,
+        corBorda: t.corBorda,
+        size: t.size as TamanhoToken,
+        condicoes: [...new Set(t.condicoes as string[])], // sem repetir, na ordem
+        guardado: t.guardado,
+    };
+    if (!token.guardado && !posicaoValida(token, token.col, token.row)) token.guardado = true;
     return token;
 }
 
@@ -269,7 +483,7 @@ export interface MudancasToken {
 export function editarToken(id: number, mudancas: MudancasToken): Token | null {
     const token = buscarToken(id);
     if (!token) return null;
-    if (mudancas.nome !== undefined) token.nome = mudancas.nome.trim().slice(0, MAX_CARACTERES_NOME_TOKEN) || `Token ${token.id}`;
+    if (mudancas.nome !== undefined) token.nome = limparNomeToken(mudancas.nome) || `Token ${token.id}`;
     if (mudancas.cor !== undefined) token.cor = limitar(Math.round(mudancas.cor), 0, 0xffffff);
     if (mudancas.corBorda !== undefined) token.corBorda = limitar(Math.round(mudancas.corBorda), 0, 0xffffff);
     if (mudancas.imagem !== undefined && (mudancas.imagem === null || imagemValida(mudancas.imagem))) token.imagem = mudancas.imagem;

@@ -46,8 +46,9 @@ export const MAX_CARTOES_ANIMADOS = 20; // só os primeiros cartões (os visíve
 // --- Rede (protótipo do servidor; ver servidor/servidor.ts e src/protocolo.ts) ---
 export const PORTA_SERVIDOR = 3737; // porta do servidor (o Vite, no desenvolvimento, repassa o endereço /ws para ela). Incomum de propósito: a 3000 costuma estar ocupada por outros projetos
 export const MAX_CARACTERES_APELIDO = 20; // o apelido de quem entra na mesa é cortado a este tamanho
-export const TAMANHO_MAX_MENSAGEM_REDE = 4096; // bytes: o servidor recusa mensagens maiores que isto (os pedidos são pequenos)
+export const TAMANHO_MAX_MENSAGEM_REDE = 262144; // bytes (256 KB): o servidor recusa mensagens maiores que isto. Tem de caber a imagem de um token (até MAX_CARACTERES_IMAGEM_TOKEN = 150 mil caracteres) e o texto de uma ficha no pior caso (25000 caracteres de controle viram "\u0001", 6 bytes cada: ~150 KB)
 export const MAX_MENSAGENS_POR_SEGUNDO = 40; // por conexão: o excesso é ignorado (e quem insiste é desconectado)
+export const MS_ESPERA_GRAVACAO_TOKEN = 300; // o servidor espera este tempo antes de gravar a posição de um token que andou (vários movimentos seguidos viram uma gravação só)
 export const SEGUNDOS_PARA_ENTRAR = 5; // quem conecta e não se apresenta ("entrar") neste tempo é desconectado
 
 // --- Dados (a barra de dados ao lado do chat) ---
@@ -76,6 +77,22 @@ export const TAMANHO_MAX_TOKEN = 4; // e no máximo 4x4 casas
 export const FOLGA_TOKEN = 6; // espaço (px) entre o círculo do token e a borda do bloco
 export const MAX_TOKENS = 100; // quantos tokens a mesa aceita no total (no mapa + na bolsa)
 export const MAX_CARACTERES_NOME_TOKEN = 20; // o nome do token é cortado a este tamanho
+
+// --- Fichas (documentos de texto guardados no servidor; ver estado.ts e servidor/fichas.ts) ---
+export const MAX_FICHAS = 200; // quantas fichas a mesa aceita
+export const MAX_CARACTERES_NOME_FICHA = 40; // o nome da ficha é cortado a este tamanho
+export const MAX_CARACTERES_TEXTO_FICHA = 25000; // o texto de uma ficha (cerca de 8 páginas de Word) passa disto: é recusado (não é cortado, para não perder o fim sem avisar). Hoje só confere os arquivos lidos do disco; o salvamento do texto virá depois
+export const TAMANHO_MAX_ARQUIVO_TOKEN = 262144; // bytes (256 KB): ao ligar, o servidor ignora arquivos de token maiores que isto. Tem de caber a imagem máxima (150 mil caracteres) e o resto
+export const TAMANHO_MAX_ARQUIVO_FICHA = 131072; // bytes (128 KB): ao ligar, o servidor ignora arquivos de ficha maiores que isto (alguém pode ter mexido na pasta). Tem de caber o texto máximo: 25000 caracteres valem até ~75 KB em UTF-8
+
+// --- Variáveis e fórmulas das fichas (ver formulas.ts). Limites de SEGURANÇA: o texto vem de jogadores e o servidor também o analisa ---
+export const MAX_CARACTERES_FORMULA = 200; // uma fórmula ou o valor de uma variável (ex.: "1d20 + MOD_FOR + PROF")
+export const MAX_CARACTERES_NOME_VARIAVEL = 30; // o nome de uma variável (ex.: "MOD_FOR")
+export const MAX_CARACTERES_NOME_ROLAGEM = 60; // o nome de uma rolagem, entre parênteses (ex.: "Ataque com espada")
+export const MAX_VARIAVEIS_POR_FICHA = 100; // além destas, as linhas "NOME:: valor" são ignoradas (limita o trabalho por ficha)
+export const MAX_ROLAGENS_POR_FICHA = 100; // idem para as rolagens "(Nome)[fórmula]"
+export const MAX_PROFUNDIDADE_FORMULA = 50; // profundidade da conta (cada parêntese aninhado conta 4: cabem 12 níveis)
+export const MAX_VALOR_FORMULA = 1_000_000_000; // nenhum número (nem resultado de conta) pode passar disto: evita estouro e números absurdos
 
 // --- Imagem do token ---
 // A imagem escolhida é RECORTADA e REDUZIDA na hora (como um "print"): só essa miniatura é guardada,

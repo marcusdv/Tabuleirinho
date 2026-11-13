@@ -1,0 +1,8 @@
+# A pasta `dados/` é DO DONO DO SERVIDOR: ele customiza o que há dentro (fichas, tokens...) e faz backup.
+# As PASTAS existem no projeto (e no pacote que se distribui) para o servidor ter onde guardar os itens, mas o CONTEÚDO
+# delas NUNCA deve ir para o git, para o GitHub nem para o download do usuário final. O `.gitkeep` só existe para o git
+# aceitar a pasta vazia. Ao criar uma pasta nova em `dados/`, repita as duas linhas abaixo para ela.
+/dados/fichas/*
+!/dados/fichas/.gitkeep
+/dados/tokens/*
+!/dados/tokens/.gitkeep

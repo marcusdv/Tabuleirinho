@@ -43,7 +43,16 @@ import {
     editarToken,
     estado,
     redimensionarTabuleiro,
+    type Ficha,
     type Token,
+    criarFicha,
+    editarFicha,
+    excluirFicha,
+    definirFichas,
+    definirTokens,
+    excluirToken,
+    receberFicha,
+    receberToken,
 } from "./estado";
 import { AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS } from "./config";
 import { criarCalibragem } from "./tabuleiro/calibragem";
@@ -58,6 +67,9 @@ import { criarTokens } from "./tabuleiro/tokens";
 import { criarBalaoToken } from "./ui/balaoToken";
 import { criarBolsa } from "./ui/bolsa";
 import { criarEditorImagem } from "./ui/editorImagem";
+import { criarAjudaFichas } from "./ui/ajudaFichas";
+import { criarConfirmacao } from "./ui/confirmar";
+import { criarEditorFicha } from "./ui/editorFicha";
 import { criarEditorToken } from "./ui/editorToken";
 import { rolarDados } from "./dados";
 import type { EventoDoServidor } from "./protocolo";
@@ -148,12 +160,41 @@ async function iniciar(): Promise<void> {
     // e pelo balão do token.
     const dica = criarDicaCondicao();
 
+    // A caixa de confirmar ("Excluir token?"), no lugar da caixa do navegador.
+    const confirmacao = criarConfirmacao();
+
+    // A janela de instruções das fichas (como escrever variáveis e rolagens): abre pelos botões "Instruções".
+    criarAjudaFichas();
+
+    // O editor de FICHA (nome e texto): abre ao clicar num documento da aba Fichas da bolsa.
+    const editorFicha = criarEditorFicha({
+        aoSalvar: (id, versao, mudancas) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "editar_ficha", id, versao, nome: mudancas.nome, texto: mudancas.texto }); // o servidor confere a VERSÃO e grava o arquivo
+                return "enviada";
+            }
+            const resultado = editarFicha(id, versao, mudancas); // modo local: só na memória desta aba
+            if (resultado.ok) bolsa.atualizarFichas();
+            return resultado;
+        },
+        confirmarDescarte: () =>
+            confirmacao.perguntar({
+                titulo: "Fechar sem salvar?",
+                mensagem: "Esta ficha tem alterações que ainda não foram salvas.\nSe você fechar agora, elas serão perdidas.",
+                confirmar: "Fechar sem salvar",
+            }),
+    });
+
     // O editor de recorte da imagem do token (arrastar, zoom, confirmar).
     const editorImagem = criarEditorImagem();
 
     // A janela de edição do token (nome, tamanho e cores): abre pelo menu do token (mapa) e pelo da ficha (bolsa).
     const editorToken = criarEditorToken({
         aoSalvar: (id, mudancas) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "editar_token", id, mudancas }); // o servidor confere, grava o arquivo e avisa todos ("token_editado")
+                return;
+            }
             const token = editarToken(id, mudancas); // 1) estado
             if (!token) return;
             tokens.redesenhar(token); // 2) desenho no mapa (o token pode estar escondido, guardado)
@@ -163,11 +204,78 @@ async function iniciar(): Promise<void> {
         editarImagem: (arquivo, corFundo) => editorImagem.editar(arquivo, corFundo),
     });
 
+    /**
+     * Pede a confirmação (não dá para desfazer), numa caixa do próprio jogo, e exclui o token. Online, o pedido vai ao servidor, que
+     * apaga o ARQUIVO do token e avisa todos; no modo local o token some na hora. Devolve false se a pessoa desistiu.
+     */
+    async function excluirComConfirmacao(token: Token): Promise<boolean> {
+        const arquivo = rede?.ativa ? "O arquivo dele no servidor também será apagado.\n" : "";
+        const confirmou = await confirmacao.perguntar({
+            titulo: "Excluir token",
+            mensagem: `Excluir o token "${token.nome}"?\n${arquivo}Isso não pode ser desfeito.`,
+            confirmar: "Excluir",
+        });
+        if (!confirmou) return false;
+        if (rede?.ativa) rede.enviar({ tipo: "excluir_token", id: token.id });
+        else removerTokenDoJogo(token.id); // (se outra pessoa já o excluiu enquanto a caixa estava aberta, não há o que fazer)
+        return true;
+    }
+
+    /** "Guardar na bolsa" da engrenagem: o token sai do mapa. Online o servidor confirma e avisa todos ("token_guardado"). */
+    function guardarNaBolsa(id: number): void {
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "guardar_token", id });
+            return;
+        }
+        const token = buscarToken(id);
+        if (!token) return;
+        guardarToken(id); // 1) estado
+        tokens.aplicarPosicao(token); // 2) desenho: o token some do mapa
+        bolsa.atualizar(); // 3) a ficha aparece na bolsa
+    }
+
+    /**
+     * Pede a confirmação (não dá para desfazer) e exclui a ficha. Online, o pedido vai ao servidor, que apaga o ARQUIVO e avisa todos
+     * (evento "ficha_excluida"); no modo local a ficha some na hora.
+     */
+    async function excluirFichaComConfirmacao(ficha: Ficha): Promise<void> {
+        const arquivo = rede?.ativa ? "O arquivo dela no servidor também será apagado.\n" : "";
+        const confirmou = await confirmacao.perguntar({
+            titulo: "Excluir ficha",
+            mensagem: `Excluir a ficha "${ficha.nome}"?\n${arquivo}Isso não pode ser desfeito.`,
+            confirmar: "Excluir",
+        });
+        if (!confirmou) return;
+        if (rede?.ativa) rede.enviar({ tipo: "excluir_ficha", id: ficha.id });
+        else removerFichaDoJogo(ficha.id);
+    }
+
+    /** Tira a ficha do estado e da grade (e avisa o editor, se era a que estava aberta). Vale no modo local e quando o servidor avisa. */
+    function removerFichaDoJogo(id: number): void {
+        if (!excluirFicha(id)) return;
+        bolsa.atualizarFichas();
+        editorFicha.fichaExcluida(id);
+    }
+
+    /** Tira o token do estado e do desenho (e fecha o que estiver aberto sobre ele). Vale no modo local e quando o servidor avisa. */
+    function removerTokenDoJogo(id: number): void {
+        if (!excluirToken(id)) return; // 1) estado (já não existia: nada a fazer)
+        tokens.remover(id); // 2) desenho no mapa (cancela o arrasto, se alguém o segurava)
+        menu.fechar(); // 3) menus e balão que estavam abertos sobre ele
+        balao.esconder();
+        bolsa.atualizar(); // 4) a ficha da bolsa
+    }
+
     const menu = criarMenuToken({
         ancora: (id) => tokens.ancoraNaTela(id), // "tokens" já existe quando isto for chamado
         aoEditar: (id) => {
             const token = buscarToken(id);
             if (token) editorToken.editar(token);
+        },
+        aoGuardar: (id) => guardarNaBolsa(id),
+        aoExcluir: (id) => {
+            const token = buscarToken(id);
+            return token ? excluirComConfirmacao(token) : Promise.resolve(false);
         },
         aoAlternarCondicao: alternarCondicaoDoToken,
         dica,
@@ -188,6 +296,11 @@ async function iniciar(): Promise<void> {
         aoArrastar: (ponto) => tokens.arrastarPara(ponto),
         aoSoltar: () => tokens.soltar(),
         aoCriarToken: ({ nome, cor, corBorda, tamanho, imagem }) => {
+            if (rede?.ativa) {
+                // Online quem cria é o SERVIDOR (cria o arquivo na hora); o token chega pelo evento "token_criado".
+                rede.enviar({ tipo: "criar_token", nome, cor, corBorda, tamanho, imagem });
+                return "enviado";
+            }
             const token = criarToken(cor, tamanho, nome, imagem, corBorda); // 1) estado (o token nasce guardado na bolsa)
             if (token) tokens.adicionar(token); // 2) desenho (escondido, até ser colocado no mapa)
             return token; // a bolsa refaz a própria lista
@@ -198,7 +311,28 @@ async function iniciar(): Promise<void> {
         },
         aoEditar: (token) => editorToken.editar(token),
         editarImagem: (arquivo, corFundo) => editorImagem.editar(arquivo, corFundo),
+        // Ficha nova (VAZIA). Online, quem a cria é o SERVIDOR, que cria o arquivo na máquina do mestre NA HORA, e ela chega
+        // pelo evento "ficha_criada"; no modo local ela só existe na memória desta aba.
+        aoCriarFicha: () => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "criar_ficha" });
+                return "enviada";
+            }
+            return criarFicha();
+        },
+        aoExcluir: (token) => void excluirComConfirmacao(token),
+        aoAbrirFicha: (ficha) => {
+            // A bolsa em TELA CHEIA cobre o chat e escurece o fundo: ao abrir uma ficha ela volta ao tamanho anterior (média ou pequena), para
+            // a janela da ficha (flutuante) ficar sobre o tabuleiro e o chat continuar visível (dá para ver as rolagens).
+            if (bolsa.expandida) bolsa.fechar();
+            editorFicha.abrir(ficha);
+        },
+        aoExcluirFicha: (ficha) => void excluirFichaComConfirmacao(ficha),
         aoMudarImagem: (id, imagem) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "editar_token", id, mudancas: { imagem } });
+                return;
+            }
             const token = definirImagemToken(id, imagem); // 1) estado
             if (!token) return;
             tokens.redesenhar(token); // 2) desenho no mapa (o token pode estar escondido, guardado)
@@ -364,17 +498,21 @@ async function iniciar(): Promise<void> {
         const aplicarEventoDoServidor = (evento: EventoDoServidor): void => {
             switch (evento.tipo) {
                 case "estado_inicial":
-                    // Neste protótipo os tokens do servidor e os locais são os mesmos (mesmos ids): copia onde cada um está.
-                    for (const remoto of evento.tokens) {
-                        const local = buscarToken(remoto.id);
-                        if (!local) continue;
-                        if (remoto.guardado) guardarToken(local.id);
-                        else colocarToken(local.id, remoto.col, remoto.row);
-                        tokens.aplicarPosicao(local);
-                    }
+                    // Os tokens são do SERVIDOR (vêm dos arquivos de dados/tokens/): troca todos e refaz o desenho.
+                    definirTokens(evento.tokens);
+                    tokens.reconstruir();
+                    menu.fechar();
+                    balao.esconder();
                     definirMensagens(evento.mensagens);
+                    definirFichas(evento.fichas); // as fichas gravadas no servidor
+                    // (se uma ficha está aberta no editor, ele confere se ela mudou enquanto a conexão estava fora)
+                    {
+                        const aberta = estado.fichas.find((f) => f.id === editorFicha.idAberto);
+                        if (aberta) editorFicha.fichaMudou(aberta);
+                    }
                     chat.atualizar();
                     bolsa.atualizar();
+                    bolsa.atualizarFichas();
                     status.mostrarEntrada(evento.voce.apelido);
                     return;
                 case "jogadores":
@@ -396,19 +534,63 @@ async function iniciar(): Promise<void> {
                     bolsa.atualizar();
                     return;
                 }
+                case "token_criado": {
+                    const token = receberToken(evento.token); // (já gravado no disco do servidor; nasce guardado na bolsa)
+                    tokens.adicionar(token);
+                    bolsa.tokenCriado(token);
+                    return;
+                }
+                case "token_editado": {
+                    const token = receberToken(evento.token);
+                    tokens.adicionar(token); // (garante que tem desenho)
+                    tokens.redesenhar(token);
+                    menu.atualizar();
+                    bolsa.atualizar();
+                    return;
+                }
+                case "token_excluido":
+                    removerTokenDoJogo(evento.id);
+                    return;
+                case "ficha_excluida":
+                    removerFichaDoJogo(evento.id);
+                    return;
+                case "ficha_editada":
+                    receberFicha(evento.ficha); // já está gravada no disco do servidor (com a versão nova)
+                    bolsa.atualizarFichas();
+                    editorFicha.fichaMudou(evento.ficha);
+                    return;
+                case "ficha_conflito":
+                    receberFicha(evento.ficha); // a versão ATUAL: a grade também se corrige
+                    bolsa.atualizarFichas();
+                    editorFicha.conflito(evento.ficha);
+                    return;
+                case "ficha_criada":
+                    receberFicha(evento.ficha); // já está gravada no disco do servidor
+                    bolsa.fichaSalva();
+                    return;
                 case "mensagem":
                     receberMensagem(evento.mensagem); // já vem pronta do servidor (com id e hora dele)
                     chat.atualizar();
                     return;
                 case "erro":
                     status.mostrarErro(evento.motivo);
+                    bolsa.fichaRecusada(evento.motivo); // se esta pessoa esperava uma ficha ou um token, o formulário mostra o motivo
+                    bolsa.tokenRecusado(evento.motivo);
+                    editorFicha.recusada(evento.motivo);
                     return;
             }
         };
         rede = criarRede({
             apelido: parametros.get("nome") ?? "Jogador",
             aoReceber: aplicarEventoDoServidor,
-            aoMudarConexao: (conectada) => status.mostrarConexao(conectada),
+            aoMudarConexao: (conectada) => {
+                status.mostrarConexao(conectada);
+                if (!conectada) {
+                    bolsa.fichaRecusada("Sem conexão com o servidor. Tente de novo quando voltar.");
+                    bolsa.tokenRecusado("Sem conexão com o servidor. Tente de novo quando voltar.");
+                    editorFicha.recusada("Sem conexão com o servidor. Tente de novo quando voltar.");
+                }
+            },
         });
     }
 
@@ -418,6 +600,12 @@ async function iniciar(): Promise<void> {
     if (import.meta.env.DEV) {
         (window as unknown as Record<string, unknown>).__tabuleirinho = {
             pronto: true,
+            // Só para os testes: adiciona à mesa os tokens que o TESTE mandar (o app não tem nenhum token pronto: eles vêm dos
+            // arquivos de dados/tokens/ do servidor, ou nascem pela bolsa). Os dados dos tokens de teste ficam em tests/e2e/ajuda.mjs.
+            semear: (lista: Omit<Token, "condicoes">[]) => {
+                for (const dados of lista) tokens.adicionar(receberToken({ ...dados, condicoes: [] }));
+                bolsa.atualizar();
+            },
             estado,
             camera,
             get rede() {

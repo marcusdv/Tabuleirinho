@@ -10,8 +10,8 @@
 // (o token existe? essa posição cabe? o texto passa do limite?) é conferido depois, pelas regras de estado.ts.
 // =====================================================================
 
-import { MAX_CARACTERES_APELIDO } from "./config.ts";
-import type { Mensagem, Token } from "./estado.ts";
+import { MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_TEXTO_FICHA } from "./config.ts";
+import type { Ficha, Mensagem, MudancasToken, Token } from "./estado.ts";
 
 /** Um jogador conectado à mesa. */
 export interface Jogador {
@@ -25,11 +25,25 @@ export type PedidoDoCliente =
     | { tipo: "colocar_token"; id: number; col: number; row: number } // soltar um token no mapa (mover ou tirar da bolsa)
     | { tipo: "guardar_token"; id: number } // soltar um token na bolsa
     | { tipo: "enviar_mensagem"; texto: string }
-    | { tipo: "rolar_dados"; lados: number; quantidade: number; modificador: number };
+    | { tipo: "rolar_dados"; lados: number; quantidade: number; modificador: number }
+    | { tipo: "criar_token"; nome: string; cor: number; corBorda: number; tamanho: number; imagem: string | null } // o SERVIDOR dá o id e cria o arquivo
+    | { tipo: "editar_token"; id: number; mudancas: MudancasToken } // nome, tamanho, cores e/ou imagem
+    | { tipo: "excluir_token"; id: number } // apaga o token E o arquivo dele
+    | { tipo: "criar_ficha" }
+    | { tipo: "editar_ficha"; id: number; versao: number; nome?: string; texto?: string } // `versao` = a que a pessoa tinha na tela ao abrir
+    | { tipo: "excluir_ficha"; id: number } // apaga a ficha E o arquivo dela
+    | { tipo: "rolar_ficha"; id: number; versao: number; indice: number }; // rola a rolagem de posição `indice` da ficha SALVA (na versão `versao`) // sem dados: o SERVIDOR dá o id e o nome ("Ficha N") e cria o arquivo NA HORA (a ficha nasce vazia)
 
 /** O que o servidor AVISA aos navegadores. */
 export type EventoDoServidor =
-    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; tokens: Token[]; mensagens: Mensagem[] }
+    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[] }
+    | { tipo: "token_criado"; token: Token } // já gravado no disco do servidor; nasce guardado na bolsa
+    | { tipo: "token_editado"; token: Token } // o token inteiro, como ficou
+    | { tipo: "token_excluido"; id: number }
+    | { tipo: "ficha_criada"; ficha: Ficha }
+    | { tipo: "ficha_excluida"; id: number }
+    | { tipo: "ficha_editada"; ficha: Ficha } // já gravada no disco do servidor (a ficha inteira, com a versão nova)
+    | { tipo: "ficha_conflito"; ficha: Ficha } // só para quem pediu: a ficha mudou desde que ele a abriu; esta é a versão ATUAL // já gravada no disco do servidor
     | { tipo: "jogadores"; lista: Jogador[] }
     | { tipo: "token_colocado"; id: number; col: number; row: number }
     | { tipo: "token_guardado"; id: number }
@@ -62,6 +76,44 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             return eInteiro(p.lados) && eInteiro(p.quantidade) && eInteiro(p.modificador)
                 ? { tipo: "rolar_dados", lados: p.lados, quantidade: p.quantidade, modificador: p.modificador }
                 : null;
+        case "criar_token":
+            return eTexto(p.nome, TEXTO_MAX_BRUTO) &&
+                eInteiro(p.cor) &&
+                eInteiro(p.corBorda) &&
+                eInteiro(p.tamanho) &&
+                (p.imagem === null || eTexto(p.imagem, MAX_CARACTERES_IMAGEM_TOKEN))
+                ? { tipo: "criar_token", nome: p.nome, cor: p.cor, corBorda: p.corBorda, tamanho: p.tamanho, imagem: p.imagem }
+                : null;
+        case "editar_token": {
+            if (!eInteiro(p.id) || typeof p.mudancas !== "object" || p.mudancas === null || Array.isArray(p.mudancas)) return null;
+            const m = p.mudancas as Record<string, unknown>;
+            const mudancas: MudancasToken = {};
+            // Só entram os campos conhecidos; um campo presente com o tipo errado invalida o pedido inteiro.
+            if (m.nome !== undefined) { if (!eTexto(m.nome, TEXTO_MAX_BRUTO)) return null; mudancas.nome = m.nome; }
+            if (m.size !== undefined) { if (!eInteiro(m.size)) return null; mudancas.size = m.size; }
+            if (m.cor !== undefined) { if (!eInteiro(m.cor)) return null; mudancas.cor = m.cor; }
+            if (m.corBorda !== undefined) { if (!eInteiro(m.corBorda)) return null; mudancas.corBorda = m.corBorda; }
+            if (m.imagem !== undefined) {
+                if (m.imagem !== null && !eTexto(m.imagem, MAX_CARACTERES_IMAGEM_TOKEN)) return null;
+                mudancas.imagem = m.imagem;
+            }
+            return { tipo: "editar_token", id: p.id, mudancas };
+        }
+        case "excluir_token":
+            return eInteiro(p.id) ? { tipo: "excluir_token", id: p.id } : null;
+        case "criar_ficha":
+            return { tipo: "criar_ficha" }; // qualquer outro campo que venha junto é descartado
+        case "excluir_ficha":
+            return eInteiro(p.id) ? { tipo: "excluir_ficha", id: p.id } : null;
+        case "rolar_ficha":
+            return eInteiro(p.id) && eInteiro(p.versao) && eInteiro(p.indice) ? { tipo: "rolar_ficha", id: p.id, versao: p.versao, indice: p.indice } : null;
+        case "editar_ficha": {
+            if (!eInteiro(p.id) || !eInteiro(p.versao)) return null;
+            if (p.nome !== undefined && !eTexto(p.nome, TEXTO_MAX_BRUTO)) return null;
+            // (a limpeza só ENCURTA o texto, então este limite bruto já é o de verdade; o sentido é conferido por montarEdicaoDaFicha)
+            if (p.texto !== undefined && !eTexto(p.texto, MAX_CARACTERES_TEXTO_FICHA)) return null;
+            return { tipo: "editar_ficha", id: p.id, versao: p.versao, ...(p.nome !== undefined && { nome: p.nome }), ...(p.texto !== undefined && { texto: p.texto }) };
+        }
         default:
             return null; // tipo desconhecido: só existe o que está na lista acima
     }

@@ -2,7 +2,7 @@
 // PAINEL DE DADOS (HTML): a barra GRUDADA no lado esquerdo do chat, onde se escolhe o
 // dado (d4 a d1000), a quantidade e o modificador, e se rola. O resultado vai para o
 // chat (main.ts). A barra é RETRÁTIL: a aba entre os dados e o chat a recolhe, e sobra só a
-// aba "Dados" colada no chat. Em janelas com menos de 1090 px a barra fica EM CIMA do chat (CSS).
+// aba "Dados" colada no chat. Em janelas com menos de 1184 px a barra fica EM CIMA do chat (CSS).
 //
 // A marcação e o CSS ficam no index.html (o painel está DENTRO do #chat, por isso
 // acompanha a posição e a largura dele); aqui só ligamos os elementos.
@@ -141,7 +141,7 @@ export function criarPainelDados(opcoes: OpcoesPainelDados): void {
     }
     alternar.addEventListener("click", () => recolher(!painel.classList.contains("recolhido")));
     // Em janelas BAIXAS (menos de 720 px) ele começa recolhido, para sobrar espaço no tabuleiro.
-    // (Em janelas estreitas, menos de 1090 px, o CSS o coloca em cima do chat em vez de ao lado: não cobre outros painéis.)
+    // (Em janelas estreitas, menos de 1184 px, o CSS o coloca em cima do chat em vez de ao lado: não cobre outros painéis.)
     recolher(window.innerHeight < 720);
 
     atualizar();

@@ -53,8 +53,15 @@ export interface OpcoesTokens {
 }
 
 export interface CamadaTokens {
-    /** Cria o desenho de um token que acabou de entrar no estado (ex.: criado na bolsa). */
+    /** Cria o desenho de um token que acabou de entrar no estado (ex.: criado na bolsa). Se ele já tem desenho, não faz nada. */
     adicionar(token: Token): void;
+    /**
+     * Tira o desenho de um token que foi EXCLUÍDO (ele já saiu do estado). Se alguém o estava segurando, o arrasto é cancelado, e a
+     * textura da imagem é liberada se nenhum outro token a usa.
+     */
+    remover(id: number): void;
+    /** Refaz o desenho de TODOS os tokens do estado (quando o servidor manda a lista inteira ao entrar na mesa). */
+    reconstruir(): void;
     /**
      * Mostra o token onde o ESTADO diz que ele está (no mapa, ou escondido se está na bolsa). Usado quando a posição
      * vem de FORA (do servidor). Se o usuário está segurando este token agora, não mexe: o que ele soltar vale.
@@ -362,12 +369,42 @@ export function criarTokens(
             grade.mostrarDestaque(token.size, token.col, token.row);
         });
     }
+    /** Apaga o desenho de UM token (o token já deve ter saído do estado, ou ser recriado em seguida). */
+    function destruirView(id: number): void {
+        const view = views.get(id);
+        if (!view) return;
+        if (arrastando?.token.id === id) {
+            // Alguém segurava este token: cancela o arrasto sem tocar em mais nada (o token já não existe).
+            arrastando = null;
+            sobreBolsa = false;
+            opcoes.aoEsconderSobreBolsa();
+            opcoes.aoMudarSobreBolsa(false);
+            grade.esconderDestaque();
+        }
+        views.delete(id);
+        mundo.removeChild(view.raiz);
+        view.raiz.destroy({ children: true }); // (a textura da imagem é compartilhada: sai da memória logo abaixo, se ninguém mais a usa)
+        const url = view.fotoUrl;
+        if (url && !estado.tokens.some((t) => t.imagem === url)) void Assets.unload(url);
+    }
+
     for (const token of estado.tokens) criarView(token);
     reordenar(); // garante a ordem "maiores por baixo" desde o início
 
     return {
         adicionar(token) {
+            if (views.has(token.id)) return;
             criarView(token);
+            reordenar();
+        },
+
+        remover(id) {
+            destruirView(id);
+        },
+
+        reconstruir() {
+            for (const id of [...views.keys()]) destruirView(id);
+            for (const token of estado.tokens) criarView(token);
             reordenar();
         },
 

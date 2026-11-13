@@ -216,6 +216,13 @@
          PAINEL DE DESENHO: flutuante, fixo na esquerda, retrátil (como a barra da direita)
          =================================================================== */
             #ferramentas-desenho {
+                /* O chat (e, em janelas estreitas, a barra de dados em cima dele) ocupa o canto inferior ESQUERDO, o mesmo lado deste painel.
+                   Por isso a altura máxima é o espaço que sobra acima dessa pilha, e o CONTEÚDO rola por dentro: o painel nunca cobre o chat.
+                   160 px = o chat (148) + 12 de margem; 8 px de folga. */
+                --reserva-embaixo: 160px;
+                display: flex;
+                flex-direction: column;
+                max-height: calc(100vh - 12px - var(--reserva-embaixo) - 8px);
                 position: fixed;
                 top: 12px;
                 left: 12px;
@@ -247,8 +254,25 @@
             #desenho-alternar:hover {
                 background: #3b3b49;
             }
+            #ferramentas-desenho .cabecalho {
+                flex: none; /* o título e o botão de recolher ficam sempre à vista */
+            }
             #ferramentas-desenho .conteudo {
                 gap: 12px;
+                flex: 1 1 auto;
+                min-height: 0; /* sem isto o conteúdo não encolhe para caber: é ele que rola */
+                overflow-y: auto;
+                scrollbar-width: thin;
+                scrollbar-color: #5a5a6a transparent;
+            }
+            /* Janelas estreitas: a barra de dados fica EM CIMA do chat (129 px aberta, 24 recolhida), então a pilha é mais alta. */
+            @media (max-width: 1183px) {
+                #ferramentas-desenho {
+                    --reserva-embaixo: calc(160px + 134px);
+                }
+                body:has(#dados.recolhido) #ferramentas-desenho {
+                    --reserva-embaixo: calc(160px + 29px);
+                }
             }
             #lista-ferramentas {
                 display: flex;
@@ -302,19 +326,25 @@
             }
 
             /* ===================================================================
-         CHAT: fixo embaixo, no centro. As mensagens correm da ESQUERDA para a DIREITA:
+         CHAT: fixo no CANTO INFERIOR ESQUERDO. As mensagens correm da ESQUERDA para a DIREITA:
          a mais nova entra na ponta esquerda e empurra as anteriores para a direita.
-         Fica entre os cantos: a coluna do canto direito (bolsa e painel da calibragem) é preservada.
+         A barra de dados é grudada à esquerda do chat: ABERTA, ela EMPURRA o chat para a direita (que desliza, suave);
+         recolhida, sobra só a aba. A coluna do canto direito (bolsa e painel da calibragem) é preservada.
          =================================================================== */
             #chat {
                 position: fixed;
                 bottom: 12px;
-                left: 50%;
-                transform: translateX(-50%);
                 z-index: 10;
-                /* 720 = espaço dos dois lados (coluna da direita com o painel da calibragem de 340 px + folgas,
-           e a mesma folga à esquerda, por ele ser centralizado); a largura fica entre 420 e 680 px */
-                --largura-chat: max(420px, min(680px, calc(100vw - 720px)));
+                /* O recuo à esquerda é a largura da barra de dados (que fica grudada no chat, fora dele, à esquerda): com ela ABERTA o chat
+                   fica 380 px para dentro; recolhida, só 29 px (a aba). Mudar o recuo faz o chat DESLIZAR (transition), levando a barra junto. */
+                --largura-dados-aberta: 380px;
+                --largura-dados-recolhida: 29px; /* a aba (28 px) + a borda */
+                --recuo-dados: var(--largura-dados-aberta);
+                left: calc(12px + var(--recuo-dados));
+                transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                /* A largura NÃO muda ao abrir/recolher os dados (só desliza): 764 = 12 (folga à esquerda) + 380 (dados abertos) + 372 (a
+                   coluna da direita: bolsa de 340 px, painel da calibragem e folgas); fica entre 420 e 680 px. */
+                --largura-chat: max(420px, min(680px, calc(100vw - 764px)));
                 --altura-faixa: 90px; /* altura da faixa de mensagens (e da barra de rolagem, ao lado dela) */
                 width: var(--largura-chat);
                 box-sizing: border-box;
@@ -327,6 +357,9 @@
                 border-radius: 10px;
                 box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
             }
+            #chat:has(#dados.recolhido) {
+                --recuo-dados: var(--largura-dados-recolhida);
+            }
             /* ===================================================================
          BARRA DE DADOS: grudada no lado ESQUERDO do chat e com a MESMA ALTURA dele (está dentro do chat,
          então acompanha posição e altura). A aba com a seta ocupa a altura toda, aberta ou fechada.
@@ -336,8 +369,7 @@
                 right: 100%; /* encosta na borda esquerda do chat */
                 top: -1px;
                 bottom: -1px; /* mesma altura do chat (ele tem 1 px de borda em cima e embaixo) */
-                width: 380px; /* o botão Rolar ocupa o que sobra do conteúdo */
-                max-width: calc(50vw - var(--largura-chat) / 2 - 12px); /* nunca passa da borda esquerda da janela */
+                width: var(--largura-dados-aberta); /* o botão Rolar ocupa o que sobra do conteúdo */
                 display: flex;
                 flex-direction: row;
                 box-sizing: border-box;
@@ -351,7 +383,27 @@
             }
             /* A aba (seta + "Dados" na vertical): uma faixa da altura toda. */
             #dados.recolhido {
-                width: auto;
+                width: var(--largura-dados-recolhida);
+            }
+            /* Ao abrir, o conteúdo aparece com um fade (enquanto o chat desliza). */
+            #dados:not(.recolhido) #dados-conteudo {
+                animation: dados-aparecer 0.3s ease;
+            }
+            @keyframes dados-aparecer {
+                from {
+                    opacity: 0;
+                }
+                to {
+                    opacity: 1;
+                }
+            }
+            @media (prefers-reduced-motion: reduce) {
+                #chat {
+                    transition: none;
+                }
+                #dados:not(.recolhido) #dados-conteudo {
+                    animation: none;
+                }
             }
             #dados-alternar {
                 flex: 0 0 auto;
@@ -543,11 +595,17 @@
                 margin: 0;
             }
             /* ===================================================================
-         JANELAS ESTREITAS (menos de 1090 px): a barra de dados sai da esquerda do chat e fica EM CIMA dele,
+         JANELAS ESTREITAS (menos de 1184 px: chat + dados + coluna da direita não cabem lado a lado): a barra de dados sai da esquerda do chat e fica EM CIMA dele,
          com a largura do chat. Os 8 dados numa linha; embaixo quantidade, modificador e Rolar; e a aba de
          expandir/ocultar vira uma faixa horizontal ENTRE os dados e o chat.
          =================================================================== */
-            @media (max-width: 1089px) {
+            @media (max-width: 1183px) {
+                /* Aqui os dados ficam em cima do chat, então o chat não recua: fica encostado no canto. */
+                #chat,
+                #chat:has(#dados.recolhido) {
+                    --recuo-dados: 0px;
+                    --largura-chat: max(336px, min(680px, calc(100vw - 384px))); /* 384 = 12 + a coluna da direita (372); 336 = o mínimo em que a barra de dados ainda cabe */
+                }
                 #dados {
                     width: auto;
                     left: -1px;
@@ -617,7 +675,7 @@
                 }
             }
             /* Janela estreita E baixa: a barra de dados (recolhida, 24 px) e o chat ocupam o fundo; o painel da calibragem sobe mais. */
-            @media (max-width: 1089px) and (max-height: 720px) {
+            @media (max-width: 1183px) and (max-height: 720px) {
                 #painel-calibragem {
                     bottom: 196px;
                 }
@@ -638,6 +696,19 @@
             }
             .chat-formula strong {
                 color: #fff;
+            }
+            /* O cartão de uma rolagem de FICHA: o nome da rolagem (cor do nome na ficha) e, ao lado, o nome da ficha; cortados com "…" se forem comprido. */
+            .chat-mensagem p.chat-titulo-ficha {
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+            .chat-titulo-ficha strong {
+                color: #ffcc80;
+            }
+            .chat-titulo-ficha small {
+                color: #9a9aa8;
+                font-size: 11px;
             }
             .chat-total {
                 flex: 0 0 auto;
@@ -857,7 +928,7 @@
 
             /* Bolsa: guarda tokens. Arraste um token do mapa para cá; arraste uma fichinha daqui para o mapa. */
             #bolsa {
-                width: 268px; /* cabem 4 fichas por linha */
+                width: 340px; /* cabem 5 fichas por linha (e cabe na coluna da direita: o chat reserva 360 px de cada lado) */
                 box-sizing: border-box;
                 padding: 8px 10px 10px;
                 background: rgba(34, 34, 42, 0.94);
@@ -887,69 +958,8 @@
                 text-transform: uppercase;
                 color: #9a9aa8;
             }
-            #bolsa {
-                position: relative; /* o quadradinho de maximizar fica ancorado na caixa */
-                margin-top: 27px; /* reserva o lugar do quadradinho (a "aba" colada em cima da caixa) */
-            }
-            /* O QUADRADINHO de maximizar: uma ABA colada em cima da caixa da bolsa (como o botão de maximizar da janela do
-               navegador, só que fora da caixa, encostado na borda de cima). Mesmo fundo e mesma borda da bolsa, sem a borda
-               de baixo, para parecer uma peça só. */
-            #bolsa-maximizar {
-                position: absolute;
-                top: -27px; /* a base da aba cobre a borda de cima da caixa */
-                right: 12px;
-                z-index: 1;
-                width: 30px;
-                height: 27px;
-                padding: 0;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                background: rgba(34, 34, 42, 0.94);
-                border: 1px solid #3a3a45;
-                border-bottom: none;
-                border-radius: 8px 8px 0 0;
-                color: #c9c9d4;
-                cursor: pointer;
-            }
-            #bolsa-maximizar:hover {
-                background: #3b3b49;
-                color: #ffd54f;
-            }
-            /* O desenho do botão: um quadrado (maximizar); no tamanho médio, dois quadrados sobrepostos (restaurar). */
-            #bolsa-maximizar .icone-max {
-                position: relative;
-                display: block;
-                width: 10px;
-                height: 10px;
-                box-sizing: border-box;
-                border: 2px solid currentColor;
-                border-radius: 2px;
-            }
-            #bolsa.media #bolsa-maximizar .icone-max {
-                width: 9px;
-                height: 9px;
-                margin: 2px 0 0 -2px;
-            }
-            #bolsa.media #bolsa-maximizar .icone-max::before {
-                content: "";
-                position: absolute;
-                top: -5px;
-                left: 2px;
-                width: 9px;
-                height: 9px;
-                box-sizing: border-box;
-                border: 2px solid currentColor;
-                border-bottom: none;
-                border-left: none;
-                border-radius: 0 2px 0 0;
-            }
-            #bolsa.expandida #bolsa-maximizar {
-                display: none; /* a tela cheia tem o botão Fechar */
-            }
-            /* Botão de texto do cabeçalho (só no tamanho médio). */
+            /* Botão de texto do cabeçalho ("⤢ Criar/editar": abre a tela cheia). */
             .bolsa-botao-topo {
-                display: none;
                 height: 22px;
                 padding: 0 9px;
                 background: #2f2f3a;
@@ -965,32 +975,15 @@
                 border-color: #ffd54f;
                 color: #ffd54f;
             }
-            /* Pesquisa: só nos tamanhos médio e tela cheia. */
+            #bolsa.expandida .bolsa-botao-topo {
+                display: none; /* a tela cheia tem o botão Fechar */
+            }
+            /* Pesquisa: numa linha só dela, abaixo do título e das abas (na tela cheia fica ao lado do título; ver abaixo). */
             #bolsa-busca {
-                display: none;
-            }
-            /* BOLSA MÉDIA ("meio termo"): um pouco maior que a pequena, com pesquisa; o mapa continua acessível,
-               então dá para arrastar tokens daqui para o tabuleiro (e para cá). */
-            #bolsa.media {
-                width: 340px; /* cabe na coluna da direita (o chat reserva 360 px de cada lado) */
-            }
-            #bolsa.media .bolsa-titulo {
-                margin-right: auto;
-            }
-            #bolsa.media .bolsa-botao-topo {
-                display: inline-block;
-            }
-            #bolsa.media #bolsa-busca {
-                display: block;
-                order: 9; /* segunda linha */
+                order: 9;
                 flex: 1 1 100%;
             }
-            #bolsa.media #bolsa-itens {
-                grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-                /* Mais altura que a pequena, mas sem passar por baixo da barra de ferramentas (a da direita, em cima). */
-                max-height: max(150px, calc(100vh - 548px));
-            }
-            #bolsa:not(.expandida):not(.media) .bolsa-titulo {
+            #bolsa:not(.expandida) .bolsa-titulo {
                 margin-right: auto;
             }
             #bolsa-fechar {
@@ -1007,13 +1000,6 @@
             #bolsa-fechar:hover {
                 background: #3b3b49;
             }
-            /* Fechada, a bolsa inteira é clicável (abre); as fichinhas continuam sendo arrastadas. */
-            #bolsa:not(.expandida) {
-                cursor: pointer;
-            }
-            #bolsa:not(.expandida):hover {
-                border-color: #6b5a2a;
-            }
             #bolsa:not(.expandida) #bolsa-criar {
                 display: none;
             }
@@ -1029,7 +1015,6 @@
                 background: rgba(8, 8, 12, 0.55); /* escurece o fundo e impede mexer no mapa por baixo */
             }
             #bolsa.expandida {
-                margin-top: 0; /* (a margem de 27 px da bolsa pequena é para o quadradinho; na tela cheia empurraria tudo para baixo) */
                 position: fixed;
                 inset: 16px;
                 width: auto;
@@ -1050,6 +1035,7 @@
             }
             #bolsa.expandida #bolsa-busca {
                 display: block;
+                order: 0; /* (no canto a pesquisa vai para a última linha; aqui, fica ao lado do título) */
                 flex: 1;
                 min-width: 0;
                 max-width: 460px;
@@ -1231,6 +1217,208 @@
                 font-size: 12px;
                 color: #9ad59a;
             }
+            /* ABAS da bolsa ("Tokens" e "Fichas"). São o ÚLTIMO filho de .bolsa-topo; com `order: 5` e largura total vão para uma
+               linha só delas: abaixo do título e, no tamanho médio, ACIMA da pesquisa (que tem `order: 9`). */
+            #bolsa-abas {
+                order: 5;
+                flex: 1 1 100%;
+                display: flex;
+                gap: 2px;
+                border-bottom: 1px solid #3a3a45;
+            }
+            .bolsa-aba {
+                height: 24px;
+                padding: 0 12px;
+                margin-bottom: -1px; /* o traço da aba ativa cobre a linha de baixo */
+                background: transparent;
+                border: none;
+                border-bottom: 2px solid transparent;
+                color: #9a9aa8;
+                font: inherit;
+                font-size: 12px;
+                cursor: pointer;
+            }
+            .bolsa-aba:hover {
+                color: #ffd54f;
+            }
+            .bolsa-aba[aria-selected="true"] {
+                color: #ffd54f;
+                border-bottom-color: #ffd54f;
+            }
+            #bolsa.expandida .bolsa-aba {
+                height: 30px;
+                padding: 0 16px;
+                font-size: 14px;
+            }
+            /* Aba FICHAS: esconde o que é só dos tokens (fichinhas, criação e pesquisa) e mostra o painel. O botão "Criar/editar"
+               continua na média: é o caminho para a tela cheia, que tem mais espaço para a grade de fichas. */
+            #bolsa-fichas {
+                display: none;
+            }
+            #bolsa.aba-fichas #bolsa-conteudo,
+            #bolsa.aba-fichas #bolsa-criar,
+            #bolsa.aba-fichas #bolsa-busca {
+                display: none;
+            }
+            #bolsa.aba-fichas #bolsa-fichas {
+                display: block;
+            }
+            /* A barra do painel: o botão "Criar ficha" e, embaixo dele, o aviso quando algo é recusado. */
+            #bolsa-fichas-barra {
+                margin-bottom: 8px;
+            }
+            #bolsa-fichas-botoes {
+                display: flex;
+                gap: 6px;
+            }
+            #bolsa-ficha-criar-botao {
+                flex: 1;
+                margin: 0;
+            }
+            #bolsa-ficha-instrucoes {
+                flex: none;
+                width: auto;
+                margin: 0;
+                padding: 0 10px;
+            }
+            /* O botão "Instruções" só aparece na tela EXPANDIDA das fichas (pedido do dono): na bolsa pequena e na média ele some e "+ Criar ficha" ocupa a linha. */
+            #bolsa:not(.expandida) #bolsa-ficha-instrucoes {
+                display: none;
+            }
+            #bolsa-ficha-aviso {
+                margin: 6px 0 0;
+                font-size: 12px;
+                color: #9ad59a;
+            }
+            #bolsa-ficha-aviso:empty {
+                display: none;
+            }
+            #bolsa-ficha-aviso[data-erro] {
+                color: #e88a8a; /* mensagem de recusa */
+            }
+            #bolsa-fichas-vazia {
+                margin: 0;
+                font-size: 12px;
+                color: #7d7d8c;
+            }
+            /* A GRADE de documentos, organizada como a de tokens (#bolsa-itens): 4 por linha na bolsa pequena, e mais na média e na
+               tela cheia. Não confundir com a classe ".ficha" (a fichinha de um TOKEN). */
+            #bolsa-fichas-lista {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+                display: grid;
+                grid-template-columns: repeat(5, minmax(0, 1fr));
+                gap: 6px;
+                max-height: 120px;
+                overflow-y: auto;
+                scrollbar-gutter: stable;
+            }
+            /* Um documento da grade: a folha com a pontinha dobrada, o nome e a versão. */
+            .bolsa-doc {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 2px;
+                padding: 4px;
+                min-width: 0;
+                box-sizing: border-box;
+                background: #2f2f3a;
+                border-radius: 6px;
+                font-size: 11px;
+                cursor: pointer; /* clicar abre a ficha para editar */
+            }
+            .bolsa-doc:hover {
+                background: #3b3b49;
+            }
+            .bolsa-doc:focus-visible {
+                outline: 2px solid #ffd54f;
+            }
+            /* A folha é desenhada em "em" (o tamanho vem do font-size dela), para crescer inteira na tela cheia. */
+            .bolsa-doc-folha {
+                position: relative;
+                display: block;
+                flex: none;
+                width: 2.6em;
+                height: 3.2em;
+                font-size: 10px;
+                background: #dcdce6;
+                border-radius: 0.2em 0.8em 0.2em 0.2em;
+            }
+            .bolsa-doc-folha::before {
+                content: "";
+                position: absolute;
+                top: 0;
+                right: 0;
+                width: 0.9em;
+                height: 0.9em;
+                background: #9a9aa8;
+                border-bottom-left-radius: 0.3em;
+            }
+            .bolsa-doc-folha::after {
+                content: "";
+                position: absolute;
+                left: 0.5em;
+                right: 0.5em;
+                top: 1.4em;
+                height: 0.2em;
+                background: #9a9aa8;
+                box-shadow: 0 0.5em 0 #9a9aa8, 0 1em 0 #9a9aa8;
+            }
+            .bolsa-doc-nome {
+                max-width: 100%;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .bolsa-doc small {
+                font-size: 10px;
+                color: #9a9aa8;
+            }
+            /* Na bolsa do CANTO (a de sempre) o número da versão fica oculto (continua na dica do mouse e aparece na tela cheia) e o nome ganha
+               esse espaço: até DUAS linhas, como nas fichinhas dos tokens. */
+            #bolsa:not(.expandida) .bolsa-doc small {
+                display: none;
+            }
+            #bolsa:not(.expandida) .bolsa-doc-nome {
+                display: -webkit-box;
+                -webkit-box-orient: vertical;
+                -webkit-line-clamp: 2;
+                white-space: normal;
+                overflow-wrap: anywhere;
+                text-align: center;
+                line-height: 1.2;
+            }
+            /* Tela cheia: o painel ocupa a largura toda (por baixo do cabeçalho) e a grade se estica até a borda direita. */
+            #bolsa.expandida #bolsa-fichas {
+                grid-column: 1 / -1;
+                grid-row: 2 / -1;
+                min-height: 0;
+                overflow-y: auto;
+            }
+            #bolsa.expandida #bolsa-fichas-barra {
+                max-width: 360px;
+            }
+            #bolsa.expandida #bolsa-fichas-vazia {
+                font-size: 14px;
+            }
+            #bolsa.expandida #bolsa-fichas-lista {
+                max-height: none;
+                overflow: visible;
+                align-content: start;
+                gap: 12px;
+                grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+            }
+            #bolsa.expandida .bolsa-doc {
+                padding: 12px 6px;
+                font-size: 13px;
+            }
+            #bolsa.expandida .bolsa-doc-folha {
+                font-size: 20px;
+            }
+            #bolsa.expandida .bolsa-doc small {
+                font-size: 12px;
+            }
             /* Janelas estreitas: a criação fica em cima e as fichas embaixo. */
             @media (max-width: 760px) {
                 #bolsa.expandida {
@@ -1256,9 +1444,9 @@
                 color: #7d7d8c;
             }
             #bolsa-itens {
-                /* 4 fichas por linha (colunas que se ajustam: não quebram quando a barra de rolagem aparece). */
+                /* 5 fichas por linha (colunas que se ajustam: não quebram quando a barra de rolagem aparece). */
                 display: grid;
-                grid-template-columns: repeat(4, minmax(0, 1fr));
+                grid-template-columns: repeat(5, minmax(0, 1fr));
                 gap: 6px;
                 max-height: 120px;
                 overflow-y: auto;
@@ -1304,6 +1492,20 @@
             .ficha small {
                 font-size: 11px;
                 color: #c9c9d4;
+            }
+            /* Bolsa PEQUENA (a do canto): sem o tamanho (continua na dica do mouse), e o nome ganha esse espaço: até DUAS linhas, em vez
+               de uma só cortada com "…". Na média e na tela cheia há espaço de sobra e tudo continua como era. */
+            #bolsa:not(.expandida) .ficha small {
+                display: none;
+            }
+            #bolsa:not(.expandida) .ficha .ficha-nome {
+                display: -webkit-box;
+                -webkit-box-orient: vertical;
+                -webkit-line-clamp: 2;
+                white-space: normal;
+                overflow-wrap: anywhere;
+                text-align: center;
+                line-height: 1.2;
             }
             #painel-calibragem h2 {
                 margin: 0 0 6px;
@@ -1632,7 +1834,8 @@
             }
 
             /* Menu do clique direito numa ficha da bolsa. */
-            #menu-ficha {
+            #menu-ficha,
+            #menu-doc {
                 position: fixed;
                 z-index: 45;
                 min-width: 170px;
@@ -1642,7 +1845,8 @@
                 border-radius: 8px;
                 box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
             }
-            #menu-ficha button {
+            #menu-ficha button,
+            #menu-doc button {
                 display: block;
                 width: 100%;
                 padding: 7px 10px;
@@ -1655,7 +1859,8 @@
                 text-align: left;
                 cursor: pointer;
             }
-            #menu-ficha button:hover {
+            #menu-ficha button:hover,
+            #menu-doc button:hover {
                 background: #3b3b49;
             }
 
@@ -1741,11 +1946,547 @@
                 background: #5a4a1f;
                 border-color: #ffd54f;
             }
+            /* "Excluir token": vermelho (na engrenagem e no menu da ficha da bolsa). */
+            .botao-largo.botao-excluir {
+                border-color: #a84a4a;
+                color: #ff9a9a;
+            }
+            .botao-largo.botao-excluir:hover:not(:disabled) {
+                background: #4a2a2a;
+            }
+            #menu-ficha #menu-ficha-excluir,
+            #menu-doc #menu-doc-excluir {
+                color: #ff9a9a;
+            }
             .editor-imagem-botoes button:disabled {
                 opacity: 0.4;
                 cursor: not-allowed;
             }
         
+            /* Editor de FICHA: uma janela FLUTUANTE e ARRASTÁVEL (pela barra do título), por cima da bolsa expandida. NÃO é "modal": não escurece
+               o fundo nem bloqueia o resto da tela (a camada `#editor-ficha` deixa o mouse passar; só o painel o recebe), para a pessoa ver e usar o
+               chat, os dados e o tabuleiro enquanto edita (ver a rolagem). A posição (left/top) é definida pelo ui/editorFicha.ts. */
+            #editor-ficha {
+                position: fixed;
+                inset: 0;
+                z-index: 50;
+                pointer-events: none;
+            }
+            #editor-ficha-painel {
+                position: absolute;
+                pointer-events: auto;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+                width: min(940px, calc(100vw - 24px));
+                height: min(640px, calc(100vh - 210px)); /* deixa livre a faixa de baixo (chat e dados) */
+                min-height: 360px;
+                padding: 16px 20px 14px;
+                background: #22222a;
+                border: 1px solid #3a3a45;
+                border-radius: 12px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            }
+            #editor-ficha-topo {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                cursor: grab; /* a barra do título arrasta a janela */
+                user-select: none;
+                touch-action: none;
+            }
+            #editor-ficha-painel.arrastando #editor-ficha-topo {
+                cursor: grabbing;
+            }
+            /* TODA a parte neutra da janela arrasta (ver ehParteNeutra no ui/editorFicha.ts): a mãozinha, e nada de selecionar texto ao arrastar.
+               O texto que se quer copiar (parágrafos e exemplos das dicas) e os campos continuam selecionáveis, com o cursor de texto. */
+            #editor-ficha-painel {
+                cursor: grab;
+                user-select: none;
+            }
+            #editor-ficha-painel textarea,
+            #editor-ficha-painel input,
+            #editor-ficha-painel p,
+            #editor-ficha-painel pre,
+            #editor-ficha-painel code {
+                user-select: text;
+            }
+            #editor-ficha-painel p,
+            #editor-ficha-painel pre,
+            #editor-ficha-painel code {
+                cursor: text;
+            }
+            #editor-ficha-painel.arrastando,
+            #editor-ficha-painel.arrastando * {
+                cursor: grabbing !important;
+            }
+            #editor-ficha-topo h3 {
+                margin: 0;
+                font-size: 15px;
+                font-weight: 600;
+            }
+            #editor-ficha-versao {
+                margin-right: auto;
+                font-size: 12px;
+                color: #9a9aa8;
+            }
+            /* Os botões do alto da janela: mostrar/ocultar as instruções e a tela de rolagens, e fechar. */
+            #editor-ficha-ferramentas {
+                flex: none;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            #editor-ficha-ferramentas button {
+                height: 24px;
+                padding: 0 10px;
+                background: #2f2f3a;
+                border: 1px solid #4a4a58;
+                border-radius: 6px;
+                color: #c9c9d4;
+                font: inherit;
+                font-size: 11px;
+                cursor: pointer;
+            }
+            #editor-ficha-ferramentas button:hover {
+                border-color: #ffd54f;
+                color: #ffd54f;
+            }
+            #editor-ficha-x {
+                width: 28px;
+                padding: 0 !important;
+                font-size: 13px !important;
+            }
+            #editor-ficha-x:hover {
+                border-color: #e88a8a !important;
+                color: #e88a8a !important;
+            }
+            #editor-ficha-nome,
+            #editor-ficha-texto {
+                width: 100%;
+                box-sizing: border-box;
+                background: #2f2f3a;
+                border: 1px solid #4a4a58;
+                border-radius: 6px;
+                color: inherit;
+                font: inherit;
+                font-size: 13px;
+            }
+            #editor-ficha-nome {
+                flex: none;
+                height: 32px;
+                padding: 0 10px;
+                font-weight: 600;
+            }
+            #editor-ficha-corpo {
+                flex: 1;
+                min-height: 0;
+                display: flex;
+                gap: 10px;
+            }
+            #editor-ficha-texto {
+                flex: 1;
+                min-width: 0;
+                min-height: 0;
+                padding: 10px;
+                line-height: 1.5;
+                resize: none;
+            }
+            /* O painel lateral (só leitura): variáveis e rolagens que o texto define. */
+            #editor-ficha-lateral {
+                flex: none;
+                width: 270px;
+                box-sizing: border-box;
+                overflow-y: auto;
+                padding: 10px 12px;
+                background: #26262f;
+                border: 1px solid #3a3a45;
+                border-radius: 6px;
+                font-size: 12px;
+            }
+            #editor-ficha-lateral h4 {
+                margin: 0 0 6px;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: #9a9aa8;
+            }
+            #editor-ficha-lateral h4:not(:first-child) {
+                margin-top: 16px;
+            }
+            #editor-ficha-lateral ul {
+                list-style: none;
+                margin: 0;
+                padding: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+            }
+            #editor-ficha-lateral li.variavel {
+                display: flex;
+                justify-content: space-between;
+                gap: 10px;
+            }
+            #editor-ficha-lateral li.rolagem {
+                display: flex;
+                flex-direction: column;
+                gap: 1px;
+                padding: 5px 8px;
+                background: #2f2f3a;
+                border-radius: 5px;
+            }
+            #editor-ficha-lateral .nome {
+                min-width: 0;
+                overflow-wrap: anywhere;
+                font-weight: 600;
+                color: #e6e6ea;
+            }
+            #editor-ficha-lateral .valor {
+                overflow-wrap: anywhere;
+                color: #ffd54f;
+                font-variant-numeric: tabular-nums;
+            }
+            #editor-ficha-lateral li.rolagem .valor {
+                color: #c9c9d4;
+            }
+            #editor-ficha-lateral li.com-erro .valor {
+                color: #e88a8a; /* a mensagem de erro no lugar do valor */
+                font-weight: 400;
+            }
+            #editor-ficha-lateral p {
+                margin: 0;
+                line-height: 1.45;
+                color: #7d7d8c;
+            }
+            #editor-ficha-lateral code {
+                color: #c9c9d4;
+            }
+            @media (max-width: 760px) {
+                #editor-ficha-corpo {
+                    flex-direction: column;
+                }
+                #editor-ficha-lateral {
+                    width: auto;
+                    max-height: 34%;
+                }
+            }
+            #editor-ficha-nome:focus,
+            #editor-ficha-texto:focus {
+                outline: none;
+                border-color: #ffd54f;
+            }
+            #editor-ficha-conflito {
+                flex: none;
+                padding: 8px 10px;
+                background: #4a3a1f;
+                border: 1px solid #ffb74d;
+                border-radius: 6px;
+                font-size: 12px;
+                line-height: 1.45;
+            }
+            #editor-ficha-conflito p {
+                margin: 0 0 6px;
+            }
+            #editor-ficha-recarregar {
+                height: 28px;
+                padding: 0 12px;
+                background: #5a4a1f;
+                border: 1px solid #ffd54f;
+                border-radius: 6px;
+                color: inherit;
+                font: inherit;
+                font-size: 12px;
+                cursor: pointer;
+            }
+            #editor-ficha-rodape {
+                flex: none;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            #editor-ficha-rodape .editor-imagem-botoes {
+                margin: 0 0 0 auto;
+            }
+            #editor-ficha-contagem {
+                font-size: 11px;
+                color: #9a9aa8;
+                font-variant-numeric: tabular-nums;
+            }
+            #editor-ficha-aviso {
+                font-size: 12px;
+                color: #9ad59a;
+            }
+            #editor-ficha-aviso[data-erro] {
+                color: #e88a8a;
+            }
+            #editor-ficha-salvar:not(:disabled) {
+                background: #5a4a1f;
+                border-color: #ffd54f;
+            }
+
+            /* O campo de texto da ficha + a CAMADA DE CORES por cima dele. O texto do campo fica transparente (só o cursor aparece) e a camada, que
+               tem EXATAMENTE a mesma fonte, margens e quebra de linha, mostra o mesmo texto com as cores. Por isso as cores só mudam COR, FUNDO e
+               SUBLINHADO: nunca negrito, margem ou borda, que deslocariam o texto e desalinhariam as duas camadas. */
+            #editor-ficha-area {
+                position: relative;
+                flex: 1;
+                min-width: 0;
+                min-height: 0;
+                display: flex;
+            }
+            #editor-ficha-texto,
+            #editor-ficha-cores {
+                box-sizing: border-box;
+                width: 100%;
+                margin: 0;
+                padding: 10px;
+                border: 1px solid transparent;
+                font: inherit;
+                font-size: 13px;
+                line-height: 1.5;
+                letter-spacing: normal;
+                white-space: pre-wrap;
+                overflow-wrap: break-word;
+                word-break: normal;
+                tab-size: 4;
+                overflow-x: hidden;
+                overflow-y: scroll; /* nos dois: a barra reserva o mesmo espaço e o texto quebra nos mesmos lugares */
+                scrollbar-width: thin;
+            }
+            #editor-ficha-texto {
+                position: relative;
+                z-index: 1;
+                border-color: #4a4a58;
+                background: #2f2f3a;
+            }
+            #editor-ficha-texto.colorido {
+                color: transparent;
+                caret-color: #e6e6ea;
+            }
+            #editor-ficha-texto.colorido::selection {
+                background: rgba(255, 213, 79, 0.35);
+                color: transparent;
+            }
+            #editor-ficha-cores {
+                position: absolute;
+                inset: 0;
+                z-index: 2;
+                pointer-events: none; /* o mouse passa direto para o campo (exceto nos nomes das rolagens, abaixo) */
+                border-radius: 6px;
+                background: transparent;
+                color: #e6e6ea;
+                scrollbar-color: transparent transparent; /* a barra desta camada não aparece */
+            }
+            .trecho {
+                border-radius: 3px;
+            }
+            .trecho.variavel-nome {
+                color: #7fe0cb;
+            }
+            .trecho.variavel-valor {
+                color: #a7d8cf;
+            }
+            .trecho.rolagem-nome {
+                color: #ffcc80;
+                background: rgba(255, 183, 77, 0.2);
+                box-shadow: 0 0 0 1px rgba(255, 183, 77, 0.45);
+            }
+            .trecho.rolagem-formula {
+                color: #c8b0ff;
+                background: rgba(160, 130, 255, 0.12);
+            }
+            .trecho.com-erro {
+                text-decoration: underline wavy #e88a8a;
+                text-decoration-thickness: 1px;
+                text-underline-offset: 2px;
+            }
+            /* O NOME de uma rolagem é a "palavra" com função: aceita o mouse (dica com a fórmula calculada; o clique destaca a rolagem na lista). */
+            #editor-ficha-cores .trecho.rolagem-nome {
+                pointer-events: auto;
+                cursor: pointer;
+            }
+            #editor-ficha-cores .trecho.rolagem-nome:hover {
+                background: rgba(255, 183, 77, 0.38);
+            }
+            /* O painel lateral em DUAS partes: em cima a tela de rolagens (rola se for grande) e embaixo as dicas, sempre à vista. */
+            #editor-ficha-lateral {
+                width: 300px;
+                display: flex;
+                flex-direction: column;
+                overflow: hidden;
+                padding: 0;
+            }
+            #editor-ficha-assistente {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+                padding: 10px 12px;
+            }
+            #editor-ficha-dicas {
+                flex: none;
+                max-height: 62%;
+                overflow-y: auto;
+                padding: 10px 12px 12px;
+                background: #22222a;
+                border-top: 1px solid #3a3a45;
+            }
+            /* Partes ocultas do painel lateral: a que sobra ocupa o painel todo (e, sem nenhuma, o painel some e o texto ocupa a largura toda). */
+            #editor-ficha-lateral.sem-tela-rolagens #editor-ficha-dicas {
+                flex: 1;
+                max-height: none;
+                border-top: none;
+            }
+            #editor-ficha-lateral.sem-dicas #editor-ficha-assistente {
+                flex: 1;
+            }
+            #editor-ficha-dicas h4:not(:first-child) {
+                margin-top: 12px;
+            }
+            #editor-ficha-dicas p {
+                margin: 0 0 6px;
+            }
+            #editor-ficha-dicas pre,
+            #ajuda-fichas pre {
+                margin: 0 0 4px;
+                padding: 6px 8px;
+                background: #2f2f3a;
+                border-radius: 5px;
+                font: inherit;
+                font-size: 11.5px;
+                line-height: 1.55;
+                color: #e6e6ea;
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
+            }
+            #editor-ficha-instrucoes {
+                width: 100%;
+                height: 26px;
+                margin-top: 10px;
+                background: #2f2f3a;
+                border: 1px solid #4a4a58;
+                border-radius: 6px;
+                color: inherit;
+                font: inherit;
+                font-size: 12px;
+                cursor: pointer;
+            }
+            #editor-ficha-instrucoes:hover {
+                border-color: #ffd54f;
+                color: #ffd54f;
+            }
+            #editor-ficha-lateral li {
+                transition: box-shadow 0.2s;
+            }
+            #editor-ficha-lateral li.destaque {
+                box-shadow: 0 0 0 2px #ffb74d; /* a rolagem em que o usuário clicou no texto */
+            }
+            /* Janela de INSTRUÇÕES: acima do editor de ficha (50) e abaixo da caixa de confirmar (60). */
+            #ajuda-fichas {
+                position: fixed;
+                inset: 0;
+                z-index: 55;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(8, 8, 12, 0.72);
+            }
+            #ajuda-fichas-painel {
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                width: min(660px, calc(100vw - 24px));
+                max-height: calc(100vh - 24px);
+                padding: 16px 20px 14px;
+                background: #22222a;
+                border: 1px solid #3a3a45;
+                border-radius: 12px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            }
+            #ajuda-fichas-painel h3 {
+                margin: 0 0 8px;
+                font-size: 15px;
+                font-weight: 600;
+            }
+            #ajuda-fichas-corpo {
+                flex: 1;
+                min-height: 0;
+                overflow-y: auto;
+                padding-right: 6px;
+                font-size: 13px;
+                line-height: 1.55;
+                color: #c9c9d4;
+            }
+            #ajuda-fichas-corpo h4 {
+                margin: 14px 0 6px;
+                font-size: 11px;
+                font-weight: 600;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: #9a9aa8;
+            }
+            #ajuda-fichas-corpo h4:first-child {
+                margin-top: 0;
+            }
+            #ajuda-fichas-corpo p {
+                margin: 0 0 8px;
+            }
+            /* O RODAPÉ: a frase (em minúsculo, como o dono pediu) e o botão Fechar. */
+            #ajuda-fichas-rodape {
+                flex: none;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+                margin-top: 12px;
+                padding-top: 10px;
+                border-top: 1px solid #3a3a45;
+            }
+            #ajuda-fichas-rodape p {
+                margin: 0;
+                font-size: 12px;
+                line-height: 1.4;
+                color: #9a9aa8;
+            }
+            #ajuda-fichas-rodape .editor-imagem-botoes {
+                flex: none;
+                margin: 0 0 0 auto;
+            }
+
+            /* Caixa de CONFIRMAR: no estilo das outras janelas (reaproveita .editor-imagem-painel e .editor-imagem-botoes), mas por cima de
+               TUDO, inclusive da janela "Editar token" (z-index 50). */
+            #confirmar {
+                position: fixed;
+                inset: 0;
+                z-index: 60;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(8, 8, 12, 0.72);
+            }
+            #confirmar .editor-imagem-painel {
+                width: 340px;
+            }
+            #confirmar-mensagem {
+                margin: 10px 0 16px;
+                font-size: 13px;
+                line-height: 1.5;
+                color: #c9c9d4;
+                white-space: pre-line; /* o \n das mensagens vira quebra de linha */
+                overflow-wrap: anywhere; /* um nome de token comprido não estoura a caixa */
+            }
+            #confirmar .editor-imagem-botoes {
+                margin-top: 0;
+            }
+            #confirmar-ok.perigo {
+                background: #5a2323;
+                border-color: #d46a6a;
+            }
+            #confirmar .editor-imagem-botoes button:focus-visible {
+                outline: 2px solid #ffd54f; /* o foco (que começa em Cancelar) precisa ser visível */
+                outline-offset: 2px;
+            }
+
             /* Barras de rolagem da bolsa: o MESMO visual da barra do chat (trilha fina escura com borda e cursor
                dourado semitransparente, que acende ao passar o mouse). Vale para a lista de fichas (fechada e
                expandida) e para o formulário "Criar token". */
@@ -2110,18 +2851,19 @@
 
             <!-- Bolsa: guarda tokens (arrastar do mapa para cá e daqui para o mapa). Ids usados no ui/bolsa.ts. -->
             <aside id="bolsa" aria-label="Bolsa de tokens">
-                <!-- O QUADRADINHO em cima da caixa da bolsa: maximiza (tamanho MÉDIO, com pesquisa, e ainda dá para arrastar tokens
-                     para o mapa) e, no tamanho médio, restaura (volta ao pequeno). Ids usados no ui/bolsa.ts. -->
-                <button id="bolsa-maximizar" title="Maximizar a bolsa (maior, com pesquisa)" aria-label="Maximizar a bolsa" aria-pressed="false">
-                    <span class="icone-max" aria-hidden="true"></span>
-                </button>
                 <div class="bolsa-topo">
                     <span class="bolsa-titulo">Bolsa <span id="bolsa-contagem"></span></span>
-                    <!-- Tamanho médio: abre a bolsa em TELA CHEIA (criar e editar tokens). Clicar na bolsa pequena também abre. -->
+                    <!-- Abre a bolsa em TELA CHEIA (criar e editar tokens). -->
                     <button id="bolsa-gerenciar" class="bolsa-botao-topo" title="Criar e editar tokens (tela cheia)">⤢ Criar/editar</button>
-                    <!-- Média e tela cheia: pesquisa as fichas pelo nome (ou pelo tamanho, ex.: 3x3). -->
+                    <!-- Pesquisa as fichas pelo nome (ou pelo tamanho, ex.: 3x3). -->
                     <input type="search" id="bolsa-busca" placeholder="Pesquisar token…" aria-label="Pesquisar token" autocomplete="off" />
                     <button id="bolsa-fechar" hidden title="Fechar a bolsa (Esc)">✕ Fechar</button>
+                    <!-- As ABAS da carteira: "Tokens" (o que a bolsa já era) e "Fichas" (fichas de personagem). Ficam numa linha
+                         só delas, embaixo do título, nos três tamanhos. Ids usados no ui/bolsa.ts. -->
+                    <div id="bolsa-abas" role="tablist" aria-label="Seções da bolsa">
+                        <button id="bolsa-aba-tokens" class="bolsa-aba" role="tab" data-aba="tokens" aria-selected="true" aria-controls="bolsa-conteudo">Tokens</button>
+                        <button id="bolsa-aba-fichas" class="bolsa-aba" role="tab" data-aba="fichas" aria-selected="false" aria-controls="bolsa-fichas" tabindex="-1">Fichas</button>
+                    </div>
                 </div>
                 <div id="bolsa-conteudo">
                     <!-- Prévia GRANDE do token que será criado (só com a bolsa expandida). -->
@@ -2161,6 +2903,20 @@
                     <button id="bolsa-criar-botao" class="botao-largo">Criar token</button>
                     <p id="bolsa-aviso" aria-live="polite"></p>
                 </section>
+                <!-- Aba FICHAS: um botão "Criar ficha" e a GRADE de documentos (organizada como a de tokens). Cada ficha é um arquivo
+                     guardado no servidor, criado no instante do clique. Os nomes começam com "bolsa-ficha"/"bolsa-doc" para não se
+                     misturar com a classe ".ficha", que é a fichinha de um TOKEN na aba Tokens. Ids usados no ui/bolsa.ts. -->
+                <section id="bolsa-fichas" role="tabpanel" aria-label="Fichas" aria-labelledby="bolsa-aba-fichas">
+                    <div id="bolsa-fichas-barra">
+                        <div id="bolsa-fichas-botoes">
+                            <button id="bolsa-ficha-criar-botao" class="botao-largo">+ Criar ficha</button>
+                            <button id="bolsa-ficha-instrucoes" class="botao-largo" data-abrir-ajuda-fichas title="Como escrever variáveis e rolagens numa ficha">Instruções</button>
+                        </div>
+                        <p id="bolsa-ficha-aviso" aria-live="polite"></p>
+                    </div>
+                    <p id="bolsa-fichas-vazia">Nenhuma ficha ainda.</p>
+                    <ul id="bolsa-fichas-lista"></ul>
+                </section>
             </aside>
             <input type="file" id="bolsa-arquivo" accept="image/*" hidden />
         </div>
@@ -2176,6 +2932,12 @@
         <div id="menu-ficha" hidden role="menu">
             <button id="menu-ficha-editar" role="menuitem">Editar token…</button>
             <button id="menu-ficha-alterar" role="menuitem">Alterar imagem…</button>
+            <button id="menu-ficha-excluir" role="menuitem">Excluir token</button>
+        </div>
+        <!-- Menu do clique direito num DOCUMENTO (ficha) da aba Fichas. Ids usados no ui/bolsa.ts. -->
+        <div id="menu-doc" hidden role="menu">
+            <button id="menu-doc-abrir" role="menuitem">Abrir e editar</button>
+            <button id="menu-doc-excluir" role="menuitem">Excluir ficha</button>
         </div>
 
         <!-- Editor do token: nome, tamanho e cores. Ids usados no ui/editorToken.ts. -->
@@ -2229,6 +2991,114 @@
             </div>
         </div>
 
+        <!-- Editor de FICHA: abre ao clicar num documento da grade da aba Fichas (nome e texto; salvar sobe a versão). Janela flutuante e arrastável, sem escurecer o fundo. Ids usados no ui/editorFicha.ts. -->
+        <div id="editor-ficha" hidden role="dialog" aria-modal="false" aria-labelledby="editor-ficha-titulo">
+            <div id="editor-ficha-painel">
+                <div id="editor-ficha-topo">
+                    <h3 id="editor-ficha-titulo">Editar ficha</h3>
+                    <span id="editor-ficha-versao"></span>
+                    <!-- Em cima: mostrar/ocultar as instruções (embaixo, ao lado do texto) e a tela de rolagens (em cima, ao lado do texto), e fechar. -->
+                    <div id="editor-ficha-ferramentas">
+                        <button id="editor-ficha-alternar-dicas" aria-expanded="true" aria-controls="editor-ficha-dicas" title="Mostrar ou ocultar as instruções (dicas de uso) ao lado do texto">Ocultar instruções</button>
+                        <button id="editor-ficha-alternar-rolagens" aria-expanded="true" aria-controls="editor-ficha-assistente" title="Mostrar ou ocultar a tela de rolagens (as variáveis e rolagens que o texto define, já calculadas)">Ocultar rolagens</button>
+                        <button id="editor-ficha-x" title="Fechar a ficha (Esc)" aria-label="Fechar a ficha">✕</button>
+                    </div>
+                </div>
+                <input type="text" id="editor-ficha-nome" placeholder="Nome da ficha" aria-label="Nome da ficha" autocomplete="off" />
+                <div id="editor-ficha-corpo">
+                    <!-- O campo de texto tem POR CIMA uma camada só de cores (o texto do campo é transparente): variáveis, nomes e fórmulas. -->
+                    <div id="editor-ficha-area">
+                        <textarea id="editor-ficha-texto" placeholder="Escreva o conteúdo da ficha…" aria-label="Texto da ficha" spellcheck="false"></textarea>
+                        <div id="editor-ficha-cores" aria-hidden="true"></div>
+                    </div>
+                    <aside id="editor-ficha-lateral" aria-label="Variáveis, rolagens e dicas da ficha">
+                        <!-- EM CIMA, a tela de rolagens: o que o programa reconheceu no texto, já calculado. -->
+                        <div id="editor-ficha-assistente">
+                            <h4>Variáveis</h4>
+                            <ul id="editor-ficha-variaveis"></ul>
+                            <p id="editor-ficha-sem-variaveis">Nenhuma variável definida.</p>
+                            <h4>Rolagens</h4>
+                            <ul id="editor-ficha-rolagens"></ul>
+                            <p id="editor-ficha-sem-rolagens">Nenhuma rolagem definida.</p>
+                        </div>
+                        <!-- EMBAIXO, as dicas de uso: ficam sempre à vista. -->
+                        <div id="editor-ficha-dicas">
+                            <h4>Crie suas variáveis</h4>
+                            <p>Escreva o nome da variável, dois-pontos duplos e o valor, uma variável por linha.</p>
+<pre><span class="trecho variavel-nome">FOR</span>:: <span class="trecho variavel-valor">16</span>
+<span class="trecho variavel-nome">PROF</span>:: <span class="trecho variavel-valor">3</span>
+<span class="trecho variavel-nome">MOD_FOR</span>:: <span class="trecho variavel-valor">(FOR - 10) / 2</span></pre>
+                            <h4>Crie suas rolagens</h4>
+                            <p>Escreva o nome da rolagem entre parênteses e a fórmula entre colchetes.</p>
+<pre><span class="trecho rolagem-nome">(Ataque com espada)</span><span class="trecho rolagem-formula">[1d20 + MOD_FOR + PROF]</span>
+<span class="trecho rolagem-nome">(Dano da espada)</span><span class="trecho rolagem-formula">[1d8 + MOD_FOR]</span>
+<span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + DES]</span></pre>
+                            <button id="editor-ficha-instrucoes" data-abrir-ajuda-fichas>Ver todas as instruções</button>
+                        </div>
+                    </aside>
+                </div>
+                <div id="editor-ficha-conflito" hidden role="alert">
+                    <p id="editor-ficha-conflito-texto"></p>
+                    <button id="editor-ficha-recarregar">Carregar a versão atual (descarta o que você escreveu)</button>
+                </div>
+                <div id="editor-ficha-rodape">
+                    <span id="editor-ficha-contagem"></span>
+                    <span id="editor-ficha-aviso" aria-live="polite"></span>
+                    <div class="editor-imagem-botoes">
+                        <button id="editor-ficha-fechar">Fechar</button>
+                        <button id="editor-ficha-salvar" disabled>Salvar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Instruções das fichas: como escrever variáveis e rolagens. Abre pelo botão "Instruções" (aba Fichas) e pelo link do editor. Ids usados no ui/ajudaFichas.ts. -->
+        <div id="ajuda-fichas" hidden role="dialog" aria-modal="true" aria-labelledby="ajuda-fichas-titulo">
+            <div id="ajuda-fichas-painel">
+                <h3 id="ajuda-fichas-titulo">Instruções: variáveis e rolagens</h3>
+                <div id="ajuda-fichas-corpo">
+                    <h4>Variáveis</h4>
+                    <p>Uma variável guarda um valor com um nome, para que você possa usá-lo nas contas da ficha. Escreva o nome, dois-pontos duplos (::) e o valor, uma variável por linha.</p>
+<pre><span class="trecho variavel-nome">FOR</span>:: <span class="trecho variavel-valor">16</span>
+<span class="trecho variavel-nome">PROF</span>:: <span class="trecho variavel-valor">3</span>
+<span class="trecho variavel-nome">MOD_FOR</span>:: <span class="trecho variavel-valor">(FOR - 10) / 2</span></pre>
+                    <p>O valor pode ser um número ou uma conta com outras variáveis, usando + - * / e parênteses. A divisão arredonda para baixo, como nas regras do D&amp;D: (15 - 10) / 2 resulta em 2 e (8 - 10) / 2 resulta em -1. Maiúsculas e minúsculas não fazem diferença: for e FOR são a mesma variável.</p>
+
+                    <h4>Rolagens</h4>
+                    <p>Uma rolagem é uma fórmula com dados. Escreva o nome da rolagem entre parênteses e a fórmula entre colchetes, um logo depois do outro.</p>
+<pre><span class="trecho rolagem-nome">(Ataque com espada)</span><span class="trecho rolagem-formula">[1d20 + MOD_FOR + PROF]</span>
+<span class="trecho rolagem-nome">(Dano da espada)</span><span class="trecho rolagem-formula">[1d8 + MOD_FOR]</span>
+<span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + DES]</span>
+<span class="trecho rolagem-nome">(Bola de Fogo)</span><span class="trecho rolagem-formula">[8d6]</span>
+<span class="trecho rolagem-nome">(Cura)</span><span class="trecho rolagem-formula">[2d4 + 2]</span></pre>
+                    <p>O nome é opcional: <span class="trecho rolagem-formula">[1d20 + 5]</span> também funciona, e a própria fórmula passa a ser o nome. A fórmula pode combinar números, variáveis e mais de um tipo de dado, como <span class="trecho rolagem-formula">[1d20 + 1d4 + MOD_FOR]</span>.</p>
+                    <p>Os dados disponíveis são d4, d6, d8, d10, d12, d20, d100 e d1000, com até 99 dados por rolagem. Somente o que tem um dado dentro dos colchetes é tratado como rolagem: textos como [ ] ou [x] são ignorados.</p>
+
+                    <h4>Como o editor ajuda</h4>
+                    <p>As cores mostram o que foi reconhecido: <span class="trecho variavel-nome">variáveis</span>, <span class="trecho rolagem-nome">(nome da rolagem)</span> e <span class="trecho rolagem-formula">[fórmula]</span>. Um sublinhado ondulado vermelho indica um erro, como o uso de uma variável que não existe.</p>
+                    <p>Ao passar o mouse sobre o nome de uma rolagem, aparece a fórmula já calculada com os valores das variáveis. Ao clicar no nome, a rolagem correspondente é destacada na lista ao lado do texto, que reúne todas as variáveis e rolagens encontradas.</p>
+                </div>
+                <div id="ajuda-fichas-rodape">
+                    <p>(ou peça a alguma ia pra fazer uma ficha pra você com essas instruções)</p>
+                    <div class="editor-imagem-botoes">
+                        <button id="ajuda-fichas-fechar">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Caixa de CONFIRMAR (ex.: excluir um token), no lugar da caixa do navegador. Ids usados no ui/confirmar.ts. -->
+        <div id="confirmar" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirmar-titulo" aria-describedby="confirmar-mensagem">
+            <div class="editor-imagem-painel">
+                <h3 id="confirmar-titulo"></h3>
+                <p id="confirmar-mensagem"></p>
+                <div class="editor-imagem-botoes">
+                    <button id="confirmar-cancelar">Cancelar</button>
+                    <button id="confirmar-ok" class="perigo"></button>
+                </div>
+            </div>
+        </div>
+
         <!-- Botões do token (escondidos até o clique direito num token). Ids usados no ui/menuToken.ts. -->
         <!-- Engrenagem: canto superior DIREITO do token (abre o painel de tamanho). Id usado no ui/menuToken.ts. -->
         <button id="engrenagem" hidden title="Opções do token" aria-label="Opções do token">
@@ -2261,8 +3131,10 @@
         <div id="menu-token" class="painel" hidden>
             <h1 id="menu-token-titulo">Token</h1>
             <section>
-                <!-- Opções do token (engrenagem). Hoje só esta; as próximas entram aqui. -->
+                <!-- Opções do token (engrenagem): cada uma é um botão DIRETO. As próximas entram aqui. Ids usados no ui/menuToken.ts. -->
                 <button id="botao-editar-token" class="botao-largo" title="Editar nome, tamanho e cores do token">Editar token</button>
+                <button id="botao-guardar-token" class="botao-largo" title="Tira o token do mapa e o guarda na bolsa">Guardar na bolsa</button>
+                <button id="botao-excluir-token" class="botao-largo botao-excluir" title="Apaga o token para sempre (pede confirmação)">Excluir token</button>
             </section>
         </div>
 

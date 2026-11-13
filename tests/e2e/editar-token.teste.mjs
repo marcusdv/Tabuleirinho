@@ -52,7 +52,7 @@ await p.mouse.down();
 await p.mouse.move(bolsa.x + 60, bolsa.y + 40, { steps: 8 });
 await p.mouse.up();
 ok("3a) (preparo) o token 2 foi para a bolsa", (await token(2)).guardado === true);
-await p.mouse.click(bolsa.x + bolsa.width / 2, bolsa.y + bolsa.height - 8);
+await p.click("#bolsa-gerenciar"); // (a tela cheia abre pelo botão "Criar/editar"; clicar na área vazia da bolsa não abre mais)
 const ficha = p.locator(".ficha").first();
 await ficha.click({ button: "right" });
 ok("3b) o menu da ficha tem 'Editar token…'", await p.locator("#menu-ficha-editar").isVisible());

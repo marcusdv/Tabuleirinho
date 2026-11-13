@@ -6,16 +6,23 @@
 // SORTEIA os dados é o servidor. E uma bateria de pedidos MALICIOSOS (regras de segurança do BRAINSTORM.md) precisa ser
 // recusada sem derrubar o servidor nem mexer no estado.
 import { spawn } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import http from "node:http";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, TOKENS_DE_TESTE, terminar } from "./ajuda.mjs";
 
 const RAIZ = fileURLToPath(new URL("../../", import.meta.url));
 const PORTA = 3737; // a mesma de PORTA_SERVIDOR em src/config.ts (o Vite repassa /ws para ela)
 
-// ---------------- sobe o servidor do jogo (limpo: o estado fica na memória dele)
-const servidor = spawn(process.execPath, ["servidor/servidor.ts"], { cwd: RAIZ, env: { ...process.env, PORT: String(PORTA) } });
+// ---------------- sobe o servidor do jogo (limpo). Ele não tem token de fábrica: os tokens vêm de ARQUIVOS, então este teste prepara uma
+// pasta de dados TEMPORÁRIA (apagada no fim; o `dados/` do projeto não é tocado) com os 5 tokens de sempre.
+const dados = mkdtempSync(join(tmpdir(), "tabuleirinho-dados-"));
+mkdirSync(join(dados, "tokens"), { recursive: true });
+for (const t of TOKENS_DE_TESTE) writeFileSync(join(dados, "tokens", `${t.id}.json`), JSON.stringify({ ...t, condicoes: [] }));
+const servidor = spawn(process.execPath, ["servidor/servidor.ts"], { cwd: RAIZ, env: { ...process.env, PORT: String(PORTA), DADOS: dados } });
 let saidaDoServidor = "";
 servidor.stdout.on("data", (d) => (saidaDoServidor += d));
 servidor.stderr.on("data", (d) => (saidaDoServidor += d));
@@ -27,7 +34,7 @@ const subiu = await new Promise((resolver) => {
     }, 50);
 });
 ok("0) o servidor do jogo subiu na porta " + PORTA + " (senão: desligue quem usa a porta)", subiu, saidaDoServidor.split("\n")[0]);
-if (!subiu) { servidor.kill(); process.exit(1); }
+if (!subiu) { servidor.kill(); rmSync(dados, { recursive: true, force: true }); process.exit(1); }
 
 const navegador = await lancar();
 const erros = [];
@@ -124,7 +131,7 @@ try {
         await enviar({ tipo: "enviar_mensagem", texto: "   " });                                s.mensagemVazia = ultimoErro();
         await enviar({ tipo: "enviar_mensagem", texto: "<img src=x onerror=alert(1)>" });       s.html = caixa.filter((m) => m.tipo === "mensagem").at(-1)?.mensagem.texto;
         await enviar({ tipo: "entrar", apelido: "outra vez" });                                 s.entrarDeNovo = ultimoErro();
-        await enviar("x".repeat(5000));                                                         // maior que o limite do servidor
+        await enviar("x".repeat(300000));                                                       // maior que o limite do servidor (256 KB)
         await esperar(300); s.codigoAoEnviarGrande = fechou;
         return s;
     });
@@ -176,5 +183,6 @@ try {
 } finally {
     await navegador.close();
     servidor.kill();
+    rmSync(dados, { recursive: true, force: true });
 }
 process.exitCode = terminar(erros);

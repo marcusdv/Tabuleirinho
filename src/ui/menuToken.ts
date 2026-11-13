@@ -8,7 +8,7 @@
 //            [ Add dano ]       <- provisório, sem função ainda
 //            [ Add cura ]       <- provisório, sem função ainda
 //        - no canto superior DIREITO, a engrenagem.
-//   2) clique na engrenagem     -> abre/fecha o painel da ENGRENAGEM (hoje: "Editar token", que abre a
+//   2) clique na engrenagem     -> abre/fecha o painel da ENGRENAGEM ("Editar token", "Guardar na bolsa" e "Excluir token"; o primeiro abre a
 //                                  janela de edição de nome, tamanho e cores; novas opções entram aqui);
 //      clique em "Add condição"   -> abre/fecha o painel de CONDIÇÕES.
 //      (Só um painel fica aberto por vez.)
@@ -36,6 +36,13 @@ export interface OpcoesMenuToken {
     ancora(id: number): { x: number; y: number; largura: number } | null;
     /** Clicou em "Editar token" (no painel da engrenagem): abrir a janela de edição (nome, tamanho e cores) deste token. */
     aoEditar(id: number): void;
+    /** Clicou em "Guardar na bolsa" (no painel da engrenagem): tirar o token do mapa e guardá-lo na bolsa. */
+    aoGuardar(id: number): void;
+    /**
+     * Clicou em "Excluir token" (no painel da engrenagem). Quem trata mostra a caixa de confirmação e devolve (depois da resposta)
+     * true se o token foi (ou será) excluído, e então o menu fecha; false se a pessoa desistiu.
+     */
+    aoExcluir(id: number): Promise<boolean>;
     /** Clicou numa condição: liga se estava desligada, desliga se estava ligada. */
     aoAlternarCondicao(id: number, condicaoId: string): void;
 }
@@ -60,6 +67,8 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
     const engrenagem = document.getElementById("engrenagem") as HTMLButtonElement;
     const botaoCondicoes = document.getElementById("botao-condicoes") as HTMLButtonElement;
     const botaoEditar = document.getElementById("botao-editar-token") as HTMLButtonElement;
+    const botaoGuardar = document.getElementById("botao-guardar-token") as HTMLButtonElement;
+    const botaoExcluir = document.getElementById("botao-excluir-token") as HTMLButtonElement;
 
     const menuEngrenagem = document.getElementById("menu-token") as HTMLDivElement;
     const titulo = document.getElementById("menu-token-titulo") as HTMLElement;
@@ -210,6 +219,20 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
         const id = tokenAberto;
         fechar();
         if (id !== null) opcoes.aoEditar(id);
+    });
+    // "Guardar na bolsa" (direto no painel da engrenagem): fecha os botões e guarda o token.
+    botaoGuardar.addEventListener("click", () => {
+        const id = tokenAberto;
+        fechar();
+        if (id !== null) opcoes.aoGuardar(id);
+    });
+    // "Excluir token" (direto no painel da engrenagem): mostra a caixa de confirmação e espera a resposta.
+    botaoExcluir.addEventListener("click", () => {
+        const id = tokenAberto;
+        if (id === null) return;
+        void opcoes.aoExcluir(id).then((excluiu) => {
+            if (excluiu) fechar();
+        });
     });
 
     // Esc fecha tudo.

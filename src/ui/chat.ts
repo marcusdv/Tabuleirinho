@@ -83,6 +83,38 @@ export function criarChat(opcoes: OpcoesChat): Chat {
         hora.textContent = formatarHora(mensagem.hora);
         cabecalho.append(autor, hora);
 
+        // Rolagem de FICHA (ex.: o "Ataque com espada"): o NOME da rolagem (e o da ficha), a fórmula com o que saiu em cada dado, e o TOTAL
+        // grande à direita. Tudo entra por textContent (os nomes vêm de uma ficha escrita por um jogador).
+        if (mensagem.rolagemFicha) {
+            const r = mensagem.rolagemFicha;
+            cartao.classList.add("chat-rolagem", "chat-rolagem-ficha");
+
+            const titulo = document.createElement("p");
+            titulo.className = "chat-formula chat-titulo-ficha";
+            const nome = document.createElement("strong");
+            nome.textContent = r.nome;
+            const ficha = document.createElement("small");
+            ficha.textContent = r.ficha;
+            titulo.append(nome, " ", ficha);
+            titulo.title = `${r.nome} (${r.ficha})`;
+
+            const detalhe = document.createElement("p");
+            detalhe.className = "chat-detalhe";
+            detalhe.textContent = r.detalhe; // ex.: "1d20 [14] + 3 + 3": uma linha só, cortada com "…" se for comprida
+            detalhe.title = r.detalhe;
+
+            const informacoes = document.createElement("div");
+            informacoes.className = "chat-rolagem-info";
+            informacoes.append(cabecalho, titulo, detalhe);
+
+            const total = document.createElement("div");
+            total.className = "chat-total";
+            total.textContent = String(r.total);
+
+            cartao.append(informacoes, total);
+            return cartao;
+        }
+
         // Rolagem de dados: à esquerda a fórmula e cada dado; à direita o TOTAL, bem grande.
         if (mensagem.rolagem) {
             const rolagem = mensagem.rolagem;

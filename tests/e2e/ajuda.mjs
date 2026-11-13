@@ -49,7 +49,20 @@ export async function abrirPagina(p, consulta = "") {
     await p.route("**/images/maps/*.png", (rota) => rota.fulfill({ status: 200, contentType: "image/png", body: MAPA_DE_TESTE }));
     await p.goto(URL_SITE + consulta); // `consulta` = o que vem depois do endereço, ex.: "?online&nome=Ana" (modo online)
     await p.waitForFunction(() => window.__tabuleirinho?.pronto === true, null, { timeout: 30000 });
+    // A mesa COMEÇA VAZIA (os tokens vêm dos arquivos de dados/tokens/ do servidor, ou nascem pela bolsa). Os testes LOCAIS precisam
+    // de tokens para mover, então "semeiam" estes 5 pelo gancho do `npm run dev`. No modo online os tokens vêm do servidor, e quem
+    // testa prepara os arquivos.
+    if (!consulta.includes("online")) await p.evaluate((lista) => window.__tabuleirinho.semear(lista), TOKENS_DE_TESTE);
 }
+
+/** Os 5 tokens que os testes locais usam (os mesmos que o app tinha ao abrir, antes de os tokens virarem arquivos). Só existem AQUI. */
+export const TOKENS_DE_TESTE = [
+    { id: 1, nome: "Token 1", imagem: null, col: 3, row: 3, cor: 0x2ecc71, corBorda: 0xffffff, size: 1, guardado: false },
+    { id: 2, nome: "Token 2", imagem: null, col: 6, row: 5, cor: 0x3498db, corBorda: 0xffffff, size: 1, guardado: false },
+    { id: 3, nome: "Token 3", imagem: null, col: 15, row: 1, cor: 0xf098fb, corBorda: 0xffffff, size: 1, guardado: false },
+    { id: 4, nome: "Token 4", imagem: null, col: 10, row: 2, cor: 0xe74c3c, corBorda: 0xffffff, size: 2, guardado: false },
+    { id: 5, nome: "Token 5", imagem: null, col: 12, row: 6, cor: 0x9b59b6, corBorda: 0xffffff, size: 1, guardado: false },
+];
 
 /** Lê o estado do app direto (sem medir pixels). Ex.: await lerEstado(p, (e) => e.tokens[0].col). */
 export function lerEstado(p, funcao) {

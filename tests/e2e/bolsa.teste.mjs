@@ -11,10 +11,10 @@ const perto = (a, c, tol = 3) => Math.abs(a - c) <= tol;
 await abrirPagina(p);
 
 const VERDE = [0x2e, 0xcc, 0x71], ROXO = [0x9b, 0x59, 0xb6], AZUL = [0x34, 0x98, 0xdb], XVERM = [0xe5, 0x39, 0x35];
-// Centro/tamanho de uma cor na região do tabuleiro (x < 1160, longe da barra). A bolsa (268 px) começa em x = 1120 e CRESCE PARA CIMA
+// Centro/tamanho de uma cor na região do tabuleiro (x < 1160, longe da barra). A bolsa (332 px) começa em x = 1056 e CRESCE PARA CIMA
 // ao receber fichas, então o disco de uma ficha pode cair nesta região: para o token VERDE (que está em x ~ 324..371) a região
 // termina antes da bolsa (REGIAO_VERDE); o roxo 4×4 vai até x = 1148 e usa a região padrão (nesses passos a bolsa está vazia).
-const REGIAO_VERDE = { x0: 0, x1: 1100, y0: 0, y1: 800 };
+const REGIAO_VERDE = { x0: 0, x1: 1040, y0: 0, y1: 800 };
 async function achar(cor, arq = `${S}/b_tmp.png`, tol = 8, regiao = { x0: 0, x1: 1160, y0: 0, y1: 800 }) {
   const png = PNG.sync.read(await p.screenshot({ path: arq }));
   let n = 0, sx = 0, sy = 0, x0 = 1e9, x1 = -1;

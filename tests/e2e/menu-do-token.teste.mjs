@@ -44,7 +44,7 @@ ok("2c) ...e dentro da janela", dentro(pc));
 await p.click("#engrenagem");
 const pt = await caixa("#menu-token");
 ok("3a) o painel da engrenagem abre ACIMA dela, alinhado à esquerda dela", pt.y + pt.height <= eng.y - 3 && perto(pt.x, eng.x), `base ${(pt.y + pt.height).toFixed(0)} <= ${eng.y.toFixed(0)}; x ${pt.x.toFixed(0)} vs ${eng.x.toFixed(0)}`);
-ok("3a2) o painel tem o botão 'Editar token' e NÃO tem mais o controle de tamanho (− / +)", (await p.locator("#menu-token button:visible").allTextContents()).join("|") === "Editar token" && (await p.locator("#token-tamanho-mais").count()) === 0);
+ok("3a2) o painel tem 'Editar token', 'Guardar na bolsa' e 'Excluir token' (diretos) e NÃO tem o controle de tamanho (− / +)", (await p.locator("#menu-token button:visible").allTextContents()).join("|") === "Editar token|Guardar na bolsa|Excluir token" && (await p.locator("#token-tamanho-mais").count()) === 0);
 ok("3b) só um painel por vez (o de condições fechou)", !(await vis("#menu-condicoes")));
 
 // botões provisórios: não fazem nada (e não quebram)

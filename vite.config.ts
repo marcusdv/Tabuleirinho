@@ -4,10 +4,14 @@
 import { defineConfig } from "vite";
 import { PORTA_SERVIDOR } from "./src/config.ts";
 
+// A porta do servidor é a de `config.ts`, mas dá para trocá-la só para este Vite, sem mexer em nada: PORTA_SERVIDOR=3791 npm run dev
+// (útil para testar com um servidor temporário enquanto o servidor "de verdade", na porta padrão, continua ligado).
+const portaDoServidor = Number(process.env.PORTA_SERVIDOR) || PORTA_SERVIDOR;
+
 export default defineConfig({
     server: {
         proxy: {
-            "/ws": { target: `ws://127.0.0.1:${PORTA_SERVIDOR}`, ws: true },
+            "/ws": { target: `ws://127.0.0.1:${portaDoServidor}`, ws: true },
         },
     },
 });
