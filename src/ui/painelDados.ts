@@ -8,9 +8,11 @@
 // acompanha a posição e a largura dele); aqui só ligamos os elementos.
 // =====================================================================
 
-import { DADO_INICIAL, DADOS_DISPONIVEIS, MAX_MODIFICADOR_DADOS, MAX_QUANTIDADE_DADOS } from "../config";
+import { CHAVE_DADOS_RECOLHIDO, DADO_INICIAL, DADOS_DISPONIVEIS, MAX_MODIFICADOR_DADOS, MAX_QUANTIDADE_DADOS } from "../config";
 import { limitar } from "../coordenadas";
 import { formulaDosDados } from "../dados";
+import { alternarRecolhida } from "./animarPainel";
+import { guardarPreferencia, lerPreferencia } from "./preferencias";
 
 export interface OpcoesPainelDados {
     /** O usuário apertou "Rolar" com estes valores. */
@@ -28,7 +30,6 @@ export function criarPainelDados(opcoes: OpcoesPainelDados): void {
     const campoQuantidade = pegar<HTMLInputElement>("dados-qtd");
     const campoModificador = pegar<HTMLInputElement>("dados-mod");
     const botaoRolar = pegar<HTMLButtonElement>("dados-rolar");
-    const seta = alternar.querySelector(".seta") as HTMLElement; // a seta dentro da aba
 
     // O que está escolhido agora.
     let lados = DADO_INICIAL;
@@ -131,18 +132,27 @@ export function criarPainelDados(opcoes: OpcoesPainelDados): void {
 
     botaoRolar.addEventListener("click", () => opcoes.aoRolar(lados, quantidade, modificador));
 
-    // --- Retrair/expandir: sobra só a abinha "Dados" colada no chat ---
+    // --- Recolher/expandir: como na barra de Ferramentas e no painel de Desenho (sobram o nome e o botão; o DUPLO clique no NOME também alterna) ---
     function recolher(recolhido: boolean): void {
-        painel.classList.toggle("recolhido", recolhido);
-        // A seta aponta para onde o painel vai: recolhido, ele sairia de novo para a esquerda.
-        seta.textContent = recolhido ? "‹" : "›";
+        painel.classList.toggle("recolhida", recolhido);
+        alternar.textContent = recolhido ? "▾" : "▴"; // ▾ = expandir (para baixo), ▴ = recolher
         alternar.title = recolhido ? "Abrir os dados" : "Recolher os dados";
         alternar.setAttribute("aria-expanded", String(!recolhido));
     }
-    alternar.addEventListener("click", () => recolher(!painel.classList.contains("recolhido")));
-    // Em janelas BAIXAS (menos de 720 px) ele começa recolhido, para sobrar espaço no tabuleiro.
-    // (Em janelas estreitas, menos de 1184 px, o CSS o coloca em cima do chat em vez de ao lado: não cobre outros painéis.)
-    recolher(window.innerHeight < 720);
+    // DUPLO clique em QUALQUER ponto da área de cima (o cabeçalho onde fica o nome "Dados", não só nas letras) recolhe/expande.
+    const cabecalhoDados = painel.querySelector<HTMLElement>(".cabecalho")!;
+    cabecalhoDados.title = "Duplo clique para recolher ou expandir (arraste para mover)";
+    cabecalhoDados.addEventListener("dblclick", (e) => {
+        if (!(e.target as HTMLElement).closest("button, input")) alternar.click();
+    });
+    alternar.addEventListener("click", () => {
+        const recolhido = alternarRecolhida(painel, "recolhida", recolher); // (com animação: a altura cresce/encolhe, de cima para baixo)
+        guardarPreferencia(CHAVE_DADOS_RECOLHIDO, recolhido ? "1" : "0"); // lembra ao recarregar a página
+    });
+    // Ao abrir a página: como a pessoa deixou da última vez. Sem escolha guardada, em janelas BAIXAS (menos de 720 px) ele começa recolhido,
+    // para sobrar espaço no tabuleiro. (O index.html já aplicou isto antes da primeira pintura: aqui só se confirma.)
+    const guardadoDados = lerPreferencia(CHAVE_DADOS_RECOLHIDO);
+    recolher(guardadoDados === null ? window.innerHeight < 720 : guardadoDados === "1");
 
     atualizar();
 }

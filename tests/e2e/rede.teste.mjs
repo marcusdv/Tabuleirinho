@@ -68,7 +68,7 @@ try {
     await arrastar(B, { x: 828, y: 272 }, { x: bolsa.x + bolsa.width / 2, y: bolsa.y + bolsa.height / 2 });
     await A.waitForTimeout(300);
     ok("3a) Beto guarda o token 4 na bolsa: guardado nas duas páginas", (await tokenDe(A, 4)).guardado && (await tokenDe(B, 4)).guardado);
-    ok("3b) a bolsa de Ana mostra 1 ficha", (await A.locator("#bolsa-contagem").textContent()) === "(1)");
+    ok("3b) a bolsa de Ana mostra 1 ficha", (await A.locator("#bolsa-itens .ficha").count()) === 1);
     const ficha = await A.locator(".ficha").first().boundingBox();
     await arrastar(A, { x: ficha.x + ficha.width / 2, y: ficha.y + ficha.height / 2 }, { x: 124 + 9 * 64, y: 80 + 6 * 64 });
     await B.waitForTimeout(300);

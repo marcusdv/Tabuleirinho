@@ -3,6 +3,15 @@
 // Para ajustar o comportamento do tabuleiro, normalmente basta mexer neste arquivo.
 // =====================================================================
 
+// --- Preferências guardadas no navegador (localStorage; ver ui/preferencias.ts) ---
+export const CHAVE_ABA_BOLSA = "tabuleirinho.bolsa.aba"; // "tokens" ou "fichas": a última aba escolhida na bolsa
+export const CHAVE_BARRA_RECOLHIDA = "tabuleirinho.barra.recolhida"; // "1" = a barra de Ferramentas está recolhida
+export const CHAVE_DESENHO_RECOLHIDO = "tabuleirinho.desenho.recolhido"; // "1" = o painel de Desenho está recolhido
+export const CHAVE_ALTURA_BOLSA = "tabuleirinho.bolsa.altura"; // a altura (px) da bolsa aberta, medida da última vez: o index.html a aplica antes da primeira pintura
+export const CHAVE_BOLSA_RECOLHIDA = "tabuleirinho.bolsa.recolhida"; // "1" = a bolsa está minimizada (só o título)
+export const CHAVE_DADOS_RECOLHIDO = "tabuleirinho.dados.recolhido"; // "1" = a barra de dados está recolhida, "0" = aberta (sem valor: abre, salvo em janela baixa)
+// (O index.html repete estas chaves num script que roda ANTES da primeira pintura: se mudar uma aqui, mude lá também.)
+
 // --- Tabuleiro ---
 export const COLUNAS_INICIAIS = 18; // quantas casas na horizontal ao abrir
 export const LINHAS_INICIAIS = 10; // quantas casas na vertical ao abrir

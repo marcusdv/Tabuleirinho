@@ -37,25 +37,26 @@ await p.mouse.up();
 await p.waitForTimeout(400);
 ok("5) colunas aplicadas = 30", (await txt("#colunas-valor")) === "30", await txt("#colunas-valor"));
 ok("6) linhas aplicadas = 20", (await txt("#linhas-valor")) === "20", await txt("#linhas-valor"));
-ok("7) mensagem 'Aplicado'", (await txt("#calibragem-resultado")).startsWith("Aplicado: 30 colunas × 20 linhas"));
+ok("7) ao SOLTAR a calibragem já se conclui sozinha (sem clicar em Concluir): o painel fecha e o botão deixa de estar ativo", !(await vis("#painel-calibragem")) && !(await p.locator("#calibrar-alternar").getAttribute("class")).includes("ativo"));
 await p.screenshot({ path: `${S}/c2_aplicado.png` });
 
-// Clique simples (sem arrastar) não muda nada
+// Clique simples (sem arrastar) não muda nada (calibragem ligada de novo)
+await p.click("#calibrar-alternar");
 await p.mouse.click(600, 400);
-ok("8) clique simples não altera o tamanho", (await txt("#colunas-valor")) === "30" && (await txt("#linhas-valor")) === "20");
+ok("8) clique simples não altera o tamanho nem conclui a calibragem", (await txt("#colunas-valor")) === "30" && (await txt("#linhas-valor")) === "20" && (await vis("#painel-calibragem")));
 
-// Tokens não podem ser pegos durante a calibragem: arrastar sobre um token mede em vez de mover
-const tokenAntes = await p.screenshot({ clip: { x: 0, y: 0, width: 1400, height: 900 } });
-// Limite: N=1 num retângulo grande dá poucas colunas -> aviso de limite
+// Limite: N=1 num retângulo grande dá poucas colunas -> usa o mínimo (e a calibragem também se conclui)
 await p.fill("#calibragem-casas", "1");
 await p.mouse.move(300, 200); await p.mouse.down(); await p.mouse.move(900, 600, { steps: 6 }); await p.mouse.up();
 await p.waitForTimeout(300);
-const lim = await txt("#calibragem-resultado");
-ok("9) abaixo do mínimo: usa 5 e avisa o limite", (await txt("#colunas-valor")) === "5" && lim.includes("o tabuleiro vai de 5 a 100"), lim);
+ok("9) abaixo do mínimo: usa 5 (o mínimo do tabuleiro) e a calibragem também se conclui", (await txt("#colunas-valor")) === "5" && !(await vis("#painel-calibragem")), await txt("#colunas-valor"));
 
-// Concluir fecha e devolve o comportamento normal
+// "Cancelar" sai da calibragem sem medir
+await p.click("#calibrar-alternar");
+ok("10a) reabre", await vis("#painel-calibragem"));
+ok("10b) o botão agora se chama 'Cancelar'", (await txt("#calibragem-concluir")) === "Cancelar");
 await p.click("#calibragem-concluir");
-ok("10) Concluir esconde o painel", !(await vis("#painel-calibragem")));
+ok("10) Cancelar esconde o painel sem mudar o tamanho (5 colunas)", !(await vis("#painel-calibragem")) && (await txt("#colunas-valor")) === "5");
 ok("11) botão deixa de estar ativo", !(await p.locator("#calibrar-alternar").getAttribute("class")).includes("ativo"));
 // Esc também sai
 await p.click("#calibrar-alternar");

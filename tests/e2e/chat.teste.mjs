@@ -26,7 +26,7 @@ const caixa = (s) => p.locator(s).boundingBox();
 
 // ================= 1) posição e aparência
 const chat = await caixa("#chat");
-ok("1a) chat fixo EMBAIXO (base a 12 px da janela) e centralizado", perto(chat.y + chat.height, 788) && perto(chat.x + chat.width / 2, 700, 2), `base ${(chat.y + chat.height).toFixed(0)}, centro x ${(chat.x + chat.width / 2).toFixed(0)}, largura ${chat.width.toFixed(0)}`);
+ok("1a) chat fixo no canto INFERIOR ESQUERDO (base a 12 px da janela; começa a 12 px da borda esquerda: nada o empurra)", perto(chat.y + chat.height, 788) && perto(chat.x, 12, 1.5), `base ${(chat.y + chat.height).toFixed(0)}, centro x ${(chat.x + chat.width / 2).toFixed(0)}, largura ${chat.width.toFixed(0)}`);
 ok("1b) sem mensagens: nenhum cartão, NENHUM texto de dica na faixa, e o campo só tem o placeholder 'Escreva uma mensagem'", (await cartoes.count()) === 0 && (await p.locator("#chat-faixa").textContent()).trim() === "" && (await p.locator("#chat-vazio").count()) === 0 && (await p.getAttribute("#chat-texto", "placeholder")) === "Escreva uma mensagem");
 for (const [nome, sel] of [["bolsa", "#bolsa"], ["painel de desenho", "#ferramentas-desenho"], ["barra de ferramentas", "#barra"]]) {
     ok(`1c) o chat não se sobrepõe à ${nome}`, !cruza(chat, await caixa(sel)));

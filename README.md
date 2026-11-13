@@ -92,7 +92,7 @@ Rode `HOST=0.0.0.0 npm run servidor` e os amigos abrem `http://IP-DO-SEU-PC:3737
 - **Tokens e fichas são gravados**: cada um é um arquivo (em `dados/tokens/` e `dados/fichas/`), que sobrevive a reiniciar o
   servidor. O resto (chat) volta ao início se o servidor reiniciar. **A mesa começa sem tokens**: crie os seus pela bolsa. A pasta `dados/` é **sua**: faça backup dela e não a envie
   para o git nem para outras pessoas (`DADOS=/outra/pasta npm run servidor` troca o lugar).
-- **Só estas ações são sincronizadas:** criar, editar, excluir e soltar tokens (no mapa ou na bolsa), chat, dados, e criar, editar e excluir fichas.
+- **Só estas ações são sincronizadas:** criar, editar, excluir e soltar tokens (no mapa ou na bolsa), chat, dados, criar, editar, excluir e rolar as rolagens das fichas.
   Mapa, desenhos, régua, condições dos tokens e tamanho do tabuleiro
   **são locais** e diferem entre as pessoas.
 - Se mudar o código, rode o `npm run build` de novo e **reinicie** o servidor.

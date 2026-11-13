@@ -44,12 +44,10 @@ await p.waitForTimeout(500);
 ok("5) medir ainda funciona (30 × 20)", (await p.locator("#colunas-valor").evaluate((e) => e.value ?? e.textContent)) === "30" && (await p.locator("#linhas-valor").evaluate((e) => e.value ?? e.textContent)) === "20");
 await p.screenshot({ path: `${S}/g2_apos_medir.png` });
 
-// Concluir devolve a grade: compara com o estado anterior à calibragem no mesmo tamanho? (tamanho mudou) -> só checa que a região muda de novo
-const antesConcluir = await regiao(`${S}/g3_antes_concluir.png`);
-await p.click("#calibragem-concluir");
-await p.waitForTimeout(600);
-const depoisConcluir = await regiao(`${S}/g4_concluido.png`);
-ok("6) Concluir faz a grade voltar", diff(antesConcluir, depoisConcluir) > 500, `${diff(antesConcluir, depoisConcluir)} px mudaram`);
+// Ao SOLTAR a calibragem se conclui sozinha (sem clicar em Concluir): o painel fecha e a nossa grade VOLTA na hora
+ok("5b) ao soltar, o painel da calibragem fecha sozinho", !(await p.locator("#painel-calibragem").isVisible()));
+const depoisDeMedir = await regiao(`${S}/g3_depois_de_medir.png`);
+ok("6) e a grade volta na hora (a região muda em relação à de quando estava calibrando)", diff(calibrando, depoisDeMedir) > 500, `${diff(calibrando, depoisDeMedir)} px mudaram`);
 
 // Reabrir e fechar com Esc também restaura
 await p.click("#calibrar-alternar"); await p.waitForTimeout(400);

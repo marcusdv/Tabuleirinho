@@ -20,13 +20,13 @@ const cor = (seletor, prop = "color") => p.locator(seletor).first().evaluate((el
 
 // ================= o botão "Instruções" ao lado de "Criar ficha"
 await p.click("#bolsa-aba-fichas");
-ok("0a) na bolsa do canto o botão 'Instruções' NÃO aparece (e '+ Criar ficha' ocupa a linha toda)", (await p.locator("#bolsa-ficha-instrucoes").isHidden()) && (await p.locator("#bolsa-ficha-criar-botao").isVisible()));
+ok("0a) na bolsa do canto o botão 'Instruções' NÃO aparece (e '+ Criar ficha' fica na linha da pesquisa)", (await p.locator("#bolsa-ficha-instrucoes").isHidden()) && (await p.locator("#bolsa-ficha-criar-botao").isVisible()));
 await p.click("#bolsa-gerenciar");
 ok("0c) na tela EXPANDIDA das fichas ele aparece", await p.locator("#bolsa-ficha-instrucoes").isVisible());
 const bCriar = await p.locator("#bolsa-ficha-criar-botao").boundingBox();
 const bInstr = await p.locator("#bolsa-ficha-instrucoes").boundingBox();
 const bolsa = await p.locator("#bolsa").boundingBox();
-ok("1a) na tela expandida o botão 'Instruções' fica AO LADO de '+ Criar ficha' (mesma linha) e dentro da bolsa", Math.abs(bCriar.y - bInstr.y) < 2 && bInstr.x > bCriar.x + bCriar.width - 1 && bInstr.x + bInstr.width <= bolsa.x + bolsa.width, JSON.stringify({ bCriar, bInstr }));
+ok("1a) na tela expandida o botão 'Instruções' fica dentro da bolsa, e o '+ Criar ficha' (agora no cabeçalho, ao lado da pesquisa) também", bInstr.x >= bolsa.x && bInstr.x + bInstr.width <= bolsa.x + bolsa.width && bCriar.x >= bolsa.x && bCriar.x + bCriar.width <= bolsa.x + bolsa.width, JSON.stringify({ bCriar, bInstr }));
 await p.click("#bolsa-ficha-instrucoes");
 ok("1b) clicar abre a janela 'Instruções: variáveis e rolagens'", (await p.locator("#ajuda-fichas").isVisible()) && (await p.locator("#ajuda-fichas-titulo").textContent()) === "Instruções: variáveis e rolagens");
 const corpo = await p.locator("#ajuda-fichas-corpo").textContent();
@@ -59,7 +59,7 @@ ok("3j) as rolagens e variáveis CERTAS não têm sublinhado", (await p.locator(
 ok("3k) HTML digitado fica como TEXTO (nenhum <img> na camada nem no painel)", (await p.locator("#editor-ficha-cores img, #editor-ficha-lateral img").count()) === 0 && camada.includes("<img src=x onerror=alert>"));
 
 // ================= a função do nome: dica ao passar o mouse e clique
-ok("4a) o NOME da rolagem tem a dica com a fórmula JÁ CALCULADA ('Ataque com espada: 1d20 + 3 + 3')", (await p.locator("#editor-ficha-cores .rolagem-nome").first().getAttribute("title")) === "Ataque com espada: 1d20 + 3 + 3", await p.locator("#editor-ficha-cores .rolagem-nome").first().getAttribute("title"));
+ok("4a) o NOME da rolagem tem a dica 'Clique para rolar' com a fórmula JÁ CALCULADA", (await p.locator("#editor-ficha-cores .rolagem-nome").first().getAttribute("title")) === "Clique para rolar: Ataque com espada: 1d20 + 3 + 3", await p.locator("#editor-ficha-cores .rolagem-nome").first().getAttribute("title"));
 ok("4b) a dica do nome com erro mostra o motivo", /SORTE/.test((await p.locator("#editor-ficha-cores .rolagem-nome").nth(2).getAttribute("title")) ?? ""));
 const caixaNome = await p.locator("#editor-ficha-cores .rolagem-nome").first().boundingBox();
 const caixaVar = await p.locator("#editor-ficha-cores .variavel-nome").first().boundingBox();
@@ -68,7 +68,7 @@ const quemNaVar = await p.evaluate(([x, y]) => document.elementFromPoint(x, y)?.
 ok("4c) o mouse atinge o NOME da rolagem, mas no resto do texto passa direto para o campo (dá para clicar e editar)", /rolagem-nome/.test(quemNoNome) && quemNaVar === "editor-ficha-texto", `${quemNoNome} | ${quemNaVar}`);
 await p.focus("#editor-ficha-texto");
 await p.mouse.click(caixaNome.x + 6, caixaNome.y + caixaNome.height / 2);
-ok("4d) clicar no NOME destaca a rolagem 'Ataque com espada' na lista lateral", await p.locator("#editor-ficha-rolagens li").first().evaluate((li) => li.classList.contains("destaque")));
+ok("4d) clicar no NOME destaca a rolagem 'Ataque com espada' na lista lateral (e rola: o cartão vai para o chat)", await p.locator("#editor-ficha-rolagens li").first().evaluate((li) => li.classList.contains("destaque")));
 ok("4e) e o clique no nome NÃO tira o foco do campo de texto", (await p.evaluate(() => document.activeElement?.id)) === "editor-ficha-texto");
 await p.waitForTimeout(1600);
 ok("4f) o destaque some sozinho", !(await p.locator("#editor-ficha-rolagens li").first().evaluate((li) => li.classList.contains("destaque"))));

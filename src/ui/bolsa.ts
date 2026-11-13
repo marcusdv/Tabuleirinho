@@ -25,9 +25,14 @@ import {
     MAX_FICHAS,
     MAX_TOKENS,
     TAMANHO_INICIAL_TOKEN,
+    CHAVE_ABA_BOLSA,
+    CHAVE_ALTURA_BOLSA,
+    CHAVE_BOLSA_RECOLHIDA,
 } from "../config";
 import { estado, type Ficha, type Token } from "../estado";
 import { corCss, escolherArquivo, marcarEscolhida, montarPaleta, pintarDisco } from "./aparenciaToken";
+import { alternarRecolhida } from "./animarPainel";
+import { guardarPreferencia, lerPreferencia } from "./preferencias";
 
 /** O que a área "Criar token" pede ao criar. */
 export interface DadosNovoToken {
@@ -96,6 +101,8 @@ export interface Bolsa {
     tokenRecusado(motivo: string): void;
     /** Refaz a lista da aba Fichas conforme `estado.fichas`. */
     atualizarFichas(): void;
+    /** Qual ficha está aberta na janela de edição (null = nenhuma): o nome dela ganha outra cor na lista. */
+    marcarFichaAberta(id: number | null): void;
     /** O servidor criou uma ficha: libera o botão "Criar ficha" (a lista é refeita a partir de `estado.fichas`). */
     fichaSalva(): void;
     /** O servidor recusou (ou a conexão caiu): se esta pessoa esperava uma ficha, mostra o motivo e libera o formulário. */
@@ -128,8 +135,9 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     const canto = pegar("canto-inferior-direito"); // a coluna fixa que guarda a bolsa (e o painel da calibragem)
     const itens = pegar("bolsa-itens");
     const vazia = pegar("bolsa-vazia");
-    const contagem = pegar("bolsa-contagem");
-    const botaoGerenciar = pegar<HTMLButtonElement>("bolsa-gerenciar"); // (só na média) abre a tela cheia
+    const botaoGerenciar = pegar<HTMLButtonElement>("bolsa-gerenciar"); // o ⤢ do alto: abre a tela cheia
+    const botaoAlternar = pegar<HTMLButtonElement>("bolsa-alternar"); // o ▴/▾ do alto: minimiza/expande a bolsa
+    const botaoCriarToken = pegar<HTMLButtonElement>("bolsa-criar-token-botao"); // o "+ Criar token" da linha da pesquisa (abre a tela cheia)
     const botaoFechar = pegar<HTMLButtonElement>("bolsa-fechar");
     const botoesTamanho = Array.from(bolsa.querySelectorAll<HTMLButtonElement>("button[data-tamanho]"));
     const amostras = pegar("bolsa-amostras");
@@ -143,7 +151,8 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     const arquivo = pegar<HTMLInputElement>("bolsa-arquivo");
     const botaoCriar = pegar<HTMLButtonElement>("bolsa-criar-botao");
     const aviso = pegar("bolsa-aviso");
-    const campoBusca = pegar<HTMLInputElement>("bolsa-busca");
+    const campoBusca = pegar<HTMLInputElement>("bolsa-busca"); // a pesquisa dos TOKENS
+    const campoBuscaFichas = pegar<HTMLInputElement>("bolsa-fichas-busca"); // a pesquisa das FICHAS (independente da outra)
     const fantasma = pegar("token-fantasma");
     let fantasmaPintado = ""; // o que a cópia mostra agora (para repintar só quando o token muda)
     const menuFicha = pegar("menu-ficha");
@@ -202,7 +211,6 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         const busca = normalizar(campoBusca.value.trim());
         bolsa.classList.toggle("buscando", busca !== ""); // pesquisando, a prévia grande some e os resultados sobem
         const visiveis = busca === "" ? guardados : guardados.filter((t) => normalizar(`${t.nome} ${t.size}x${t.size}`).includes(busca));
-        contagem.textContent = guardados.length === 0 ? "" : visiveis.length === guardados.length ? `(${guardados.length})` : `(${visiveis.length} de ${guardados.length})`;
         vazia.hidden = visiveis.length > 0;
         vazia.textContent =
             guardados.length > 0
@@ -448,8 +456,10 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         canto.classList.add("bolsa-aberta");
         botaoFechar.hidden = false;
         campoBusca.value = "";
+        campoBuscaFichas.value = "";
         aviso.textContent = "";
         atualizar(); // os textos mudam com a bolsa aberta
+        atualizarFichas();
         botaoFechar.focus();
     }
 
@@ -460,8 +470,11 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         bolsa.classList.remove("expandida");
         canto.classList.remove("bolsa-aberta");
         botaoFechar.hidden = true;
-        campoBusca.value = ""; // a pesquisa é limpa ao voltar ao canto
+        campoBusca.value = ""; // as pesquisas são limpas ao voltar ao canto
+        campoBuscaFichas.value = "";
         atualizar();
+        atualizarFichas();
+        medirVaga();
         botaoGerenciar.focus();
     }
 
@@ -475,6 +488,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
      */
     function escolherAba(nova: AbaBolsa, focar = false): void {
         aba = nova;
+        guardarPreferencia(CHAVE_ABA_BOLSA, nova); // a última aba clicada volta ao recarregar a página
         fecharMenuFicha(); // o menu do clique direito é das fichinhas de token: não pode ficar solto sobre a outra aba
         bolsa.classList.toggle("aba-fichas", nova === "fichas");
         for (const botao of botoesAba) {
@@ -484,6 +498,8 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
             if (ligada && focar) botao.focus();
         }
     }
+
+    escolherAba(lerPreferencia(CHAVE_ABA_BOLSA) === "fichas" ? "fichas" : "tokens"); // a aba da última vez (sem preferência: Tokens)
 
     for (const botao of botoesAba) {
         botao.addEventListener("click", () => escolherAba(botao.dataset.aba as AbaBolsa));
@@ -515,13 +531,20 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         else delete avisoFicha.dataset.erro;
     }
 
+    let idFichaAberta: number | null = null; // a ficha aberta na janela de edição (o nome dela fica em outra cor)
+
     function atualizarFichas(): void {
         const fichas = estado.fichas;
-        fichasVazia.hidden = fichas.length > 0;
+        // A pesquisa da aba Fichas (um campo só dela) filtra as fichas pelo nome (ignora maiúsculas e acentos).
+        const busca = normalizar(campoBuscaFichas.value.trim());
+        const visiveis = busca === "" ? fichas : fichas.filter((f) => normalizar(f.nome).includes(busca));
+        fichasVazia.hidden = visiveis.length > 0;
+        fichasVazia.textContent = fichas.length > 0 ? `Nenhuma ficha encontrada para "${campoBuscaFichas.value.trim()}".` : "Nenhuma ficha ainda.";
         listaFichas.replaceChildren(
-            ...fichas.map((ficha) => {
+            ...visiveis.map((ficha) => {
                 const doc = document.createElement("li");
-                doc.className = "bolsa-doc";
+                doc.className = "bolsa-doc" + (ficha.id === idFichaAberta ? " aberta" : "");
+                doc.dataset.id = String(ficha.id);
                 doc.title = `${ficha.nome} (versão ${ficha.versao}): clique para abrir e editar (botão direito: mais opções)`;
                 doc.tabIndex = 0; // dá para chegar pelo teclado
                 doc.setAttribute("role", "button");
@@ -582,18 +605,65 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         atualizarFichas();
     }
 
-    botaoCriarFicha.addEventListener("click", criarFicha);
+    botaoCriarFicha.addEventListener("click", () => {
+        campoBuscaFichas.value = ""; // limpa a pesquisa das fichas: a ficha nova precisa aparecer na lista
+        criarFicha();
+    });
 
     botaoFechar.addEventListener("click", fechar);
-    botaoGerenciar.addEventListener("click", abrir); // "⤢ Criar/editar": a tela cheia (a bolsa do canto não expande mais ao clicar nela)
-    campoBusca.addEventListener("input", atualizar); // filtra a cada letra
+    botaoGerenciar.addEventListener("click", abrir); // ⤢: a tela cheia (a bolsa do canto não expande mais ao clicar nela)
+    botaoCriarToken.addEventListener("click", abrir); // "+ Criar token": a criação de tokens fica na tela cheia
+
+    // --- Minimizar (só na bolsa do canto): sobra o título e os dois ícones. O botão ▴/▾ e o clique no NOME alternam; a escolha é lembrada. ---
+    function mostrarRecolhida(recolhida: boolean): void {
+        bolsa.classList.toggle("recolhida", recolhida);
+        botaoAlternar.textContent = recolhida ? "▾" : "▴"; // ▾ = expandir, ▴ = recolher (como nos outros painéis)
+        botaoAlternar.title = recolhida ? "Expandir a bolsa" : "Recolher a bolsa";
+        botaoAlternar.setAttribute("aria-expanded", String(!recolhida));
+    }
+    function alternarBolsa(): void {
+        // (com animação: a altura cresce/encolhe com o TOPO parado, de cima para baixo; a "vaga" invisível da bolsa tem a altura dela aberta)
+        const recolhida = alternarRecolhida(bolsa, "recolhida", mostrarRecolhida);
+        guardarPreferencia(CHAVE_BOLSA_RECOLHIDA, recolhida ? "1" : "0");
+    }
+    botaoAlternar.addEventListener("click", alternarBolsa);
+    // DUPLO clique na área de cima da bolsa (a linha do nome "Bolsa" e o espaço vazio do cabeçalho, não só nas letras). Não vale nas abas, na
+    // pesquisa nem nos botões: eles têm o seu próprio clique.
+    const cabecalhoBolsa = bolsa.querySelector<HTMLElement>(".bolsa-topo")!;
+    const nomeBolsa = bolsa.querySelector<HTMLElement>(".bolsa-titulo")!;
+    nomeBolsa.title = "Duplo clique para recolher ou expandir (arraste para mover)";
+    cabecalhoBolsa.addEventListener("dblclick", (e) => {
+        const alvo = e.target as HTMLElement;
+        const naAreaDoNome = alvo === cabecalhoBolsa || alvo.closest(".bolsa-titulo") !== null;
+        if (naAreaDoNome && !expandida) alternarBolsa(); // (em tela cheia o cabeçalho não recolhe)
+    });
+
+    // A "vaga" da bolsa: uma caixa invisível, ancorada no canto inferior direito, com a altura da bolsa ABERTA. A bolsa fica no TOPO dela:
+    // aberta, enche a vaga e chega ao canto; minimizada, sobra só o cabeçalho, e ao expandir ela cresce para BAIXO (como as outras caixas).
+    // Mede a altura aberta (a bolsa do canto tem altura fixa nas duas abas) sem pintar nada no meio.
+    const vaga = pegar("bolsa-vaga");
+    function medirVaga(): void {
+        if (expandida) return; // (a tela cheia tem outro tamanho)
+        const estava = bolsa.classList.contains("recolhida");
+        bolsa.classList.remove("recolhida");
+        const altura = bolsa.getBoundingClientRect().height;
+        vaga.style.setProperty("--altura-bolsa", `${altura}px`);
+        guardarPreferencia(CHAVE_ALTURA_BOLSA, String(altura)); // (o index.html a usa na próxima vez, antes da primeira pintura: a bolsa não se mexe ao carregar)
+        if (estava) bolsa.classList.add("recolhida");
+    }
+    mostrarRecolhida(lerPreferencia(CHAVE_BOLSA_RECOLHIDA) === "1"); // (como a pessoa deixou da última vez)
+    medirVaga();
+    campoBusca.addEventListener("input", atualizar); // filtra os tokens a cada letra
+    campoBuscaFichas.addEventListener("input", atualizarFichas); // e esta, só as fichas (cada aba tem a sua pesquisa)
     document.addEventListener("keydown", (e) => {
         if (e.key !== "Escape") return;
         // Com texto na pesquisa, o primeiro Esc só LIMPA a pesquisa; o seguinte fecha a tela cheia.
         const limpouPesquisa = (): boolean => {
-            if (document.activeElement !== campoBusca || campoBusca.value === "") return false;
-            campoBusca.value = "";
-            atualizar();
+            const campo = document.activeElement === campoBusca ? campoBusca : document.activeElement === campoBuscaFichas ? campoBuscaFichas : null;
+            if (!campo || campo.value === "") return false;
+            campo.value = "";
+            if (campo === campoBusca) atualizar();
+            else atualizarFichas();
             return true;
         };
         if (expandida) {
@@ -629,6 +699,11 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         tokenCriado,
         tokenRecusado,
         atualizarFichas,
+        marcarFichaAberta(id) {
+            idFichaAberta = id;
+            // (sem refazer a lista: só liga/desliga a classe, para não perder o foco do teclado)
+            for (const doc of listaFichas.querySelectorAll<HTMLElement>(".bolsa-doc")) doc.classList.toggle("aberta", doc.dataset.id === String(id));
+        },
         fichaSalva,
         fichaRecusada,
         contem(ponto) {

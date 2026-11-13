@@ -1,7 +1,7 @@
 // Teste e2e: bolsa EXPANDIDA e criação de tokens. Rodar: npm run test:e2e -- bolsa-expandida
 // (precisa do servidor: npm run dev). Veja tests/e2e/ajuda.mjs.
 //
-// Clicar na bolsa a expande (quase a tela toda, margem de 16 px); lá dentro se escolhe nome, imagem,
+// O botão "Criar/editar" da bolsa a expande (quase a tela toda, margem de 16 px; clicar numa área vazia da bolsa NÃO faz nada); lá dentro se escolhe nome, imagem,
 // tamanho, cor de PREENCHIMENTO e cor da BORDA e se cria um token novo, que nasce GUARDADO na bolsa. A imagem
 // fica por cima do preenchimento; o botão direito numa ficha altera/remove a imagem. O que este teste protege também: soltar uma
 // fichinha em cima da bolsa NÃO pode abri-la (o navegador dispara um "click" nesse caso) e o botão
@@ -28,10 +28,13 @@ const arrastar = async (de, para) => {
 };
 const centro = (c) => ({ x: c.x + c.width / 2, y: c.y + c.height / 2 });
 
-// 1) abrir clicando numa área vazia da bolsa
+// 1) abrir pelo botão "Criar/editar" (clicar numa área vazia da bolsa NÃO abre mais)
 const pequena = await p.locator("#bolsa").boundingBox();
 await p.mouse.click(pequena.x + pequena.width / 2, pequena.y + pequena.height - 8);
-ok("1a) clicar na bolsa fechada a expande", await expandida());
+ok("1a0) clicar numa área vazia da bolsa NÃO a expande", !(await expandida()));
+ok("1a1) não existe mais o quadradinho de maximizar em cima da caixa", (await p.locator("#bolsa-maximizar").count()) === 0);
+await p.click("#bolsa-gerenciar");
+ok("1a) o botão 'Criar/editar' expande a bolsa (tela cheia)", await expandida());
 const grande = await p.locator("#bolsa").boundingBox();
 ok("1b) ela cobre quase a tela toda, com 16 px de margem de cada lado",
     grande.x === 16 && grande.y === 16 && Math.round(1400 - (grande.x + grande.width)) === 16 && Math.round(800 - (grande.y + grande.height)) === 16,
@@ -48,7 +51,7 @@ const novo = depois[depois.length - 1];
 ok("2a) criou 1 token novo", depois.length === antes + 1, `${antes} -> ${depois.length}`);
 ok("2b) com o tamanho 3×3, a cor vermelha, e já GUARDADO na bolsa", novo.size === 3 && novo.cor === 0xe74c3c && novo.guardado === true, JSON.stringify(novo));
 ok("2c) o id é novo (não repete nenhum)", new Set(depois.map((t) => t.id)).size === depois.length);
-ok("2d) aparece 1 fichinha 3×3 na lista e a contagem mostra (1)", (await p.locator(".ficha").count()) === 1 && (await p.locator("#bolsa-contagem").textContent()) === "(1)");
+ok("2d) aparece 1 fichinha 3×3 na lista", (await p.locator(".ficha").count()) === 1);
 ok("2e) a prévia mostra o tamanho escolhido", (await p.locator("#bolsa-previa small").textContent()) === "3×3");
 
 ok("2f) sem nome digitado, o token ganha o nome padrão 'Token <id>'", novo.nome === `Token ${novo.id}`, novo.nome);
@@ -91,18 +94,17 @@ await arrastar(centro(fx), { x: alvo2.x + alvo2.width / 2, y: alvo2.y + alvo2.he
 ok("6c) soltar uma fichinha na própria bolsa também não a expande", !(await expandida()));
 
 // 7) fechar pela margem escura e pelo botão
-await p.mouse.click(alvo2.x + alvo2.width / 2, alvo2.y + alvo2.height - 8);
-ok("7a) (preparo) clicar de novo em área vazia reabre", await expandida());
+await p.click("#bolsa-gerenciar");
+ok("7a) (preparo) o botão 'Criar/editar' reabre", await expandida());
 await p.mouse.click(6, 400);
 ok("7b) clicar na margem escura fecha", !(await expandida()));
-await p.mouse.click(pequena.x + pequena.width / 2, pequena.y + pequena.height - 8);
+await p.click("#bolsa-gerenciar");
 await p.click("#bolsa-fechar");
 ok("7c) o botão Fechar fecha", !(await expandida()));
 
 // 8) janela pequena: continua abrindo, cobre a janela e dá para criar
 await p.setViewportSize({ width: 700, height: 600 });
-const b8 = await p.locator("#bolsa").boundingBox();
-await p.mouse.click(b8.x + b8.width / 2, b8.y + b8.height - 6);
+await p.click("#bolsa-gerenciar");
 const g8 = await p.locator("#bolsa").boundingBox();
 ok("8a) em 700×600 abre e cobre a janela (margem de 16 px)", (await expandida()) && g8.x === 16 && g8.y === 16 && Math.round(700 - (g8.x + g8.width)) === 16, JSON.stringify(g8));
 const n8 = (await tokens()).length;
@@ -194,36 +196,32 @@ ok("10a) a prévia usa o preenchimento e a borda escolhidos, cada um na sua cor"
 const prevAntes = (await p.locator("#bolsa-previa .disco").boundingBox()).width;
 await p.click('button[data-tamanho="4"]');
 const prevDepois = (await p.locator("#bolsa-previa .disco").boundingBox()).width;
-ok("10b) a prévia é GRANDE (pelo menos 150 px no 4×4) e cresce com o tamanho", prevDepois >= 150 && prevDepois > prevAntes, `${prevAntes} -> ${prevDepois}`);
+ok("10b) a prévia é GRANDE (240 px) e tem tamanho FIXO: trocar o tamanho do token (aqui para 4×4) NÃO a aumenta, só muda o rótulo", prevAntes === 240 && prevDepois === 240 && (await p.locator("#bolsa-previa small").textContent()) === "4×4", `${prevAntes} -> ${prevDepois}`);
 await p.click("#bolsa-criar-botao");
 const duas = (await tokens()).find((t) => t.nome === "Duas cores");
 ok("10c) o token guarda as duas cores (sem imagem)", duas.cor === 0x112233 && duas.corBorda === 0xaabbcc && duas.imagem === null, JSON.stringify(duas));
 ok("10d) os 5 tokens iniciais têm borda branca (como sempre foi)", (await tokens()).filter((t) => t.id <= 5).every((t) => t.corBorda === 0xffffff));
 
-// 11) os TRÊS tamanhos: pequena, MÉDIA (quadradinho colado em cima; com pesquisa; arrasta tokens) e tela cheia
+// 11) a bolsa do CANTO (a de sempre, com pesquisa; arrasta tokens) e a pesquisa
 await p.click("#bolsa-fechar");
-const bPeq = await p.locator("#bolsa").boundingBox(), tab = await p.locator("#bolsa-maximizar").boundingBox();
-ok("11a) o quadradinho de maximizar fica COLADO em cima da caixa da bolsa pequena", Math.abs(tab.y + tab.height - bPeq.y) <= 1.5 && tab.x >= bPeq.x && tab.x + tab.width <= bPeq.x + bPeq.width, `base da aba ${(tab.y + tab.height).toFixed(0)} / topo da caixa ${bPeq.y.toFixed(0)}`);
-ok("11a2) na pequena a pesquisa e o 'Criar/editar' ficam escondidos", !(await p.locator("#bolsa-busca").isVisible()) && !(await p.locator("#bolsa-gerenciar").isVisible()));
 const classe = async () => (await p.locator("#bolsa").getAttribute("class")) ?? "";
-await p.click("#bolsa-maximizar");
-ok("11b) o quadradinho abre a bolsa MÉDIA (maior, com pesquisa, sem tela cheia)", (await classe()).includes("media") && !(await expandida()) && (await p.locator("#bolsa-busca").isVisible()) && (await p.locator("#bolsa").boundingBox()).width > bPeq.width + 40);
-const mediaBox = await p.locator("#bolsa").boundingBox();
+const bCanto = await p.locator("#bolsa").boundingBox();
+ok("11a) a bolsa do canto tem 340 px, mostra a pesquisa e o botão 'Criar/editar' e NÃO tem o quadradinho de maximizar nem a classe 'media'", Math.round(bCanto.width) === 340 && (await p.locator("#bolsa-busca").isVisible()) && (await p.locator("#bolsa-gerenciar").isVisible()) && (await p.locator("#bolsa-maximizar").count()) === 0 && !(await classe()).includes("media"), `${bCanto.width} / ${await classe()}`);
 const barraBox = await p.locator("#barra").boundingBox();
-ok("11b2) a média não passa por cima da barra de Ferramentas (fica abaixo dela)", mediaBox.y >= barraBox.y + barraBox.height - 1, `topo da bolsa ${mediaBox.y.toFixed(0)}, base da barra ${(barraBox.y + barraBox.height).toFixed(0)}`);
+ok("11b) a bolsa do canto não passa por cima da barra de Ferramentas (fica abaixo dela)", bCanto.y >= barraBox.y + barraBox.height - 1, `topo da bolsa ${bCanto.y.toFixed(0)}, base da barra ${(barraBox.y + barraBox.height).toFixed(0)}`);
 const fichas = () => p.locator(".ficha .ficha-nome").allTextContents();
 for (const [nome, tam] of [["Goblin Ágil", 1], ["Goblin Chefe", 3], ["Dragão Jovem", 4]]) {
     await p.click("#bolsa-gerenciar");
     await p.fill("#bolsa-nome", nome);
     await p.click(`button[data-tamanho="${tam}"]`);
     await p.click("#bolsa-criar-botao");
-    await p.click("#bolsa-fechar"); // volta para a média
+    await p.click("#bolsa-fechar"); // volta para a bolsa do canto
 }
-ok("11c) 'Criar/editar' abre a tela cheia e o Fechar de lá VOLTA para a média", (await classe()).includes("media") && !(await expandida()));
+ok("11c) 'Criar/editar' abre a tela cheia e o Fechar de lá VOLTA para a bolsa do canto", !(await expandida()) && (await p.locator("#bolsa-busca").isVisible()));
 const total = (await fichas()).length;
 await p.fill("#bolsa-busca", "gob");
 const comGob = (await tokens()).filter((t) => t.guardado && t.nome.toLowerCase().includes("gob")).length; // (o teste 3 já criou um "<b>Goblin Arqueiro C")
-ok("11d) pesquisar 'gob' mostra só os tokens com 'gob' no nome, e a contagem diz 'N de total'", (await fichas()).length === comGob && comGob >= 2 && (await fichas()).every((n) => n.toLowerCase().includes("gob")) && (await p.locator("#bolsa-contagem").textContent()) === `(${comGob} de ${total})`);
+ok("11d) pesquisar 'gob' mostra só os tokens com 'gob' no nome", (await fichas()).length === comGob && comGob >= 2 && (await fichas()).every((n) => n.toLowerCase().includes("gob")));
 await p.fill("#bolsa-busca", "DRAGAO");
 ok("11e) a pesquisa ignora maiúsculas e acentos ('DRAGAO' acha 'Dragão Jovem')", (await fichas()).join() === "Dragão Jovem");
 await p.fill("#bolsa-busca", "3x3");
@@ -231,32 +229,29 @@ ok("11f) também acha pelo tamanho ('3x3')", (await fichas()).includes("Goblin C
 await p.fill("#bolsa-busca", "xyzxyz");
 ok("11g) sem resultado: nenhuma ficha e a mensagem 'Nenhum token encontrado'", (await fichas()).length === 0 && (await p.locator("#bolsa-vazia").textContent()).includes("Nenhum token encontrado"));
 await p.fill("#bolsa-busca", "");
-// arrastar da média para o mapa: o mapa continua acessível
-const fMedia = await p.locator(".ficha", { hasText: "Goblin Ágil" }).boundingBox();
-await p.mouse.move(fMedia.x + fMedia.width / 2, fMedia.y + fMedia.height / 2);
+// arrastar da bolsa do canto para o mapa: o mapa continua acessível
+const fCanto = await p.locator(".ficha", { hasText: "Goblin Ágil" }).boundingBox();
+await p.mouse.move(fCanto.x + fCanto.width / 2, fCanto.y + fCanto.height / 2);
 await p.mouse.down();
 await p.mouse.move(600, 330, { steps: 10 });
 await p.mouse.up();
 const agil = (await tokens()).find((t) => t.nome === "Goblin Ágil");
-ok("11h) na bolsa MÉDIA dá para arrastar um token para o tabuleiro (e a bolsa continua média)", agil.guardado === false && (await classe()).includes("media"), JSON.stringify(agil));
+ok("11h) na bolsa do canto dá para arrastar um token para o tabuleiro", agil.guardado === false && !(await expandida()), JSON.stringify(agil));
 const cx = 124 + (agil.col + 0.5) * 64, cy = 80 + (agil.row + 0.5) * 64;
 const alvoM = await p.locator("#bolsa").boundingBox();
 await p.mouse.move(cx, cy);
 await p.mouse.down();
 await p.mouse.move(alvoM.x + alvoM.width / 2, alvoM.y + alvoM.height / 2, { steps: 10 });
 await p.mouse.up();
-ok("11i) e arrastar um token do mapa para a bolsa MÉDIA o guarda", (await tokens()).find((t) => t.nome === "Goblin Ágil").guardado === true);
+ok("11i) e arrastar um token do mapa para a bolsa do canto o guarda", (await tokens()).find((t) => t.nome === "Goblin Ágil").guardado === true);
 const bM2 = await p.locator("#bolsa").boundingBox();
 await p.mouse.click(bM2.x + bM2.width - 8, bM2.y + bM2.height - 6);
-ok("11j) clicar em área vazia da bolsa MÉDIA NÃO abre a tela cheia", !(await expandida()));
+ok("11j) clicar em área vazia da bolsa do canto NÃO abre a tela cheia", !(await expandida()));
 await p.fill("#bolsa-busca", "troll");
 await p.keyboard.press("Escape");
-ok("11k) Esc com texto na pesquisa só LIMPA (continua média)", (await p.inputValue("#bolsa-busca")) === "" && (await classe()).includes("media"));
+ok("11k) Esc com texto na pesquisa só LIMPA a pesquisa", (await p.inputValue("#bolsa-busca")) === "");
 await p.keyboard.press("Escape");
-ok("11l) Esc de novo volta ao tamanho pequeno", !(await classe()).includes("media"));
-await p.click("#bolsa-maximizar");
-await p.click("#bolsa-maximizar");
-ok("11m) o quadradinho de novo (agora 'restaurar') volta ao pequeno, e a pesquisa é limpa", !(await classe()).includes("media") && (await p.inputValue("#bolsa-busca")) === "" && (await p.locator(".ficha").count()) === (await tokens()).filter((t) => t.guardado).length);
+ok("11l) Esc de novo não faz nada: a bolsa do canto continua lá (não existe mais o modo pequeno)", (await p.locator("#bolsa").isVisible()) && !(await expandida()) && (await p.locator("#bolsa-busca").isVisible()));
 
 ok("12) nenhum erro de JavaScript durante o teste", erros.length === 0, erros.join(" | "));
 

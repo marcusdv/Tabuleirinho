@@ -17,7 +17,7 @@ const caixa = (s) => p.locator(s).boundingBox();
 
 // ================= tamanho da caixa
 const chat = await caixa("#chat");
-ok("T1) chat mais largo: 680 px (era 600)", perto(chat.width, 680, 1), `${chat.width.toFixed(0)} px`);
+ok("T1) chat com 680 px em 1400 de largura (o máximo; 1400 - 384 sobra mais que isso)", perto(chat.width, 680, 1), `${chat.width.toFixed(0)} px`);
 ok("T2) altura ~148 px (faixa de 90 px)", chat.height >= 142 && chat.height <= 154, `${chat.height.toFixed(0)} px`);
 
 // ================= limite de 40 caracteres

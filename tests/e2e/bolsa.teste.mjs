@@ -57,7 +57,7 @@ ok("2b) a bolsa se destaca enquanto o token está sobre ela", (await p.locator("
 await p.screenshot({ path: `${S}/b1_sobre_bolsa.png` });
 await p.mouse.up(); await p.waitForTimeout(400);
 ok("2c) o token sumiu do mapa", (await achar(VERDE, undefined, 8, REGIAO_VERDE)).n === 0);
-ok("2d) a bolsa mostra 1 fichinha (1×1) e (1)", (await fichas()) === 1 && (await texto("#bolsa-itens")).includes("1×1") && (await texto("#bolsa-contagem")) === "(1)", await texto("#bolsa-contagem"));
+ok("2d) a bolsa mostra 1 fichinha (1×1) e NÃO tem mais contador no título", (await fichas()) === 1 && (await texto("#bolsa-itens")).includes("1×1") && (await p.locator("#bolsa-contagem").count()) === 0 && (await texto(".bolsa-titulo")).trim() === "Bolsa");
 ok("2e) o destaque da bolsa apagou", !(await p.locator("#bolsa").getAttribute("class") || "").includes("alvo"));
 ok("2f) a dica 'vazia' sumiu", !(await p.locator("#bolsa-vazia").isVisible()));
 await p.screenshot({ path: `${S}/b2_guardado.png` });
@@ -65,14 +65,14 @@ await p.screenshot({ path: `${S}/b2_guardado.png` });
 // ---- 3) guardar também o roxo (4x4, centro (1020,592))
 const r0 = await achar(ROXO);
 await arrastar({ x: r0.cx, y: r0.cy }, alvo);
-ok("3) segundo token guardado: 2 fichinhas, contagem (2), uma 4×4", (await fichas()) === 2 && (await texto("#bolsa-contagem")) === "(2)" && (await texto("#bolsa-itens")).includes("4×4"));
+ok("3) segundo token guardado: 2 fichinhas, uma 4×4", (await fichas()) === 2 && (await texto("#bolsa-itens")).includes("4×4"));
 
 // ---- 4) colocar o verde no mapa: solta no centro da casa col 3, row 3 => centro (348,304) (longe do roxo, que voltará à posição original)
 const fv = p.locator(".ficha", { hasText: "1×1" });
 await arrastar(centro(await fv.boundingBox()), { x: 348, y: 304 });
 const v1 = await achar(VERDE, undefined, 8, REGIAO_VERDE);
 ok("4a) verde voltou ao mapa, encaixado em (348,304)", perto(v1.cx, 348, 3) && perto(v1.cy, 304, 3), `(${v1.cx?.toFixed(0)}, ${v1.cy?.toFixed(0)})`);
-ok("4b) a bolsa ficou só com o roxo (1)", (await fichas()) === 1 && (await texto("#bolsa-contagem")) === "(1)");
+ok("4b) a bolsa ficou só com o roxo (1)", (await fichas()) === 1);
 
 // ---- 5) colocar o roxo (4x4) soltando num vértice: centro (1020,592) => col 12, row 6 (a posição original)
 const fr = p.locator(".ficha", { hasText: "4×4" });

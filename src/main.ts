@@ -45,6 +45,7 @@ import {
     redimensionarTabuleiro,
     type Ficha,
     type Token,
+    adicionarRolagemDeFicha,
     criarFicha,
     editarFicha,
     excluirFicha,
@@ -67,6 +68,7 @@ import { criarTokens } from "./tabuleiro/tokens";
 import { criarBalaoToken } from "./ui/balaoToken";
 import { criarBolsa } from "./ui/bolsa";
 import { criarEditorImagem } from "./ui/editorImagem";
+import { rolarDaFicha } from "./formulas";
 import { criarAjudaFichas } from "./ui/ajudaFichas";
 import { criarConfirmacao } from "./ui/confirmar";
 import { criarEditorFicha } from "./ui/editorFicha";
@@ -79,6 +81,7 @@ import { criarBarra } from "./ui/barra";
 import { criarDicaCondicao } from "./ui/dicaCondicao";
 import { criarMenuToken } from "./ui/menuToken";
 import { criarPainelCalibragem } from "./ui/painelCalibragem";
+import { tornarArrastavel } from "./ui/arrastar";
 import { criarPainelDados } from "./ui/painelDados";
 import { criarPainelDesenho, type NomeFerramenta } from "./ui/painelDesenho";
 import { criarStatusRede } from "./ui/statusRede";
@@ -144,6 +147,21 @@ async function iniciar(): Promise<void> {
         },
     });
 
+    // As cinco caixas da tela podem ser ARRASTADAS pela alça de cada uma (ver ui/arrastar.ts): a posição fica guardada no navegador.
+    const porId = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
+    // As três caixas de ferramentas (Ferramentas, Desenho e Dados) NÃO PODEM SE BATER: cada uma é parede para as outras. O chat e a bolsa são
+    // independentes de tudo isso (o chat não tem mais nada grudado nele).
+    const caixasDeFerramentas = [porId("barra"), porId("ferramentas-desenho"), porId("dados")];
+    const bloqueadores = (): HTMLElement[] => caixasDeFerramentas;
+    for (const caixa of caixasDeFerramentas) tornarArrastavel({ elemento: caixa, alca: caixa.querySelector<HTMLElement>(".cabecalho")!, bloqueadores });
+    tornarArrastavel({ elemento: porId("chat"), alca: porId("chat-alca") });
+    tornarArrastavel({
+        elemento: porId("bolsa"),
+        alca: porId("bolsa").querySelector<HTMLElement>(".bolsa-topo")!,
+        ignorar: (alvo) => alvo.closest("button, input, #bolsa-abas") !== null,
+        desligado: () => bolsa.expandida, // em tela cheia a bolsa cobre a tela: não anda
+    });
+
     const painelCalibragem = criarPainelCalibragem({ aoConcluir: () => ligarCalibragem(false) });
 
     const painelDesenho = criarPainelDesenho({
@@ -168,6 +186,7 @@ async function iniciar(): Promise<void> {
 
     // O editor de FICHA (nome e texto): abre ao clicar num documento da aba Fichas da bolsa.
     const editorFicha = criarEditorFicha({
+        aoMudarAberta: (id) => bolsa.marcarFichaAberta(id), // (a bolsa é criada logo abaixo; isto só roda quando a janela abre ou fecha)
         aoSalvar: (id, versao, mudancas) => {
             if (rede?.ativa) {
                 rede.enviar({ tipo: "editar_ficha", id, versao, nome: mudancas.nome, texto: mudancas.texto }); // o servidor confere a VERSÃO e grava o arquivo
@@ -176,6 +195,19 @@ async function iniciar(): Promise<void> {
             const resultado = editarFicha(id, versao, mudancas); // modo local: só na memória desta aba
             if (resultado.ok) bolsa.atualizarFichas();
             return resultado;
+        },
+        aoRolar: (id, versao, indice) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "rolar_ficha", id, versao, indice }); // o SERVIDOR sorteia e o cartão chega pelo chat (evento "mensagem")
+                return null;
+            }
+            const ficha = estado.fichas.find((f) => f.id === id);
+            if (!ficha) return "Essa ficha não existe.";
+            const resultado = rolarDaFicha(ficha.texto, indice, ficha.nome, Math.random); // modo local: sorteia aqui mesmo
+            if (!resultado.ok) return resultado.erro;
+            adicionarRolagemDeFicha(AUTOR_PROVISORIO, resultado.valor);
+            chat.atualizar();
+            return null;
         },
         confirmarDescarte: () =>
             confirmacao.perguntar({
@@ -370,7 +402,7 @@ async function iniciar(): Promise<void> {
         aoMedir: (colunas, linhas) => painelCalibragem.mostrarMedida(colunas, linhas),
         aoAplicar: (colunas, linhas) => {
             aplicarTamanho(definirTamanhoTabuleiro(colunas, linhas)); // limita a MIN/MAX_CASAS
-            painelCalibragem.mostrarAplicado(colunas, linhas, estado.colunas, estado.linhas);
+            ligarCalibragem(false); // ao SOLTAR já vale: a calibragem se conclui sozinha (a grade volta na hora; para refazer, ligue "Calibrar grade" de novo)
         },
     });
 
@@ -593,6 +625,9 @@ async function iniciar(): Promise<void> {
             },
         });
     }
+
+    // O app terminou de montar a interface: o painel de Desenho e o de Dados (cujo conteúdo é criado por aqui) deixam de ficar escondidos.
+    document.body.classList.add("app-pronta");
 
     // SÓ no modo de desenvolvimento (npm run dev; some na versão final): deixa os testes automáticos
     // (tests/e2e) saberem quando a página está pronta e lerem o estado e a câmera direto, em vez de

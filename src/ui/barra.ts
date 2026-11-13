@@ -3,7 +3,10 @@
 // A marcação HTML e o CSS ficam no index.html; aqui só ligamos os botões.
 // =====================================================================
 
-import { MAX_CASAS, MIN_CASAS, PASSO_ZOOM, ZOOM_MAX, ZOOM_MIN } from "../config";
+import { CHAVE_BARRA_RECOLHIDA, MAX_CASAS, MIN_CASAS, PASSO_ZOOM, ZOOM_MAX, ZOOM_MIN } from "../config";
+import { alternarRecolhida } from "./animarPainel";
+import { restaurarPosicoes } from "./arrastar";
+import { guardarPreferencia, lerPreferencia } from "./preferencias";
 import { estado } from "../estado";
 import type { Camera } from "../tabuleiro/camera";
 
@@ -90,6 +93,7 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
     ligarCampo("linhas-valor", "linhas");
 
     pegar("voltar-padrao").addEventListener("click", () => opcoes.aoVoltarAoPadrao());
+    pegar("reorganizar-telas").addEventListener("click", restaurarPosicoes); // as caixas arrastadas voltam ao lugar de fábrica
 
     // "Escolher mapa": o botão aparente abre o seletor de arquivos do navegador
     // (o <input type="file"> fica escondido; o navegador só permite abri-lo por um clique do usuário).
@@ -106,11 +110,22 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
     // O CSS esconde só o conteúdo: o nome "Ferramentas", o botão e a largura continuam, e ao expandir ela cresce para baixo.
     const barra = pegar("barra");
     const alternar = pegar<HTMLButtonElement>("barra-alternar");
-    alternar.addEventListener("click", () => {
-        const recolhida = barra.classList.toggle("recolhida"); // true se acabou de recolher
+    function mostrarRecolhida(recolhida: boolean): void {
+        barra.classList.toggle("recolhida", recolhida);
         alternar.textContent = recolhida ? "▾" : "▴"; // ▾ = expandir (para baixo), ▴ = recolher
         alternar.title = recolhida ? "Expandir barra" : "Recolher barra";
         alternar.setAttribute("aria-expanded", String(!recolhida)); // acessibilidade
+    }
+    alternar.addEventListener("click", () => {
+        const recolhida = alternarRecolhida(barra, "recolhida", mostrarRecolhida); // (com animação: a altura cresce/encolhe, de cima para baixo)
+        guardarPreferencia(CHAVE_BARRA_RECOLHIDA, recolhida ? "1" : "0"); // lembra ao recarregar a página
+    });
+    mostrarRecolhida(lerPreferencia(CHAVE_BARRA_RECOLHIDA) === "1"); // (como a pessoa deixou da última vez)
+    // DUPLO clique em QUALQUER ponto da área de cima (o cabeçalho onde fica o nome "Ferramentas", não só nas letras) recolhe/expande.
+    const cabecalhoBarra = barra.querySelector<HTMLElement>(".cabecalho")!;
+    cabecalhoBarra.title = "Duplo clique para recolher ou expandir (arraste para mover)";
+    cabecalhoBarra.addEventListener("dblclick", (e) => {
+        if (!(e.target as HTMLElement).closest("button, input")) alternar.click(); // (o botão ▴ tem o seu próprio clique)
     });
 
     atualizar();

@@ -48,6 +48,55 @@
                 user-select: none; /* evita selecionar texto ao clicar rápido */
             }
 
+            /* CAIXAS ARRASTÁVEIS (ui/arrastar.ts): as alças mostram a mãozinha, e durante o arrasto a caixa fica por cima e sem selecionar texto. A bolsa
+               em TELA CHEIA não anda (o deslocamento é ignorado). */
+            .alca-arrastar {
+                cursor: grab;
+                touch-action: none;
+            }
+            .alca-arrastar button,
+            .alca-arrastar input {
+                cursor: pointer;
+            }
+            /* Durante o arrasto a caixa fica por cima das outras e sem selecionar texto. */
+            .arrastando-caixa {
+                z-index: 30 !important;
+                user-select: none;
+            }
+            .arrastando-caixa .alca-arrastar {
+                cursor: grabbing;
+            }
+            #bolsa.expandida {
+                translate: none !important;
+            }
+            /* O TRACINHO de arrasto é SÓ do chat (o dono pediu para tirar das outras caixas: nelas basta o cursor de mãozinha): uma faixa fina na
+               borda de cima, com um tracinho no meio que fica AMARELO ao passar o mouse e enquanto o chat é arrastado. Cobre a folga de 8 px do
+               topo, sem mudar a altura de nada. É também a alça de arrasto do chat. */
+            #chat-alca {
+                position: absolute;
+                top: 0;
+                left: 12px;
+                right: 12px;
+                height: 8px;
+                z-index: 3;
+                border-radius: 10px 10px 0 0;
+                cursor: grab;
+            }
+            #chat-alca::after {
+                content: "";
+                position: absolute;
+                top: 2px;
+                left: 50%;
+                width: 36px;
+                height: 3px;
+                margin-left: -18px;
+                border-radius: 2px;
+                background: #4a4a58;
+            }
+            #chat-alca:hover::after,
+            #chat.arrastando-caixa #chat-alca::after {
+                background: #ffd54f;
+            }
             /* Cabeçalho: título à esquerda e botão de recolher à direita. */
             .cabecalho {
                 display: flex;
@@ -216,7 +265,7 @@
          PAINEL DE DESENHO: flutuante, fixo na esquerda, retrátil (como a barra da direita)
          =================================================================== */
             #ferramentas-desenho {
-                /* O chat (e, em janelas estreitas, a barra de dados em cima dele) ocupa o canto inferior ESQUERDO, o mesmo lado deste painel.
+                /* O chat ocupa o canto inferior ESQUERDO, o mesmo lado deste painel.
                    Por isso a altura máxima é o espaço que sobra acima dessa pilha, e o CONTEÚDO rola por dentro: o painel nunca cobre o chat.
                    160 px = o chat (148) + 12 de margem; 8 px de folga. */
                 --reserva-embaixo: 160px;
@@ -262,17 +311,6 @@
                 flex: 1 1 auto;
                 min-height: 0; /* sem isto o conteúdo não encolhe para caber: é ele que rola */
                 overflow-y: auto;
-                scrollbar-width: thin;
-                scrollbar-color: #5a5a6a transparent;
-            }
-            /* Janelas estreitas: a barra de dados fica EM CIMA do chat (129 px aberta, 24 recolhida), então a pilha é mais alta. */
-            @media (max-width: 1183px) {
-                #ferramentas-desenho {
-                    --reserva-embaixo: calc(160px + 134px);
-                }
-                body:has(#dados.recolhido) #ferramentas-desenho {
-                    --reserva-embaixo: calc(160px + 29px);
-                }
             }
             #lista-ferramentas {
                 display: flex;
@@ -328,23 +366,16 @@
             /* ===================================================================
          CHAT: fixo no CANTO INFERIOR ESQUERDO. As mensagens correm da ESQUERDA para a DIREITA:
          a mais nova entra na ponta esquerda e empurra as anteriores para a direita.
-         A barra de dados é grudada à esquerda do chat: ABERTA, ela EMPURRA o chat para a direita (que desliza, suave);
-         recolhida, sobra só a aba. A coluna do canto direito (bolsa e painel da calibragem) é preservada.
+         O chat fica no canto inferior ESQUERDO. A coluna do canto direito (bolsa e painel da calibragem) é preservada.
          =================================================================== */
             #chat {
                 position: fixed;
                 bottom: 12px;
                 z-index: 10;
-                /* O recuo à esquerda é a largura da barra de dados (que fica grudada no chat, fora dele, à esquerda): com ela ABERTA o chat
-                   fica 380 px para dentro; recolhida, só 29 px (a aba). Mudar o recuo faz o chat DESLIZAR (transition), levando a barra junto. */
-                --largura-dados-aberta: 380px;
-                --largura-dados-recolhida: 29px; /* a aba (28 px) + a borda */
-                --recuo-dados: var(--largura-dados-aberta);
-                left: calc(12px + var(--recuo-dados));
-                transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                /* A largura NÃO muda ao abrir/recolher os dados (só desliza): 764 = 12 (folga à esquerda) + 380 (dados abertos) + 372 (a
-                   coluna da direita: bolsa de 340 px, painel da calibragem e folgas); fica entre 420 e 680 px. */
-                --largura-chat: max(420px, min(680px, calc(100vw - 764px)));
+                left: 12px;
+                /* 384 = 12 (folga à esquerda) + 372 (a coluna da direita: bolsa de 340 px, painel da calibragem e folgas); a largura fica entre
+                   336 e 680 px. */
+                --largura-chat: max(336px, min(680px, calc(100vw - 384px)));
                 --altura-faixa: 90px; /* altura da faixa de mensagens (e da barra de rolagem, ao lado dela) */
                 width: var(--largura-chat);
                 box-sizing: border-box;
@@ -357,108 +388,52 @@
                 border-radius: 10px;
                 box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
             }
-            #chat:has(#dados.recolhido) {
-                --recuo-dados: var(--largura-dados-recolhida);
-            }
             /* ===================================================================
-         BARRA DE DADOS: grudada no lado ESQUERDO do chat e com a MESMA ALTURA dele (está dentro do chat,
-         então acompanha posição e altura). A aba com a seta ocupa a altura toda, aberta ou fechada.
+         PAINEL DE DADOS: uma caixa FLUTUANTE como a de Ferramentas e a de Desenho: cabeçalho com o nome e o ▴ (que recolhe; clicar no nome também),
+         arrastável pelo cabeçalho. Fica por padrão no alto, à direita do painel de Desenho.
          =================================================================== */
             #dados {
-                position: absolute;
-                right: 100%; /* encosta na borda esquerda do chat */
-                top: -1px;
-                bottom: -1px; /* mesma altura do chat (ele tem 1 px de borda em cima e embaixo) */
-                width: var(--largura-dados-aberta); /* o botão Rolar ocupa o que sobra do conteúdo */
-                display: flex;
-                flex-direction: row;
+                position: fixed;
+                top: 12px;
+                left: 176px; /* 12 + 156 (o painel de Desenho) + 8 */
+                z-index: 10;
+                width: 352px; /* HORIZONTAL: a coluna dos dados (4 dados de 44 px) e, à direita, a do Rolar */
                 box-sizing: border-box;
-                overflow: hidden;
+                padding: 10px;
                 background: rgba(34, 34, 42, 0.94);
                 border: 1px solid #3a3a45;
-                border-right: none;
-                border-radius: 10px 0 0 10px;
+                border-radius: 10px;
                 box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
                 user-select: none;
             }
-            /* A aba (seta + "Dados" na vertical): uma faixa da altura toda. */
-            #dados.recolhido {
-                width: var(--largura-dados-recolhida);
-            }
-            /* Ao abrir, o conteúdo aparece com um fade (enquanto o chat desliza). */
-            #dados:not(.recolhido) #dados-conteudo {
-                animation: dados-aparecer 0.3s ease;
-            }
-            @keyframes dados-aparecer {
-                from {
-                    opacity: 0;
-                }
-                to {
-                    opacity: 1;
-                }
-            }
-            @media (prefers-reduced-motion: reduce) {
-                #chat {
-                    transition: none;
-                }
-                #dados:not(.recolhido) #dados-conteudo {
-                    animation: none;
-                }
-            }
             #dados-alternar {
-                flex: 0 0 auto;
-                width: 28px;
-                align-self: stretch;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                gap: 12px;
-                padding: 0;
-                border: none;
-                border-left: 1px solid #3a3a45; /* a aba fica à DIREITA da barra, entre os dados e o chat */
-                background: #2a2a34;
-                color: #e6e6ea;
+                width: 26px;
+                height: 26px;
+                border: 1px solid #4a4a58;
+                border-radius: 6px;
+                background: #2f2f3a;
+                color: inherit;
+                font-size: 16px;
+                line-height: 1;
                 cursor: pointer;
             }
             #dados-alternar:hover {
-                background: #343442;
+                background: #3b3b49;
             }
-            #dados.recolhido #dados-alternar {
-                border-left: none;
+            #dados.recolhida #dados-conteudo {
+                display: none; /* recolhido sobram só o nome e o botão (a largura não muda) */
             }
-            #dados-alternar .seta {
-                font-size: 18px;
-                line-height: 1;
-            }
-            #dados-alternar .rotulo {
-                writing-mode: vertical-rl;
-                transform: rotate(180deg); /* o texto lê de baixo para cima, como numa aba lateral */
-                font: inherit;
-                font-size: 11px;
-                font-weight: 600;
-                letter-spacing: 0.12em;
-                text-transform: uppercase;
-                color: #9a9aa8;
-            }
-            #dados.recolhido #dados-conteudo {
-                display: none;
-            }
+            /* HORIZONTAL: à esquerda os dados (em 2 linhas de 4) com quantidade e modificador EMBAIXO deles; à direita o Rolar, na altura toda. */
             #dados-conteudo {
-                flex: 1 1 auto;
-                min-width: 0;
-                box-sizing: border-box;
                 display: flex;
                 gap: 10px;
-                padding: 6px 10px;
+                margin-top: 12px;
             }
-            /* Coluna da esquerda: os dados e o botão Rolar. Coluna da direita: quantidade e modificador. */
             #dados-coluna-dados {
                 flex: 0 0 auto;
                 display: flex;
                 flex-direction: column;
-                justify-content: space-between;
-                gap: 6px;
+                gap: 8px;
             }
             #dados-lados {
                 display: grid;
@@ -593,92 +568,6 @@
             .dados-linha input::-webkit-outer-spin-button {
                 -webkit-appearance: none;
                 margin: 0;
-            }
-            /* ===================================================================
-         JANELAS ESTREITAS (menos de 1184 px: chat + dados + coluna da direita não cabem lado a lado): a barra de dados sai da esquerda do chat e fica EM CIMA dele,
-         com a largura do chat. Os 8 dados numa linha; embaixo quantidade, modificador e Rolar; e a aba de
-         expandir/ocultar vira uma faixa horizontal ENTRE os dados e o chat.
-         =================================================================== */
-            @media (max-width: 1183px) {
-                /* Aqui os dados ficam em cima do chat, então o chat não recua: fica encostado no canto. */
-                #chat,
-                #chat:has(#dados.recolhido) {
-                    --recuo-dados: 0px;
-                    --largura-chat: max(336px, min(680px, calc(100vw - 384px))); /* 384 = 12 + a coluna da direita (372); 336 = o mínimo em que a barra de dados ainda cabe */
-                }
-                #dados {
-                    width: auto;
-                    left: -1px;
-                    right: -1px; /* a largura do chat (borda a borda) */
-                    top: auto;
-                    bottom: calc(100% + 1px); /* encosta na borda de cima do chat */
-                    max-width: none;
-                    flex-direction: column;
-                    border: 1px solid #3a3a45;
-                    border-bottom: none;
-                    border-radius: 10px 10px 0 0;
-                    box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.35);
-                }
-                #dados-alternar {
-                    width: auto;
-                    height: 24px;
-                    align-self: stretch;
-                    flex-direction: row;
-                    gap: 8px;
-                    border-left: none;
-                    border-top: 1px solid #3a3a45;
-                }
-                #dados.recolhido #dados-alternar {
-                    border-top: none;
-                }
-                #dados-alternar .seta {
-                    transform: rotate(90deg); /* aberta aponta para baixo (rumo ao chat); fechada, para cima */
-                }
-                #dados-alternar .rotulo {
-                    writing-mode: horizontal-tb;
-                    transform: none;
-                }
-                #dados-conteudo {
-                    flex: 0 0 auto;
-                    display: grid;
-                    grid-template-columns: 1fr 1fr 1.6fr;
-                    gap: 6px 8px;
-                    padding: 8px 10px;
-                }
-                /* As duas colunas deixam de existir: seus itens entram direto na grade do conteúdo. */
-                #dados-coluna-dados,
-                #dados-coluna-valores {
-                    display: contents;
-                }
-                #dados-lados {
-                    grid-row: 1;
-                    grid-column: 1 / -1;
-                    grid-template-columns: repeat(8, 1fr);
-                    grid-auto-rows: 36px;
-                }
-                #dados-coluna-valores .dados-campo:nth-child(1) {
-                    grid-row: 2;
-                    grid-column: 1;
-                }
-                #dados-coluna-valores .dados-campo:nth-child(2) {
-                    grid-row: 2;
-                    grid-column: 2;
-                }
-                #dados-coluna-rolar {
-                    grid-row: 2;
-                    grid-column: 3;
-                }
-                #dados-rolar-rotulo {
-                    padding: 1px 0 0;
-                    font-size: 13px;
-                    line-height: 13px;
-                }
-            }
-            /* Janela estreita E baixa: a barra de dados (recolhida, 24 px) e o chat ocupam o fundo; o painel da calibragem sobe mais. */
-            @media (max-width: 1183px) and (max-height: 720px) {
-                #painel-calibragem {
-                    bottom: 196px;
-                }
             }
             /* Cartão de rolagem no chat: à esquerda a fórmula e os dados; à direita o TOTAL, bem grande. */
             .chat-mensagem.chat-rolagem {
@@ -841,7 +730,6 @@
                 max-height: 100%;
                 padding: 5px 9px;
                 overflow-y: auto;
-                scrollbar-width: thin;
                 background: #2f2f3a;
                 border: 1px solid #4a4a58;
                 border-radius: 8px;
@@ -926,6 +814,22 @@
                 gap: 8px;
             }
 
+            /* A vaga da bolsa (ver ui/bolsa.ts): uma caixa invisível que não pega o mouse; só a bolsa dentro dela pega. */
+            #bolsa-vaga {
+                width: 340px;
+                height: var(--altura-bolsa, 346px); /* (346 = a altura da bolsa aberta; o valor medido vem do ui/bolsa.ts e do script do início da página) */
+                pointer-events: none;
+            }
+            /* O conteúdo do painel de Desenho e o do de Dados é criado pelo app (JavaScript) um instante depois do primeiro desenho: sem isto os
+               dois apareceriam pequenos e CRESCERIAM de repente. Ficam invisíveis (sem sumir do layout) até o app montar tudo; o script do fim
+               do <body> libera de qualquer jeito depois de 3 s, caso o app falhe. */
+            body:not(.app-pronta) #ferramentas-desenho,
+            body:not(.app-pronta) #dados {
+                visibility: hidden;
+            }
+            #bolsa-vaga > #bolsa {
+                pointer-events: auto;
+            }
             /* Bolsa: guarda tokens. Arraste um token do mapa para cá; arraste uma fichinha daqui para o mapa. */
             #bolsa {
                 width: 340px; /* cabem 5 fichas por linha (e cabe na coluna da direita: o chat reserva 360 px de cada lado) */
@@ -941,7 +845,7 @@
                 border-color: #ffd54f;
                 background: rgba(70, 60, 25, 0.96);
             } /* "pode soltar aqui" */
-            /* Cabeçalho da bolsa: o botão que a abre (com a contagem) e, expandida, o botão de fechar. */
+            /* Cabeçalho da bolsa: o título e os botões do alto (e, expandida, o botão de fechar). */
             .bolsa-topo {
                 display: flex;
                 flex-wrap: wrap; /* na bolsa média a pesquisa desce para uma segunda linha */
@@ -959,7 +863,9 @@
                 color: #9a9aa8;
             }
             /* Botão de texto do cabeçalho ("⤢ Criar/editar": abre a tela cheia). */
-            .bolsa-botao-topo {
+            .bolsa-botao-topo,
+            .bolsa-botao-pequeno {
+                flex: none;
                 height: 22px;
                 padding: 0 9px;
                 background: #2f2f3a;
@@ -970,18 +876,91 @@
                 font-size: 11px;
                 cursor: pointer;
             }
-            .bolsa-botao-topo:hover {
+            .bolsa-botao-topo:hover,
+            .bolsa-botao-pequeno:hover:not(:disabled) {
                 background: #3b3b49;
                 border-color: #ffd54f;
                 color: #ffd54f;
             }
-            #bolsa.expandida .bolsa-botao-topo {
+            /* Os botões de ícone do alto da bolsa (⤢ tela cheia e ▴ minimizar): o MESMO visual do ▴ da barra de Ferramentas e do painel de Desenho. */
+            .bolsa-icone {
+                flex: none;
+                width: 26px;
+                height: 26px;
+                padding: 0;
+                border: 1px solid #4a4a58;
+                border-radius: 6px;
+                background: #2f2f3a;
+                color: inherit;
+                font: inherit;
+                font-size: 16px;
+                line-height: 1;
+                cursor: pointer;
+            }
+            .bolsa-icone:hover {
+                background: #3b3b49;
+            }
+            #bolsa-gerenciar {
+                margin-left: auto; /* os dois ícones ficam juntos, na ponta direita do título */
+                font-size: 14px;
+            }
+            #bolsa.expandida .bolsa-icone {
                 display: none; /* a tela cheia tem o botão Fechar */
             }
+            /* Bolsa MINIMIZADA (só na do canto): sobra o título e os dois ícones; o resto some. */
+            #bolsa.recolhida:not(.expandida) .bolsa-topo {
+                margin: 0;
+            }
+            #bolsa.recolhida:not(.expandida) .bolsa-topo > :not(.bolsa-titulo):not(.bolsa-icone),
+            #bolsa.recolhida:not(.expandida) #bolsa-conteudo,
+            #bolsa.recolhida:not(.expandida) #bolsa-fichas {
+                display: none;
+            }
+            .bolsa-titulo {
+                cursor: pointer; /* clicar no nome minimiza/expande (e puxar por ele arrasta a caixa) */
+            }
             /* Pesquisa: numa linha só dela, abaixo do título e das abas (na tela cheia fica ao lado do título; ver abaixo). */
-            #bolsa-busca {
+            /* A linha da pesquisa (bolsa do canto): a barra à ESQUERDA e, à direita, um botão pequeno: "⤢ Criar/editar" na aba Tokens e
+               "+ Criar ficha" na aba Fichas. */
+            #bolsa-busca,
+            #bolsa-fichas-busca {
                 order: 9;
-                flex: 1 1 100%;
+                flex: 1 1 0;
+                min-width: 0;
+            }
+            #bolsa-criar-token-botao,
+            #bolsa-ficha-criar-botao {
+                order: 10;
+            }
+            .bolsa-botao-pequeno:disabled {
+                opacity: 0.5;
+                cursor: not-allowed;
+            }
+            /* Os dois botões da linha da pesquisa têm a MESMA largura nas duas abas: assim a barra de pesquisa também fica com o mesmo
+               tamanho (e no mesmo lugar) em Tokens e em Fichas. */
+            #bolsa:not(.expandida) #bolsa-criar-token-botao,
+            #bolsa:not(.expandida) #bolsa-ficha-criar-botao {
+                width: 112px;
+                box-sizing: border-box;
+                padding: 0 6px;
+                white-space: nowrap;
+            }
+            #bolsa:not(.aba-fichas) #bolsa-ficha-criar-botao,
+            #bolsa.aba-fichas #bolsa-criar-token-botao {
+                display: none; /* cada botão é da SUA aba */
+            }
+            #bolsa.expandida #bolsa-criar-token-botao {
+                display: none; /* a tela cheia já é onde se cria */
+            }
+            #bolsa.expandida .bolsa-botao-pequeno {
+                order: 0;
+                height: 30px;
+                padding: 0 14px;
+                font-size: 13px;
+                margin-right: auto; /* na tela cheia: título, pesquisa e o botão, e o Fechar na ponta direita */
+            }
+            #bolsa.expandida #bolsa-fichas-busca {
+                margin-right: 8px;
             }
             #bolsa:not(.expandida) .bolsa-titulo {
                 margin-right: auto;
@@ -1033,7 +1012,8 @@
             #bolsa.expandida .bolsa-titulo {
                 font-size: 13px;
             }
-            #bolsa.expandida #bolsa-busca {
+            #bolsa.expandida #bolsa-busca,
+            #bolsa.expandida #bolsa-fichas-busca {
                 display: block;
                 order: 0; /* (no canto a pesquisa vai para a última linha; aqui, fica ao lado do título) */
                 flex: 1;
@@ -1094,6 +1074,7 @@
             }
             #bolsa-nome,
             #bolsa-busca,
+            #bolsa-fichas-busca,
             #editor-token-nome {
                 width: 100%;
                 height: 30px;
@@ -1108,6 +1089,7 @@
             }
             #bolsa-nome:focus,
             #bolsa-busca:focus,
+            #bolsa-fichas-busca:focus,
             #editor-token-nome:focus {
                 outline: none;
                 border-color: #ffd54f;
@@ -1182,7 +1164,8 @@
                 margin-top: 0;
             }
             #bolsa-previa {
-                /* A caixa se ajusta ao token: só uma folga pequena em volta (cresce junto com o tamanho escolhido). */
+                /* A caixa se ajusta ao disco, com uma folga pequena em volta. O disco tem tamanho FIXO: escolher outro tamanho (1×1 a 4×4) só
+                   muda o rótulo embaixo, a prévia não cresce nem encolhe. */
                 width: fit-content;
                 padding: 10px 14px;
                 display: flex;
@@ -1195,9 +1178,8 @@
                 border-radius: 8px;
             }
             #bolsa-previa .disco {
-                /* O disco cresce com o tamanho escolhido (--t = 1..4): de 169 a 394 px. */
-                width: calc(94px + var(--t, 1) * 75px);
-                height: calc(94px + var(--t, 1) * 75px);
+                width: 240px;
+                height: 240px;
                 border-radius: 50%;
                 border: 3px solid #fff;
                 box-sizing: border-box;
@@ -1257,8 +1239,9 @@
             }
             #bolsa.aba-fichas #bolsa-conteudo,
             #bolsa.aba-fichas #bolsa-criar,
-            #bolsa.aba-fichas #bolsa-busca {
-                display: none;
+            #bolsa.aba-fichas #bolsa-busca,
+            #bolsa:not(.aba-fichas) #bolsa-fichas-busca {
+                display: none; /* cada aba mostra só a SUA pesquisa */
             }
             #bolsa.aba-fichas #bolsa-fichas {
                 display: block;
@@ -1267,13 +1250,12 @@
             #bolsa-fichas-barra {
                 margin-bottom: 8px;
             }
+            #bolsa:not(.expandida) #bolsa-fichas-barra {
+                margin-bottom: 0; /* na bolsa do canto a barra só tem o aviso (a linha de cima está no cabeçalho) */
+            }
             #bolsa-fichas-botoes {
                 display: flex;
                 gap: 6px;
-            }
-            #bolsa-ficha-criar-botao {
-                flex: 1;
-                margin: 0;
             }
             #bolsa-ficha-instrucoes {
                 flex: none;
@@ -1314,6 +1296,46 @@
                 overflow-y: auto;
                 scrollbar-gutter: stable;
             }
+            /* Bolsa do CANTO: a lista tem, por padrão, a altura de exatamente 3 LINHAS de itens (mesmo com poucos ou nenhum) e só então rola.
+               A bolsa tem a MESMA ALTURA nas duas abas (Tokens e Fichas): o painel de cada uma tem altura fixa (3 linhas de 72 px + 2 espaços de
+               6 px), a lista ocupa tudo, e as mensagens ("Nenhuma ficha ainda...", "Arraste tokens para cá...") e o aviso de erro das fichas
+               ficam POR CIMA da lista, sem ocupar lugar. A tela cheia (#bolsa.expandida) tem as suas próprias regras. */
+            #bolsa:not(.expandida) #bolsa-conteudo,
+            #bolsa:not(.expandida) #bolsa-fichas {
+                position: relative;
+                height: calc(3 * 72px + 2 * 6px);
+            }
+            #bolsa:not(.expandida) #bolsa-itens,
+            #bolsa:not(.expandida) #bolsa-fichas-lista {
+                grid-auto-rows: 72px;
+                height: 100%;
+                max-height: none;
+                box-sizing: border-box;
+            }
+            #bolsa:not(.expandida) #bolsa-vazia,
+            #bolsa:not(.expandida) #bolsa-fichas-vazia {
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 1;
+                pointer-events: none; /* (o clique e o "soltar aqui" passam para a bolsa) */
+            }
+            #bolsa:not(.expandida) #bolsa-fichas-barra {
+                position: absolute;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                z-index: 2;
+                margin: 0;
+            }
+            #bolsa:not(.expandida) #bolsa-ficha-aviso {
+                margin: 0;
+                padding: 4px 8px;
+                background: #22222a;
+                border: 1px solid #3a3a45;
+                border-radius: 6px;
+            }
             /* Um documento da grade: a folha com a pontinha dobrada, o nome e a versão. */
             .bolsa-doc {
                 display: flex;
@@ -1341,7 +1363,7 @@
                 flex: none;
                 width: 2.6em;
                 height: 3.2em;
-                font-size: 10px;
+                font-size: 6px; /* bolsa do canto: folha pequena (cerca de 16 × 19 px), para sobrar espaço ao nome; a tela cheia tem o seu próprio tamanho, abaixo */
                 background: #dcdce6;
                 border-radius: 0.2em 0.8em 0.2em 0.2em;
             }
@@ -1365,6 +1387,11 @@
                 background: #9a9aa8;
                 box-shadow: 0 0.5em 0 #9a9aa8, 0 1em 0 #9a9aa8;
             }
+            /* A ficha que está ABERTA na janela tem o nome em outra cor (dourado), para achá-la na bolsa. */
+            .bolsa-doc.aberta .bolsa-doc-nome {
+                color: #ffd54f;
+                font-weight: 600;
+            }
             .bolsa-doc-nome {
                 max-width: 100%;
                 overflow: hidden;
@@ -1383,7 +1410,7 @@
             #bolsa:not(.expandida) .bolsa-doc-nome {
                 display: -webkit-box;
                 -webkit-box-orient: vertical;
-                -webkit-line-clamp: 2;
+                -webkit-line-clamp: 3; /* a folha menor deixa lugar para até 3 linhas de nome */
                 white-space: normal;
                 overflow-wrap: anywhere;
                 text-align: center;
@@ -1654,8 +1681,6 @@
                 min-height: 0;
                 overflow-y: auto;
                 overflow-x: hidden;
-                scrollbar-width: thin;
-                scrollbar-color: #5a5a6a transparent;
                 scrollbar-gutter: stable; /* reserva o espaço da barra: as colunas não mudam de largura ao rolar */
             }
             .condicao {
@@ -1733,8 +1758,6 @@
                 min-height: 0;
                 overflow-y: auto;
                 overflow-x: hidden;
-                scrollbar-width: thin;
-                scrollbar-color: #5a5a6a transparent;
             }
 
             /* --- Descrição de uma condição (ao passar o mouse numa condição do menu ou do balão) ---
@@ -1979,8 +2002,11 @@
                 display: flex;
                 flex-direction: column;
                 gap: 8px;
-                width: min(940px, calc(100vw - 24px));
-                height: min(640px, calc(100vh - 210px)); /* deixa livre a faixa de baixo (chat e dados) */
+                /* Tamanho PADRÃO (maior que antes: 940 × 640). A pessoa pode redimensionar pela alça do canto inferior direito; o tamanho
+                   escolhido fica guardado no navegador (ui/editorFicha.ts) e passa a valer no lugar deste. */
+                width: min(1080px, calc(100vw - 24px));
+                height: min(720px, calc(100vh - 190px)); /* deixa livre a faixa de baixo (chat e dados) */
+                min-width: 520px;
                 min-height: 360px;
                 padding: 16px 20px 14px;
                 background: #22222a;
@@ -2052,6 +2078,31 @@
             #editor-ficha-ferramentas button:hover {
                 border-color: #ffd54f;
                 color: #ffd54f;
+            }
+            #editor-ficha-fonte-menos,
+            #editor-ficha-fonte-mais {
+                width: 30px;
+                padding: 0 !important;
+                font-size: 12px !important;
+            }
+            #editor-ficha-ferramentas button:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+            /* A alça de redimensionar: o canto inferior direito da janela (duas riscas na diagonal). */
+            #editor-ficha-redimensionar {
+                position: absolute;
+                right: 2px;
+                bottom: 2px;
+                width: 18px;
+                height: 18px;
+                cursor: nwse-resize;
+                touch-action: none;
+                background: linear-gradient(135deg, transparent 0 55%, #6a6a7a 55% 62%, transparent 62% 72%, #6a6a7a 72% 79%, transparent 79%);
+                border-bottom-right-radius: 10px;
+            }
+            #editor-ficha-redimensionar:hover {
+                background: linear-gradient(135deg, transparent 0 55%, #ffd54f 55% 62%, transparent 62% 72%, #ffd54f 72% 79%, transparent 79%);
             }
             #editor-ficha-x {
                 width: 28px;
@@ -2129,6 +2180,8 @@
                 justify-content: space-between;
                 gap: 10px;
             }
+            /* Uma rolagem da lista é CLICÁVEL (rola): a caixa inteira, com o nome em cima e a fórmula calculada embaixo. Sem rótulo: o cursor de
+               mãozinha e o destaque ao passar o mouse bastam. */
             #editor-ficha-lateral li.rolagem {
                 display: flex;
                 flex-direction: column;
@@ -2136,6 +2189,18 @@
                 padding: 5px 8px;
                 background: #2f2f3a;
                 border-radius: 5px;
+                cursor: pointer;
+            }
+            #editor-ficha-lateral li.rolagem:hover,
+            #editor-ficha-lateral li.rolagem:focus-visible {
+                background: #3b3b49;
+                outline: none;
+            }
+            #editor-ficha-lateral li.rolagem:focus-visible {
+                box-shadow: 0 0 0 2px #ffd54f;
+            }
+            #editor-ficha-lateral li.rolagem.com-erro {
+                cursor: help; /* clicar numa rolagem com erro só mostra o motivo */
             }
             #editor-ficha-lateral .nome {
                 min-width: 0;
@@ -2244,7 +2309,7 @@
                 padding: 10px;
                 border: 1px solid transparent;
                 font: inherit;
-                font-size: 13px;
+                font-size: var(--fonte-ficha, 15px); /* a pessoa escolhe com os botões A− e A+ (o campo e a camada de cores SEMPRE com a mesma fonte) */
                 line-height: 1.5;
                 letter-spacing: normal;
                 white-space: pre-wrap;
@@ -2252,8 +2317,7 @@
                 word-break: normal;
                 tab-size: 4;
                 overflow-x: hidden;
-                overflow-y: scroll; /* nos dois: a barra reserva o mesmo espaço e o texto quebra nos mesmos lugares */
-                scrollbar-width: thin;
+                overflow-y: scroll; /* nos dois: a barra reserva o mesmo espaço (6 px, da regra geral) e o texto quebra nos mesmos lugares */
             }
             #editor-ficha-texto {
                 position: relative;
@@ -2277,7 +2341,17 @@
                 border-radius: 6px;
                 background: transparent;
                 color: #e6e6ea;
-                scrollbar-color: transparent transparent; /* a barra desta camada não aparece */
+            }
+            /* A barra da camada de cores NÃO aparece (só a do campo), mas ocupa o MESMO espaço (6 px, da regra geral): a quebra de linha tem de ser igual. */
+            #editor-ficha-cores::-webkit-scrollbar-track,
+            #editor-ficha-cores::-webkit-scrollbar-thumb {
+                background: transparent;
+                border-color: transparent;
+            }
+            @supports not selector(::-webkit-scrollbar) {
+                #editor-ficha-cores {
+                    scrollbar-color: transparent transparent;
+                }
             }
             .trecho {
                 border-radius: 3px;
@@ -2287,6 +2361,16 @@
             }
             .trecho.variavel-valor {
                 color: #a7d8cf;
+            }
+            /* O RESULTADO da conta de uma variável, ao lado dela (não faz parte do texto): mais apagado. É um pseudo-elemento de LARGURA ZERO
+               (o texto sai para fora da caixa), então não muda a quebra de linha: a camada continua alinhada com o campo. */
+            .trecho.variavel-valor[data-resultado]::after {
+                content: "  = " attr(data-resultado);
+                display: inline-block;
+                width: 0;
+                overflow: visible;
+                white-space: pre;
+                color: #6f8a85;
             }
             .trecho.rolagem-nome {
                 color: #ffcc80;
@@ -2326,7 +2410,7 @@
             }
             #editor-ficha-dicas {
                 flex: none;
-                max-height: 62%;
+                max-height: 42%; /* a tela de rolagens (em cima) fica com a maior parte; as instruções rolam por dentro */
                 overflow-y: auto;
                 padding: 10px 12px 12px;
                 background: #22222a;
@@ -2487,43 +2571,36 @@
                 outline-offset: 2px;
             }
 
-            /* Barras de rolagem da bolsa: o MESMO visual da barra do chat (trilha fina escura com borda e cursor
-               dourado semitransparente, que acende ao passar o mouse). Vale para a lista de fichas (fechada e
-               expandida) e para o formulário "Criar token". */
-            #bolsa-itens::-webkit-scrollbar,
-            #bolsa-conteudo::-webkit-scrollbar,
-            #bolsa-criar::-webkit-scrollbar {
-                width: 6px; /* fina (era 10 px) */
+            /* TODAS as barras de rolagem do site: o MESMO visual da barra do chat (trilha fina escura com borda e cursor dourado
+               semitransparente, que acende ao passar o mouse). Não declare `scrollbar-width`/`scrollbar-color` num elemento: no Chrome
+               isso faz o navegador IGNORAR este estilo nele. (A faixa do chat esconde a barra nativa de propósito: tem a própria.) */
+            *::-webkit-scrollbar {
+                width: 6px;
+                height: 6px;
             }
-            #bolsa-itens::-webkit-scrollbar-track,
-            #bolsa-conteudo::-webkit-scrollbar-track,
-            #bolsa-criar::-webkit-scrollbar-track {
+            *::-webkit-scrollbar-track {
                 background: #26262f;
                 border: 1px solid #3a3a45;
                 border-radius: 5px;
             }
-            #bolsa-itens::-webkit-scrollbar-thumb,
-            #bolsa-conteudo::-webkit-scrollbar-thumb,
-            #bolsa-criar::-webkit-scrollbar-thumb {
+            *::-webkit-scrollbar-thumb {
+                min-width: 24px;
                 min-height: 24px;
                 background: rgba(255, 213, 79, 0.55);
                 border-radius: 5px;
             }
-            #bolsa-itens::-webkit-scrollbar-thumb:hover,
-            #bolsa-conteudo::-webkit-scrollbar-thumb:hover,
-            #bolsa-criar::-webkit-scrollbar-thumb:hover {
+            *::-webkit-scrollbar-thumb:hover {
                 background: rgba(255, 213, 79, 0.95);
             }
-            #bolsa-itens::-webkit-scrollbar-button,
-            #bolsa-conteudo::-webkit-scrollbar-button,
-            #bolsa-criar::-webkit-scrollbar-button {
+            *::-webkit-scrollbar-button {
                 display: none; /* sem setinhas */
+            }
+            *::-webkit-scrollbar-corner {
+                background: transparent;
             }
             /* Firefox não tem ::-webkit-scrollbar: usa a versão padrão (cores iguais, sem os cantos redondos). */
             @supports not selector(::-webkit-scrollbar) {
-                #bolsa-itens,
-                #bolsa-conteudo,
-                #bolsa-criar {
+                * {
                     scrollbar-width: thin;
                     scrollbar-color: rgba(255, 213, 79, 0.55) #26262f;
                 }
@@ -2555,7 +2632,7 @@
             }
             #editor-token-previa {
                 width: fit-content; /* a caixa se ajusta ao token */
-                margin: 12px auto 0;
+                margin: 4px auto 0; /* (fica em cima, logo abaixo do título) */
                 padding: 8px 12px;
                 display: flex;
                 flex-direction: column;
@@ -2567,8 +2644,8 @@
                 border-radius: 8px;
             }
             #editor-token-previa .disco {
-                width: calc(40px + var(--t, 1) * 30px); /* de 70 a 160 px */
-                height: calc(40px + var(--t, 1) * 30px);
+                width: 110px; /* tamanho FIXO: com a prévia em cima, se ela crescesse os campos de baixo pulariam ao trocar o tamanho */
+                height: 110px;
                 border-radius: 50%;
                 border: 3px solid #fff;
                 box-sizing: border-box;
@@ -2591,7 +2668,7 @@
 
             <div class="conteudo">
                 <section>
-                    <h2>Ferramenta</h2>
+                    <h2>Modo</h2>
                     <div id="lista-ferramentas">
                         <button
                             class="botao-largo ativo"
@@ -2759,46 +2836,57 @@
                     >
                         Voltar ao padrão
                     </button>
+                    <button
+                        id="reorganizar-telas"
+                        class="botao-largo"
+                        style="margin-top: 6px"
+                        title="Leva o chat, os dados, as ferramentas, o desenho e a bolsa de volta ao lugar de fábrica"
+                    >
+                        Reorganizar telas
+                    </button>
                 </section>
+            </div>
+        </aside>
+
+        <!-- Painel de DADOS: uma caixa flutuante como Ferramentas e Desenho (cabeçalho com o nome e o botão de recolher). Ids usados no ui/painelDados.ts. -->
+        <aside id="dados" aria-label="Dados">
+            <div class="cabecalho">
+                <h1>Dados</h1>
+                <button id="dados-alternar" title="Recolher os dados" aria-expanded="true">▴</button>
+            </div>
+            <div id="dados-conteudo">
+                <div id="dados-coluna-dados">
+                    <div id="dados-lados"></div>
+                    <div id="dados-coluna-valores">
+                        <div class="dados-campo">
+                            <label for="dados-qtd">Quantidade</label>
+                            <div class="dados-linha">
+                                <button id="dados-qtd-menos" title="Um dado a menos">−</button>
+                                <input id="dados-qtd" type="number" min="1" max="99" step="1" value="1" aria-label="Quantidade de dados" />
+                                <button id="dados-qtd-mais" title="Um dado a mais">+</button>
+                            </div>
+                        </div>
+                        <div class="dados-campo">
+                            <label for="dados-mod">Modificador</label>
+                            <div class="dados-linha">
+                                <button id="dados-mod-menos" title="Modificador menos 1">−</button>
+                                <input id="dados-mod" type="number" min="-99" max="99" step="1" value="0" aria-label="Modificador" />
+                                <button id="dados-mod-mais" title="Modificador mais 1">+</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div id="dados-coluna-rolar">
+                    <label id="dados-rolar-rotulo" for="dados-rolar">Rolar</label>
+                    <button id="dados-rolar" class="botao-largo" aria-label="Rolar os dados">1d20</button>
+                </div>
             </div>
         </aside>
 
         <!-- Chat (embaixo, fixo): mensagens da esquerda para a direita. Ids usados no ui/chat.ts. -->
         <section id="chat" aria-label="Chat">
-            <!-- Barra de dados, GRUDADA no lado esquerdo do chat (retrátil). Ids usados no ui/painelDados.ts. -->
-            <aside id="dados" aria-label="Dados">
-                <div id="dados-conteudo">
-                    <div id="dados-coluna-dados">
-                        <div id="dados-lados"></div>
-                        <div id="dados-coluna-valores">
-                            <div class="dados-campo">
-                                <label for="dados-qtd">Quantidade</label>
-                                <div class="dados-linha">
-                                    <button id="dados-qtd-menos" title="Um dado a menos">−</button>
-                                    <input id="dados-qtd" type="number" min="1" max="99" step="1" value="1" aria-label="Quantidade de dados" />
-                                    <button id="dados-qtd-mais" title="Um dado a mais">+</button>
-                                </div>
-                            </div>
-                            <div class="dados-campo">
-                                <label for="dados-mod">Modificador</label>
-                                <div class="dados-linha">
-                                    <button id="dados-mod-menos" title="Modificador menos 1">−</button>
-                                    <input id="dados-mod" type="number" min="-99" max="99" step="1" value="0" aria-label="Modificador" />
-                                    <button id="dados-mod-mais" title="Modificador mais 1">+</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="dados-coluna-rolar">
-                        <label id="dados-rolar-rotulo" for="dados-rolar">Rolar</label>
-                        <button id="dados-rolar" class="botao-largo" aria-label="Rolar os dados">1d20</button>
-                    </div>
-                </div>
-                <button id="dados-alternar" title="Recolher os dados" aria-expanded="true">
-                    <span class="seta">›</span>
-                    <span class="rotulo">Dados</span>
-                </button>
-            </aside>
+            <!-- A alça para ARRASTAR o chat (a borda de cima). -->
+            <div id="chat-alca" title="Arraste para mover o chat"></div>
             <div id="chat-barra">
                 <div
                     id="chat-rolagem"
@@ -2846,17 +2934,26 @@
                     OU, você pode contar o total de quadrados vertical e horizontal e aplicar manualmente.
                 </p>
                 <div id="calibragem-resultado" aria-live="polite"></div>
-                <button id="calibragem-concluir" class="botao-largo">Concluir</button>
+                <button id="calibragem-concluir" class="botao-largo" title="Sair da calibragem sem medir (Esc)">Cancelar</button>
             </div>
 
             <!-- Bolsa: guarda tokens (arrastar do mapa para cá e daqui para o mapa). Ids usados no ui/bolsa.ts. -->
+            <!-- A VAGA da bolsa: invisível, com a altura da bolsa aberta (medida no ui/bolsa.ts); a bolsa fica no topo dela e cresce para baixo. -->
+            <div id="bolsa-vaga">
             <aside id="bolsa" aria-label="Bolsa de tokens">
                 <div class="bolsa-topo">
-                    <span class="bolsa-titulo">Bolsa <span id="bolsa-contagem"></span></span>
-                    <!-- Abre a bolsa em TELA CHEIA (criar e editar tokens). -->
-                    <button id="bolsa-gerenciar" class="bolsa-botao-topo" title="Criar e editar tokens (tela cheia)">⤢ Criar/editar</button>
+                    <span class="bolsa-titulo">Bolsa</span>
+                    <!-- Os botões do alto, IGUAIS nas duas abas: ⤢ abre a bolsa em TELA CHEIA (criar e editar tokens e fichas) e ▴/▾ minimiza,
+                         como nos outros painéis. Clicar no NOME ("Bolsa") também minimiza/expande. -->
+                    <button id="bolsa-gerenciar" class="bolsa-icone" title="Criar e editar (tela cheia)" aria-label="Abrir a bolsa em tela cheia">⤢</button>
+                    <button id="bolsa-alternar" class="bolsa-icone" title="Recolher a bolsa" aria-expanded="true">▴</button>
                     <!-- Pesquisa as fichas pelo nome (ou pelo tamanho, ex.: 3x3). -->
                     <input type="search" id="bolsa-busca" placeholder="Pesquisar token…" aria-label="Pesquisar token" autocomplete="off" />
+                    <!-- A pesquisa da aba FICHAS: é outro campo, independente da dos tokens (cada aba tem o seu texto e o seu filtro). -->
+                    <input type="search" id="bolsa-fichas-busca" placeholder="Pesquisar ficha…" aria-label="Pesquisar ficha" autocomplete="off" />
+                    <!-- O botão pequeno à direita da pesquisa (a mesma linha nas duas abas): "+ Criar token" (abre a tela cheia, onde se cria) e "+ Criar ficha". -->
+                    <button id="bolsa-criar-token-botao" class="bolsa-botao-pequeno" title="Criar um token (abre a tela cheia)">+ Criar token</button>
+                    <button id="bolsa-ficha-criar-botao" class="bolsa-botao-pequeno">+ Criar ficha</button>
                     <button id="bolsa-fechar" hidden title="Fechar a bolsa (Esc)">✕ Fechar</button>
                     <!-- As ABAS da carteira: "Tokens" (o que a bolsa já era) e "Fichas" (fichas de personagem). Ficam numa linha
                          só delas, embaixo do título, nos três tamanhos. Ids usados no ui/bolsa.ts. -->
@@ -2909,7 +3006,6 @@
                 <section id="bolsa-fichas" role="tabpanel" aria-label="Fichas" aria-labelledby="bolsa-aba-fichas">
                     <div id="bolsa-fichas-barra">
                         <div id="bolsa-fichas-botoes">
-                            <button id="bolsa-ficha-criar-botao" class="botao-largo">+ Criar ficha</button>
                             <button id="bolsa-ficha-instrucoes" class="botao-largo" data-abrir-ajuda-fichas title="Como escrever variáveis e rolagens numa ficha">Instruções</button>
                         </div>
                         <p id="bolsa-ficha-aviso" aria-live="polite"></p>
@@ -2918,6 +3014,7 @@
                     <ul id="bolsa-fichas-lista"></ul>
                 </section>
             </aside>
+            </div>
             <input type="file" id="bolsa-arquivo" accept="image/*" hidden />
         </div>
 
@@ -2944,6 +3041,11 @@
         <div id="editor-token" hidden role="dialog" aria-modal="true" aria-labelledby="editor-token-titulo">
             <div class="editor-imagem-painel">
                 <h3 id="editor-token-titulo">Editar token</h3>
+                <!-- A prévia fica EM CIMA, antes do nome. -->
+                <div id="editor-token-previa" aria-hidden="true">
+                    <span class="disco"></span>
+                    <small></small>
+                </div>
                 <p class="bolsa-rotulo">Nome</p>
                 <input type="text" id="editor-token-nome" placeholder="Nome do token" autocomplete="off" />
                 <p class="bolsa-rotulo">Imagem</p>
@@ -2965,10 +3067,6 @@
                 <p class="bolsa-rotulo">Cor da borda</p>
                 <div id="editor-token-amostras-borda" class="paleta-token"></div>
                 <input type="color" id="editor-token-cor-borda" class="cor-livre" title="Outra cor de borda" aria-label="Outra cor de borda" />
-                <div id="editor-token-previa" aria-hidden="true">
-                    <span class="disco"></span>
-                    <small></small>
-                </div>
                 <div class="editor-imagem-botoes">
                     <button id="editor-token-cancelar">Cancelar</button>
                     <button id="editor-token-salvar">Salvar</button>
@@ -2999,6 +3097,8 @@
                     <span id="editor-ficha-versao"></span>
                     <!-- Em cima: mostrar/ocultar as instruções (embaixo, ao lado do texto) e a tela de rolagens (em cima, ao lado do texto), e fechar. -->
                     <div id="editor-ficha-ferramentas">
+                        <button id="editor-ficha-fonte-menos" title="Diminuir a letra do texto" aria-label="Diminuir a letra">A−</button>
+                        <button id="editor-ficha-fonte-mais" title="Aumentar a letra do texto" aria-label="Aumentar a letra">A+</button>
                         <button id="editor-ficha-alternar-dicas" aria-expanded="true" aria-controls="editor-ficha-dicas" title="Mostrar ou ocultar as instruções (dicas de uso) ao lado do texto">Ocultar instruções</button>
                         <button id="editor-ficha-alternar-rolagens" aria-expanded="true" aria-controls="editor-ficha-assistente" title="Mostrar ou ocultar a tela de rolagens (as variáveis e rolagens que o texto define, já calculadas)">Ocultar rolagens</button>
                         <button id="editor-ficha-x" title="Fechar a ficha (Esc)" aria-label="Fechar a ficha">✕</button>
@@ -3033,6 +3133,7 @@
 <pre><span class="trecho rolagem-nome">(Ataque com espada)</span><span class="trecho rolagem-formula">[1d20 + MOD_FOR + PROF]</span>
 <span class="trecho rolagem-nome">(Dano da espada)</span><span class="trecho rolagem-formula">[1d8 + MOD_FOR]</span>
 <span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + DES]</span></pre>
+                            <p>Clique no nome da rolagem para rolá-la: o resultado aparece no chat.</p>
                             <button id="editor-ficha-instrucoes" data-abrir-ajuda-fichas>Ver todas as instruções</button>
                         </div>
                     </aside>
@@ -3049,6 +3150,7 @@
                         <button id="editor-ficha-salvar" disabled>Salvar</button>
                     </div>
                 </div>
+                <div id="editor-ficha-redimensionar" title="Arraste para aumentar ou diminuir a janela" aria-hidden="true"></div>
             </div>
         </div>
 
@@ -3076,7 +3178,10 @@
 
                     <h4>Como o editor ajuda</h4>
                     <p>As cores mostram o que foi reconhecido: <span class="trecho variavel-nome">variáveis</span>, <span class="trecho rolagem-nome">(nome da rolagem)</span> e <span class="trecho rolagem-formula">[fórmula]</span>. Um sublinhado ondulado vermelho indica um erro, como o uso de uma variável que não existe.</p>
-                    <p>Ao passar o mouse sobre o nome de uma rolagem, aparece a fórmula já calculada com os valores das variáveis. Ao clicar no nome, a rolagem correspondente é destacada na lista ao lado do texto, que reúne todas as variáveis e rolagens encontradas.</p>
+                    <p>Ao passar o mouse sobre o nome de uma rolagem, aparece a fórmula já calculada com os valores das variáveis. A lista ao lado do texto reúne todas as variáveis e rolagens encontradas.</p>
+                    <h4>Rolar uma rolagem</h4>
+                    <p>Clique no nome da rolagem, no texto, ou no item dela na lista ao lado: os dados são sorteados e o resultado aparece no chat, para todos, com o nome da rolagem, a fórmula calculada, o que saiu em cada dado e o total.</p>
+                    <p>A rolagem usa a ficha salva. Se você mudou o texto, salve (Ctrl+S) antes de rolar. Rolagens com erro (sublinhado vermelho) não rolam: passe o mouse sobre elas para ver o motivo.</p>
                 </div>
                 <div id="ajuda-fichas-rodape">
                     <p>(ou peça a alguma ia pra fazer uma ficha pra você com essas instruções)</p>
@@ -3157,6 +3262,57 @@
         </div>
 
         <!-- Vite entende este import e converte o TypeScript para o navegador. -->
+        <!-- Roda ANTES da primeira pintura (é um script comum, que não espera o app carregar): aplica o que a pessoa deixou guardado (barra de
+             Ferramentas, painel de Desenho e painel de Dados recolhidos, e a aba da bolsa). Sem isto, ao recarregar a página essas caixas
+             apareceriam no estado padrão (abertas) por cerca de um segundo, até o app carregar, e depois pulariam. As chaves e a regra são
+             as mesmas do src/config.ts e do ui/painelDados.ts: se mudar lá, mude aqui. O app confirma tudo depois (não muda nada se já estiver certo). -->
+        <script>
+            (function () {
+                function ler(chave) {
+                    try {
+                        return localStorage.getItem(chave);
+                    } catch (e) {
+                        return null; // sem armazenamento (janela privada): fica o padrão
+                    }
+                }
+                function marcar(id, classe, ligado) {
+                    var el = document.getElementById(id);
+                    if (el) el.classList.toggle(classe, ligado);
+                }
+                function texto(seletor, valor) {
+                    var el = document.querySelector(seletor);
+                    if (el) el.textContent = valor;
+                }
+                // As posições das caixas arrastadas (ui/arrastar.ts guarda "x,y" em tabuleirinho.pos.<id>).
+                ["barra", "ferramentas-desenho", "chat", "dados", "bolsa"].forEach(function (id) {
+                    var el = document.getElementById(id);
+                    var partes = (ler("tabuleirinho.pos." + id) || "").split(",");
+                    var x = Number(partes[0]);
+                    var y = Number(partes[1]);
+                    if (el && partes.length === 2 && isFinite(x) && isFinite(y)) el.style.translate = x + "px " + y + "px";
+                });
+                var barra = ler("tabuleirinho.barra.recolhida") === "1";
+                marcar("barra", "recolhida", barra);
+                if (barra) texto("#barra-alternar", "\u25BE"); // ▾ = expandir
+                var desenho = ler("tabuleirinho.desenho.recolhido") === "1";
+                marcar("ferramentas-desenho", "recolhida", desenho);
+                if (desenho) texto("#desenho-alternar", "\u25BE");
+                // A altura da bolsa aberta, medida da última vez (senão ela começaria 6 px fora do lugar e pularia quando o app a medisse).
+                var alturaBolsa = Number(ler("tabuleirinho.bolsa.altura"));
+                var vaga = document.getElementById("bolsa-vaga");
+                if (vaga && isFinite(alturaBolsa) && alturaBolsa > 100 && alturaBolsa < 1000) vaga.style.setProperty("--altura-bolsa", alturaBolsa + "px");
+                // Libera os painéis escondidos até o app montar (ver o CSS "app-pronta"), mesmo se o app falhar.
+                setTimeout(function () { document.body.classList.add("app-pronta"); }, 3000);
+                marcar("bolsa", "aba-fichas", ler("tabuleirinho.bolsa.aba") === "fichas");
+                var bolsaRecolhida = ler("tabuleirinho.bolsa.recolhida") === "1";
+                marcar("bolsa", "recolhida", bolsaRecolhida);
+                if (bolsaRecolhida) texto("#bolsa-alternar", "\u25BE");
+                var guardadoDados = ler("tabuleirinho.dados.recolhido");
+                var dados = guardadoDados === null ? window.innerHeight < 720 : guardadoDados === "1";
+                marcar("dados", "recolhida", dados);
+                if (dados) texto("#dados-alternar", "\u25BE"); // ▾ = expandir
+            })();
+        </script>
         <script type="module" src="/src/main.ts"></script>
     </body>
 </html>
