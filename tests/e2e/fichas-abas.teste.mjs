@@ -4,7 +4,7 @@
 // rolagens do seu texto, com as posições DENTRO da própria aba; `fichaValida` lê o arquivo antigo (só `texto`) como uma ficha de uma aba, e o novo (`abas`).
 // Parte B (navegador): a linha de abas em estilo de PASTA (clicar, "+", duplo clique ou menu do CLIQUE DIREITO para renomear, menu do clique direito para excluir; sem ✕), limite de 6, as variáveis de outra aba aparecem
 // esmaecidas, cada aba lista as suas rolagens, salvar guarda todas as abas num só documento e rolar numa aba usa as variáveis da outra.
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 import { analisarAbas } from "../../src/formulas.ts";
 import { fichaValida } from "../../src/estado.ts";
 
@@ -51,8 +51,8 @@ const fichaNaMesa = () => p.evaluate(() => { const f = window.__tabuleirinho.est
 const cartoes = () => p.locator(".chat-mensagem.chat-rolagem-ficha").evaluateAll((els) => els.map((e) => ({ titulo: e.querySelector(".chat-titulo-ficha strong")?.textContent, total: Number(e.querySelector(".chat-total")?.textContent) })));
 
 await p.click("#bolsa-aba-fichas");
-await p.click("#bolsa-ficha-criar-botao");
-await p.locator(".bolsa-doc").first().click();
+await criarFichaFechada(p);
+await p.locator(".bolsa-doc").first().dblclick();
 
 ok("B1) uma ficha nova tem UMA aba, 'Página 1', sem ✕ nenhum e com o '+' ligado", (await nomesAbas()).join() === "Página 1" && (await p.locator(".aba-ficha-x").count()) === 0 && !(await p.isDisabled("#editor-ficha-aba-nova")), (await nomesAbas()).join());
 
@@ -119,7 +119,7 @@ ok("B19) um nome de aba com HTML aparece como TEXTO (nenhum <img> na janela)", (
 // ----- fechar sem salvar e reabrir: volta ao que estava salvo (2 abas)
 await p.click("#editor-ficha-fechar");
 await p.click("#confirmar-ok");
-await p.locator(".bolsa-doc").first().click();
+await p.locator(".bolsa-doc").first().dblclick();
 ok("B20) fechar sem salvar descarta as mudanças das abas: reabre com as 2 abas salvas", (await nomesAbas()).join() === "Página 1,Ações" && (await abaAtiva()) === "Página 1", (await nomesAbas()).join());
 
 // ----- menu do CLIQUE DIREITO na aba
@@ -155,23 +155,62 @@ await p.fill("#editor-ficha-texto", "Primeira\nSegunda");
 await p.locator("#editor-ficha-texto").evaluate((e) => { e.focus(); e.setSelectionRange(2, 2); });
 await p.click('[data-formatar="2"]');
 ok("D4) o botão T2 põe '## ' no começo da linha do cursor", (await texto()) === "## Primeira\nSegunda", await texto());
-await p.click('[data-formatar="4"]');
-ok("D5) trocar para T4 troca o prefixo (sem empilhar #)", (await texto()) === "#### Primeira\nSegunda", await texto());
+await p.click('[data-formatar="3"]');
+ok("D5) trocar para T3 troca o prefixo (sem empilhar #)", (await texto()) === "### Primeira\nSegunda", await texto());
 await p.click('[data-formatar="0"]');
 ok("D6) 'Aa' tira o título", (await texto()) === "Primeira\nSegunda", await texto());
-await p.fill("#editor-ficha-texto", "# Grande\n##### Pequeno\num **forte** e *torto* e ***os dois***\n<img src=x onerror=alert(1)> e <b>x</b>");
+await p.fill("#editor-ficha-texto", "# Grande\n### Pequeno\num **forte** e *torto* e ***os dois***\n<img src=x onerror=alert(1)> e <b>x</b>");
 await p.click("#editor-ficha-ver");
 const previa = await p.locator("#editor-ficha-previa").evaluate((el) => ({
-    visivel: !el.hidden, t1: el.querySelector(".t1")?.textContent, t5: el.querySelector(".t5")?.textContent,
-    fonteT1: parseFloat(getComputedStyle(el.querySelector(".t1")).fontSize), fonteT5: parseFloat(getComputedStyle(el.querySelector(".t5")).fontSize),
+    visivel: !el.hidden, t1: el.querySelector(".t1")?.textContent, t5: el.querySelector(".t3")?.textContent,
+    fonteT1: parseFloat(getComputedStyle(el.querySelector(".t1")).fontSize), fonteT5: parseFloat(getComputedStyle(el.querySelector(".t3")).fontSize),
     negrito: [...el.querySelectorAll(".negrito:not(.italico)")].map((e) => e.textContent), italico: [...el.querySelectorAll(".italico:not(.negrito)")].map((e) => e.textContent),
     ambos: [...el.querySelectorAll(".negrito.italico")].map((e) => e.textContent), imgs: el.querySelectorAll("img, b").length, texto: el.textContent,
 }));
-ok("D7) 'Visualizar' mostra títulos (T1 maior que T5), negrito, itálico e os dois", previa.visivel && previa.t1 === "Grande" && previa.t5 === "Pequeno" && previa.fonteT1 > previa.fonteT5 && previa.negrito.join() === "forte" && previa.italico.join() === "torto" && previa.ambos.join() === "os dois", JSON.stringify(previa));
+ok("D7) 'Visualizar' mostra títulos (T1 maior que T3), negrito, itálico e os dois", previa.visivel && previa.t1 === "Grande" && previa.t5 === "Pequeno" && previa.fonteT1 > previa.fonteT5 && previa.negrito.join() === "forte" && previa.italico.join() === "torto" && previa.ambos.join() === "os dois", JSON.stringify(previa));
 ok("D8) SEGURANÇA: HTML no texto aparece como letras (nenhum <img> nem <b> criado)", previa.imgs === 0 && previa.texto.includes("<img src=x onerror=alert(1)>") && previa.texto.includes("<b>x</b>"), JSON.stringify(previa));
 ok("D9) com a visualização ligada os botões de formatar ficam desligados", await p.isDisabled('[data-formatar="negrito"]'));
 await p.click("#editor-ficha-ver");
 ok("D10) 'Editar' volta ao campo de texto, com o texto intacto (as marcas continuam lá)", !(await p.locator("#editor-ficha-previa").isVisible()) && (await texto()).startsWith("# Grande"));
+
+// ----- LEITURA AUTOMÁTICA: ao SAIR do campo, o texto com marcas aparece formatado; clicar nele volta a editar
+await p.fill("#editor-ficha-texto", "# Grande\num **forte**");
+await p.focus("#editor-ficha-nome"); // (tira o foco do campo de texto)
+await p.waitForTimeout(100);
+ok("E1) ao sair do campo, o texto com marcas passa a aparecer FORMATADO (leitura automática)", (await p.locator("#editor-ficha-previa").isVisible()) && (await p.locator("#editor-ficha-previa .t1").count()) === 1);
+await p.locator("#editor-ficha-previa").click();
+ok("E2a) UM clique no texto da leitura NÃO volta a editar", await p.locator("#editor-ficha-previa").isVisible());
+await p.locator("#editor-ficha-previa").dblclick();
+ok("E2) o DUPLO clique na leitura volta ao campo de texto, com o foco nele", !(await p.locator("#editor-ficha-previa").isVisible()) && (await p.evaluate(() => document.activeElement?.id)) === "editor-ficha-texto");
+await p.fill("#editor-ficha-texto", "texto simples, sem marcas");
+await p.focus("#editor-ficha-nome");
+await p.waitForTimeout(100);
+ok("E3) sem nenhuma marca de formatação, o campo NÃO vira leitura (não há o que formatar)", !(await p.locator("#editor-ficha-previa").isVisible()));
+await p.fill("#editor-ficha-texto", "**forte**");
+await p.focus("#editor-ficha-texto");
+await p.click("#editor-ficha-ver");
+ok("E4) o botão 'Visualizar' continua funcionando (liga a leitura e vira 'Editar')", (await p.locator("#editor-ficha-previa").isVisible()) && (await p.locator("#editor-ficha-ver").textContent()) === "Editar");
+await p.click("#editor-ficha-ver");
+ok("E5) 'Editar' volta ao campo", !(await p.locator("#editor-ficha-previa").isVisible()));
+await p.fill("#editor-ficha-texto", "FOR:: 2*3*4\n**forte**");
+await p.focus("#editor-ficha-nome");
+await p.waitForTimeout(100);
+ok("E6) VARIÁVEIS NÃO são formatadas: 'FOR:: 2*3*4' aparece como texto puro (sem itálico)", (await p.locator("#editor-ficha-previa .italico").count()) === 0 && /FOR:: 2\*3\*4/.test(await p.locator("#editor-ficha-previa").textContent()));
+await p.locator("#editor-ficha-previa").dblclick();
+await p.locator("#editor-ficha-texto").evaluate((e) => { e.focus(); e.setSelectionRange(2, 2); });
+await p.click('[data-formatar="negrito"]');
+ok("E7) os botões N/I/T não mexem numa linha de variável (texto igual e aviso)", (await p.inputValue("#editor-ficha-texto")) === "FOR:: 2*3*4\n**forte**" && /Variáveis não têm formatação/.test(await p.locator("#editor-ficha-aviso").textContent()));
+
+// ----- SALVAR: o BOTÃO leva à leitura; o Ctrl+S não
+await p.fill("#editor-ficha-texto", "# Titulo\n(Rolar)[1d6]");
+await p.keyboard.press("Control+s");
+await p.waitForTimeout(150);
+ok("F1) Ctrl+S salva e CONTINUA no modo de edição", !(await p.locator("#editor-ficha-previa").isVisible()));
+await p.fill("#editor-ficha-texto", "# Titulo\n(Rolar)[1d6]\nmais");
+await p.click("#editor-ficha-salvar");
+await p.waitForTimeout(150);
+ok("F2) o botão SALVAR salva e passa para o modo de LEITURA (formatada, com a rolagem clicável)", (await p.locator("#editor-ficha-previa").isVisible()) && (await p.locator("#editor-ficha-previa .t1").count()) === 1 && (await p.locator("#editor-ficha-previa .rolagem-previa").count()) === 1);
+ok("F3) o foco fica no botão 'Editar' (dentro da janela: Esc e Ctrl+S continuam valendo)", (await p.evaluate(() => document.activeElement?.id)) === "editor-ficha-ver");
 
 ok("B21) nenhum erro de JavaScript", erros.length === 0, erros.join(" | "));
 const codigo = terminar(erros);

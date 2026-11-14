@@ -15,6 +15,8 @@ import {
     MAX_ABAS_FICHA,
     MAX_CARACTERES_NOME_ABA_FICHA,
     MAX_CARACTERES_NOME_FICHA,
+    MAX_CARACTERES_NOME_GRUPO,
+    MAX_GRUPOS,
     MAX_CARACTERES_NOME_TOKEN,
     MAX_CARACTERES_TEXTO_FICHA,
     MAX_CASAS,
@@ -45,6 +47,18 @@ export interface Token {
     size: TamanhoToken; // ocupa size x size casas (ex.: 3 = bloco de 3x3)
     condicoes: string[]; // ids das condições (ver condicoes.ts), na ORDEM em que foram aplicadas
     guardado: boolean; // true = está na BOLSA (fora do tabuleiro); col/row só valem quando false
+    favorito: boolean; // marcado com a estrela na bolsa (vale para a mesa toda, por enquanto: ainda não há contas)
+    grupos: number[]; // ids dos GRUPOS (ver `Grupo`) a que o token pertence; sem repetir
+}
+
+/**
+ * Um GRUPO: um nome e uma cor, usados para organizar e filtrar tokens E fichas (os mesmos grupos servem aos dois; um item pode estar em
+ * vários). No servidor cada grupo é um arquivo em `dados/grupos/<id>.json`.
+ */
+export interface Grupo {
+    id: number;
+    nome: string; // nunca vazio (sem nome, vira "Grupo N")
+    cor: number; // cor em hexadecimal, ex.: 0x3498db
 }
 
 /**
@@ -63,6 +77,8 @@ export const estado = {
     mensagens: [] as Mensagem[],
     // Fichas de personagem (documentos), da mais antiga para a mais nova. No multiplayer o SERVIDOR as guarda em arquivos.
     fichas: [] as Ficha[],
+    // Grupos para organizar tokens e fichas (nome + cor), na ordem de criação. No multiplayer o SERVIDOR os guarda em arquivos.
+    grupos: [] as Grupo[],
     // Tokens da mesa. Começa VAZIO: os tokens nascem pela bolsa ("Criar token") ou vêm dos arquivos de `dados/tokens/` do servidor
     // (ver servidor/dados.ts). Cada token é um arquivo; excluir o token apaga o arquivo.
     tokens: [] as Token[],
@@ -176,6 +192,8 @@ export interface Ficha {
     versao: number; // 1, 2, 3... (sobe a cada salvamento)
     criadaEm: number; // milissegundos desde 1970 (Date.now())
     alteradaEm: number;
+    favorito: boolean; // marcada com a estrela na bolsa (mudar isto NÃO sobe a versão: não é o conteúdo da ficha)
+    grupos: number[]; // ids dos GRUPOS a que a ficha pertence (idem: não sobe a versão)
 }
 
 let proximoIdFicha = 1;
@@ -189,7 +207,7 @@ export function montarFicha(): Ficha | null {
     if (estado.fichas.length >= MAX_FICHAS) return null;
     const id = proximoIdFicha++;
     const agora = Date.now();
-    return { id, nome: `Ficha ${id}`, abas: [{ nome: nomePadraoDaAba(0), texto: "" }], versao: 1, criadaEm: agora, alteradaEm: agora };
+    return { id, nome: `Ficha ${id}`, abas: [{ nome: nomePadraoDaAba(0), texto: "" }], versao: 1, criadaEm: agora, alteradaEm: agora, favorito: false, grupos: [] };
 }
 
 /** Guarda na lista uma ficha que já está pronta (a que o servidor mandou, ou a que acabou de ser montada). Mesma id: substitui. */
@@ -326,7 +344,128 @@ export function fichaValida(bruto: unknown): Ficha | null {
         return null;
     }
     if (tamanhoDoTextoDasAbas(abas) > MAX_CARACTERES_TEXTO_FICHA) return null;
-    return { id: f.id, nome: f.nome, abas, versao: f.versao, criadaEm: f.criadaEm, alteradaEm: f.alteradaEm };
+    return { id: f.id, nome: f.nome, abas, versao: f.versao, criadaEm: f.criadaEm, alteradaEm: f.alteradaEm, favorito: f.favorito === true, grupos: gruposDoArquivo(f.grupos) };
+}
+
+// ---------------------------------------------------------------------
+// GRUPOS e FAVORITOS (tokens e fichas)
+// ---------------------------------------------------------------------
+
+let proximoIdGrupo = 1; // sempre sobe (um id apagado não é reaproveitado)
+
+/** Nome do grupo: sem caracteres de controle, espaços aparados e juntados, cortado ao máximo. Vazio vira "Grupo N". */
+export function normalizarNomeGrupo(id: number, nome: string): string {
+    const limpo = nome.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_CARACTERES_NOME_GRUPO).trim();
+    return limpo || `Grupo ${id}`;
+}
+
+/** Só os ids que existem como grupo, sem repetir e na ordem em que chegaram (a regra vale no servidor também: nada de grupo fantasma). */
+export function limparGrupos(ids: number[]): number[] {
+    const existentes = new Set(estado.grupos.map((g) => g.id));
+    return [...new Set(ids.filter((id) => Number.isSafeInteger(id) && existentes.has(id)))];
+}
+
+/** O campo `grupos` lido de um ARQUIVO (que pode faltar, nos arquivos antigos, ou vir estragado): só inteiros positivos, sem repetir, até MAX_GRUPOS. */
+function gruposDoArquivo(bruto: unknown): number[] {
+    if (!Array.isArray(bruto)) return [];
+    return [...new Set((bruto as unknown[]).filter((id): id is number => typeof id === "number" && Number.isSafeInteger(id) && id >= 1))].slice(0, MAX_GRUPOS);
+}
+
+/** Monta um grupo NOVO sem guardá-lo (o servidor grava o arquivo antes). Devolve null se a mesa já tem MAX_GRUPOS. */
+export function montarGrupo(nome: string, cor: number): Grupo | null {
+    if (estado.grupos.length >= MAX_GRUPOS) return null;
+    const id = proximoIdGrupo++;
+    return { id, nome: normalizarNomeGrupo(id, nome), cor: limitar(Math.round(cor), 0, 0xffffff) };
+}
+
+/** Guarda (ou atualiza, se o id já existe) um grupo pronto. */
+export function receberGrupo(grupo: Grupo): void {
+    const posicao = estado.grupos.findIndex((g) => g.id === grupo.id);
+    if (posicao >= 0) estado.grupos[posicao] = grupo;
+    else {
+        estado.grupos.push(grupo);
+        estado.grupos.sort((a, b) => a.id - b.id);
+    }
+    proximoIdGrupo = Math.max(proximoIdGrupo, grupo.id + 1);
+}
+
+/** Troca todos os grupos pela lista que o servidor mandou ao entrar (ou pela lida dos arquivos). */
+export function definirGrupos(lista: Grupo[], proximoIdMinimo = 1): void {
+    estado.grupos = [...lista].sort((a, b) => a.id - b.id);
+    proximoIdGrupo = estado.grupos.reduce((maior, g) => Math.max(maior, g.id + 1), proximoIdMinimo);
+}
+
+/** Confere um grupo lido de um arquivo (pode ter sido editado à mão). Devolve o grupo limpo ou null. */
+export function grupoValido(bruto: unknown): Grupo | null {
+    if (typeof bruto !== "object" || bruto === null || Array.isArray(bruto)) return null;
+    const g = bruto as Record<string, unknown>;
+    const inteiro = (valor: unknown): valor is number => typeof valor === "number" && Number.isSafeInteger(valor);
+    if (!inteiro(g.id) || g.id < 1 || !inteiro(g.cor) || g.cor < 0 || g.cor > 0xffffff) return null;
+    if (typeof g.nome !== "string" || g.nome.trim() === "" || g.nome.length > MAX_CARACTERES_NOME_GRUPO) return null;
+    return { id: g.id, nome: g.nome, cor: g.cor };
+}
+
+/** Monta o grupo como ficaria depois de editar (nome e/ou cor), sem guardar. null se ele não existe. */
+export function montarEdicaoDoGrupo(id: number, mudancas: { nome?: string; cor?: number }): Grupo | null {
+    const atual = estado.grupos.find((g) => g.id === id);
+    if (!atual) return null;
+    return {
+        id,
+        nome: mudancas.nome === undefined ? atual.nome : normalizarNomeGrupo(id, mudancas.nome),
+        cor: mudancas.cor === undefined ? atual.cor : limitar(Math.round(mudancas.cor), 0, 0xffffff),
+    };
+}
+
+/**
+ * Tira o grupo da lista E de todos os tokens e fichas que o tinham (os itens continuam; só perdem a marca). Devolve os ids dos tokens
+ * e das fichas que foram mudados (o servidor regrava esses arquivos). Devolve null se o grupo não existe.
+ */
+export function excluirGrupo(id: number): { tokens: number[]; fichas: number[] } | null {
+    const posicao = estado.grupos.findIndex((g) => g.id === id);
+    if (posicao < 0) return null;
+    estado.grupos.splice(posicao, 1);
+    const tokens: number[] = [];
+    const fichas: number[] = [];
+    for (const t of estado.tokens) {
+        if (t.grupos.includes(id)) {
+            t.grupos = t.grupos.filter((g) => g !== id);
+            tokens.push(t.id);
+        }
+    }
+    for (const f of estado.fichas) {
+        if (f.grupos.includes(id)) {
+            f.grupos = f.grupos.filter((g) => g !== id);
+            fichas.push(f.id);
+        }
+    }
+    return { tokens, fichas };
+}
+
+/** O que dá para marcar numa ficha SEM mexer no conteúdo dela. */
+export interface MarcacaoFicha {
+    favorito?: boolean;
+    grupos?: number[];
+}
+
+/**
+ * Monta a ficha com a nova marcação (favorito e/ou grupos), SEM guardá-la. A VERSÃO e a data de alteração NÃO mudam: estrela e grupo não são o
+ * conteúdo da ficha, então marcar nunca causa conflito com quem a está editando. null se a ficha não existe.
+ */
+export function montarMarcacaoDaFicha(id: number, marcacao: MarcacaoFicha): Ficha | null {
+    const atual = estado.fichas.find((f) => f.id === id);
+    if (!atual) return null;
+    return {
+        ...atual,
+        favorito: marcacao.favorito === undefined ? atual.favorito : marcacao.favorito === true,
+        grupos: marcacao.grupos === undefined ? atual.grupos : limparGrupos(marcacao.grupos),
+    };
+}
+
+/** Modo local: marca a ficha e já guarda. Devolve a ficha, ou null se não existe. */
+export function marcarFicha(id: number, marcacao: MarcacaoFicha): Ficha | null {
+    const ficha = montarMarcacaoDaFicha(id, marcacao);
+    if (ficha) receberFicha(ficha);
+    return ficha;
 }
 
 /** Um ponto em CASAS (pode ser fracionário: 3,5 = o meio da quarta casa). */
@@ -436,6 +575,8 @@ export function montarToken(
         size: limitar(Math.round(size), TAMANHO_MIN_TOKEN, TAMANHO_MAX_TOKEN) as TamanhoToken,
         condicoes: [],
         guardado: true,
+        favorito: false,
+        grupos: [],
     };
 }
 
@@ -450,7 +591,7 @@ export function receberToken(token: Token): Token {
         estado.tokens.push(token);
         return token;
     }
-    Object.assign(existente, token, { condicoes: [...token.condicoes] });
+    Object.assign(existente, token, { condicoes: [...token.condicoes], grupos: [...token.grupos] });
     return existente;
 }
 
@@ -507,6 +648,8 @@ export function tokenValido(bruto: unknown): Token | null {
         size: t.size as TamanhoToken,
         condicoes: [...new Set(t.condicoes as string[])], // sem repetir, na ordem
         guardado: t.guardado,
+        favorito: t.favorito === true, // (arquivos ANTIGOS não têm estes dois campos: valem "não favorito" e "sem grupos")
+        grupos: gruposDoArquivo(t.grupos),
     };
     if (!token.guardado && !posicaoValida(token, token.col, token.row)) token.guardado = true;
     return token;
@@ -527,6 +670,8 @@ export interface MudancasToken {
     cor?: number; // preenchimento
     corBorda?: number;
     imagem?: string | null; // miniatura nova, ou null para tirar a imagem (uma imagem inválida é ignorada)
+    favorito?: boolean;
+    grupos?: number[]; // a lista INTEIRA de grupos do token (ids que não existem são descartados)
 }
 
 /**
@@ -542,6 +687,8 @@ export function editarToken(id: number, mudancas: MudancasToken): Token | null {
     if (mudancas.cor !== undefined) token.cor = limitar(Math.round(mudancas.cor), 0, 0xffffff);
     if (mudancas.corBorda !== undefined) token.corBorda = limitar(Math.round(mudancas.corBorda), 0, 0xffffff);
     if (mudancas.imagem !== undefined && (mudancas.imagem === null || imagemValida(mudancas.imagem))) token.imagem = mudancas.imagem;
+    if (mudancas.favorito !== undefined) token.favorito = mudancas.favorito === true;
+    if (mudancas.grupos !== undefined) token.grupos = limparGrupos(mudancas.grupos);
     if (mudancas.size !== undefined) {
         token.size = limitar(Math.round(mudancas.size), TAMANHO_MIN_TOKEN, TAMANHO_MAX_TOKEN) as TamanhoToken;
         token.col = limitar(token.col, 0, estado.colunas - token.size);

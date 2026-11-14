@@ -10,7 +10,7 @@ import { mkdtempSync, readdirSync, existsSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const RAIZ = fileURLToPath(new URL("../../", import.meta.url));
 const PORTA = 3737; // a mesma de PORTA_SERVIDOR em src/config.ts (o Vite repassa /ws para ela)
@@ -39,12 +39,22 @@ const docs = (p) => p.locator(".bolsa-doc").count();
 
 try {
     const A = await abrir("Ana"), B = await abrir("Beto");
-    await A.click("#bolsa-ficha-criar-botao");
-    await A.click("#bolsa-ficha-criar-botao");
+    await criarFichaFechada(A);
+    await criarFichaFechada(A);
     ok("0) 2 fichas (arquivos 1 e 2) nas duas páginas", (await aguardar(async () => (await docs(B)) === 2)) && jsons() === "1.json,2.json", jsons());
 
+    // (ficha SEM conteúdo é excluída direto, sem caixa de confirmação: a Ana escreve e salva algo nas duas para o teste da caixa)
+    for (const n of [0, 1]) {
+        await A.locator(".bolsa-doc").nth(n).dblclick();
+        await A.fill("#editor-ficha-texto", "conteúdo");
+        await A.keyboard.press("Control+s");
+        await A.waitForTimeout(400);
+        await A.click("#editor-ficha-x");
+    }
+    ok("0b) as duas fichas agora têm conteúdo salvo (v2) nas duas páginas", await aguardar(async () => (await B.locator(".bolsa-doc small").allTextContents()).every((t) => t === "v2")));
+
     // ---- A abre a ficha 1 SEM mexer; B a exclui: o editor da Ana fecha sozinho
-    await A.locator(".bolsa-doc").first().click();
+    await A.locator(".bolsa-doc").first().dblclick();
     ok("1a) a Ana abre a ficha 1", await aberto(A));
     await B.locator(".bolsa-doc").first().click({ button: "right" });
     await B.click("#menu-doc-excluir");
@@ -54,7 +64,7 @@ try {
     ok("1d) como a Ana não tinha alterações, o editor dela FECHOU sozinho", await aguardar(async () => !(await aberto(A))));
 
     // ---- A abre a ficha 2 e ESCREVE; B a exclui: aviso, sem perder o texto
-    await A.locator(".bolsa-doc").first().click();
+    await A.locator(".bolsa-doc").first().dblclick();
     await A.fill("#editor-ficha-texto", "FOR:: 16\n(Ataque)[1d20 + FOR]\nTexto importante que a Ana ainda não salvou");
     await B.locator(".bolsa-doc").first().click({ button: "right" });
     await B.click("#menu-doc-excluir");
@@ -68,7 +78,7 @@ try {
     await A.click("#confirmar-ok");
     ok("2f) depois de confirmar, a janela fecha", !(await aberto(A)));
     // ---- a Ana cria outra e o id não volta
-    await A.click("#bolsa-ficha-criar-botao");
+    await criarFichaFechada(A);
     ok("3) a próxima ficha é a 3 (os ids 1 e 2 NÃO voltam)", (await aguardar(async () => jsons() === "3.json")), jsons());
     ok("4) nenhum erro de JavaScript", erros.length === 0, erros.join(" | "));
 } finally {

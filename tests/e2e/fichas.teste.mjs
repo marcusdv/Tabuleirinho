@@ -4,7 +4,7 @@
 // Cada clique em "+ Criar ficha" cria NA HORA uma ficha vazia ("Ficha N", versão 1) e ela aparece como um documento numa GRADE,
 // organizada como a de tokens (5 por linha na bolsa do canto, a largura toda na tela cheia). O nome e o texto se definem depois,
 // ao abrir a ficha (ainda não existe). Há um limite de MAX_FICHAS (200) fichas.
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const navegador = await lancar();
 const p = await navegador.newPage({ viewport: { width: 1400, height: 800 } });
@@ -22,7 +22,7 @@ ok("1a) a aba Fichas começa sem fichas e mostra 'Nenhuma ficha ainda.'", (await
 ok("1b) o botão 'Criar ficha' está à vista e habilitado", (await p.locator("#bolsa-ficha-criar-botao").isVisible()) && (await p.isEnabled("#bolsa-ficha-criar-botao")));
 
 // 2) um clique cria um documento na hora
-await p.click("#bolsa-ficha-criar-botao");
+await criarFichaFechada(p);
 const uma = await fichas();
 ok("2a) um clique cria 1 ficha: 'Ficha 1', versão 1, texto vazio", uma.length === 1 && uma[0].id === 1 && uma[0].nome === "Ficha 1" && uma[0].versao === 1 && uma[0].texto === "", JSON.stringify(uma));
 ok("2b) aparece 1 documento na grade, com o nome e 'v1'", (await p.locator(".bolsa-doc").count()) === 1 && (await p.locator(".bolsa-doc .bolsa-doc-nome").textContent()) === "Ficha 1" && (await p.locator(".bolsa-doc small").textContent()) === "v1");
@@ -31,10 +31,10 @@ ok("2c2) na bolsa do canto o número da VERSÃO fica oculto (continua na dica do
 ok("2d) criar a ficha NÃO expande a bolsa (a bolsa do canto não expande ao clicar)", !(await classe()).includes("expandida"));
 
 // 3) vários cliques: ids únicos e a grade como a de tokens (5 por linha)
-for (let i = 0; i < 4; i++) await p.click("#bolsa-ficha-criar-botao"); // (já existe 1: mais 4 dão 5)
+for (let i = 0; i < 4; i++) await criarFichaFechada(p); // (já existe 1: mais 4 dão 5)
 const cinco = await fichas();
 ok("3a) 5 fichas, com ids 1 a 5 e nomes 'Ficha 1' a 'Ficha 5'", cinco.map((f) => f.id).join() === "1,2,3,4,5" && cinco.every((f) => f.nome === `Ficha ${f.id}`), JSON.stringify(cinco.map((f) => f.nome)));
-await p.click("#bolsa-ficha-criar-botao"); // a sexta, para ver a linha de baixo
+await criarFichaFechada(p); // a sexta, para ver a linha de baixo
 const t = await topos();
 ok("3b) na bolsa do canto a grade tem 5 por linha (a sexta vai para a linha de baixo)", t.length === 6 && new Set(t.slice(0, 5)).size === 1 && t[5] > t[0], t.join());
 

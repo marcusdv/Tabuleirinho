@@ -6,7 +6,7 @@
 // Por isso um texto como "<img src=x onerror=...>" aparece como letras na tela e jamais é executado.
 //
 // Marcas (todas opcionais):
-//   "# Título"        título de nível 1 (o maior) ... "##### Título" nível 5 (o menor). Precisa de um espaço depois dos "#", no começo da linha.
+//   "# Título"        título de nível 1 (o maior) ... "### Título" nível 3 (o menor). Precisa de um espaço depois dos "#", no começo da linha.
 //   "**texto**"       negrito
 //   "*texto*"         itálico
 //   "***texto***"     negrito e itálico
@@ -19,14 +19,14 @@ export interface PedacoFormatado {
     italico: boolean;
 }
 
-/** Uma linha do texto: `nivel` 0 = parágrafo comum; 1 a 5 = título (1 é o maior). */
+/** Uma linha do texto: `nivel` 0 = parágrafo comum; 1 a 3 = título (1 é o maior). */
 export interface LinhaFormatada {
     nivel: number;
     pedacos: PedacoFormatado[];
 }
 
-/** O maior nível de título (de "#" até "#####"). */
-export const NIVEL_MAX_TITULO = 5;
+/** O maior nível de título (de "#" até "###"). */
+export const NIVEL_MAX_TITULO = 3;
 
 /** Lê uma linha e separa os pedaços em negrito / itálico. Linear: cada marca procura o seu par uma vez à frente. */
 export function lerPedacos(linha: string): PedacoFormatado[] {
@@ -60,10 +60,14 @@ export function lerPedacos(linha: string): PedacoFormatado[] {
     return pedacos;
 }
 
+/** Uma linha "NOME:: valor" é uma VARIÁVEL (mesma regra do motor, formulas.ts): variáveis NÃO têm formatação (decisão do dono), então ficam como texto puro. */
+export const ehLinhaDeVariavel = (linha: string): boolean => /^\s*[\p{L}_][\p{L}\p{N}_]*\s*::/u.test(linha);
+
 /** Lê o texto inteiro: uma `LinhaFormatada` para cada linha (linhas vazias ficam com a lista de pedaços vazia). */
 export function formatarTexto(texto: string): LinhaFormatada[] {
     return texto.split("\n").map((linha) => {
-        const titulo = /^(#{1,5}) (.*)$/.exec(linha);
+        if (ehLinhaDeVariavel(linha)) return { nivel: 0, pedacos: [{ texto: linha, negrito: false, italico: false }] }; // (sem título, negrito nem itálico)
+        const titulo = /^(#{1,3}) (.*)$/.exec(linha);
         if (titulo) return { nivel: titulo[1].length, pedacos: lerPedacos(titulo[2]) };
         return { nivel: 0, pedacos: lerPedacos(linha) };
     });

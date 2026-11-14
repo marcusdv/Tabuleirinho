@@ -10,8 +10,8 @@
 // (o token existe? essa posição cabe? o texto passa do limite?) é conferido depois, pelas regras de estado.ts.
 // =====================================================================
 
-import { MAX_ABAS_FICHA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_TEXTO_FICHA } from "./config.ts";
-import type { AbaFicha, Ficha, Mensagem, MudancasToken, Token } from "./estado.ts";
+import { MAX_ABAS_FICHA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_TEXTO_FICHA, MAX_GRUPOS } from "./config.ts";
+import type { AbaFicha, Ficha, Grupo, Mensagem, MudancasToken, Token } from "./estado.ts";
 
 /** Um jogador conectado à mesa. */
 export interface Jogador {
@@ -32,11 +32,15 @@ export type PedidoDoCliente =
     | { tipo: "criar_ficha" } // sem dados: o SERVIDOR dá o id e o nome ("Ficha N") e cria o arquivo NA HORA (a ficha nasce vazia)
     | { tipo: "editar_ficha"; id: number; versao: number; nome?: string; abas?: AbaFicha[] } // `versao` = a que a pessoa tinha na tela ao abrir; `abas` = a lista INTEIRA de abas (1 a 6)
     | { tipo: "excluir_ficha"; id: number } // apaga a ficha E o arquivo dela
+    | { tipo: "marcar_ficha"; id: number; favorito?: boolean; grupos?: number[] } // estrela e/ou grupos da ficha: NÃO sobe a versão (não é o conteúdo)
+    | { tipo: "criar_grupo"; nome: string; cor: number } // o SERVIDOR dá o id e cria o arquivo em dados/grupos/
+    | { tipo: "editar_grupo"; id: number; nome?: string; cor?: number }
+    | { tipo: "excluir_grupo"; id: number } // apaga o grupo E a marca dele em todos os tokens e fichas (os itens ficam)
     | { tipo: "rolar_ficha"; id: number; versao: number; aba: number; indice: number }; // rola a rolagem de posição `indice` da ABA `aba` da ficha SALVA (na versão `versao`)
 
 /** O que o servidor AVISA aos navegadores. */
 export type EventoDoServidor =
-    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[] }
+    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[]; grupos: Grupo[] }
     | { tipo: "token_criado"; token: Token } // já gravado no disco do servidor; nasce guardado na bolsa
     | { tipo: "token_editado"; token: Token } // o token inteiro, como ficou
     | { tipo: "token_excluido"; id: number }
@@ -44,6 +48,9 @@ export type EventoDoServidor =
     | { tipo: "ficha_excluida"; id: number }
     | { tipo: "ficha_editada"; ficha: Ficha } // já gravada no disco do servidor (a ficha inteira, com a versão nova)
     | { tipo: "ficha_conflito"; ficha: Ficha } // só para quem pediu: a ficha mudou desde que ele a abriu; esta é a versão ATUAL // já gravada no disco do servidor
+    | { tipo: "grupo_criado"; grupo: Grupo }
+    | { tipo: "grupo_editado"; grupo: Grupo }
+    | { tipo: "grupo_excluido"; id: number } // quem recebe tira o grupo também de todos os tokens e fichas (`excluirGrupo`)
     | { tipo: "jogadores"; lista: Jogador[] }
     | { tipo: "token_colocado"; id: number; col: number; row: number }
     | { tipo: "token_guardado"; id: number }
@@ -55,6 +62,12 @@ const TEXTO_MAX_BRUTO = 1000;
 
 const eInteiro = (valor: unknown): valor is number => typeof valor === "number" && Number.isSafeInteger(valor);
 const eTexto = (valor: unknown, maximo: number): valor is string => typeof valor === "string" && valor.length <= maximo;
+
+/** Uma lista de ids de grupos: só inteiros, no máximo MAX_GRUPOS (o sentido, se o grupo existe, é conferido por `limparGrupos`). null se for outra coisa. */
+function lerListaDeIds(bruto: unknown): number[] | null {
+    if (!Array.isArray(bruto) || bruto.length > MAX_GRUPOS || !bruto.every(eInteiro)) return null;
+    return [...(bruto as number[])];
+}
 
 /**
  * Confere a FORMA de um pedido que veio da rede (já convertido de JSON). Devolve um pedido limpo (só os campos
@@ -97,10 +110,26 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
                 if (m.imagem !== null && !eTexto(m.imagem, MAX_CARACTERES_IMAGEM_TOKEN)) return null;
                 mudancas.imagem = m.imagem;
             }
+            if (m.favorito !== undefined) { if (typeof m.favorito !== "boolean") return null; mudancas.favorito = m.favorito; }
+            if (m.grupos !== undefined) { const g = lerListaDeIds(m.grupos); if (g === null) return null; mudancas.grupos = g; }
             return { tipo: "editar_token", id: p.id, mudancas };
         }
         case "excluir_token":
             return eInteiro(p.id) ? { tipo: "excluir_token", id: p.id } : null;
+        case "marcar_ficha": {
+            if (!eInteiro(p.id)) return null;
+            if (p.favorito !== undefined && typeof p.favorito !== "boolean") return null;
+            const grupos = p.grupos === undefined ? undefined : lerListaDeIds(p.grupos);
+            if (grupos === null) return null;
+            return { tipo: "marcar_ficha", id: p.id, ...(p.favorito !== undefined && { favorito: p.favorito }), ...(grupos !== undefined && { grupos }) };
+        }
+        case "criar_grupo":
+            return eTexto(p.nome, TEXTO_MAX_BRUTO) && eInteiro(p.cor) ? { tipo: "criar_grupo", nome: p.nome, cor: p.cor } : null;
+        case "editar_grupo":
+            if (!eInteiro(p.id) || (p.nome !== undefined && !eTexto(p.nome, TEXTO_MAX_BRUTO)) || (p.cor !== undefined && !eInteiro(p.cor))) return null;
+            return { tipo: "editar_grupo", id: p.id, ...(p.nome !== undefined && { nome: p.nome }), ...(p.cor !== undefined && { cor: p.cor }) };
+        case "excluir_grupo":
+            return eInteiro(p.id) ? { tipo: "excluir_grupo", id: p.id } : null;
         case "criar_ficha":
             return { tipo: "criar_ficha" }; // qualquer outro campo que venha junto é descartado
         case "excluir_ficha":

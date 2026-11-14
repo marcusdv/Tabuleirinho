@@ -68,7 +68,7 @@ await p.locator("#editor-token-cor-borda").fill("#12ab34");
 await p.click("#editor-token-salvar");
 const t2 = await token(2);
 ok("3e) editar pela ficha também aplica tudo (nome, 4×4, borda #12ab34)", t2.nome === "Arqueira" && t2.size === 4 && t2.corBorda === 0x12ab34 && t2.guardado, JSON.stringify(t2));
-ok("3f) a ficha mostra o novo nome e tamanho", (await p.locator(".ficha").first().innerText()).replace(/\s+/g, " ") === "Arqueira 4×4");
+ok("3f) a ficha mostra o novo nome e tamanho", (await p.locator(".ficha").first().innerText()).replace(/[☆★]/g, "").replace(/\s+/g, " ").trim() === "Arqueira 4×4");
 ok("3g) o nome editado também é cortado a 20 caracteres", await (async () => {
     await ficha.click({ button: "right" });
     await p.click("#menu-ficha-editar");

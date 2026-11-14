@@ -107,4 +107,12 @@ for (const t of gigantes) { const ini = performance.now(); analisarFicha(t); len
 ok("S7) textos GIGANTES de 25000 caracteres (parênteses, colchetes, repetições) terminam em menos de 300 ms cada", lentoGigante < 300, `${lentoGigante.toFixed(0)} ms`);
 const muitas = analisarFicha("V0:: 1\n".repeat(3500));
 ok("S8) 3500 linhas de variáveis: só as 100 primeiras são lidas", muitas.variaveis.length === 100);
+// ----- TOLERÂNCIA à formatação do texto (título "# " e negrito/itálico com "*"): as variáveis e rolagens continuam sendo lidas
+const tol = (texto) => { const r = analisarFicha(texto); return `${r.variaveis.map((v) => `${v.nome}=${v.erro ? "ERRO" : v.valor}`).join(",")}|${r.rolagens.map((x) => x.nome + (x.erro ? "(ERRO)" : "")).join(",")}`; };
+ok("T1) VARIÁVEIS NÃO TÊM FORMATAÇÃO: '# FOR:: 16' (título) NÃO é variável (a rolagem que a usa dá erro)", tol("# FOR:: 16\n(Ataque)[1d20 + FOR]") === "|Ataque(ERRO)");
+ok("T2) '**FOR:: 16**' (negrito na linha inteira) também não é variável", tol("**FOR:: 16**\n(Ataque)[1d20 + FOR]") === "|Ataque(ERRO)");
+ok("T3) a linha de variável sem marcas continua valendo (e '*' é multiplicação, não itálico)", tol("FOR:: 16\n(Ataque)[1d20 + FOR]") === "FOR=16|Ataque" && tol("A:: 2*3*4") === "A=24|");
+ok("T4) o nome da rolagem aparece SEM os asteriscos: '(**Ataque**)[1d20]' → 'Ataque'", tol("(**Ataque**)[1d20]") === "|Ataque");
+ok("T5) rolagem em negrito ou na linha de um título continua valendo", tol("**(Ataque)[1d20]**") === "|Ataque" && tol("## (Dano)[2d6]") === "|Dano");
+ok("T6) uma multiplicação de verdade não é confundida com marca: 'A:: 2*3' vale 6", tol("A:: 2*3\n(R)[1d20 + A]") === "A=6|R");
 process.exitCode = terminar();

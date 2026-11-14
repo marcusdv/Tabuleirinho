@@ -45,10 +45,28 @@ const MAPA_DE_TESTE = (() => {
  * Abre o site na página `p` e espera ele avisar que está pronto (sem esperas fixas).
  * O mapa de verdade é trocado pelo mapa de teste; mapas escolhidos por arquivo (blob:) não são trocados.
  */
-export async function abrirPagina(p, consulta = "") {
+// O limite anti-spam do SERVIDOR (SEM_LIMITE_SPAM=1) fica desligado nos testes: eles rolam e escrevem muito rápido. Os servidores que os testes sobem herdam isto;
+// o teste `limite-spam` o liga de volta. (Defina SEM_LIMITE_SPAM=0 antes de rodar para ver o limite valendo em qualquer teste.)
+process.env.SEM_LIMITE_SPAM ??= "1";
+
+export async function abrirPagina(p, consulta = "", { ordemPadrao = false, manterAtrasoDasRolagens = false } = {}) {
+    // O app abre as listas da bolsa com os MAIS RECENTES primeiro. Quase todos os testes foram escritos para a ordem de criação (a mais antiga
+    // primeiro), então por padrão fixamos essa ordem pela preferência guardada; `ordemPadrao: true` deixa a ordem de fábrica do app.
+    if (!ordemPadrao) {
+        await p.addInitScript(() => {
+            try {
+                localStorage.setItem("tabuleirinho.bolsa.ordem.tokens", "antigos");
+                localStorage.setItem("tabuleirinho.bolsa.ordem.fichas", "antigos");
+            } catch {
+                /* sem armazenamento: a ordem de fábrica vale */
+            }
+        });
+    }
     await p.route("**/images/maps/*.png", (rota) => rota.fulfill({ status: 200, contentType: "image/png", body: MAPA_DE_TESTE }));
     await p.goto(URL_SITE + consulta); // `consulta` = o que vem depois do endereço, ex.: "?online&nome=Ana" (modo online)
     await p.waitForFunction(() => window.__tabuleirinho?.pronto === true, null, { timeout: 30000 });
+    // A pausa antes do resultado das rolagens (ATRASO_ROLAGEM_MS) é zerada nos testes, para não precisarem esperar; o teste `atraso-rolagem` a liga de volta.
+    if (!manterAtrasoDasRolagens) await p.evaluate(() => { window.__tabuleirinho.atrasoRolagemMs = 0; });
     // A mesa COMEÇA VAZIA (os tokens vêm dos arquivos de dados/tokens/ do servidor, ou nascem pela bolsa). Os testes LOCAIS precisam
     // de tokens para mover, então "semeiam" estes 5 pelo gancho do `npm run dev`. No modo online os tokens vêm do servidor, e quem
     // testa prepara os arquivos.
@@ -103,3 +121,13 @@ export function terminar(erros = []) {
 export const perto = (a, b, tolerancia = 2) => Math.abs(a - b) <= tolerancia;
 export const cruza = (a, b) => a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 export const centro = (caixa) => ({ x: caixa.x + caixa.width / 2, y: caixa.y + caixa.height / 2 });
+
+/**
+ * Clica em "+ Criar ficha" e FECHA a janela da ficha que agora abre sozinha (o editor flutuante cobriria a bolsa nos cliques seguintes).
+ * Espera a janela aparecer um instante (online ela abre quando o servidor responde). Uma ficha vazia e sem alterações fecha sem perguntar.
+ */
+export async function criarFichaFechada(p) {
+    await p.click("#bolsa-ficha-criar-botao");
+    await p.waitForSelector("#editor-ficha:not([hidden])", { timeout: 1500 }).catch(() => {});
+    if (await p.locator("#editor-ficha").isVisible()) await p.click("#editor-ficha-x");
+}

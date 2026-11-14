@@ -7,7 +7,7 @@
 // sublinhado vermelho nos erros. As duas camadas precisam ficar ALINHADAS (mesmo texto, mesma altura, mesma rolagem) e o mouse passa para o
 // campo, menos nos nomes das rolagens. No painel lateral, a tela de rolagens fica em cima e as dicas de uso (formais, com mais de um exemplo)
 // ficam embaixo e NÃO somem. "Ver todas as instruções" abre a janela por cima do editor, e o Esc fecha só ela.
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 800 } });
@@ -39,8 +39,8 @@ await p.mouse.click(5, 5);
 ok("1f) clicar no fundo escuro também fecha", await p.locator("#ajuda-fichas").isHidden());
 
 // ================= o editor: texto colorido
-await p.click("#bolsa-ficha-criar-botao");
-await p.click(".bolsa-doc");
+await criarFichaFechada(p);
+await p.locator(".bolsa-doc").dblclick();
 ok("2a) com o texto vazio: avisos 'Nenhuma variável/rolagem definida.' em cima e as DICAS fixas embaixo", (await p.locator("#editor-ficha-sem-variaveis").isVisible()) && (await p.locator("#editor-ficha-sem-rolagens").isVisible()) && (await p.locator("#editor-ficha-dicas").isVisible()));
 const texto = "FOR:: 16\nPROF:: 3\nMOD:: (FOR - 10) / 2\nOpa:: XPTO + 1\n\n(Ataque com espada)[1d20 + MOD + PROF]\n(Dano)[1d8 + MOD]\n(Errada)[1d20 + SORTE]\n[2d6]\nCom <img src=x onerror=alert> no meio";
 await p.fill("#editor-ficha-texto", texto);

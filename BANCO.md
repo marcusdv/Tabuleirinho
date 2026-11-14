@@ -21,7 +21,7 @@
 | `apelido` | nome mostrado na mesa e no chat |
 | `criadoEm` | quando criou a conta |
 
-Campos extras (avatar, cor, idioma...) entram aqui depois, sem mexer no resto. Só o `id` circula pelo jogo; o apelido é só para mostrar (pode repetir).
+Campos extras (avatar, cor, idioma...) entram aqui depois, sem mexer no resto. **Pedido do dono:** o usuário escolhe a **cor** e a **foto** (`avatar`: uma miniatura WebP pequena, com limite de bytes); a foto aparece no topo das mensagens do chat e nos cartões de rolagem (ver `BRAINSTORM.md`, seção do Chat). Em aberto: o avatar mora no próprio campo do banco ou num arquivo no Storage do Supabase, e como chega ao servidor do mestre sem inchar o token de entrada. Só o `id` circula pelo jogo; o apelido é só para mostrar (pode repetir).
 
 ### `mesas`
 | campo | o que é |
@@ -96,6 +96,11 @@ A chave é o par (`mesaId`, `usuarioId`): no máximo uma linha por pessoa em cad
 - **Só o site central precisa ficar online o tempo todo:** cadastro, login, criação de mesa, convites e a emissão do token de entrada assinado.
 - **Esse site central pode ser só páginas ESTÁTICAS** (HTML, JS e CSS gerados pelo Vite), sem backend próprio: o Supabase faz o trabalho de servidor (Auth = contas e login; Postgres = jogadores, mesas e convites; Edge Function = assina o token). Hospedagem gratuita serve: **Cloudflare Pages** (recomendada: o dono já usa a Cloudflare), Vercel ou GitHub Pages.
 - **Continua em aberto o CAMINHO até o servidor do mestre:** os jogadores precisam conseguir chegar à máquina dele (túnel como o cloudflared, ou porta aberta no roteador). O site central só diz quem pode entrar e informa o endereço da mesa; o mestre precisa deixar o servidor ligado durante a sessão.
+
+## O que NÃO vai para o banco (decisão do dono)
+- **Grupos e favoritos de tokens e fichas** são organização do JOGO, não de contas: ficam só em **arquivos locais** (`dados/grupos/`, e os campos `favorito`/`grupos` dentro de cada token e ficha), na máquina de quem hospeda. **Nada disso entra no Supabase.**
+- **Favoritos por jogador (futuro):** quando houver contas, a estrela passa a ser de cada usuário (hoje vale para a mesa toda). Também fica FORA do banco, chaveada pelo `usuarioId` que vem no token assinado; **em aberto** se mora num arquivo no servidor do mestre (ex.: `dados/favoritos/<usuarioId>.json`) ou no navegador do jogador.
+- **Grupos × permissões:** hoje não há regra de quem cria/edita/exclui grupos (qualquer um na mesa); com contas isso entra nas regras de permissão do servidor (ver "Permissões sobre tokens e fichas").
 
 ## Quem protege o quê
 - **Banco (RLS):** cada pessoa lê só o próprio perfil e as mesas em que participa; só o mestre cria convites e remove participantes; ninguém se promove a mestre editando a própria linha.

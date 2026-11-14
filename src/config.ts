@@ -8,6 +8,8 @@ export const CHAVE_ABA_BOLSA = "tabuleirinho.bolsa.aba"; // "tokens" ou "fichas"
 export const CHAVE_BARRA_RECOLHIDA = "tabuleirinho.barra.recolhida"; // "1" = a barra de Ferramentas está recolhida
 export const CHAVE_DESENHO_RECOLHIDO = "tabuleirinho.desenho.recolhido"; // "1" = o painel de Desenho está recolhido
 export const CHAVE_ALTURA_BOLSA = "tabuleirinho.bolsa.altura"; // a altura (px) da bolsa aberta, medida da última vez: o index.html a aplica antes da primeira pintura
+export const CHAVE_ORDEM_TOKENS = "tabuleirinho.bolsa.ordem.tokens"; // a ordem escolhida na aba Tokens (ver ORDENS em ui/bolsa.ts)
+export const CHAVE_ORDEM_FICHAS = "tabuleirinho.bolsa.ordem.fichas"; // idem na aba Fichas
 export const CHAVE_BOLSA_RECOLHIDA = "tabuleirinho.bolsa.recolhida"; // "1" = a bolsa está minimizada (só o título)
 export const CHAVE_DADOS_RECOLHIDO = "tabuleirinho.dados.recolhido"; // "1" = a barra de dados está recolhida, "0" = aberta (sem valor: abre, salvo em janela baixa)
 // (O index.html repete estas chaves num script que roda ANTES da primeira pintura: se mudar uma aqui, mude lá também.)
@@ -88,6 +90,16 @@ export const MAX_TOKENS = 100; // quantos tokens a mesa aceita no total (no mapa
 export const MAX_CARACTERES_NOME_TOKEN = 20; // o nome do token é cortado a este tamanho
 
 // --- Fichas (documentos de texto guardados no servidor; ver estado.ts e servidor/fichas.ts) ---
+export const ATRASO_ROLAGEM_MS = 100; // pausa curta (pedido do dono) entre pedir uma rolagem (dados ou ficha) e o resultado aparecer no chat. Os testes zeram isto pelo gancho do `npm run dev`
+// LIMITE ANTI-SPAM por pessoa (balde que enche aos poucos; ver limite.ts). O SERVIDOR faz valer; o navegador só avisa. Valores escolhidos pelo Claude (ajuste à vontade):
+export const RAJADA_ROLAGENS = 5; // quantas rolagens (dados e fichas, juntas) cabem de uma vez (o dono pediu 5)...
+export const MS_RECARGA_ROLAGEM = 1000; // ...e depois vale 1 rolagem a cada tanto
+export const RAJADA_CHAT = 5; // quantas mensagens de chat de uma vez...
+export const MS_RECARGA_CHAT = 2000; // ...e depois vale 1 mensagem a cada tanto
+export const MAX_GRUPOS = 50; // quantos grupos (de tokens e fichas) a mesa aceita
+export const MAX_CARACTERES_NOME_GRUPO = 20; // nome do grupo (aparado e cortado a isto)
+export const COR_INICIAL_GRUPO = 0x3498db; // a cor sugerida ao criar um grupo (as amostras são as de CORES_TOKEN)
+export const TAMANHO_MAX_ARQUIVO_GRUPO = 4096; // bytes: ao ligar, o servidor ignora arquivos de grupo maiores que isto
 export const MAX_FICHAS = 200; // quantas fichas a mesa aceita
 export const MAX_CARACTERES_NOME_FICHA = 40; // o nome da ficha é cortado a este tamanho
 export const MAX_ABAS_FICHA = 6; // quantas ABAS (páginas) uma ficha pode ter: continua sendo UM arquivo só em dados/fichas

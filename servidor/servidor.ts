@@ -27,12 +27,18 @@ import { WebSocket, WebSocketServer, type RawData } from "ws";
 import {
     MAX_CARACTERES_TEXTO_FICHA,
     MAX_FICHAS,
+    MAX_GRUPOS,
     MAX_MENSAGENS_POR_SEGUNDO,
+    MS_RECARGA_CHAT,
+    MS_RECARGA_ROLAGEM,
+    RAJADA_CHAT,
+    RAJADA_ROLAGENS,
     MAX_TOKENS,
     MS_ESPERA_GRAVACAO_TOKEN,
     PORTA_SERVIDOR,
     SEGUNDOS_PARA_ENTRAR,
     TAMANHO_MAX_ARQUIVO_FICHA,
+    TAMANHO_MAX_ARQUIVO_GRUPO,
     TAMANHO_MAX_ARQUIVO_TOKEN,
     TAMANHO_MAX_MENSAGEM_REDE,
 } from "../src/config.ts";
@@ -44,24 +50,32 @@ import {
     buscarToken,
     colocarToken,
     definirFichas,
+    definirGrupos,
     definirTokens,
     editarToken,
     estado,
     excluirFicha,
+    excluirGrupo,
     excluirToken,
     fichaValida,
+    grupoValido,
     guardarToken,
     montarEdicaoDaFicha,
+    montarEdicaoDoGrupo,
     montarFicha,
+    montarGrupo,
+    montarMarcacaoDaFicha,
     montarToken,
     posicaoValida,
     receberFicha,
+    receberGrupo,
     receberToken,
     rolagemValida,
     tokenValido,
     type Ficha,
 } from "../src/estado.ts";
 import { analisarAbas, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
+import { gastar, novoBalde, type Balde } from "../src/limite.ts";
 import { lerPedido, limparApelido, type EventoDoServidor, type Jogador, type PedidoDoCliente } from "../src/protocolo.ts";
 import { apagarDaPasta, carregarPasta, gravarNaPasta, PASTA_DE_DADOS } from "./dados.ts";
 
@@ -124,7 +138,14 @@ interface Conexao {
     jogador: Jogador | null;
     inicioDaJanela: number; // para o limite de mensagens por segundo
     mensagensNaJanela: number;
+    baldeRolagens: Balde; // LIMITE ANTI-SPAM: rolagens de dados e de fichas (as duas dividem o mesmo balde)
+    baldeChat: Balde; // LIMITE ANTI-SPAM: mensagens do chat
 }
+
+// Para os TESTES automáticos (que rolam e escrevem muito rápido): SEM_LIMITE_SPAM=1 desliga o limite anti-spam. Em uso normal fica ligado.
+const SEM_LIMITE_SPAM = process.env.SEM_LIMITE_SPAM === "1";
+const podeRolar = (c: Conexao): boolean => SEM_LIMITE_SPAM || gastar(c.baldeRolagens, RAJADA_ROLAGENS, MS_RECARGA_ROLAGEM);
+const podeEscrever = (c: Conexao): boolean => SEM_LIMITE_SPAM || gastar(c.baldeChat, RAJADA_CHAT, MS_RECARGA_CHAT);
 
 const conexoes = new Set<Conexao>();
 let proximoIdDeConexao = 1;
@@ -251,6 +272,65 @@ function analiseDaFicha(ficha: Ficha, aba: number): AnaliseDaFicha | undefined {
     return analises[aba];
 }
 
+/** Marca a ficha (estrela e/ou grupos): grava o arquivo ANTES, SEM subir a versão (não é o conteúdo), e avisa todos. */
+async function marcarFichaNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "marcar_ficha" }>): Promise<void> {
+    const ficha = montarMarcacaoDaFicha(pedido.id, { favorito: pedido.favorito, grupos: pedido.grupos });
+    if (!ficha) return erro(c.ws, "Essa ficha não existe.");
+    try {
+        await gravarNaPasta("fichas", ficha);
+    } catch (falha) {
+        console.error(`Não foi possível gravar a ficha ${ficha.id}:`, falha);
+        return erro(c.ws, "Não foi possível gravar a ficha no servidor.");
+    }
+    receberFicha(ficha);
+    avisarTodos({ tipo: "ficha_editada", ficha }); // (mesma versão: quem edita a ficha não vê conflito nenhum)
+}
+
+/** Cria o grupo: grava o arquivo ANTES de guardá-lo na mesa e avisar todos. */
+async function criarGrupoNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "criar_grupo" }>): Promise<void> {
+    const grupo = montarGrupo(pedido.nome, pedido.cor);
+    if (!grupo) return erro(c.ws, `Não foi possível criar o grupo: o limite é de ${MAX_GRUPOS} grupos na mesa.`);
+    try {
+        await gravarNaPasta("grupos", grupo);
+    } catch (falha) {
+        console.error(`Não foi possível gravar o grupo ${grupo.id}:`, falha);
+        return erro(c.ws, "Não foi possível gravar o grupo no servidor.");
+    }
+    receberGrupo(grupo);
+    avisarTodos({ tipo: "grupo_criado", grupo });
+}
+
+async function editarGrupoNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "editar_grupo" }>): Promise<void> {
+    const grupo = montarEdicaoDoGrupo(pedido.id, { nome: pedido.nome, cor: pedido.cor });
+    if (!grupo) return erro(c.ws, "Esse grupo não existe.");
+    try {
+        await gravarNaPasta("grupos", grupo);
+    } catch (falha) {
+        console.error(`Não foi possível gravar o grupo ${grupo.id}:`, falha);
+        return erro(c.ws, "Não foi possível gravar o grupo no servidor.");
+    }
+    receberGrupo(grupo);
+    avisarTodos({ tipo: "grupo_editado", grupo });
+}
+
+/** Exclui o grupo: apaga o arquivo dele, tira a marca de todos os tokens e fichas (regrava os que mudaram) e avisa todos. Os itens ficam. */
+async function excluirGrupoNoServidor(c: Conexao, id: number): Promise<void> {
+    if (!estado.grupos.some((g) => g.id === id)) return erro(c.ws, "Esse grupo não existe.");
+    try {
+        await apagarDaPasta("grupos", id);
+    } catch (falha) {
+        console.error(`Não foi possível apagar o grupo ${id}:`, falha);
+        return erro(c.ws, "Não foi possível apagar o arquivo do grupo no servidor.");
+    }
+    const mudados = excluirGrupo(id);
+    avisarTodos({ tipo: "grupo_excluido", id });
+    for (const tokenId of mudados?.tokens ?? []) agendarGravacaoDoToken(tokenId);
+    for (const fichaId of mudados?.fichas ?? []) {
+        const ficha = estado.fichas.find((f) => f.id === fichaId);
+        if (ficha) await gravarNaPasta("fichas", ficha).catch((falha: unknown) => console.error(`Não foi possível regravar a ficha ${fichaId}:`, falha));
+    }
+}
+
 /** Igual às fichas: monta o token (valida), GRAVA o arquivo e só então o guarda na mesa e avisa todos. Nasce guardado na bolsa. */
 async function criarTokenNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "criar_token" }>): Promise<void> {
     const token = montarToken(pedido.cor, pedido.tamanho, pedido.nome, pedido.imagem, pedido.corBorda);
@@ -293,7 +373,7 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
         if (c.jogador) return erro(c.ws, "Você já entrou.");
         c.jogador = { id: c.id, apelido: limparApelido(pedido.apelido, c.id) };
         // Quem entra recebe o estado COMPLETO uma vez; depois só os eventos.
-        enviar(c.ws, { tipo: "estado_inicial", voce: c.jogador, colunas: estado.colunas, linhas: estado.linhas, tokens: estado.tokens, mensagens: estado.mensagens, fichas: estado.fichas });
+        enviar(c.ws, { tipo: "estado_inicial", voce: c.jogador, colunas: estado.colunas, linhas: estado.linhas, tokens: estado.tokens, mensagens: estado.mensagens, fichas: estado.fichas, grupos: estado.grupos });
         avisarTodos({ tipo: "jogadores", lista: listaDeJogadores() });
         console.log(`+ ${c.jogador.apelido} entrou (${listaDeJogadores().length} na mesa)`);
         return;
@@ -342,6 +422,7 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             return;
         }
         case "enviar_mensagem": {
+            if (!podeEscrever(c)) return erro(c.ws, "Calma! Você está escrevendo rápido demais.");
             // adicionarMensagem aplica o limite de 72 caracteres e recusa texto vazio (devolve null).
             const mensagem = adicionarMensagem(autor, pedido.texto);
             if (!mensagem) return erro(c.ws, "Mensagem vazia ou longa demais.");
@@ -350,6 +431,7 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
         }
         case "rolar_dados": {
             if (!rolagemValida(pedido.lados, pedido.quantidade, pedido.modificador)) return erro(c.ws, "Rolagem inválida.");
+            if (!podeRolar(c)) return erro(c.ws, "Calma! Você está rolando rápido demais.");
             const rolagem = rolarDados(pedido.lados, pedido.quantidade, pedido.modificador, sortear); // o SERVIDOR sorteia
             avisarTodos({ tipo: "mensagem", mensagem: adicionarRolagem(autor, rolagem) });
             return;
@@ -363,7 +445,22 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             if (!analise) return erro(c.ws, "Essa página não existe.");
             const resultado = rolarDaAnalise(analise, pedido.indice, ficha.nome, sortear); // o SERVIDOR sorteia
             if (!resultado.ok) return erro(c.ws, resultado.erro);
+            if (!podeRolar(c)) return erro(c.ws, "Calma! Você está rolando rápido demais."); // (só gasta ficha do balde numa rolagem que de fato vai acontecer)
             avisarTodos({ tipo: "mensagem", mensagem: adicionarRolagemDeFicha(autor, resultado.valor) });
+            return;
+        }
+        case "marcar_ficha":
+            naFilaDeArquivos(() => marcarFichaNoServidor(c, pedido));
+            return;
+        case "criar_grupo":
+            naFilaDeArquivos(() => criarGrupoNoServidor(c, pedido));
+            return;
+        case "editar_grupo":
+            naFilaDeArquivos(() => editarGrupoNoServidor(c, pedido));
+            return;
+        case "excluir_grupo": {
+            const id = pedido.id;
+            naFilaDeArquivos(() => excluirGrupoNoServidor(c, id));
             return;
         }
         case "criar_ficha":
@@ -418,7 +515,15 @@ servidorHttp.on("upgrade", (requisicao, socket, cabeca) => {
 });
 
 wss.on("connection", (ws) => {
-    const conexao: Conexao = { id: proximoIdDeConexao++, ws, jogador: null, inicioDaJanela: Date.now(), mensagensNaJanela: 0 };
+    const conexao: Conexao = {
+        id: proximoIdDeConexao++,
+        ws,
+        jogador: null,
+        inicioDaJanela: Date.now(),
+        mensagensNaJanela: 0,
+        baldeRolagens: novoBalde(RAJADA_ROLAGENS),
+        baldeChat: novoBalde(RAJADA_CHAT),
+    };
     conexoes.add(conexao);
 
     // Quem conecta e não se apresenta a tempo é desconectado (não ocupa a mesa à toa).
@@ -455,10 +560,14 @@ wss.on("connection", (ws) => {
 try {
     const fichasLidas = await carregarPasta("fichas", fichaValida, TAMANHO_MAX_ARQUIVO_FICHA);
     const tokensLidos = await carregarPasta("tokens", tokenValido, TAMANHO_MAX_ARQUIVO_TOKEN);
+    const gruposLidos = await carregarPasta("grupos", grupoValido, TAMANHO_MAX_ARQUIVO_GRUPO);
     // (O 2º argumento reserva os ids de arquivos IGNORADOS por estarem estragados: um item novo nunca os sobrescreve.)
     definirFichas(fichasLidas.itens, fichasLidas.maiorId + 1);
     definirTokens(tokensLidos.itens, tokensLidos.maiorId + 1);
-    console.log(`${estado.fichas.length} ficha(s) e ${estado.tokens.length} token(s) carregado(s) de ${PASTA_DE_DADOS}`);
+    definirGrupos(gruposLidos.itens, gruposLidos.maiorId + 1);
+    // (um arquivo pode citar um grupo que já foi apagado: a marca é descartada para não sobrar grupo fantasma)
+    for (const item of [...estado.tokens, ...estado.fichas]) item.grupos = item.grupos.filter((g) => estado.grupos.some((gr) => gr.id === g));
+    console.log(`${estado.fichas.length} ficha(s), ${estado.tokens.length} token(s) e ${estado.grupos.length} grupo(s) carregado(s) de ${PASTA_DE_DADOS}`);
 } catch (falha) {
     console.error(`Não foi possível ler/criar a pasta de dados (${PASTA_DE_DADOS}):`, falha instanceof Error ? falha.message : falha);
     process.exit(1);

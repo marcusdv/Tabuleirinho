@@ -325,6 +325,8 @@ export interface AnaliseDaFicha {
 }
 
 // A bandeira "d" faz o resultado trazer, de cada grupo, onde ele começa e termina (`indices`): é como achamos as POSIÇÕES no texto.
+// VARIÁVEIS NÃO TÊM FORMATAÇÃO (decisão do dono): a linha "NOME:: valor" é só texto, com a sintaxe própria das variáveis. Um "# " ou "**" na frente a
+// transforma em texto comum (e formatacao.ts a mostra como texto puro).
 const LINHA_DE_VARIAVEL = /^\s*([\p{L}_][\p{L}\p{N}_]*)\s*::\s*(.*?)\s*$/du;
 // "(Nome)" opcional, colado a "[fórmula]" (só espaços ou tabulações podem separar os dois). Nem o nome nem a fórmula atravessam linhas nem têm parênteses/colchetes dentro (a fórmula
 // pode ter parênteses: eles só não podem estar no NOME).
@@ -390,7 +392,7 @@ export function analisarFicha(texto: string): AnaliseDaFicha {
         const lugarDoNome = achou.indices?.[1];
         const lugarDaFormula = achou.indices?.[2];
         if (!TEM_DADO.test(formula) || !lugarDaFormula) continue; // "[ ]", "[x]", "[1]"...: não é rolagem
-        const nome = (achou[1] ?? "").trim().slice(0, MAX_CARACTERES_NOME_ROLAGEM) || formula;
+        const nome = (achou[1] ?? "").replace(/\*/g, "").trim().slice(0, MAX_CARACTERES_NOME_ROLAGEM) || formula; // (sem os "*" de negrito/itálico)
         // As posições de dentro do grupo vão de "depois do abre" até "antes do fecha": os parênteses/colchetes ficam um caractere de cada lado.
         const posNome = lugarDoNome ? { inicio: lugarDoNome[0] - 1, fim: lugarDoNome[1] + 1 } : null;
         const posFormula = { inicio: lugarDaFormula[0] - 1, fim: lugarDaFormula[1] + 1 };

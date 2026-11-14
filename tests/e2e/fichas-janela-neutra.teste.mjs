@@ -5,7 +5,7 @@
 // texto da ficha, os parágrafos e exemplos das dicas (que se pode selecionar e copiar), os botões nem os itens clicáveis da lista de rolagens.
 // Depois de arrastar, o foco continua no campo de texto. Os botões do alto ocultam/mostram as instruções e a tela de rolagens; sem as duas o painel
 // lateral some; a escolha vale para TODAS as fichas e sobrevive a recarregar a página; o ✕ fecha (com alterações, pergunta antes).
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 800 } });
@@ -33,9 +33,9 @@ const moveu = async (ponto, esperado = true) => {
 };
 
 await p.click("#bolsa-aba-fichas");
-await p.click("#bolsa-ficha-criar-botao");
-await p.click("#bolsa-ficha-criar-botao");
-await p.locator(".bolsa-doc").first().click();
+await criarFichaFechada(p);
+await criarFichaFechada(p);
+await p.locator(".bolsa-doc").first().dblclick();
 await p.fill("#editor-ficha-texto", "FOR:: 16\n(Ataque)[1d20 + FOR]\num texto qualquer para selecionar");
 await p.waitForTimeout(150);
 
@@ -95,14 +95,14 @@ ok("4c) 'Ocultar rolagens' esconde a tela de rolagens; sem as duas partes o pain
 await p.keyboard.press("Control+s"); // (salva antes: sem alterações, o ✕ fecha direto)
 await p.click("#editor-ficha-x");
 ok("4d) o ✕ do alto fecha a ficha (sem alterações, fecha direto)", await p.locator("#editor-ficha").isHidden());
-await p.locator(".bolsa-doc").nth(1).click();
+await p.locator(".bolsa-doc").nth(1).dblclick();
 ok("4e) ao abrir OUTRA ficha (a 2), as duas partes CONTINUAM ocultas e os botões dizem 'Mostrar'", (await p.locator("#editor-ficha-lateral").isHidden()) && (await p.textContent("#editor-ficha-alternar-dicas")) === "Mostrar instruções" && (await p.textContent("#editor-ficha-alternar-rolagens")) === "Mostrar rolagens");
 await p.click("#editor-ficha-x");
 await p.reload();
 await p.waitForFunction(() => window.__tabuleirinho?.pronto === true);
 await p.click("#bolsa-aba-fichas");
-await p.click("#bolsa-ficha-criar-botao");
-await p.locator(".bolsa-doc").first().click();
+await criarFichaFechada(p);
+await p.locator(".bolsa-doc").first().dblclick();
 ok("4f) depois de RECARREGAR a página (uma ficha nova), a escolha continua: tudo oculto", (await p.locator("#editor-ficha-lateral").isHidden()) && (await p.textContent("#editor-ficha-alternar-rolagens")) === "Mostrar rolagens");
 await p.click("#editor-ficha-alternar-dicas");
 ok("4g) 'Mostrar instruções' traz de volta só as instruções, ocupando o painel lateral todo", (await p.locator("#editor-ficha-lateral").isVisible()) && (await p.locator("#editor-ficha-dicas").isVisible()) && (await p.locator("#editor-ficha-assistente").isHidden()) && (await caixa("#editor-ficha-dicas")).height > 150);

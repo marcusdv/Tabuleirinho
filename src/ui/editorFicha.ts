@@ -48,7 +48,7 @@ import {
     type ResultadoEdicaoFicha,
 } from "../estado";
 import { analisarAbas, trechosDoTexto, type AnaliseDaFicha } from "../formulas";
-import { formatarTexto } from "../formatacao";
+import { ehLinhaDeVariavel, formatarTexto, lerPedacos } from "../formatacao";
 
 export interface OpcoesEditorFicha {
     /**
@@ -290,7 +290,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     function ehParteNeutra(e: MouseEvent): boolean {
         const alvo = e.target;
         if (!(alvo instanceof HTMLElement)) return false;
-        if (alvo.closest("button, input, textarea, select, a, p, pre, code, li[data-rolagem], #editor-ficha-cores, #editor-ficha-redimensionar")) return false;
+        if (alvo.closest("button, input, textarea, select, a, p, pre, code, li[data-rolagem], #editor-ficha-cores, #editor-ficha-previa, #editor-ficha-redimensionar")) return false;
         // Numa área que rola, o clique na própria barra de rolagem (à direita ou embaixo do conteúdo) é para rolar.
         const naBarraVertical = alvo.scrollHeight > alvo.clientHeight && e.offsetX >= alvo.clientWidth;
         const naBarraHorizontal = alvo.scrollWidth > alvo.clientWidth && e.offsetY >= alvo.clientHeight;
@@ -417,9 +417,9 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
      */
     function atualizarAssistente(): void {
         const texto = campoTexto.value;
-        if (!previa.hidden) desenharPrevia(); // (a visualização formatada acompanha a aba aberta)
         const analise = analisarAbas(rascunho.map((aba) => aba.texto))[abaAtual]; // (variáveis da ficha toda; rolagens só desta aba)
         ultimaAnalise = analise;
+        if (!previa.hidden) desenharPrevia(); // (a leitura formatada acompanha a aba aberta; precisa da análise nova para as rolagens clicáveis)
         semVariaveis.hidden = analise.variaveis.length > 0;
         semRolagens.hidden = analise.rolagens.length > 0;
         listaVariaveis.replaceChildren(
@@ -522,7 +522,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         renderizarAbas();
         atualizarTela();
         atualizarAssistente();
-        campoTexto.focus();
+        if (previa.hidden) campoTexto.focus(); // (na leitura, trocar de página não volta ao campo de texto)
     }
 
     function novaAba(): void {
@@ -635,6 +635,10 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         const de = campoTexto.selectionStart;
         const ate = campoTexto.selectionEnd;
         const m = marca.length;
+        // Variáveis NÃO têm formatação (decisão do dono): numa linha "NOME:: valor" o botão não faz nada.
+        const iniLinha = texto.lastIndexOf("\n", de - 1) + 1;
+        const fimLinha = texto.indexOf("\n", ate) < 0 ? texto.length : texto.indexOf("\n", ate);
+        if (texto.slice(iniLinha, fimLinha).split("\n").some(ehLinhaDeVariavel)) return mostrarAviso("Variáveis não têm formatação: são só texto.");
         if (de >= m && texto.startsWith(marca, de - m) && texto.startsWith(marca, ate) && texto[de - m - 1] !== "*" && texto[ate + m] !== "*") {
             substituirNoCampo(de - m, ate + m, texto.slice(de, ate), de - m, ate - m); // já estava cercada: tira
         } else {
@@ -654,8 +658,9 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         const novo = texto
             .slice(inicio, fim)
             .split("\n")
-            .map((linha) => prefixo + linha.replace(/^#{1,5} /, ""))
+            .map((linha) => (ehLinhaDeVariavel(linha) ? linha : prefixo + linha.replace(/^#{1,3} /, ""))) // (linhas de variável ficam como estão)
             .join("\n");
+        if (novo === texto.slice(inicio, fim)) return mostrarAviso("Variáveis não têm formatação: são só texto.");
         substituirNoCampo(inicio, fim, novo, inicio, inicio + novo.length);
     }
 
@@ -680,31 +685,95 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
 
     /** Desenha a aba aberta já formatada. Tudo por createElement + textContent: o texto da ficha NUNCA vira HTML. */
     function desenharPrevia(): void {
+        // As ROLAGENS ficam clicáveis também na leitura: o motor (`ultimaAnalise`) diz onde cada uma está no texto (posNome/posFormula, em caracteres da aba);
+        // cada linha é cortada nesses trechos: o texto de fora é formatado como sempre e o trecho da rolagem vira um botão (nome + fórmula).
+        const rolagens = ultimaAnalise?.rolagens ?? [];
+        let inicioDaLinha = 0;
         previa.replaceChildren(
-            ...formatarTexto(campoTexto.value).map((linha) => {
+            ...campoTexto.value.split("\n").map((linha) => {
+                const fimDaLinha = inicioDaLinha + linha.length;
+                const deslocamento = inicioDaLinha;
+                inicioDaLinha = fimDaLinha + 1; // (+1 do "\n")
                 const bloco = document.createElement("div");
-                if (linha.nivel > 0) bloco.className = `titulo t${linha.nivel}`;
-                if (linha.pedacos.length === 0) bloco.append(document.createElement("br")); // (linha vazia mantém a altura)
-                for (const pedaco of linha.pedacos) {
-                    const trecho = document.createElement("span");
-                    if (pedaco.negrito) trecho.classList.add("negrito");
-                    if (pedaco.italico) trecho.classList.add("italico");
-                    trecho.textContent = pedaco.texto;
-                    bloco.append(trecho);
+                if (linha === "") bloco.append(document.createElement("br")); // (linha vazia mantém a altura)
+                const acrescentarTexto = (texto: string): void => {
+                    for (const pedaco of lerPedacos(texto)) {
+                        const trecho = document.createElement("span");
+                        if (pedaco.negrito) trecho.classList.add("negrito");
+                        if (pedaco.italico) trecho.classList.add("italico");
+                        trecho.textContent = pedaco.texto;
+                        bloco.append(trecho);
+                    }
+                };
+                // Variáveis NÃO têm formatação (nem rolagem): texto puro.
+                if (ehLinhaDeVariavel(linha)) {
+                    if (linha !== "") bloco.append(document.createTextNode(linha));
+                    return bloco;
                 }
+                // Título ("# ", "## ", "### ") no começo da linha: só vale se a linha começa assim.
+                const titulo = /^(#{1,3}) /.exec(linha);
+                const prefixo = titulo ? titulo[0].length : 0;
+                if (titulo) bloco.className = `titulo t${titulo[1].length}`;
+                // As rolagens desta linha, em ordem (o índice é o da lista do motor: é o que o `rolar` recebe).
+                const naLinha = rolagens
+                    .map((rolagem, indice) => ({ rolagem, indice, ini: (rolagem.posNome?.inicio ?? rolagem.posFormula.inicio) - deslocamento, fim: rolagem.posFormula.fim - deslocamento }))
+                    .filter(({ ini, fim }) => ini >= prefixo && fim <= linha.length)
+                    .sort((a, b) => a.ini - b.ini);
+                let cursor = prefixo;
+                for (const { rolagem, indice, ini, fim } of naLinha) {
+                    if (ini < cursor) continue; // (trechos que se encostam: ignora o segundo)
+                    acrescentarTexto(linha.slice(cursor, ini));
+                    const botao = document.createElement("span");
+                    botao.className = "rolagem-previa" + (rolagem.erro ? " com-erro" : "");
+                    botao.dataset.rolagem = String(indice);
+                    botao.setAttribute("role", "button");
+                    botao.title = rolagem.erro ? `${rolagem.nome}: ${rolagem.erro}` : `Clique para rolar: ${rolagem.nome}: ${rolagem.resolvida ?? rolagem.formula}`;
+                    const corte = rolagem.posFormula.inicio - deslocamento; // onde começam os colchetes
+                    const nome = document.createElement("span");
+                    nome.className = "rolagem-previa-nome";
+                    nome.textContent = linha.slice(ini, corte);
+                    const formula = document.createElement("span");
+                    formula.className = "rolagem-previa-formula";
+                    formula.textContent = linha.slice(corte, fim);
+                    botao.append(nome, formula);
+                    bloco.append(botao);
+                    cursor = fim;
+                }
+                acrescentarTexto(linha.slice(cursor));
                 return bloco;
             }),
         );
     }
-    function mostrarPrevia(ligada: boolean): void {
+    function mostrarPrevia(ligada: boolean, focar = true): void {
         previa.hidden = !ligada;
         botaoVer.setAttribute("aria-pressed", String(ligada));
         botaoVer.textContent = ligada ? "Editar" : "Visualizar";
         for (const b of barraFormatar.querySelectorAll<HTMLButtonElement>("button[data-formatar]")) b.disabled = ligada;
         if (ligada) desenharPrevia();
-        else campoTexto.focus();
+        else if (focar) campoTexto.focus();
     }
+    botaoVer.addEventListener("mousedown", (e) => e.preventDefault()); // (o campo não perde o foco: senão a leitura ligaria sozinha e o clique a desligaria)
     botaoVer.addEventListener("click", () => mostrarPrevia(previa.hidden === true));
+
+    // FORMATAÇÃO AUTOMÁTICA (pedido do dono): ao SAIR do campo de texto (clicar em outro lugar), ele passa a mostrar o texto já formatado (se há alguma
+    // marca para formatar); clicar na leitura (ou focar o campo de novo) volta às marcas para editar. Não vale ao trocar de janela do sistema.
+    const temFormatacao = (): boolean => formatarTexto(campoTexto.value).some((l) => l.nivel > 0 || l.pedacos.some((p) => p.negrito || p.italico));
+    campoTexto.addEventListener("blur", () => {
+        if (janela.hidden || !previa.hidden || !document.hasFocus()) return;
+        if (temFormatacao()) mostrarPrevia(true, false);
+    });
+    campoTexto.addEventListener("focus", () => {
+        if (!previa.hidden) mostrarPrevia(false, false); // o foco voltou ao campo (por teclado, por trocar de página...): sai da leitura
+    });
+    // Na leitura, UM clique no texto não faz nada (dá para selecionar e copiar); clicar numa ROLAGEM rola. Voltar a editar: DUPLO clique no texto ou o botão "Editar".
+    previa.addEventListener("click", (e) => {
+        const botao = (e.target as HTMLElement).closest<HTMLElement>("[data-rolagem]");
+        if (botao) rolar(Number(botao.dataset.rolagem)); // clicar numa ROLAGEM rola (e a leitura continua)
+    });
+    previa.addEventListener("dblclick", (e) => {
+        if ((e.target as HTMLElement).closest("[data-rolagem]")) return; // (o duplo clique numa rolagem não sai da leitura)
+        mostrarPrevia(false);
+    });
 
     /** ✕ da aba: tira a página do rascunho (pergunta antes se ela tem texto). A última página não pode ser excluída. */
     async function excluirAba(i: number): Promise<void> {
@@ -730,13 +799,22 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     }
 
     /** O salvamento deu certo: a ficha que o servidor guardou é a nova base. */
+    let lerAposSalvar = false; // o salvamento em andamento foi pedido pelo BOTÃO Salvar: ao terminar, a ficha passa para o modo de LEITURA (pedido do dono)
+
     function salvou(ficha: Ficha): void {
         carregar(ficha, true); // (o servidor pode ter limpado o texto: a janela mostra exatamente o que ficou guardado; continua na mesma aba)
         mostrarAviso(`Salva na versão ${ficha.versao}.`);
+        if (lerAposSalvar) {
+            lerAposSalvar = false;
+            mostrarPrevia(true, false);
+            botaoVer.focus(); // (o foco fica DENTRO da janela, no botão "Editar": o Esc e o Ctrl+S só valem com o foco nela, e digitar não cai no campo escondido)
+        }
     }
 
-    function salvar(): void {
+    /** `paraLer`: foi o BOTÃO Salvar (vai para a leitura ao terminar). O Ctrl+S não: quem salva com ele costuma estar digitando e continua editando. */
+    function salvar(paraLer = false): void {
         if (!base || botaoSalvar.disabled) return;
+        lerAposSalvar = paraLer;
         const dados = { nome: campoNome.value, abas: rascunho.map((aba) => ({ ...aba })) };
         mostrarAviso("");
         const resultado = opcoes.aoSalvar(base.id, base.versao, dados);
@@ -823,7 +901,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         e.preventDefault();
         rolar(Number(item.dataset.rolagem));
     });
-    botaoSalvar.addEventListener("click", salvar);
+    botaoSalvar.addEventListener("click", () => salvar(true));
     botaoFechar.addEventListener("click", () => void fechar());
     botaoX.addEventListener("click", () => void fechar()); // o ✕ do alto faz o mesmo que o Esc e o botão Fechar
     botaoRecarregar.addEventListener("click", () => {
@@ -841,7 +919,15 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
             colocarNaTela(); // (depois de mostrar: só então dá para medir o tamanho da janela)
             opcoes.aoMudarAberta(ficha.id);
             document.addEventListener("keydown", aoTeclar, true);
+            if (!previa.hidden) mostrarPrevia(false, false); // abre sempre no campo de texto (com as marcas), não na leitura
             campoTexto.focus();
+            // No DUPLO CLIQUE de um documento, o 1º clique abre a janela e o 2º chegaria nela: se um botão dela (como "Fechar") estiver bem onde
+            // o mouse está, a ficha abriria e fecharia na hora. Por isso a janela ignora o mouse por um instante depois de abrir (o 2º clique
+            // passa para o documento, que apenas a abre de novo).
+            painel.style.pointerEvents = "none"; // (o painel é quem pega o mouse: a "janela" é só a camada que cobre a tela)
+            window.setTimeout(() => {
+                painel.style.pointerEvents = "";
+            }, 400);
         },
         get idAberto() {
             return base ? base.id : null;

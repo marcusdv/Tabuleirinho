@@ -6,3 +6,5 @@
 !/dados/fichas/.gitkeep
 /dados/tokens/*
 !/dados/tokens/.gitkeep
+/dados/grupos/*
+!/dados/grupos/.gitkeep

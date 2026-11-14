@@ -52,7 +52,7 @@ const criar = (c) => c.ws.send(JSON.stringify({ tipo: "criar_ficha" }));
 try {
     // ---- 1) servidor limpo
     let s = await subir();
-    ok("0) servidor subiu, criou a pasta de fichas e carregou 0", existsSync(pastaFichas) && s.saida().includes("0 ficha(s) e 0 token(s)"), s.saida());
+    ok("0) servidor subiu, criou a pasta de fichas e carregou 0", existsSync(pastaFichas) && s.saida().includes("0 ficha(s), 0 token(s) e 0 grupo(s)"), s.saida());
     let c = await cliente();
     const inicial = await esperarEvento(c, "estado_inicial");
     ok("1) estado_inicial traz a lista de fichas (vazia)", Array.isArray(inicial?.fichas) && inicial.fichas.length === 0, JSON.stringify(inicial?.fichas));
@@ -125,7 +125,7 @@ try {
     writeFileSync(join(pastaFichas, "1.json.lixo.tmp"), "pela metade"); // sobra de gravação interrompida
     rmSync(join(pastaFichas, "200.json")); // alguém apagou uma ficha à mão
     s = await subir();
-    ok("7a) ao religar: 199 carregadas e 3 arquivos estragados avisados", s.saida().includes("199 ficha(s) e 0 token(s)") && (s.saida().match(/Item ignorado \(fichas\//g) ?? []).length === 3, s.saida().split("\n").slice(0, 6).join(" | "));
+    ok("7a) ao religar: 199 carregadas e 3 arquivos estragados avisados", s.saida().includes("199 ficha(s), 0 token(s) e 0 grupo(s)") && (s.saida().match(/Item ignorado \(fichas\//g) ?? []).length === 3, s.saida().split("\n").slice(0, 6).join(" | "));
     ok("7b) o .tmp de sobra foi apagado", !existsSync(join(pastaFichas, "1.json.lixo.tmp")));
     c = await cliente("Depois");
     const ini2 = await esperarEvento(c, "estado_inicial");

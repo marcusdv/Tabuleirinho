@@ -41,9 +41,16 @@ import {
     definirImagemToken,
     definirTamanhoTabuleiro,
     editarToken,
+    montarGrupo,
+    receberGrupo,
+    definirGrupos,
+    excluirGrupo,
+    montarEdicaoDoGrupo,
+    marcarFicha,
     estado,
     redimensionarTabuleiro,
     type Ficha,
+    type Grupo,
     type Token,
     adicionarRolagemDeFicha,
     criarFicha,
@@ -55,7 +62,8 @@ import {
     receberFicha,
     receberToken,
 } from "./estado";
-import { AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS } from "./config";
+import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS, MS_RECARGA_ROLAGEM, RAJADA_ROLAGENS } from "./config";
+import { gastar, novoBalde } from "./limite";
 import { criarCalibragem } from "./tabuleiro/calibragem";
 import { criarCamera } from "./tabuleiro/camera";
 import { criarDesenho, type FerramentaDesenho } from "./tabuleiro/desenho";
@@ -136,14 +144,50 @@ async function iniciar(): Promise<void> {
 
     // A barra de dados (grudada à esquerda do chat): rola e coloca o resultado no chat.
     // Local: o sorteio é aqui, no navegador. Online: o SERVIDOR sorteia (senão dava para trapacear). Ver dados.ts.
+    // PAUSA curta antes do resultado aparecer (pedido do dono). Não bloqueia novos cliques: cada rolagem espera a sua vez. No `npm run dev` os testes
+    // podem zerar a pausa pelo gancho (`window.__tabuleirinho.atrasoRolagemMs = 0`).
+    function comAtrasoDeRolagem(acao: () => void): void {
+        const ganchoDeTeste = (window as unknown as { __tabuleirinho?: { atrasoRolagemMs?: number } }).__tabuleirinho;
+        const ms = ganchoDeTeste?.atrasoRolagemMs ?? ATRASO_ROLAGEM_MS;
+        if (ms > 0) window.setTimeout(acao, ms);
+        else acao();
+    }
+
+    // LIMITE ANTI-SPAM de rolagens: o SERVIDOR faz valer (limite.ts); aqui o navegador usa a mesma conta só para AVISAR sem esperar a resposta.
+    // (No modo local não há servidor, então é este que vale. Os testes o desligam junto com o atraso: `atrasoRolagemMs = 0`.)
+    const baldeDeRolagens = novoBalde(RAJADA_ROLAGENS);
+    const mensagemDeLimite = "Calma! Você está rolando rápido demais.";
+    function podeRolarAgora(): boolean {
+        const ganchoDeTeste = (window as unknown as { __tabuleirinho?: { atrasoRolagemMs?: number } }).__tabuleirinho;
+        if (ganchoDeTeste?.atrasoRolagemMs === 0) return true; // (os testes rolam sem limite)
+        return gastar(baldeDeRolagens, RAJADA_ROLAGENS, MS_RECARGA_ROLAGEM);
+    }
+
+    /** O botão Rolar pisca em vermelho por um instante e a dica explica (funciona no modo local, onde não há a pílula de status do modo online). */
+    let temporizadorDoAviso: number | undefined;
+    function avisarLimiteNoBotao(): void {
+        const botao = document.getElementById("dados-rolar");
+        if (!botao) return;
+        botao.classList.add("limite");
+        botao.title = mensagemDeLimite;
+        window.clearTimeout(temporizadorDoAviso);
+        temporizadorDoAviso = window.setTimeout(() => {
+            botao.classList.remove("limite");
+            botao.removeAttribute("title");
+        }, 900);
+    }
+
     criarPainelDados({
         aoRolar: (lados, quantidade, modificador) => {
-            if (rede?.ativa) {
-                rede.enviar({ tipo: "rolar_dados", lados, quantidade, modificador });
-                return;
-            }
-            adicionarRolagem(AUTOR_PROVISORIO, rolarDados(lados, quantidade, modificador)); // 1) estado
-            chat.atualizar(); // 2) interface
+            if (!podeRolarAgora()) return avisarLimiteNoBotao();
+            comAtrasoDeRolagem(() => {
+                if (rede?.ativa) {
+                    rede.enviar({ tipo: "rolar_dados", lados, quantidade, modificador });
+                    return;
+                }
+                adicionarRolagem(AUTOR_PROVISORIO, rolarDados(lados, quantidade, modificador)); // 1) estado
+                chat.atualizar(); // 2) interface
+            });
         },
     });
 
@@ -198,8 +242,9 @@ async function iniciar(): Promise<void> {
             return resultado;
         },
         aoRolar: (id, versao, aba, indice) => {
+            if (!podeRolarAgora()) return mensagemDeLimite; // (o editor da ficha mostra o texto no aviso dele)
             if (rede?.ativa) {
-                rede.enviar({ tipo: "rolar_ficha", id, versao, aba, indice }); // o SERVIDOR sorteia e o cartão chega pelo chat (evento "mensagem")
+                comAtrasoDeRolagem(() => rede?.enviar({ tipo: "rolar_ficha", id, versao, aba, indice })); // o SERVIDOR sorteia e o cartão chega pelo chat (evento "mensagem")
                 return null;
             }
             const ficha = estado.fichas.find((f) => f.id === id);
@@ -208,8 +253,10 @@ async function iniciar(): Promise<void> {
             if (!analise) return "Essa página não existe.";
             const resultado = rolarDaAnalise(analise, indice, ficha.nome, Math.random); // modo local: sorteia aqui mesmo
             if (!resultado.ok) return resultado.erro;
-            adicionarRolagemDeFicha(AUTOR_PROVISORIO, resultado.valor);
-            chat.atualizar();
+            comAtrasoDeRolagem(() => {
+                adicionarRolagemDeFicha(AUTOR_PROVISORIO, resultado.valor);
+                chat.atualizar();
+            });
             return null;
         },
         confirmarExcluirAba: (nome) =>
@@ -279,7 +326,15 @@ async function iniciar(): Promise<void> {
      * Pede a confirmação (não dá para desfazer) e exclui a ficha. Online, o pedido vai ao servidor, que apaga o ARQUIVO e avisa todos
      * (evento "ficha_excluida"); no modo local a ficha some na hora.
      */
+    /** Uma ficha SEM CONTEÚDO (nenhuma página tem texto) não tem o que perder: é excluída sem a caixa de confirmação (pedido do dono). */
+    const fichaVazia = (ficha: Ficha): boolean => ficha.abas.every((aba) => aba.texto.trim() === "");
+
     async function excluirFichaComConfirmacao(ficha: Ficha): Promise<void> {
+        if (fichaVazia(ficha)) {
+            if (rede?.ativa) rede.enviar({ tipo: "excluir_ficha", id: ficha.id });
+            else removerFichaDoJogo(ficha.id);
+            return;
+        }
         const arquivo = rede?.ativa ? "O arquivo dela no servidor também será apagado.\n" : "";
         const confirmou = await confirmacao.perguntar({
             titulo: "Excluir ficha",
@@ -289,6 +344,42 @@ async function iniciar(): Promise<void> {
         if (!confirmou) return;
         if (rede?.ativa) rede.enviar({ tipo: "excluir_ficha", id: ficha.id });
         else removerFichaDoJogo(ficha.id);
+    }
+
+    /**
+     * Exclusão EM GRUPO (vários itens selecionados na bolsa): UMA confirmação com o número de itens. Online, cada exclusão é um pedido ao servidor
+     * (que limita as mensagens por segundo): os pedidos saem em fila, um a cada 50 ms (20 por segundo), para nenhum ser ignorado.
+     */
+    async function excluirVariosComConfirmacao(tipo: "tokens" | "fichas", nomes: string[], excluirUm: (i: number) => void, semConfirmar = false): Promise<void> {
+        const arquivos = rede?.ativa ? "Os arquivos deles no servidor também serão apagados.\n" : "";
+        const confirmou =
+            semConfirmar ||
+            (await confirmacao.perguntar({
+                titulo: `Excluir ${nomes.length} ${tipo}`,
+                mensagem: `Excluir ${nomes.length} ${tipo}?\n${nomes.slice(0, 5).map((n) => `• ${n}`).join("\n")}${nomes.length > 5 ? `\n… e mais ${nomes.length - 5}` : ""}\n${arquivos}Isso não pode ser desfeito.`,
+                confirmar: "Excluir",
+            }));
+        if (!confirmou) return;
+        nomes.forEach((_, i) => {
+            if (rede?.ativa) setTimeout(() => excluirUm(i), i * 50);
+            else excluirUm(i);
+        });
+    }
+
+    /** Excluir um GRUPO: os tokens e as fichas dele NÃO são apagados, só perdem a marca. */
+    async function excluirGrupoComConfirmacao(grupo: Grupo): Promise<void> {
+        const confirmou = await confirmacao.perguntar({
+            titulo: "Excluir grupo",
+            mensagem: `Excluir o grupo "${grupo.nome}"?\nOs tokens e as fichas dele continuam existindo: só perdem esta marca.`,
+            confirmar: "Excluir",
+        });
+        if (!confirmou) return;
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "excluir_grupo", id: grupo.id });
+        } else {
+            excluirGrupo(grupo.id);
+            bolsa.atualizarGrupos();
+        }
     }
 
     /** Tira a ficha do estado e da grade (e avisa o editor, se era a que estava aberta). Vale no modo local e quando o servidor avisa. */
@@ -362,6 +453,47 @@ async function iniciar(): Promise<void> {
             return criarFicha();
         },
         aoExcluir: (token) => void excluirComConfirmacao(token),
+        // Estrela e grupos: online cada alteração é um pedido (em fila de 50 ms, por causa do limite de mensagens por segundo); no modo local vale na hora.
+        aoAlterarItens: (tipo, alteracoes) => {
+            alteracoes.forEach((alteracao, i) => {
+                const { id, ...mudancas } = alteracao;
+                if (rede?.ativa) {
+                    setTimeout(() => rede?.enviar(tipo === "tokens" ? { tipo: "editar_token", id, mudancas } : { tipo: "marcar_ficha", id, ...mudancas }), i * 50);
+                } else if (tipo === "tokens") {
+                    editarToken(id, mudancas);
+                } else {
+                    marcarFicha(id, mudancas);
+                }
+            });
+        },
+        aoCriarGrupo: (nome, cor) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "criar_grupo", nome, cor });
+                return "enviado";
+            }
+            const grupo = montarGrupo(nome, cor);
+            if (grupo) receberGrupo(grupo);
+            return grupo;
+        },
+        aoEditarGrupo: (id, mudancas) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "editar_grupo", id, ...mudancas });
+                return;
+            }
+            const grupo = montarEdicaoDoGrupo(id, mudancas);
+            if (grupo) receberGrupo(grupo);
+        },
+        aoExcluirGrupo: (grupo) => void excluirGrupoComConfirmacao(grupo),
+        aoExcluirTokens: (lista) =>
+            void excluirVariosComConfirmacao("tokens", lista.map((t) => t.nome), (i) => {
+                if (rede?.ativa) rede.enviar({ tipo: "excluir_token", id: lista[i].id });
+                else removerTokenDoJogo(lista[i].id);
+            }),
+        aoExcluirFichas: (lista) =>
+            void excluirVariosComConfirmacao("fichas", lista.map((f) => f.nome), (i) => {
+                if (rede?.ativa) rede.enviar({ tipo: "excluir_ficha", id: lista[i].id });
+                else removerFichaDoJogo(lista[i].id);
+            }, lista.every(fichaVazia)), // (todas vazias: nada a perder, sem confirmação)
         aoAbrirFicha: (ficha) => {
             // A bolsa em TELA CHEIA cobre o chat e escurece o fundo: ao abrir uma ficha ela volta ao tamanho anterior (média ou pequena), para
             // a janela da ficha (flutuante) ficar sobre o tabuleiro e o chat continuar visível (dá para ver as rolagens).
@@ -545,6 +677,7 @@ async function iniciar(): Promise<void> {
                     menu.fechar();
                     balao.esconder();
                     definirMensagens(evento.mensagens);
+                    definirGrupos(evento.grupos); // os grupos (de tokens e fichas) gravados no servidor
                     definirFichas(evento.fichas); // as fichas gravadas no servidor
                     // (se uma ficha está aberta no editor, ele confere se ela mudou enquanto a conexão estava fora)
                     {
@@ -552,9 +685,20 @@ async function iniciar(): Promise<void> {
                         if (aberta) editorFicha.fichaMudou(aberta);
                     }
                     chat.atualizar();
-                    bolsa.atualizar();
-                    bolsa.atualizarFichas();
+                    bolsa.atualizarGrupos(); // (refaz os chips e as duas listas)
                     status.mostrarEntrada(evento.voce.apelido);
+                    return;
+                case "grupo_criado":
+                    receberGrupo(evento.grupo);
+                    bolsa.grupoCriado(evento.grupo);
+                    return;
+                case "grupo_editado":
+                    receberGrupo(evento.grupo);
+                    bolsa.atualizarGrupos();
+                    return;
+                case "grupo_excluido":
+                    excluirGrupo(evento.id); // tira o grupo e a marca dele de todos os tokens e fichas (o servidor faz o mesmo nos arquivos)
+                    bolsa.atualizarGrupos();
                     return;
                 case "jogadores":
                     status.mostrarJogadores(evento.lista);
@@ -607,7 +751,7 @@ async function iniciar(): Promise<void> {
                     return;
                 case "ficha_criada":
                     receberFicha(evento.ficha); // já está gravada no disco do servidor
-                    bolsa.fichaSalva();
+                    bolsa.fichaSalva(estado.fichas.find((f) => f.id === evento.ficha.id)); // (quem a pediu já a vê abrir)
                     return;
                 case "mensagem":
                     receberMensagem(evento.mensagem); // já vem pronta do servidor (com id e hora dele)
@@ -644,10 +788,11 @@ async function iniciar(): Promise<void> {
     if (import.meta.env.DEV) {
         (window as unknown as Record<string, unknown>).__tabuleirinho = {
             pronto: true,
+            atrasoRolagemMs: ATRASO_ROLAGEM_MS, // (os testes zeram: tests/e2e/ajuda.mjs `abrirPagina`)
             // Só para os testes: adiciona à mesa os tokens que o TESTE mandar (o app não tem nenhum token pronto: eles vêm dos
             // arquivos de dados/tokens/ do servidor, ou nascem pela bolsa). Os dados dos tokens de teste ficam em tests/e2e/ajuda.mjs.
-            semear: (lista: Omit<Token, "condicoes">[]) => {
-                for (const dados of lista) tokens.adicionar(receberToken({ ...dados, condicoes: [] }));
+            semear: (lista: Omit<Token, "condicoes" | "favorito" | "grupos">[]) => {
+                for (const dados of lista) tokens.adicionar(receberToken({ ...dados, condicoes: [], favorito: false, grupos: [] }));
                 bolsa.atualizar();
             },
             estado,

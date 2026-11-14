@@ -4,7 +4,7 @@
 // A carteira tem duas abas, numa linha embaixo do título, nos dois tamanhos da bolsa (a do canto e a tela cheia). "Tokens" é a bolsa
 // de sempre; "Fichas" é o lugar das fichas de personagem (por enquanto só o espaço do texto). Na aba Fichas somem as fichinhas
 // de token, a criação, a pesquisa e o botão "Criar/editar". As setas do teclado passeiam entre as abas.
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const navegador = await lancar();
 const p = await navegador.newPage({ viewport: { width: 1400, height: 800 } });
@@ -67,7 +67,7 @@ ok("5c) na aba Fichas a pesquisa continua (agora para as fichas) e o botão '+ C
 ok("5c1b) a barra de pesquisa tem o MESMO tamanho e o mesmo lugar nas duas abas (os botões ao lado têm a mesma largura)", Math.abs(buscaF.width - buscaM.width) < 1 && Math.abs(buscaF.x - buscaM.x) < 1 && Math.abs(buscaF.y - buscaM.y) < 1, JSON.stringify({ buscaM, buscaF }));
 ok("5c2) na aba Fichas a lista também tem a altura de 3 linhas (228 px)", (await alturaLista("#bolsa-fichas-lista")) === 228, String(await alturaLista("#bolsa-fichas-lista")));
 ok("5c2b) a bolsa do canto tem a MESMA ALTURA nas duas abas (Tokens e Fichas), mesmo com a mensagem de vazio da aba Fichas", (await alturaBolsa()) === alturaTokens, `${alturaTokens} -> ${await alturaBolsa()}`);
-await p.click("#bolsa-ficha-criar-botao"); await p.click("#bolsa-ficha-criar-botao");
+await criarFichaFechada(p); await criarFichaFechada(p);
 await p.fill("#bolsa-fichas-busca", "ficha 2");
 ok("5c3) a pesquisa filtra as fichas pelo nome (ignora maiúsculas e acentos) e o vazio diz 'Nenhuma ficha encontrada'", (await p.locator(".bolsa-doc").count()) === 1 && (await p.locator(".bolsa-doc-nome").first().textContent()) === "Ficha 2");
 await p.fill("#bolsa-fichas-busca", "zzz");
@@ -116,7 +116,7 @@ const painel = await p.locator("#bolsa-fichas").boundingBox();
 const botaoCriarFicha = await p.locator("#bolsa-ficha-criar-botao").boundingBox();
 ok("6c) o painel das fichas fica dentro da caixa, sem sair pelos lados nem por baixo", painel.x >= cheia.x && painel.x + painel.width <= cheia.x + cheia.width + 1 && painel.y + painel.height <= cheia.y + cheia.height + 1, `${JSON.stringify(painel)} em ${JSON.stringify(cheia)}`);
 // (o "+ Criar ficha" fica na linha da pesquisa, NO CABEÇALHO da bolsa — o mesmo lugar do "+ Criar token" —, e não mais dentro do painel das fichas)
-ok("6d) na tela cheia o botão 'Criar ficha' está à vista, no cabeçalho da bolsa, dentro da largura dela", botaoCriarFicha.x >= painel.x && botaoCriarFicha.x + botaoCriarFicha.width <= painel.x + painel.width + 1 && botaoCriarFicha.y < painel.y, `${JSON.stringify(botaoCriarFicha)} em ${JSON.stringify(painel)}`);
+ok("6d) na tela cheia o botão 'Criar ficha' está à vista, na linha do botão 'Instruções', dentro da largura da bolsa", botaoCriarFicha.x >= painel.x && botaoCriarFicha.x + botaoCriarFicha.width <= painel.x + painel.width + 1 && Math.abs(botaoCriarFicha.y - (await p.locator("#bolsa-ficha-instrucoes").boundingBox()).y) < 8, `${JSON.stringify(botaoCriarFicha)} em ${JSON.stringify(painel)}`);
 await p.keyboard.press("Escape");
 ok("6e) Esc fecha a tela cheia e volta à bolsa do canto (a aba Fichas continua escolhida)", !(await classe()).includes("expandida") && (await visivel("#bolsa-fichas")));
 

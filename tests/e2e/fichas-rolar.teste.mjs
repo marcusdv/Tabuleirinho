@@ -4,7 +4,7 @@
 // Clicar no NOME da rolagem (a pílula laranja no texto) ou no item dela na lista rola (também com Enter no teclado): o cartão aparece no chat com o
 // nome da rolagem, o da ficha, a fórmula com o que saiu em cada dado e o total. Com texto não salvo pede para salvar; rolagem com erro não rola e
 // mostra o motivo; nomes com HTML aparecem como texto. Os itens da lista não têm rótulo "Rolar" (a caixa inteira é o botão).
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 800 } });
@@ -18,8 +18,8 @@ const cartoes = () => p.locator(".chat-mensagem.chat-rolagem-ficha").evaluateAll
 })));
 
 await p.click("#bolsa-aba-fichas");
-await p.click("#bolsa-ficha-criar-botao");
-await p.locator(".bolsa-doc").first().click();
+await criarFichaFechada(p);
+await p.locator(".bolsa-doc").first().dblclick();
 await p.fill("#editor-ficha-nome", "Goblin Chefe");
 await p.fill("#editor-ficha-texto", "FOR:: 16\nPROF:: 3\nMOD:: (FOR - 10) / 2\n(Ataque com espada)[1d20 + MOD + PROF]\n(Dano)[2d6 + MOD]\n(Errada)[1d20 + SORTE]\n[1d8]");
 await p.waitForTimeout(150);
@@ -64,6 +64,22 @@ await p.keyboard.press("Control+s");
 await p.waitForTimeout(100);
 await p.locator("#editor-ficha-cores .rolagem-nome").first().click();
 ok("6) um nome de rolagem com HTML aparece como TEXTO no cartão (nenhum <img> no chat)", (await p.locator("#chat img").count()) === 0 && (await cartoes()).some((x) => /<img/.test(x.titulo ?? "")));
+// ----- ROLAR também na LEITURA formatada (clicando no nome da rolagem)
+await p.fill("#editor-ficha-texto", "# Ataques\n**(Golpe forte)[1d8 + 2]** e *texto*\nFOR:: 16\n(Normal)[1d6]");
+await p.keyboard.press("Control+s");
+await p.waitForTimeout(150);
+const antes = (await cartoes()).length;
+await p.focus("#editor-ficha-nome"); // sai do campo de texto: a leitura formatada liga sozinha
+await p.waitForTimeout(100);
+ok("8a) a leitura mostra o título formatado e as 2 rolagens como BOTÕES (nome + fórmula)", (await p.locator("#editor-ficha-previa").isVisible()) && (await p.locator("#editor-ficha-previa .t1").count()) === 1 && (await p.locator("#editor-ficha-previa .rolagem-previa").count()) === 2 && (await p.locator("#editor-ficha-previa .rolagem-previa-nome").first().textContent()) === "(Golpe forte)");
+ok("8b) a variável aparece como TEXTO PURO na leitura (sem botão)", /FOR:: 16/.test(await p.locator("#editor-ficha-previa").textContent()));
+await p.locator("#editor-ficha-previa .rolagem-previa-nome").first().click();
+await p.waitForTimeout(150);
+ok("8c) clicar numa rolagem NA LEITURA rola (o cartão vai ao chat) e a leitura continua à vista", (await cartoes()).length === antes + 1 && (await cartoes()).some((x) => x.titulo === "Golpe forte") && (await p.locator("#editor-ficha-previa").isVisible()));
+await p.locator("#editor-ficha-previa .rolagem-previa-formula").nth(1).click();
+await p.waitForTimeout(150);
+ok("8d) clicar na FÓRMULA da rolagem também rola ('Normal')", (await cartoes()).some((x) => x.titulo === "Normal"));
+
 ok("7) nenhum erro de JavaScript", erros.length === 0, erros.join(" | "));
 const codigo = terminar(erros);
 await nav.close();

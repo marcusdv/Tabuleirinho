@@ -4,7 +4,7 @@
 // Clicar (ou Enter) num documento da grade da aba Fichas abre o editor (nome e texto). Salvar (botão ou Ctrl+S) sobe a versão; o botão só
 // vale quando algo mudou (um espaço a mais no nome não conta). Fechar com alterações não salvas pergunta na caixa de confirmar (Esc na
 // caixa cancela só ela); sem alterações fecha direto. O contador e os limites (nome 40, texto 25000) aparecem na tela.
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 800 } });
@@ -18,9 +18,9 @@ const confirmarAberta = () => p.locator("#confirmar").isVisible();
 const versao = () => p.locator("#editor-ficha-versao").textContent();
 
 await p.click("#bolsa-aba-fichas");
-await p.click("#bolsa-ficha-criar-botao");
+await criarFichaFechada(p);
 const antesBolsa = await p.locator("#bolsa").getAttribute("class");
-await p.click(".bolsa-doc");
+await p.locator(".bolsa-doc").dblclick();
 ok("1a) clicar no documento abre o editor", await aberto());
 ok("1b) clicar no documento NÃO expande a bolsa por baixo", ((await p.locator("#bolsa").getAttribute("class")) ?? "") === (antesBolsa ?? ""), await p.locator("#bolsa").getAttribute("class"));
 ok("1c) mostra o nome 'Ficha 1', texto vazio e 'Versão 1'", (await p.inputValue("#editor-ficha-nome")) === "Ficha 1" && (await p.inputValue("#editor-ficha-texto")) === "" && (await versao()) === "Versão 1", await versao());
@@ -67,7 +67,7 @@ ok("5b) sem alterações, Esc fecha direto (sem perguntar)", !(await aberto()) &
 ok("5c) a grade mostra o nome novo e 'v3'", (await p.locator(".bolsa-doc-nome").textContent()) === "Goblin Arqueiro" && (await p.locator(".bolsa-doc small").textContent()) === "v3");
 
 // texto no limite / contador
-await p.click(".bolsa-doc");
+await p.locator(".bolsa-doc").dblclick();
 await p.fill("#editor-ficha-texto", "a".repeat(25000));
 ok("6) 25000 caracteres: o contador marca o limite e dá para salvar", (await p.locator("#editor-ficha-contagem").textContent()) === "25000/25000" && !(await p.isDisabled("#editor-ficha-salvar")));
 await p.click("#editor-ficha-salvar");

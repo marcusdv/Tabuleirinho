@@ -5,7 +5,7 @@
 // sempre pede a confirmação (a caixa do jogo, nunca a do navegador) e cancelar não apaga. No editor, o painel lateral mostra as variáveis
 // com os valores e as rolagens (nome + fórmula já calculada), os erros no lugar do valor, e atualiza enquanto se digita; HTML digitado vira
 // texto puro.
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 800 } });
@@ -21,13 +21,15 @@ const caixaAberta = () => p.locator("#confirmar").isVisible();
 const lateral = async (seletor) => p.locator(`${seletor} li`).evaluateAll((els) => els.map((e) => ({ nome: e.querySelector(".nome")?.textContent, valor: e.querySelector(".valor")?.textContent, erro: e.classList.contains("com-erro") })));
 
 await p.click("#bolsa-aba-fichas");
-for (let i = 0; i < 3; i++) await p.click("#bolsa-ficha-criar-botao");
+for (let i = 0; i < 3; i++) await criarFichaFechada(p);
+// (ficha SEM conteúdo é excluída direto, sem caixa de confirmação: aqui elas ganham texto para o teste da caixa)
+await p.evaluate(() => window.__tabuleirinho.estado.fichas.forEach((f) => { f.abas[0].texto = "conteúdo"; }));
 ok("0) 3 fichas criadas", (await nomes()).join() === "Ficha 1,Ficha 2,Ficha 3");
 
 // ---------- excluir: menu do clique direito
 await p.locator(".bolsa-doc").nth(1).click({ button: "right" });
 const itens = await p.locator("#menu-doc button").allTextContents();
-ok("1a) o clique direito num documento abre o MENU do jogo (e não o do navegador) com 'Abrir e editar' e 'Excluir ficha'", (await p.locator("#menu-doc").isVisible()) && itens.join("|") === "Abrir e editar|Excluir ficha", itens.join("|"));
+ok("1a) o clique direito num documento abre o MENU do jogo (e não o do navegador) com 'Abrir e editar', 'Favoritar', 'Grupos…' e 'Excluir ficha'", (await p.locator("#menu-doc").isVisible()) && itens.join("|") === "Abrir e editar|Favoritar|Grupos…|Excluir ficha", itens.join("|"));
 await p.click("#menu-doc-excluir");
 ok("1b) 'Excluir ficha' abre a caixa de confirmar (a do jogo), com o nome e o aviso", (await caixaAberta()) && (await p.locator("#confirmar-titulo").textContent()) === "Excluir ficha" && /"Ficha 2"/.test(await p.locator("#confirmar-mensagem").textContent()) && /não pode ser desfeito/.test(await p.locator("#confirmar-mensagem").textContent()) && nativos.length === 0);
 await p.click("#confirmar-cancelar");

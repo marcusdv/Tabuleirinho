@@ -73,7 +73,7 @@ try {
     await arrastar(A, { x: ficha.x + ficha.width / 2, y: ficha.y + ficha.height / 2 }, { x: 124 + 9 * 64, y: 80 + 6 * 64 });
     await B.waitForTimeout(300);
     const a4 = await tokenDe(A, 4), b4 = await tokenDe(B, 4);
-    ok("3c) Ana coloca o token 4 no mapa: igual nas duas páginas e fora da bolsa de Beto", !a4.guardado && !b4.guardado && a4.col === b4.col && a4.row === b4.row && (await B.locator("#bolsa-contagem").textContent()) === "", JSON.stringify({ a4, b4 }));
+    ok("3c) Ana coloca o token 4 no mapa: igual nas duas páginas e fora da bolsa de Beto", !a4.guardado && !b4.guardado && a4.col === b4.col && a4.row === b4.row && (await B.locator("#bolsa-itens .ficha").count()) === 0 /* a bolsa de Beto ficou vazia (o contador do título não existe mais) */, JSON.stringify({ a4, b4 }));
 
     // ================= 4) chat
     await A.fill("#chat-texto", "oi do Ana"); await A.keyboard.press("Enter"); await B.waitForTimeout(300);

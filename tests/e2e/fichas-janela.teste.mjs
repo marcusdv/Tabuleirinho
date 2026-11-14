@@ -5,7 +5,7 @@
 // bloqueia o mouse (só o painel recebe): dá para usar o chat com ela aberta, e o Esc com o foco no chat não a fecha. Arrasta-se pela barra do
 // título, respeitando os limites da tela (sempre sobra um pedaço para puxar de volta), lembra o lugar ao reabrir e volta para dentro se a
 // janela do navegador encolhe. Abrir uma ficha pela bolsa em tela cheia recolhe a bolsa, para o chat ficar visível.
-import { abrirPagina, lancar, cruza, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, cruza, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 800 } });
@@ -29,7 +29,7 @@ const tTokM = await topos(".ficha");
 ok("1c) tokens, bolsa MÉDIA: também 5 por linha, sem invadir o chat", cincoPorLinha(tTokM, 6) && bMed.x >= chat.x + chat.width, `${tTokM.join()} / ${bMed.x} >= ${chat.x + chat.width}`);
 // fichas (documentos)
 await p.click("#bolsa-aba-fichas");
-for (let i = 0; i < 6; i++) await p.click("#bolsa-ficha-criar-botao");
+for (let i = 0; i < 6; i++) await criarFichaFechada(p);
 const tDocM = await topos(".bolsa-doc");
 ok("2a) documentos, bolsa MÉDIA: 5 por linha", cincoPorLinha(tDocM, 6), tDocM.join());
 const tDocP = await topos(".bolsa-doc");
@@ -38,7 +38,7 @@ const larguras = await p.locator(".bolsa-doc").evaluateAll((els) => els.slice(0,
 ok("2c) cada cartão continua com um tamanho confortável (~56 px) para caber o nome", larguras.every((l) => l >= 52 && l <= 62), larguras.join());
 
 // ================= abrir a ficha: janela flutuante, sem escurecer
-await p.locator(".bolsa-doc").first().click();
+await p.locator(".bolsa-doc").first().dblclick();
 ok("3a) clicar no documento abre a janela da ficha", await p.locator("#editor-ficha").isVisible());
 ok("3b) a camada da janela é TRANSPARENTE e não bloqueia o mouse (sem fundo escurecido); só o painel recebe o mouse", (await cor("#editor-ficha", "backgroundColor")) === "rgba(0, 0, 0, 0)" && (await cor("#editor-ficha", "pointerEvents")) === "none" && (await cor("#editor-ficha-painel", "pointerEvents")) === "auto");
 const painel = await caixa("#editor-ficha-painel");
@@ -96,7 +96,7 @@ await p.focus("#editor-ficha-texto");
 await p.fill("#editor-ficha-texto", ""); // volta ao estado salvo (vazio): sem alterações
 await p.keyboard.press("Escape");
 ok("7a) Esc com o foco na ficha (sem alterações) fecha", await p.locator("#editor-ficha").isHidden());
-await p.locator(".bolsa-doc").first().click();
+await p.locator(".bolsa-doc").first().dblclick();
 const reaberta = await caixa("#editor-ficha-painel");
 ok("7b) ao reabrir, a janela volta ao MESMO lugar onde foi deixada", Math.abs(reaberta.x - marcada.x) < 1 && Math.abs(reaberta.y - marcada.y) < 1, JSON.stringify({ marcada: [marcada.x, marcada.y], reaberta: [reaberta.x, reaberta.y] }));
 await p.setViewportSize({ width: 700, height: 500 });
@@ -109,7 +109,7 @@ await p.keyboard.press("Escape");
 // ================= abrir a ficha a partir da bolsa em TELA CHEIA
 await p.click("#bolsa-gerenciar"); // tela cheia
 ok("8a) (preparo) a bolsa está em tela cheia", ((await p.locator("#bolsa").getAttribute("class")) ?? "").includes("expandida"));
-await p.locator(".bolsa-doc").first().click();
+await p.locator(".bolsa-doc").first().dblclick();
 const classe = (await p.locator("#bolsa").getAttribute("class")) ?? "";
 ok("8b) abrir uma ficha pela tela cheia RECOLHE a bolsa (volta à média) e a janela da ficha abre por cima do tabuleiro", !classe.includes("expandida") && (await p.locator("#editor-ficha").isVisible()), classe);
 const ch = await caixa("#chat"), pn = await caixa("#editor-ficha-painel");

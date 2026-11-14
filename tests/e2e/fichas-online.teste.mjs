@@ -11,7 +11,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const RAIZ = fileURLToPath(new URL("../../", import.meta.url));
 const PORTA = 3737; // a mesma de PORTA_SERVIDOR em src/config.ts (o Vite repassa /ws para ela)
@@ -43,7 +43,7 @@ async function abrir(nome) {
     return p;
 }
 const aguardar = async (funcao, ms = 4000) => { const fim = Date.now() + ms; while (Date.now() < fim) { if (await funcao()) return true; await esperar(40); } return false; };
-const ficha = (p) => p.evaluate(() => { const f = window.__tabuleirinho.estado.fichas[0]; return f && { nome: f.nome, texto: f.texto, versao: f.versao }; });
+const ficha = (p) => p.evaluate(() => { const f = window.__tabuleirinho.estado.fichas[0]; return f && { nome: f.nome, texto: f.abas[0].texto, versao: f.versao }; });
 const versaoNaTela = (p) => p.locator("#editor-ficha-versao").textContent();
 const aberto = (p) => p.locator("#editor-ficha").isVisible();
 
@@ -51,17 +51,17 @@ try {
     const A = await abrir("Ana"), B = await abrir("Beto");
 
     // ---- criar e abrir
-    await A.click("#bolsa-ficha-criar-botao");
+    await criarFichaFechada(A);
     ok("1a) a ficha criada pela Ana aparece na grade do Beto", await aguardar(async () => (await B.locator(".bolsa-doc").count()) === 1));
-    await A.click(".bolsa-doc");
+    await A.locator(".bolsa-doc").dblclick();
     await A.fill("#editor-ficha-texto", "FOR:: 16");
     await A.keyboard.press("Control+s");
     ok("1b) a Ana salva: o editor mostra 'Salva na versão 2.' e Salvar volta a ficar desabilitado", await aguardar(async () => /Salva na versão 2/.test(await A.locator("#editor-ficha-aviso").textContent())) && (await A.isDisabled("#editor-ficha-salvar")), await A.locator("#editor-ficha-aviso").textContent());
-    ok("1c) o ARQUIVO 1.json tem a versão 2 e o texto", arquivo(1).versao === 2 && arquivo(1).texto === "FOR:: 16", JSON.stringify(arquivo(1)));
+    ok("1c) o ARQUIVO 1.json tem a versão 2 e o texto", arquivo(1).versao === 2 && arquivo(1).abas[0].texto === "FOR:: 16", JSON.stringify(arquivo(1)));
     ok("1d) o Beto vê 'v2' na grade", await aguardar(async () => (await B.locator(".bolsa-doc small").textContent()) === "v2"));
 
     // ---- o Beto abre (versão 2, sem mexer) e a Ana salva de novo: o editor dele se atualiza SOZINHO
-    await B.click(".bolsa-doc");
+    await B.locator(".bolsa-doc").dblclick();
     ok("2a) o Beto abre a ficha na versão 2, com o texto da Ana", (await versaoNaTela(B)) === "Versão 2" && (await B.inputValue("#editor-ficha-texto")) === "FOR:: 16");
     await A.fill("#editor-ficha-texto", "FOR:: 16\nDEX:: 14 (Ana, v3)");
     await A.click("#editor-ficha-salvar");
@@ -76,12 +76,12 @@ try {
     await aguardar(async () => (await versaoNaTela(A)) === "Versão 4");
     ok("3a) o Beto tinha alterações: aparece o AVISO DE CONFLITO (versão 4) e o salvamento fica bloqueado", (await aguardar(async () => await B.locator("#editor-ficha-conflito").isVisible())) && /versão 4/.test(await B.locator("#editor-ficha-conflito-texto").textContent()) && (await B.isDisabled("#editor-ficha-salvar")), await B.locator("#editor-ficha-conflito-texto").textContent());
     ok("3b) o que o Beto escreveu NÃO foi apagado", (await B.inputValue("#editor-ficha-texto")).includes("linha do BETO"));
-    ok("3c) o arquivo continua com o trabalho da Ana (versão 4)", arquivo(1).versao === 4 && arquivo(1).texto.includes("Ana, v4"));
+    ok("3c) o arquivo continua com o trabalho da Ana (versão 4)", arquivo(1).versao === 4 && arquivo(1).abas[0].texto.includes("Ana, v4"));
     await B.click("#editor-ficha-recarregar");
     ok("3d) 'Carregar a versão atual' traz o texto da Ana (v4), some o aviso e limpa as alterações", (await B.inputValue("#editor-ficha-texto")).includes("Ana, v4") && (await versaoNaTela(B)) === "Versão 4" && (await B.locator("#editor-ficha-conflito").isHidden()));
     await B.fill("#editor-ficha-texto", (await B.inputValue("#editor-ficha-texto")) + "\n+ linha do Beto (v5)");
     await B.click("#editor-ficha-salvar");
-    ok("3e) agora o Beto salva sobre a versão certa: versão 5 no arquivo", await aguardar(async () => arquivo(1).versao === 5) && arquivo(1).texto.includes("linha do Beto (v5)"), JSON.stringify(arquivo(1)));
+    ok("3e) agora o Beto salva sobre a versão certa: versão 5 no arquivo", await aguardar(async () => arquivo(1).versao === 5) && arquivo(1).abas[0].texto.includes("linha do Beto (v5)"), JSON.stringify(arquivo(1)));
     ok("3f) a Ana (que não tinha mexido) é atualizada sozinha para a versão 5", await aguardar(async () => (await versaoNaTela(A)) === "Versão 5") && (await A.inputValue("#editor-ficha-texto")).includes("Beto (v5)"));
 
     // ---- fechar com alterações pergunta; recarregar a página e reiniciar o servidor mantêm tudo

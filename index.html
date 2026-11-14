@@ -55,11 +55,11 @@
             #barra {
                 display: flex;
                 flex-direction: column;
-                max-height: calc(100vh - 12px - var(--altura-bolsa, 346px) - 12px - 8px);
+                max-height: calc(100vh - 12px - var(--altura-bolsa, 374px) - 12px - 8px);
             }
             @media (min-height: 721px) {
                 body:has(#painel-calibragem:not([hidden])) #barra {
-                    max-height: calc(100vh - 12px - var(--altura-bolsa, 346px) - 12px - 8px - 212px);
+                    max-height: calc(100vh - 12px - var(--altura-bolsa, 374px) - 12px - 8px - 212px);
                 }
             }
             #barra .cabecalho {
@@ -351,7 +351,7 @@
                 gap: 6px;
             }
             .amostra {
-                height: 22px;
+                height: 16px; /* (era 22: um pouco grande demais) */
                 border-radius: 5px;
                 padding: 0;
                 cursor: pointer;
@@ -363,7 +363,7 @@
             }
             #desenho-cor {
                 width: 100%;
-                height: 26px;
+                height: 20px;
                 margin-top: 6px;
                 padding: 0;
                 border: 1px solid #4a4a58;
@@ -850,7 +850,7 @@
             /* A vaga da bolsa (ver ui/bolsa.ts): uma caixa invisível que não pega o mouse; só a bolsa dentro dela pega. */
             #bolsa-vaga {
                 width: 340px;
-                height: var(--altura-bolsa, 346px); /* (346 = a altura da bolsa aberta; o valor medido vem do ui/bolsa.ts e do script do início da página) */
+                height: var(--altura-bolsa, 374px); /* (374 = a altura da bolsa aberta; o valor medido vem do ui/bolsa.ts e do script do início da página) */
                 pointer-events: none;
             }
             /* O conteúdo do painel de Desenho e o do de Dados é criado pelo app (JavaScript) um instante depois do primeiro desenho: sem isto os
@@ -1172,12 +1172,12 @@
             }
             #bolsa-amostras .amostra,
             #bolsa-amostras-borda .amostra {
-                height: 24px;
+                height: 18px;
             }
             #bolsa-cor,
             #bolsa-cor-borda {
                 width: 100%;
-                height: 24px;
+                height: 20px;
                 margin-top: 6px;
                 padding: 0;
                 border: 1px solid #4a4a58;
@@ -1315,6 +1315,342 @@
                 margin: 0;
                 font-size: 12px;
                 color: #7d7d8c;
+            }
+            /* ORDENAR, FILTRAR e GRUPOS (ui/bolsa.ts). A linha fica logo abaixo das abas, nos dois tamanhos da bolsa. */
+            #bolsa-organizar {
+                order: 6;
+                flex: 1 1 100%;
+                display: flex;
+                align-items: center;
+                gap: 4px;
+                min-width: 0;
+            }
+            #bolsa-ordem {
+                flex: none;
+                max-width: 130px;
+                height: 22px;
+                padding: 0 4px;
+                font: inherit;
+                font-size: 11px;
+                color: #c9c9d4;
+                background: #2f2f3a;
+                border: 1px solid #4a4a58;
+                border-radius: 6px;
+            }
+            /* Bolsa do canto: lista suspensa de grupos; tela cheia: os chips. */
+            #bolsa:not(.expandida) #bolsa-grupos-chips,
+            #bolsa:not(.expandida) #bolsa-grupo-novo,
+            #bolsa.expandida #bolsa-filtro-grupos {
+                display: none;
+            }
+            #bolsa-filtro-grupos {
+                flex: 1;
+                min-width: 0;
+                justify-content: space-between;
+            }
+            #bolsa-grupos-chips {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                gap: 4px;
+                overflow-x: auto;
+                scrollbar-width: none;
+            }
+            #bolsa-grupos-chips::-webkit-scrollbar {
+                display: none; /* (é uma fila curta que rola com a roda; a barra só atrapalharia a altura) */
+            }
+            .bolsa-chip {
+                flex: none;
+                height: 22px;
+                padding: 0 8px;
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                font: inherit;
+                font-size: 11px;
+                color: #c9c9d4;
+                background: #2f2f3a;
+                border: 1px solid #4a4a58;
+                border-radius: 11px;
+                cursor: pointer;
+                white-space: nowrap;
+            }
+            .bolsa-chip:hover {
+                border-color: #8a8a99;
+            }
+            .bolsa-chip[aria-pressed="true"] {
+                color: #fff;
+                border-color: var(--cor-grupo, #ffd54f);
+                background: color-mix(in srgb, var(--cor-grupo, #ffd54f) 35%, #2f2f3a);
+            }
+            #bolsa-filtro-favoritos[aria-pressed="true"] {
+                color: #ffd54f;
+            }
+            .bolsa-chip .ponto-grupo {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: var(--cor-grupo, #888);
+            }
+            /* A ESTRELA de favorito e os PONTOS de grupo dentro de cada item (token ou ficha). */
+            #bolsa .ficha,
+            #bolsa .bolsa-doc {
+                position: relative;
+            }
+            .item-estrela {
+                position: absolute;
+                top: 1px;
+                left: 3px;
+                font-size: 13px;
+                line-height: 1;
+                color: #c9c9d4;
+                opacity: 0;
+                cursor: pointer;
+            }
+            .ficha:hover .item-estrela,
+            .bolsa-doc:hover .item-estrela {
+                opacity: 0.65;
+            }
+            /* Bolsa em TELA CHEIA (pedido do dono): estrela maior e com mais espaço em volta (a do canto está boa como está). */
+            #bolsa.expandida .item-estrela {
+                top: 2px;
+                left: 2px;
+                padding: 4px 6px;
+                font-size: 22px;
+            }
+            .item-estrela.ligada {
+                opacity: 1;
+                color: #ffd54f;
+            }
+            .item-estrela:hover {
+                opacity: 1;
+            }
+            .item-grupos {
+                position: absolute;
+                top: 4px;
+                right: 4px;
+                display: flex;
+                gap: 2px;
+                pointer-events: none;
+            }
+            .item-grupos i {
+                width: 7px;
+                height: 7px;
+                border-radius: 50%;
+                background: var(--cor-grupo, #888);
+                border: 1px solid rgba(0, 0, 0, 0.5);
+            }
+            #menu-grupos {
+                position: fixed;
+                z-index: 46;
+                min-width: 190px;
+                max-height: 60vh;
+                overflow-y: auto;
+                padding: 4px;
+                background: #2a2a33;
+                border: 1px solid #4a4a58;
+                border-radius: 8px;
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+            }
+            #menu-grupos button {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                width: 100%;
+                padding: 7px 10px;
+                background: none;
+                border: none;
+                border-radius: 5px;
+                color: inherit;
+                font: inherit;
+                font-size: 13px;
+                text-align: left;
+                cursor: pointer;
+            }
+            #menu-grupos button:hover {
+                background: #3b3b49;
+            }
+            #menu-grupos .marca {
+                width: 14px;
+                text-align: center;
+                color: #ffd54f;
+            }
+            #menu-grupos .ponto-grupo {
+                width: 9px;
+                height: 9px;
+                border-radius: 50%;
+                background: var(--cor-grupo, #888);
+            }
+            #menu-grupos hr {
+                margin: 4px 0;
+                border: none;
+                border-top: 1px solid #4a4a58;
+            }
+            /* Janela de nome e cor do grupo (acima da bolsa em tela cheia, abaixo da caixa de confirmar, que é 60). */
+            #editor-grupo {
+                position: fixed;
+                inset: 0;
+                z-index: 58;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background: rgba(0, 0, 0, 0.45);
+            }
+            #editor-grupo[hidden] {
+                display: none;
+            }
+            #editor-grupo-painel {
+                width: 300px;
+                max-width: calc(100vw - 32px);
+                box-sizing: border-box;
+                padding: 16px;
+                background: #26262f;
+                border: 1px solid #4a4a58;
+                border-radius: 10px;
+                box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+            }
+            #editor-grupo-painel h3 {
+                margin: 0 0 8px;
+                font-size: 15px;
+            }
+            #editor-grupo-nome {
+                width: 100%;
+                box-sizing: border-box;
+                padding: 6px 8px;
+                font: inherit;
+                color: inherit;
+                background: #1f1f27;
+                border: 1px solid #4a4a58;
+                border-radius: 6px;
+            }
+            /* A paleta é uma GRADE de 6 colunas (como a da bolsa): num flex, o botão de cor sem largura encolhia a uma barrinha. */
+            #editor-grupo-amostras {
+                display: grid;
+                grid-template-columns: repeat(6, 1fr);
+                gap: 6px;
+            }
+            #editor-grupo-amostras .amostra {
+                height: 18px;
+            }
+            #editor-grupo-cor {
+                display: block;
+                width: 100%;
+                height: 20px;
+                margin-top: 6px;
+                padding: 0;
+                border: 1px solid #4a4a58;
+                border-radius: 6px;
+                background: #2f2f3a;
+                cursor: pointer;
+            }
+            #editor-grupo-botoes {
+                display: flex;
+                justify-content: flex-end;
+                gap: 8px;
+                margin-top: 14px;
+            }
+            #editor-grupo-botoes button {
+                padding: 6px 12px;
+                font: inherit;
+                font-size: 13px;
+                color: inherit;
+                background: #2f2f3a;
+                border: 1px solid #4a4a58;
+                border-radius: 6px;
+                cursor: pointer;
+            }
+            #editor-grupo-botoes #editor-grupo-excluir {
+                margin-right: auto;
+                color: #ff9a9a;
+            }
+            #editor-grupo-botoes #editor-grupo-salvar {
+                border-color: #ffd54f;
+            }
+            /* SELEÇÃO (ui/bolsa.ts): o item selecionado ganha o contorno dourado; o retângulo de seleção é só um desenho por cima de tudo. */
+            #bolsa .ficha.selecionada,
+            #bolsa .bolsa-doc.selecionada {
+                background: #46425a;
+                outline: 2px solid #ffd54f;
+                outline-offset: -2px;
+            }
+            #bolsa-retangulo {
+                position: fixed;
+                z-index: 70;
+                pointer-events: none;
+                background: rgba(255, 213, 79, 0.15);
+                border: 1px solid #ffd54f;
+            }
+            #bolsa-retangulo[hidden] {
+                display: none;
+            }
+            #bolsa-vazia,
+            #bolsa-fichas-vazia {
+                pointer-events: none; /* a mensagem fica por cima da lista, mas deixa o mouse passar (o retângulo de seleção começa no vazio) */
+            }
+            /* A barra de ações da seleção toma o lugar da pesquisa e do botão "Criar" (mesma linha, mesma altura). */
+            #bolsa-selecao-barra {
+                order: 9;
+                flex: 1 1 0;
+                min-width: 0;
+                display: flex;
+                align-items: center;
+                gap: 6px;
+            }
+            #bolsa-selecao-barra[hidden] {
+                display: none;
+            }
+            #bolsa-selecao-contagem {
+                flex: 1;
+                font-size: 12px;
+                color: #ffd54f;
+                white-space: nowrap;
+            }
+            #bolsa-selecao-excluir {
+                color: #ff9a9a;
+            }
+            #bolsa #bolsa-selecao-barra .bolsa-botao-pequeno {
+                order: 0;
+                margin-right: 0;
+            }
+            #bolsa.expandida #bolsa-selecao-barra {
+                order: 0;
+                margin-right: auto;
+            }
+            /* Aba Tokens em tela cheia: linha própria logo abaixo das abas (as abas têm order 5 e largura total). */
+            #bolsa.expandida #bolsa-selecao-barra.abaixo-das-abas {
+                order: 6;
+                flex: 1 1 100%;
+                margin: 4px 0 0;
+            }
+            /* Tela cheia: o "+ Criar ficha" mora na linha do botão "Instruções" (ui/bolsa.ts o move para lá); some enquanto a barra de ações da seleção ocupa a linha. */
+            #bolsa.expandida #bolsa-fichas-botoes #bolsa-ficha-criar-botao {
+                order: 0;
+                height: auto;
+                margin: 0;
+                padding: 0 10px;
+                font-size: 12px;
+            }
+            #bolsa-fichas-botoes:has(#bolsa-selecao-barra:not([hidden])) #bolsa-ficha-criar-botao {
+                display: none;
+            }
+            #bolsa-selecao-barra.abaixo-das-abas #bolsa-selecao-contagem {
+                flex: none;
+                margin-right: 4px;
+            }
+            /* Na aba Fichas em tela cheia a barra fica na linha do botão "Instruções" (ao lado dele). */
+            #bolsa-selecao-barra.na-linha-das-instrucoes {
+                order: 0;
+                margin: 0;
+                flex: 1 1 auto;
+            }
+            #bolsa-selecao-barra.na-linha-das-instrucoes #bolsa-selecao-contagem {
+                margin-left: 6px;
+            }
+            #bolsa.com-selecao #bolsa-busca,
+            #bolsa.com-selecao #bolsa-fichas-busca,
+            #bolsa.com-selecao #bolsa-criar-token-botao,
+            #bolsa.com-selecao #bolsa-ficha-criar-botao {
+                display: none;
             }
             /* A GRADE de documentos, organizada como a de tokens (#bolsa-itens): 4 por linha na bolsa pequena, e mais na média e na
                tela cheia. Não confundir com a classe ".ficha" (a fichinha de um TOKEN). */
@@ -1891,6 +2227,7 @@
 
             /* Menu do clique direito numa ficha da bolsa. */
             #menu-ficha,
+            #menu-selecao,
             #menu-doc {
                 position: fixed;
                 z-index: 45;
@@ -1902,6 +2239,7 @@
                 box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
             }
             #menu-ficha button,
+            #menu-selecao button,
             #menu-doc button {
                 display: block;
                 width: 100%;
@@ -1916,6 +2254,7 @@
                 cursor: pointer;
             }
             #menu-ficha button:hover,
+            #menu-selecao button:hover,
             #menu-doc button:hover {
                 background: #3b3b49;
             }
@@ -2011,6 +2350,7 @@
                 background: #4a2a2a;
             }
             #menu-ficha #menu-ficha-excluir,
+            #menu-selecao #menu-selecao-excluir,
             #menu-doc #menu-doc-excluir {
                 color: #ff9a9a;
             }
@@ -2230,9 +2570,20 @@
                 border-color: #ffd54f;
             }
             /* A visualização formatada ocupa o lugar do campo de texto (a área tem position: relative). */
+            /* LIMITE anti-spam: o botão Rolar pisca em vermelho quando a pessoa rola rápido demais. */
+            #dados-rolar.limite {
+                outline: 2px solid #ff6b6b;
+                animation: tremer-limite 0.25s;
+            }
+            @keyframes tremer-limite {
+                25% { translate: -3px 0; }
+                75% { translate: 3px 0; }
+            }
             #editor-ficha-previa {
+                cursor: text; /* a leitura NÃO arrasta a janela (e dá para selecionar e copiar o texto); as rolagens têm a mãozinha de clicar */
                 position: absolute;
                 inset: 0;
+                z-index: 3; /* POR CIMA da camada de cores (z-index 2) e do campo (1): sem isto a leitura ficava escondida por baixo do texto cru */
                 overflow: auto;
                 padding: 10px;
                 font-size: var(--fonte-ficha, 15px);
@@ -2249,11 +2600,29 @@
                 font-weight: 700;
                 line-height: 1.2;
             }
-            #editor-ficha-previa .t1 { font-size: 1.9em; }
-            #editor-ficha-previa .t2 { font-size: 1.6em; }
-            #editor-ficha-previa .t3 { font-size: 1.35em; }
-            #editor-ficha-previa .t4 { font-size: 1.15em; }
-            #editor-ficha-previa .t5 { font-size: 1em; text-transform: uppercase; letter-spacing: 0.04em; }
+            /* Três títulos bem espaçados em relação à letra normal (1em): 2, 1,5 e 1,2. */
+            #editor-ficha-previa .t1 { font-size: 2em; }
+            #editor-ficha-previa .t2 { font-size: 1.5em; }
+            #editor-ficha-previa .t3 { font-size: 1.2em; }
+            /* ROLAGENS clicáveis na leitura: o nome (laranja, como no campo) e a fórmula (roxa, mais discreta). */
+            #editor-ficha-previa .rolagem-previa {
+                cursor: pointer;
+                border-radius: 4px;
+            }
+            #editor-ficha-previa .rolagem-previa-nome {
+                color: #ffb86b;
+                background: rgba(255, 184, 107, 0.14);
+                border-radius: 4px;
+            }
+            #editor-ficha-previa .rolagem-previa-formula {
+                color: #b39ddb;
+            }
+            #editor-ficha-previa .rolagem-previa:hover .rolagem-previa-nome {
+                background: rgba(255, 184, 107, 0.3);
+            }
+            #editor-ficha-previa .rolagem-previa.com-erro .rolagem-previa-nome {
+                text-decoration: underline wavy #ff6b6b;
+            }
             #editor-ficha-previa .negrito { font-weight: 700; }
             #editor-ficha-previa .italico { font-style: italic; }
             /* A linha de ABAS (páginas) da ficha, embaixo do nome. */
@@ -2263,6 +2632,9 @@
                 align-items: flex-end;
                 gap: 6px;
                 border-bottom: 1px solid #4a4a58;
+            }
+            #editor-ficha-abas-lista::-webkit-scrollbar {
+                display: none; /* sem barra de rolagem na linha das abas (pedido do dono); a roda do mouse ainda rola se houver muitas */
             }
             #editor-ficha-abas-lista {
                 flex: 1;
@@ -2826,11 +3198,11 @@
                 gap: 6px;
             }
             .paleta-token .amostra {
-                height: 24px;
+                height: 18px;
             }
             .cor-livre {
                 width: 100%;
-                height: 24px;
+                height: 20px;
                 margin-top: 6px;
                 padding: 0;
                 border: 1px solid #4a4a58;
@@ -3162,6 +3534,23 @@
                     <!-- O botão pequeno à direita da pesquisa (a mesma linha nas duas abas): "+ Criar token" (abre a tela cheia, onde se cria) e "+ Criar ficha". -->
                     <button id="bolsa-criar-token-botao" class="bolsa-botao-pequeno" title="Criar um token (abre a tela cheia)">+ Criar token</button>
                     <button id="bolsa-ficha-criar-botao" class="bolsa-botao-pequeno">+ Criar ficha</button>
+                    <!-- ORDENAR e FILTRAR (ids usados no ui/bolsa.ts): a ordem de cada aba, o filtro de favoritos (★), os GRUPOS como "chips" clicáveis e o "+" que cria um grupo. -->
+                    <div id="bolsa-organizar">
+                        <select id="bolsa-ordem" aria-label="Ordenar" title="Ordenar a lista"></select>
+                        <button id="bolsa-filtro-favoritos" type="button" class="bolsa-chip" aria-pressed="false" title="Mostrar só os favoritos">★</button>
+                        <div id="bolsa-grupos-chips" aria-label="Filtrar por grupo"></div>
+                        <!-- Na bolsa do CANTO (pequena) os grupos viram esta lista suspensa (os chips só aparecem na tela cheia). -->
+                        <button id="bolsa-filtro-grupos" type="button" class="bolsa-chip" aria-haspopup="menu" title="Filtrar por grupo">Grupos ▾</button>
+                        <button id="bolsa-grupo-novo" type="button" class="bolsa-chip" title="Criar um grupo (nome e cor)" aria-label="Criar um grupo">+ Grupo</button>
+                    </div>
+                    <!-- A barra de AÇÕES DA SELEÇÃO: aparece no lugar da pesquisa quando há 2 ou mais itens selecionados (ids usados no ui/bolsa.ts). -->
+                    <div id="bolsa-selecao-barra" hidden>
+                        <span id="bolsa-selecao-contagem"></span>
+                        <button id="bolsa-selecao-favoritar" type="button" class="bolsa-botao-pequeno" title="Favoritar (ou tirar dos favoritos)">★</button>
+                        <button id="bolsa-selecao-grupos" type="button" class="bolsa-botao-pequeno" title="Adicionar a um grupo">Grupos ▾</button>
+                        <button id="bolsa-selecao-excluir" type="button" class="bolsa-botao-pequeno">Excluir</button>
+                        <button id="bolsa-selecao-limpar" type="button" class="bolsa-botao-pequeno" title="Tirar a seleção (Esc)">Cancelar</button>
+                    </div>
                     <button id="bolsa-fechar" hidden title="Fechar a bolsa (Esc)">✕ Fechar</button>
                     <!-- As ABAS da carteira: "Tokens" (o que a bolsa já era) e "Fichas" (fichas de personagem). Ficam numa linha
                          só delas, embaixo do título, nos três tamanhos. Ids usados no ui/bolsa.ts. -->
@@ -3237,6 +3626,8 @@
         <div id="menu-ficha" hidden role="menu">
             <button id="menu-ficha-editar" role="menuitem">Editar token…</button>
             <button id="menu-ficha-alterar" role="menuitem">Alterar imagem…</button>
+            <button id="menu-ficha-favorito" role="menuitem">Favoritar</button>
+            <button id="menu-ficha-grupos" role="menuitem">Grupos…</button>
             <button id="menu-ficha-excluir" role="menuitem">Excluir token</button>
         </div>
         <!-- Menu do clique direito num DOCUMENTO (ficha) da aba Fichas. Ids usados no ui/bolsa.ts. -->
@@ -3245,8 +3636,36 @@
             <button id="menu-aba-renomear" role="menuitem">Renomear página</button>
             <button id="menu-aba-excluir" role="menuitem">Excluir página</button>
         </div>
+        <!-- Menu do clique direito com VÁRIOS itens selecionados na bolsa (ações em grupo). Ids usados no ui/bolsa.ts. -->
+        <div id="menu-selecao" hidden role="menu">
+            <button id="menu-selecao-favorito" role="menuitem">Favoritar</button>
+            <button id="menu-selecao-grupos" role="menuitem">Grupos…</button>
+            <button id="menu-selecao-excluir" role="menuitem">Excluir</button>
+        </div>
+        <!-- Menu de GRUPOS: lista os grupos com ✓ (todos os selecionados estão nele), – (alguns) ou vazio; clicar liga/desliga; "+ Novo grupo…" cria e já adiciona. -->
+        <div id="menu-grupos" hidden role="menu"></div>
+        <!-- Janela de NOME e COR de um grupo (ui/editorGrupo.ts). -->
+        <div id="editor-grupo" hidden role="dialog" aria-modal="true" aria-labelledby="editor-grupo-titulo">
+            <div id="editor-grupo-painel">
+                <h3 id="editor-grupo-titulo">Novo grupo</h3>
+                <p class="bolsa-rotulo">Nome</p>
+                <input type="text" id="editor-grupo-nome" placeholder="Nome do grupo" autocomplete="off" aria-label="Nome do grupo" />
+                <p class="bolsa-rotulo">Cor</p>
+                <div id="editor-grupo-amostras"></div>
+                <input type="color" id="editor-grupo-cor" title="Outra cor" aria-label="Outra cor do grupo" />
+                <div id="editor-grupo-botoes">
+                    <button id="editor-grupo-excluir" type="button" hidden>Excluir grupo</button>
+                    <button id="editor-grupo-cancelar" type="button">Cancelar</button>
+                    <button id="editor-grupo-salvar" type="button">Salvar</button>
+                </div>
+            </div>
+        </div>
+        <!-- O retângulo de seleção (arrastar numa área vazia da lista da bolsa): só desenho, não pega o mouse. -->
+        <div id="bolsa-retangulo" hidden aria-hidden="true"></div>
         <div id="menu-doc" hidden role="menu">
             <button id="menu-doc-abrir" role="menuitem">Abrir e editar</button>
+            <button id="menu-doc-favorito" role="menuitem">Favoritar</button>
+            <button id="menu-doc-grupos" role="menuitem">Grupos…</button>
             <button id="menu-doc-excluir" role="menuitem">Excluir ficha</button>
         </div>
 
@@ -3329,9 +3748,7 @@
                     <button type="button" data-formatar="italico" title="Itálico (Ctrl+I): *texto*"><i>I</i></button>
                     <button type="button" data-formatar="1" title="Título 1 (o maior): # Título">T1</button>
                     <button type="button" data-formatar="2" title="Título 2: ## Título">T2</button>
-                    <button type="button" data-formatar="3" title="Título 3: ### Título">T3</button>
-                    <button type="button" data-formatar="4" title="Título 4: #### Título">T4</button>
-                    <button type="button" data-formatar="5" title="Título 5 (o menor): ##### Título">T5</button>
+                    <button type="button" data-formatar="3" title="Título 3 (o menor): ### Título">T3</button>
                     <button type="button" data-formatar="0" title="Tirar o título da linha">Aa</button>
                     <button type="button" id="editor-ficha-ver" aria-pressed="false" title="Ver o texto já formatado (só leitura)">Visualizar</button>
                 </div>
@@ -3532,7 +3949,7 @@
                 // A altura da bolsa aberta, medida da última vez (senão ela começaria 6 px fora do lugar e pularia quando o app a medisse).
                 var alturaBolsa = Number(ler("tabuleirinho.bolsa.altura"));
                 var vaga = document.getElementById("bolsa-vaga");
-                if (vaga && isFinite(alturaBolsa) && alturaBolsa > 100 && alturaBolsa < 1000) vaga.style.setProperty("--altura-bolsa", alturaBolsa + "px");
+                if (vaga && isFinite(alturaBolsa) && alturaBolsa > 100 && alturaBolsa < 1000) document.documentElement.style.setProperty("--altura-bolsa", alturaBolsa + "px");
                 // Libera os painéis escondidos até o app montar (ver o CSS "app-pronta"), mesmo se o app falhar.
                 setTimeout(function () { document.body.classList.add("app-pronta"); }, 3000);
                 marcar("bolsa", "aba-fichas", ler("tabuleirinho.bolsa.aba") === "fichas");
