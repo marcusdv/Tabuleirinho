@@ -3,7 +3,7 @@
 //
 //   - É uma janela FLUTUANTE e ARRASTÁVEL (por qualquer parte neutra: o título, o fundo, os rótulos...), e NÃO escurece o fundo nem bloqueia o resto da tela: dá para ver e usar o
 //     chat, os dados e o tabuleiro com a ficha aberta (ver as rolagens). Por isso as teclas Esc e Ctrl+S só valem com o foco DENTRO da janela
-//     (com o foco no chat, o Esc é do chat). As preferências de OCULTAR as instruções e a tela de rolagens valem para TODAS as fichas (há uma só janela e a
+//     (com o foco no chat, o Esc é do chat). A preferência de OCULTAR a tela de rolagens vale para TODAS as fichas (há uma só janela e a
 //     escolha fica guardada no navegador). A posição fica guardada enquanto a página estiver aberta: ao reabrir, volta ao mesmo lugar.
 //   - "Salvar" (ou Ctrl+S) grava por cima do arquivo e sobe a VERSÃO. O botão só vale quando algo mudou.
 //   - Fechar (botão ou Esc) com alterações não salvas pergunta antes, na caixa de confirmar do jogo.
@@ -19,14 +19,14 @@
 //     (mínimo 520 × 360); as duas escolhas ficam no navegador (localStorage) e valem para todas as fichas.
 //   - ROLAR: clicar no NOME de uma rolagem (no texto) ou no item dela na lista rola: o servidor sorteia e o resultado aparece no chat, com o
 //     nome da rolagem. Rola a ficha SALVA (com mudanças não salvas, a janela pede para salvar antes, senão rolaria algo diferente do que se vê).
-//   - BOTÕES NO ALTO: "Ocultar instruções" e "Ocultar rolagens" escondem (ou mostram de novo) as duas partes do painel lateral, e o ✕ fecha a
-//     ficha (igual ao Esc: com alterações não salvas pergunta antes). Sem nenhuma das duas partes, o painel some e o texto ocupa a largura
+//   - BOTÕES NO ALTO: "Ocultar rolagens" esconde (ou mostra de novo) o painel lateral das rolagens, e o ✕ fecha a
+//     ficha (igual ao Esc: com alterações não salvas pergunta antes). Sem o painel, o texto ocupa a largura
 //     toda. A escolha fica guardada no navegador (localStorage) para as próximas vezes.
 //   - ABAS (PÁGINAS): uma ficha tem de 1 a 6 abas, todas no MESMO arquivo. Uma linha de abas fica embaixo do nome: clicar abre a página, o "+" cria
 //     uma nova, o DUPLO clique renomeia e o CLIQUE DIREITO abre o menu "Renomear página / Excluir página". Cada aba tem o seu texto e as suas ROLAGENS, mas as VARIÁVEIS valem para a ficha inteira (as
 //     das outras abas aparecem esmaecidas na lista). O limite de caracteres é a SOMA de todas as abas. As abas são parte do rascunho: só valem ao Salvar.
 //   - PAINEL LATERAL: em cima, a tela de rolagens (lê o texto enquanto você escreve, com formulas.ts): as VARIÁVEIS ("FOR:: 16" -> FOR = 16) e
-//     as ROLAGENS ("(Ataque)[1d20 + FOR]" -> nome e fórmula já com os valores), com os erros. Embaixo, as dicas de uso, sempre à vista.
+//     as ROLAGENS ("(Ataque)[1d20 + FOR]" -> nome e fórmula já com os valores), com os erros. (As instruções de uso NÃO ficam mais nesta janela: estão na janela "Instruções" da aba Fichas da bolsa.)
 //
 // Este módulo só cuida da janela: salvar de verdade é com quem o criou (`aoSalvar`: no modo local grava na memória; online manda o
 // pedido ao servidor e a resposta volta por `fichaMudou`, `conflito` e `recusada`). A marcação e o CSS ficam no index.html
@@ -35,6 +35,7 @@
 
 import { MAX_ABAS_FICHA, MAX_CARACTERES_NOME_ABA_FICHA, MAX_CARACTERES_NOME_FICHA, MAX_CARACTERES_TEXTO_FICHA } from "../config";
 import { limitar } from "../coordenadas";
+import { pintarDisco } from "./aparenciaToken";
 import {
     abasIguais,
     nomePadraoDaAba,
@@ -46,8 +47,10 @@ import {
     type Ficha,
     type MudancasFicha,
     type ResultadoEdicaoFicha,
+    type Token,
+    valoresAtuaisDaFicha,
 } from "../estado";
-import { analisarAbas, trechosDoTexto, type AnaliseDaFicha } from "../formulas";
+import { analisarAbas, trechosDoTexto, type AnaliseDaFicha, type VariavelFicha } from "../formulas";
 import { ehLinhaDeVariavel, formatarTexto, lerPedacos } from "../formatacao";
 
 export interface OpcoesEditorFicha {
@@ -60,24 +63,31 @@ export interface OpcoesEditorFicha {
     /** A pessoa quer excluir uma aba que tem texto: pergunta se pode. Devolve true se sim. */
     confirmarExcluirAba(nome: string): Promise<boolean>;
     /** Há alterações não salvas e a pessoa quer fechar: pergunta se pode descartá-las. Devolve true se sim. */
-    confirmarDescarte(): Promise<boolean>;
+    confirmarDescarte(podeSalvar: boolean): Promise<"descartar" | "salvar" | "cancelar">;
     /**
      * A pessoa clicou numa ROLAGEM (o nome no texto, ou o item da lista): rolar a rolagem de posição `indice` da ABA `aba` da ficha `id`, na versão
      * `versao` (a SALVA: o servidor é quem sabe o texto e sorteia). Devolve uma mensagem de erro para mostrar na janela, ou null se deu certo (o
      * resultado aparece no chat; online, um erro do servidor volta depois por `recusada`).
      */
-    aoRolar(id: number, versao: number, aba: number, indice: number): string | null;
+    aoRolar(id: number, versao: number, aba: number, indice: number, token: number | null): string | null;
+    /**
+     * A pessoa mudou o valor ATUAL de uma variável que muda (−, + ou o número digitado): SOMAR `delta` ao valor da variável `nome` da ficha `id`. Quem recebe aplica (o servidor
+     * limita ao intervalo, grava e avisa todos; no modo local, aplica aqui mesmo) e depois chama `valoresMudaram`, que refaz o painel. Nada disto edita o texto nem sobe a versão.
+     */
+    aoAjustarValor(id: number, nome: string, delta: number): void;
     /** A ficha aberta mudou: `id` da que abriu (ou trocou), ou null quando a janela fechou. A bolsa usa isto para destacar o nome dela. */
     aoMudarAberta(id: number | null): void;
 }
 
 export interface EditorFicha {
-    /** Abre a janela com esta ficha. */
-    abrir(ficha: Ficha): void;
+    /** Abre a janela com esta ficha. `token` = o token pelo qual ela foi aberta (duplo clique): as rolagens saem com o ícone dele; sem token (aba Fichas da bolsa), vale o ícone padrão. */
+    abrir(ficha: Ficha, token?: Token | null): void;
     /** O id da ficha que está aberta (null = nenhuma). */
     readonly idAberto: number | null;
     /** Uma ficha mudou (salva por esta pessoa, por outra, ou a mesa foi recarregada): se é a que está aberta, a janela acompanha. */
     fichaMudou(ficha: Ficha): void;
+    /** Os valores atuais das variáveis que mudam de uma ficha mudaram (por esta pessoa, por outra ou por uma ação Dano/Cura): se é a ficha aberta, o painel se refaz. */
+    valoresMudaram(id: number): void;
     /** O servidor recusou o salvamento por conflito: esta é a versão ATUAL da ficha. */
     conflito(ficha: Ficha): void;
     /** A ficha foi EXCLUÍDA (por esta pessoa ou por outra): se é a que está aberta, a janela fecha ou avisa. */
@@ -93,9 +103,11 @@ function pegar<T extends HTMLElement>(id: string): T {
 export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     const janela = pegar("editor-ficha");
     const painel = pegar("editor-ficha-painel");
+    painel.tabIndex = -1; // (a janela pode receber o foco: ao abrir por um token o foco fica nela, e não no campo de texto)
     const campoNome = pegar<HTMLInputElement>("editor-ficha-nome");
     const campoTexto = pegar<HTMLTextAreaElement>("editor-ficha-texto");
     const rotuloVersao = pegar("editor-ficha-versao");
+    const rotuloToken = pegar("editor-ficha-token");
     const contagem = pegar("editor-ficha-contagem");
     const aviso = pegar("editor-ficha-aviso");
     const caixaConflito = pegar("editor-ficha-conflito");
@@ -105,12 +117,12 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     const botaoSalvar = pegar<HTMLButtonElement>("editor-ficha-salvar");
     const listaVariaveis = pegar("editor-ficha-variaveis");
     const listaRolagens = pegar("editor-ficha-rolagens");
+    const listaMudam = pegar("editor-ficha-mudam");
+    const semMudam = pegar("editor-ficha-sem-mudam");
     const semVariaveis = pegar("editor-ficha-sem-variaveis");
     const semRolagens = pegar("editor-ficha-sem-rolagens");
     const lateral = pegar("editor-ficha-lateral");
     const assistente = pegar("editor-ficha-assistente");
-    const dicas = pegar("editor-ficha-dicas");
-    const botaoAlternarDicas = pegar<HTMLButtonElement>("editor-ficha-alternar-dicas");
     const botaoAlternarRolagens = pegar<HTMLButtonElement>("editor-ficha-alternar-rolagens");
     const botaoX = pegar<HTMLButtonElement>("editor-ficha-x");
     const botaoFonteMenos = pegar<HTMLButtonElement>("editor-ficha-fonte-menos");
@@ -125,6 +137,24 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     const barraFormatar = pegar("editor-ficha-formatar");
     const botaoVer = pegar<HTMLButtonElement>("editor-ficha-ver");
     const previa = pegar("editor-ficha-previa");
+    const barraDeRolagem = pegar("editor-ficha-barra");
+    const polegarDaBarra = pegar("editor-ficha-barra-polegar");
+
+    // A BARRA DE ROLAGEM PRÓPRIA do texto (e da leitura). A nativa ficava DENTRO do campo, e o ponteiro virava o de texto sobre ela; esta fica numa faixa à direita,
+    // FORA do texto, com ponteiro de seta. Acompanha o que está à vista (o campo, ou a leitura quando ela está ligada).
+    const elementoQueRola = (): HTMLElement => (previa.hidden ? campoTexto : previa);
+    function atualizarBarraDeRolagem(): void {
+        const alvo = elementoQueRola();
+        const excesso = alvo.scrollHeight - alvo.clientHeight;
+        barraDeRolagem.hidden = excesso <= 1; // (cabe tudo: sem barra)
+        if (barraDeRolagem.hidden) return;
+        const trilha = barraDeRolagem.clientHeight;
+        const altura = Math.max(24, (trilha * alvo.clientHeight) / alvo.scrollHeight); // (proporcional ao que está à vista)
+        polegarDaBarra.style.height = `${altura}px`;
+        polegarDaBarra.style.transform = `translateY(${((trilha - altura) * alvo.scrollTop) / excesso}px)`;
+    }
+    /** Depois de mudar o texto, a janela ou a letra: o layout só está pronto no próximo quadro. */
+    const agendarBarraDeRolagem = (): void => void requestAnimationFrame(atualizarBarraDeRolagem);
 
     campoNome.maxLength = MAX_CARACTERES_NOME_FICHA; // o navegador corta ao digitar/colar (a regra também vale no servidor)
     campoTexto.maxLength = MAX_CARACTERES_TEXTO_FICHA;
@@ -140,9 +170,8 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     let aguardandoRolagem = false; // um pedido de rolagem acabou de ir ao servidor: um erro que ele devolva é desta rolagem
     let lugar: { x: number; y: number } | null = null; // onde a janela está (canto superior esquerdo, em pixels da tela); null = ainda não foi aberta
 
-    // --- Mostrar/ocultar as instruções (dicas) e a tela de rolagens: a escolha fica guardada no navegador ---
+    // --- Mostrar/ocultar a tela de rolagens: a escolha fica guardada no navegador ---
 
-    const CHAVE_OCULTAR_DICAS = "tabuleirinho.ficha.ocultarInstrucoes";
     const CHAVE_OCULTAR_ROLAGENS = "tabuleirinho.ficha.ocultarRolagens";
     function lerPreferencia(chave: string): boolean {
         try {
@@ -158,26 +187,15 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
             /* sem armazenamento: tudo bem */
         }
     }
-    let ocultarDicas = lerPreferencia(CHAVE_OCULTAR_DICAS);
     let ocultarRolagens = lerPreferencia(CHAVE_OCULTAR_ROLAGENS);
 
-    /** Aplica o que está escolhido: esconde as partes, ajusta o painel (que some se não sobra nenhuma) e o texto dos botões. */
+    /** Aplica o que está escolhido: esconde a tela de rolagens (e o painel lateral some junto: o texto ocupa a largura toda) e ajusta o texto do botão. */
     function aplicarPartesVisiveis(): void {
-        dicas.hidden = ocultarDicas;
         assistente.hidden = ocultarRolagens;
-        lateral.classList.toggle("sem-dicas", ocultarDicas);
-        lateral.classList.toggle("sem-tela-rolagens", ocultarRolagens);
-        lateral.hidden = ocultarDicas && ocultarRolagens; // sem nenhuma parte, o texto ocupa a largura toda
-        botaoAlternarDicas.textContent = ocultarDicas ? "Mostrar instruções" : "Ocultar instruções";
-        botaoAlternarDicas.setAttribute("aria-expanded", String(!ocultarDicas));
+        lateral.hidden = ocultarRolagens;
         botaoAlternarRolagens.textContent = ocultarRolagens ? "Mostrar rolagens" : "Ocultar rolagens";
         botaoAlternarRolagens.setAttribute("aria-expanded", String(!ocultarRolagens));
     }
-    botaoAlternarDicas.addEventListener("click", () => {
-        ocultarDicas = !ocultarDicas;
-        guardarPreferencia(CHAVE_OCULTAR_DICAS, ocultarDicas);
-        aplicarPartesVisiveis();
-    });
     botaoAlternarRolagens.addEventListener("click", () => {
         ocultarRolagens = !ocultarRolagens;
         guardarPreferencia(CHAVE_OCULTAR_ROLAGENS, ocultarRolagens);
@@ -219,6 +237,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         botaoFonteMenos.disabled = fonte <= FONTE_MIN;
         botaoFonteMais.disabled = fonte >= FONTE_MAX;
         camadaCores.scrollTop = campoTexto.scrollTop; // (a letra mudou o tamanho do texto: as duas camadas continuam alinhadas)
+        agendarBarraDeRolagem();
     }
     function mudarFonte(passo: number): void {
         fonte = limitar(fonte + passo, FONTE_MIN, FONTE_MAX);
@@ -290,7 +309,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     function ehParteNeutra(e: MouseEvent): boolean {
         const alvo = e.target;
         if (!(alvo instanceof HTMLElement)) return false;
-        if (alvo.closest("button, input, textarea, select, a, p, pre, code, li[data-rolagem], #editor-ficha-cores, #editor-ficha-previa, #editor-ficha-redimensionar")) return false;
+        if (alvo.closest("button, input, textarea, select, a, p, pre, code, li[data-rolagem], #editor-ficha-cores, #editor-ficha-previa, #editor-ficha-barra, #editor-ficha-redimensionar")) return false;
         // Numa área que rola, o clique na própria barra de rolagem (à direita ou embaixo do conteúdo) é para rolar.
         const naBarraVertical = alvo.scrollHeight > alvo.clientHeight && e.offsetX >= alvo.clientWidth;
         const naBarraHorizontal = alvo.scrollWidth > alvo.clientWidth && e.offsetY >= alvo.clientHeight;
@@ -377,6 +396,114 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         return item;
     }
 
+    const formatarNumero = (n: number): string => n.toLocaleString("pt-BR");
+
+    /**
+     * Pede para mudar o valor ATUAL de uma variável que muda (a conta é uma SOMA: nunca "valor novo"). Quem aplica limita ao intervalo e depois manda `valoresMudaram`, que
+     * refaz o painel (e as rolagens passam a usar o valor novo). Se nada muda (já estava no limite), o painel só se refaz para o campo voltar ao valor certo.
+     */
+    function mudarValorAtual(v: VariavelFicha, novo: number): void {
+        if (!base || !v.muda || v.valor === null) return;
+        const delta = Math.min(v.muda.max, Math.max(v.muda.min, novo)) - v.valor;
+        if (delta === 0) return atualizarAssistente();
+        opcoes.aoAjustarValor(base.id, v.nome, delta);
+    }
+
+    /**
+     * O item de uma variável que MUDA: nome, "−", o campo do valor atual, "+", uma barra (só quando o intervalo é pequeno) e os limites. Se a linha do texto
+     * está errada, só o nome e a mensagem de erro. Tudo entra por `textContent` (nada do texto da ficha vira HTML).
+     */
+    function itemDaVariavelQueMuda(v: VariavelFicha, deOutra: boolean): HTMLLIElement {
+        const item = document.createElement("li");
+        item.className = "muda" + (v.erro ? " com-erro" : "") + (deOutra ? " de-outra-aba" : "");
+        item.dataset.nome = v.nome;
+        item.title = `${v.nome}::${v.conta.replace(/\s+/g, "")}${deOutra ? ` (definida na página "${rascunho[v.aba]?.nome ?? ""}")` : ""}`;
+        const linha = document.createElement("div");
+        linha.className = "muda-linha";
+        const rotulo = document.createElement("span");
+        rotulo.className = "nome";
+        rotulo.textContent = v.nome;
+        linha.append(rotulo);
+        const limites = document.createElement("span");
+        limites.className = "limites-muda";
+        const { muda, valor } = v;
+        if (v.erro !== null || !muda || valor === null) {
+            limites.textContent = v.erro ?? "Variável que muda inválida.";
+            item.append(linha, limites);
+            return item;
+        }
+        const menos = document.createElement("button");
+        menos.type = "button";
+        menos.className = "passo";
+        menos.dataset.controle = "menos";
+        menos.textContent = "−";
+        menos.title = `Diminuir ${v.nome}`;
+        const mais = document.createElement("button");
+        mais.type = "button";
+        mais.className = "passo";
+        mais.dataset.controle = "mais";
+        mais.textContent = "+";
+        mais.title = `Aumentar ${v.nome}`;
+        const campo = document.createElement("input");
+        campo.type = "text";
+        campo.className = "campo-muda";
+        campo.inputMode = "numeric";
+        campo.autocomplete = "off";
+        campo.dataset.controle = "campo";
+        campo.value = formatarNumero(valor);
+        campo.setAttribute("aria-label", `Valor atual de ${v.nome}`);
+        campo.addEventListener("focus", () => campo.select());
+        campo.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") campo.blur();
+        });
+        // O que está escrito no campo: aceita "1.250", "1250" e "-5"; qualquer outra coisa não vale (null).
+        const valorDigitado = (): number | null => {
+            const digitado = campo.value.replace(/[.\s]/g, "");
+            return /^-?\d{1,12}$/.test(digitado) ? Number(digitado) : null;
+        };
+        campo.addEventListener("blur", () => {
+            const digitado = valorDigitado();
+            if (digitado !== null && digitado !== valor) mudarValorAtual(v, digitado); // (fora do intervalo é limitado a ele)
+            else campo.value = formatarNumero(valor);
+        });
+        // − e +: se a pessoa acabou de digitar um valor no campo, soma/subtrai DELE. O aperto do botão não tira o foco do campo (mousedown cancelado): senão o campo
+        // perderia o foco, o painel seria refeito e o botão novo nunca receberia o clique.
+        for (const [botao, passo] of [[menos, -1], [mais, 1]] as const) {
+            botao.addEventListener("mousedown", (e) => e.preventDefault());
+            botao.addEventListener("click", () => mudarValorAtual(v, (valorDigitado() ?? valor) + passo));
+        }
+        linha.append(menos, campo, mais);
+        item.append(linha);
+        if (muda.max - muda.min <= 1000) {
+            // Intervalo pequeno (PV, exaustão...): uma barra mostra o quanto falta. (Uma barra de ouro até 999 milhões não diria nada.)
+            const fracao = muda.max === muda.min ? 1 : (valor - muda.min) / (muda.max - muda.min);
+            const barra = document.createElement("div");
+            barra.className = "barra-muda" + (fracao <= 0.25 ? " critica" : fracao <= 0.5 ? " baixa" : "");
+            const enchimento = document.createElement("i");
+            enchimento.style.width = `${Math.round(fracao * 100)}%`;
+            barra.append(enchimento);
+            item.append(barra);
+        }
+        limites.textContent = `mín ${formatarNumero(muda.min)} · máx ${formatarNumero(muda.max)}`;
+        item.append(limites);
+        return item;
+    }
+
+    /** Se o foco está num controle de uma variável que muda, devolve uma função que o põe de volta no controle equivalente depois de a lista ser refeita. */
+    function lembrarFocoDasVariaveisQueMudam(): (() => void) | null {
+        const ativo = document.activeElement;
+        if (!(ativo instanceof HTMLElement) || !listaMudam.contains(ativo)) return null;
+        const nome = ativo.closest<HTMLElement>("li")?.dataset.nome;
+        const controle = ativo.dataset.controle;
+        if (nome === undefined || controle === undefined) return null;
+        return () => {
+            for (const li of Array.from(listaMudam.children) as HTMLElement[]) {
+                if (li.dataset.nome !== nome) continue;
+                li.querySelector<HTMLElement>(`[data-controle="${controle}"]`)?.focus();
+            }
+        };
+    }
+
     /**
      * Pinta o texto na CAMADA DE CORES que fica por cima do campo (o texto do campo é transparente): variáveis, nomes e fórmulas. Só entra
      * texto puro (`textContent` e `append` de texto): nada do que a pessoa escreve vira HTML.
@@ -417,19 +544,29 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
      */
     function atualizarAssistente(): void {
         const texto = campoTexto.value;
-        const analise = analisarAbas(rascunho.map((aba) => aba.texto))[abaAtual]; // (variáveis da ficha toda; rolagens só desta aba)
+        const analise = analisarAbas(
+            rascunho.map((aba) => aba.texto),
+            base ? valoresAtuaisDaFicha(base.id) : undefined, // (as variáveis que mudam valem o valor ATUAL, guardado à parte do texto)
+        )[abaAtual]; // (variáveis da ficha toda; rolagens só desta aba)
         ultimaAnalise = analise;
         if (!previa.hidden) desenharPrevia(); // (a leitura formatada acompanha a aba aberta; precisa da análise nova para as rolagens clicáveis)
-        semVariaveis.hidden = analise.variaveis.length > 0;
+        // Duas colunas: à esquerda as variáveis FIXAS ("NOME:: valor"), à direita as que MUDAM ("NOME::mín:inicial:máx"; o ":" no valor é o que as distingue).
+        const fixas = analise.variaveis.filter((v) => !v.conta.includes(":"));
+        const mudam = analise.variaveis.filter((v) => v.conta.includes(":"));
+        semVariaveis.hidden = fixas.length > 0;
+        semMudam.hidden = mudam.length > 0;
         semRolagens.hidden = analise.rolagens.length > 0;
+        const foco = lembrarFocoDasVariaveisQueMudam(); // (as listas são refeitas: sem isto, apertar + ou − tiraria o foco do botão)
         listaVariaveis.replaceChildren(
-            ...analise.variaveis.map((v) => {
+            ...fixas.map((v) => {
                 const deOutra = v.aba !== abaAtual;
                 const item = itemDaLista("variavel", v.nome, v.erro ?? String(v.valor), `${v.nome}:: ${v.conta}${deOutra ? ` (definida na página "${rascunho[v.aba]?.nome ?? ""}")` : ""}`, v.erro !== null);
                 if (deOutra) item.classList.add("de-outra-aba"); // (vale aqui também, mas está escrita em outra página)
                 return item;
             }),
         );
+        listaMudam.replaceChildren(...mudam.map((v) => itemDaVariavelQueMuda(v, v.aba !== abaAtual)));
+        foco?.();
         listaRolagens.replaceChildren(
             ...analise.rolagens.map((r, i) => itemDaLista("rolagem", r.nome, r.erro ?? r.resolvida ?? "", r.erro ?? `Clique para rolar: [${r.formula}]`, r.erro !== null, i)),
         );
@@ -452,7 +589,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         if (excluida || maisNova !== null) return mostrarAviso("Esta ficha foi alterada por outra pessoa. Carregue a versão atual para rolar.", true);
         if (sujo()) return mostrarAviso("Salve a ficha (Ctrl+S) para rolar com as mudanças que você fez.", true);
         if (rolagem.erro !== null) return mostrarAviso(`Não dá para rolar "${rolagem.nome}": ${rolagem.erro}`, true);
-        const erro = opcoes.aoRolar(base.id, base.versao, abaAtual, indice);
+        const erro = opcoes.aoRolar(base.id, base.versao, abaAtual, indice, tokenDaAbertura?.id ?? null);
         if (erro) return mostrarAviso(erro, true);
         mostrarAviso(`"${rolagem.nome}" rolada: veja o resultado no chat.`);
         aguardandoRolagem = true; // (online, um erro do servidor nos próximos instantes é desta rolagem)
@@ -471,6 +608,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     /** Põe esta ficha na janela (descartando o que estava escrito): vira a "base" para comparar e para a checagem de versão. */
     function carregar(ficha: Ficha, manterAba = false): void {
         base = ficha;
+        agendarBarraDeRolagem();
         rascunho = ficha.abas.map((aba) => ({ ...aba }));
         abaAtual = manterAba ? Math.min(abaAtual, rascunho.length - 1) : 0;
         maisNova = null;
@@ -751,6 +889,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         for (const b of barraFormatar.querySelectorAll<HTMLButtonElement>("button[data-formatar]")) b.disabled = ligada;
         if (ligada) desenharPrevia();
         else if (focar) campoTexto.focus();
+        agendarBarraDeRolagem(); // (a barra passa a acompanhar a leitura, ou o campo)
     }
     botaoVer.addEventListener("mousedown", (e) => e.preventDefault()); // (o campo não perde o foco: senão a leitura ligaria sozinha e o clique a desligaria)
     botaoVer.addEventListener("click", () => mostrarPrevia(previa.hidden === true));
@@ -792,6 +931,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     }
 
     function mostrarConflito(ficha: Ficha): void {
+        fecharAposSalvar = false; // (o salvamento foi bloqueado: nada de fechar)
         maisNova = ficha;
         textoConflito.textContent = `Outra pessoa salvou esta ficha (agora na versão ${ficha.versao}). Para não apagar o trabalho dela, o seu salvamento foi bloqueado. Copie o que você escreveu, se quiser guardar, e carregue a versão atual.`;
         mostrarAviso("");
@@ -799,9 +939,15 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     }
 
     /** O salvamento deu certo: a ficha que o servidor guardou é a nova base. */
+    let fecharAposSalvar = false; // o salvamento em andamento veio de "Salvar e fechar": ao dar certo, a janela fecha
     let lerAposSalvar = false; // o salvamento em andamento foi pedido pelo BOTÃO Salvar: ao terminar, a ficha passa para o modo de LEITURA (pedido do dono)
 
     function salvou(ficha: Ficha): void {
+        if (fecharAposSalvar) {
+            fecharAposSalvar = false;
+            fecharSemPerguntar(); // "Salvar e fechar": salvou, então fecha
+            return;
+        }
         carregar(ficha, true); // (o servidor pode ter limpado o texto: a janela mostra exatamente o que ficou guardado; continua na mesma aba)
         mostrarAviso(`Salva na versão ${ficha.versao}.`);
         if (lerAposSalvar) {
@@ -813,7 +959,10 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
 
     /** `paraLer`: foi o BOTÃO Salvar (vai para a leitura ao terminar). O Ctrl+S não: quem salva com ele costuma estar digitando e continua editando. */
     function salvar(paraLer = false): void {
-        if (!base || botaoSalvar.disabled) return;
+        if (!base || botaoSalvar.disabled) {
+            fecharAposSalvar = false;
+            return;
+        }
         lerAposSalvar = paraLer;
         const dados = { nome: campoNome.value, abas: rascunho.map((aba) => ({ ...aba })) };
         mostrarAviso("");
@@ -825,6 +974,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         } else if (resultado.ok) {
             salvou(resultado.ficha);
         } else {
+            fecharAposSalvar = false; // não salvou: a janela fica aberta com o aviso
             mostrarAviso(
                 resultado.erro === "nao_existe" ? "Essa ficha não existe mais." : resultado.erro === "texto_longo" ? `O texto passa de ${MAX_CARACTERES_TEXTO_FICHA} caracteres (somando todas as páginas).` : resultado.erro === "abas_invalidas" ? `A ficha precisa ter de 1 a ${MAX_ABAS_FICHA} páginas.` : "Esta ficha mudou. Feche e abra de novo.",
                 true,
@@ -833,7 +983,24 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     }
 
     /** Fecha a janela sem perguntar nada. */
+    // O TOKEN pelo qual a ficha foi aberta (duplo clique num token): as rolagens saem no chat com o ícone dele. Sem token (aberta pela aba Fichas da bolsa): null.
+    let tokenDaAbertura: { id: number; nome: string } | null = null;
+    function definirTokenDaAbertura(token: Token | null): void {
+        tokenDaAbertura = token ? { id: token.id, nome: token.nome } : null;
+        rotuloToken.replaceChildren();
+        rotuloToken.hidden = token === null;
+        if (!token) return;
+        const disco = document.createElement("span");
+        disco.className = "editor-ficha-token-disco";
+        pintarDisco(disco, token.cor, token.corBorda, token.imagem);
+        const texto = document.createElement("span");
+        texto.textContent = `Aberta por: ${token.nome}`; // (o nome vem do usuário: textContent, nunca HTML)
+        rotuloToken.title = "As rolagens desta ficha saem no chat com o ícone deste token";
+        rotuloToken.append(disco, texto);
+    }
+
     function fecharSemPerguntar(): void {
+        definirTokenDaAbertura(null);
         janela.hidden = true;
         document.removeEventListener("keydown", aoTeclar, true);
         base = null;
@@ -846,7 +1013,16 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     }
 
     async function fechar(): Promise<void> {
-        if (sujo() && !(await opcoes.confirmarDescarte())) return;
+        if (sujo()) {
+            // "Salvar e fechar" só é oferecido quando dá para salvar agora (sem conflito, sem salvamento em andamento, ficha ainda existente).
+            const resposta = await opcoes.confirmarDescarte(!botaoSalvar.disabled);
+            if (resposta === "cancelar") return;
+            if (resposta === "salvar") {
+                fecharAposSalvar = true; // a janela só fecha quando o salvamento DER CERTO (`salvou`); se falhar, ela continua aberta com o aviso
+                salvar();
+                return;
+            }
+        }
         fecharSemPerguntar();
     }
 
@@ -880,6 +1056,38 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     // A camada de cores acompanha a rolagem do campo (os dois têm o mesmo tamanho e a mesma quebra de linha).
     campoTexto.addEventListener("scroll", () => {
         camadaCores.scrollTop = campoTexto.scrollTop;
+        atualizarBarraDeRolagem();
+    });
+    previa.addEventListener("scroll", atualizarBarraDeRolagem);
+    campoTexto.addEventListener("input", agendarBarraDeRolagem);
+    new ResizeObserver(agendarBarraDeRolagem).observe(pegar("editor-ficha-area")); // (a janela foi redimensionada)
+    // Arrastar o cursor da barra, ou clicar na trilha (rola uma "página"). O mousedown não tira o foco do campo (senão a leitura ligaria sozinha ao clicar na barra).
+    barraDeRolagem.addEventListener("mousedown", (e) => e.preventDefault());
+    polegarDaBarra.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        e.stopPropagation(); // (não conta como clique na trilha)
+        const alvo = elementoQueRola();
+        const inicioY = e.clientY;
+        const inicioRolagem = alvo.scrollTop;
+        polegarDaBarra.setPointerCapture(e.pointerId);
+        const mover = (ev: PointerEvent): void => {
+            const livre = barraDeRolagem.clientHeight - polegarDaBarra.offsetHeight;
+            if (livre > 0) alvo.scrollTop = inicioRolagem + ((ev.clientY - inicioY) / livre) * (alvo.scrollHeight - alvo.clientHeight);
+        };
+        const soltar = (): void => {
+            polegarDaBarra.removeEventListener("pointermove", mover);
+            polegarDaBarra.removeEventListener("pointerup", soltar);
+            polegarDaBarra.removeEventListener("pointercancel", soltar);
+        };
+        polegarDaBarra.addEventListener("pointermove", mover);
+        polegarDaBarra.addEventListener("pointerup", soltar);
+        polegarDaBarra.addEventListener("pointercancel", soltar);
+    });
+    barraDeRolagem.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        const alvo = elementoQueRola();
+        const acima = e.clientY < polegarDaBarra.getBoundingClientRect().top;
+        alvo.scrollTop += (acima ? -1 : 1) * alvo.clientHeight * 0.9;
     });
     // O nome de uma rolagem aceita o mouse: o clique ROLA (e destaca a rolagem na lista). O "mousedown" não pode tirar o foco do campo de texto.
     camadaCores.addEventListener("mousedown", (e) => {
@@ -911,7 +1119,13 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     });
 
     return {
-        abrir(ficha) {
+        abrir(ficha, token) {
+            // A MESMA ficha já aberta, agora por OUTRO token: só troca o token (carregar de novo poderia descartar o que a pessoa escreveu e ainda não salvou).
+            if (token && base && !janela.hidden && base.id === ficha.id) {
+                definirTokenDaAbertura(token);
+                return;
+            }
+            definirTokenDaAbertura(token ?? null);
             carregar(ficha);
             mostrarAviso("");
             janela.hidden = false;
@@ -919,8 +1133,25 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
             colocarNaTela(); // (depois de mostrar: só então dá para medir o tamanho da janela)
             opcoes.aoMudarAberta(ficha.id);
             document.addEventListener("keydown", aoTeclar, true);
-            if (!previa.hidden) mostrarPrevia(false, false); // abre sempre no campo de texto (com as marcas), não na leitura
-            campoTexto.focus();
+            // A ficha abre NO MODO QUE O TEXTO PEDE (leitura, se tem formatação; senão o campo), tanto por um TOKEN quanto pela lista de fichas da bolsa (pedido do dono: o duplo
+            // clique no documento não pode cair direto na edição). O foco vai para a JANELA, não para o campo: assim o Esc fecha (quem clicou sem querer não fica preso) e nada
+            // troca de modo sozinho. (Antes o foco ia para o campo, o navegador o tirava logo depois por causa do 2º clique, a leitura aparecia, e o foco devolvido ao campo a
+            // trocava de novo por edição: o "pisca" de leitura para edição.)
+            // Exceção: uma ficha VAZIA (a recém-criada) abre no campo, com o cursor, porque o que a pessoa quer ali é escrever.
+            const vazia = rascunho.every((a) => a.texto.trim() === "");
+            if (vazia) {
+                mostrarPrevia(false, false);
+                campoTexto.focus();
+            } else {
+                // Aberta por um TOKEN (duplo clique): SEMPRE na leitura (pedido do dono), mesmo sem formatação: a pessoa quer consultar/rolar, não editar. Para editar: duplo clique
+                // no texto ou o botão "Editar". Aberta pela lista da bolsa: no modo que o texto pede.
+                mostrarPrevia(token ? true : temFormatacao(), false);
+                painel.focus({ preventScroll: true });
+                window.setTimeout(() => {
+                    if (!janela.hidden && !janela.contains(document.activeElement)) painel.focus({ preventScroll: true }); // (o navegador ainda pode mover o foco para o fundo com o fim do clique)
+                }, 80);
+            }
+            agendarBarraDeRolagem();
             // No DUPLO CLIQUE de um documento, o 1º clique abre a janela e o 2º chegaria nela: se um botão dela (como "Fechar") estiver bem onde
             // o mouse está, a ficha abriria e fecharia na hora. Por isso a janela ignora o mouse por um instante depois de abrir (o 2º clique
             // passa para o documento, que apenas a abre de novo).
@@ -931,6 +1162,9 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         },
         get idAberto() {
             return base ? base.id : null;
+        },
+        valoresMudaram(id) {
+            if (!janela.hidden && base?.id === id) atualizarAssistente();
         },
         fichaMudou(ficha) {
             if (!base || ficha.id !== base.id) return;
@@ -972,6 +1206,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         },
         recusada(motivo) {
             if (!salvando && !aguardandoRolagem) return;
+            fecharAposSalvar = false; // o servidor recusou: a janela continua aberta
             aguardandoRolagem = false;
             salvando = false;
             enviado = null;

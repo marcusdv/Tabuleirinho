@@ -35,8 +35,9 @@ import {
     CHAVE_ORDEM_TOKENS,
     MAX_GRUPOS,
 } from "../config";
-import { estado, type Ficha, type Grupo, type Token } from "../estado";
+import { estado, pecasDoModelo, quantosModelos, type Ficha, type Grupo, type StatusNovo, type Token } from "../estado";
 import { criarEditorGrupo } from "./editorGrupo";
+import { criarEditorStatus } from "./editorStatus";
 import { corCss, escolherArquivo, marcarEscolhida, montarPaleta, pintarDisco } from "./aparenciaToken";
 import { guardarPreferencia, lerPreferencia } from "./preferencias";
 
@@ -47,6 +48,7 @@ export interface DadosNovoToken {
     corBorda: number;
     tamanho: number;
     imagem: string | null;
+    ficha?: number | null; // "Gerar um token" a partir de uma ficha: o token já nasce com ela atribuída
 }
 
 export interface OpcoesBolsa {
@@ -68,6 +70,8 @@ export interface OpcoesBolsa {
     aoCriarToken(dados: DadosNovoToken): Token | "enviado" | null;
     /** O usuário pediu "Excluir token…" no menu de uma ficha (quem trata pede a confirmação). */
     aoExcluir(token: Token): void;
+    /** Mostra um aviso curto no canto (ex.: "Token criado na bolsa"). */
+    aoAvisar(texto: string): void;
     /** Mudar a estrela e/ou os grupos de vários itens (tokens ou fichas) de uma vez; cada alteração diz o id e o que muda. Online vira pedidos ao servidor. */
     aoAlterarItens(tipo: "tokens" | "fichas", alteracoes: { id: number; favorito?: boolean; grupos?: number[] }[]): void;
     /** Criar um grupo (nome e cor). Devolve o grupo (modo local), "enviado" (online: ele chega por `bolsa.grupoCriado`) ou null (limite). */
@@ -93,8 +97,12 @@ export interface OpcoesBolsa {
     editarImagem(arquivo: File, corFundo: number): Promise<string | null>;
     /** O usuário pediu "Editar token…" no menu de uma ficha: abrir a janela de edição desse token. */
     aoEditar(token: Token): void;
-    /** O usuário trocou a imagem de um token que está na bolsa (pelo "Alterar imagem…" do menu da ficha). */
-    aoMudarImagem(id: number, imagem: string): void;
+    /** "Adicionar ficha" no clique direito do token: abre o "Editar token" já no campo Ficha (a imagem só se troca dentro do Editar token). */
+    aoAdicionarFicha(token: Token): void;
+    /** Os STATUS (barras) da MESA mudaram no editor da bolsa em tela cheia: aplicar AO VIVO a TODOS os tokens e peças. `status` = a lista inteira. */
+    aoMudarStatus(status: StatusNovo[]): void;
+    /** Duplo clique (ou Enter) num token da bolsa: abrir a ficha atribuída a ele (sem ficha, quem trata avisa). */
+    aoAbrirFichaDoToken(token: Token): void;
     /**
      * O usuário clicou em "Criar ficha" (a ficha nasce VAZIA, com o arquivo criado na hora). Modo local: devolve a ficha criada (ou null se não coube). Online: o pedido vai ao
      * servidor e devolve "enviada"; a ficha só existe quando o servidor a grava e avisa (`bolsa.fichaSalva`), ou recusa
@@ -121,6 +129,8 @@ export interface Bolsa {
     atualizarGrupos(): void;
     /** O servidor criou um grupo (online). Se foi esta pessoa que o pediu, termina o que ela estava fazendo (ex.: adicionar os selecionados a ele). */
     grupoCriado(grupo: Grupo): void;
+    /** Os STATUS da mesa mudaram (por esta pessoa ou outra): refaz o editor de status da tela cheia. */
+    statusMudaram(): void;
     /** Refaz a lista da aba Fichas conforme `estado.fichas`. */
     atualizarFichas(): void;
     /** Qual ficha está aberta na janela de edição (null = nenhuma): o nome dela ganha outra cor na lista. */
@@ -178,11 +188,12 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     let fantasmaPintado = ""; // o que a cópia mostra agora (para repintar só quando o token muda)
     const menuFicha = pegar("menu-ficha");
     const menuEditar = pegar<HTMLButtonElement>("menu-ficha-editar");
-    const menuAlterar = pegar<HTMLButtonElement>("menu-ficha-alterar");
+    const menuFichaDoToken = pegar<HTMLButtonElement>("menu-ficha-ficha"); // "Adicionar ficha" (ou "Trocar ficha", se o token já tem uma)
     const menuExcluir = pegar<HTMLButtonElement>("menu-ficha-excluir");
     const menuDoc = pegar("menu-doc");
     const menuDocAbrir = pegar<HTMLButtonElement>("menu-doc-abrir");
     const menuDocExcluir = pegar<HTMLButtonElement>("menu-doc-excluir");
+    const menuDocGerarToken = pegar<HTMLButtonElement>("menu-doc-gerar-token");
     const fichasVazia = pegar("bolsa-fichas-vazia");
     const listaFichas = pegar("bolsa-fichas-lista");
     const botaoCriarFicha = pegar<HTMLButtonElement>("bolsa-ficha-criar-botao");
@@ -217,8 +228,20 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     let expandida = false;
     // A SELEÇÃO de cada aba (os ids marcados) e a "âncora" (o último item clicado, de onde o Shift+clique conta o intervalo).
     const selecao = { tokens: { ids: new Set<number>(), ancora: null as number | null }, fichas: { ids: new Set<number>(), ancora: null as number | null } };
+
+    // O EDITOR DE STATUS (as barras) da tela cheia, ao lado da prévia: UMA regra para a MESA INTEIRA (pedido do dono: "a regra que muda ali serve para TODOS OS TOKENS", e
+    // "não precisa selecionar antes"). Cada mudança (checkbox na hora; nome, variável e cor um instante depois de parar de digitar; "+ Status" e ✕ na hora) vale AO VIVO para
+    // todos os tokens e todas as peças do tabuleiro.
+    // A "Prévia das barras" (só as 3 primeiras) fica EMBAIXO da prévia do token, com altura fixa: não empurra a lista de tokens.
+    const editorStatus = criarEditorStatus(pegar("bolsa-status"), (lista) => opcoes.aoMudarStatus(lista), { rotulo: pegar("bolsa-previa-barras-rotulo"), caixa: pegar("bolsa-previa-barras") });
+    /** Mostra no editor a lista de status da mesa. Não mexe nele enquanto a pessoa está digitando (a lista que ela vê já é a dela). */
+    function mostrarStatusDaMesa(): void {
+        if (editorStatus.temFoco()) return;
+        editorStatus.definir(estado.statusDaMesa);
+    }
     let visiveisTokens: Token[] = []; // o que a lista de tokens mostra agora (depois da pesquisa), na ordem da tela
     let visiveisFichas: Ficha[] = []; // idem para as fichas
+    let avisarAoCriar: string | null = null; // online: o token foi pedido por "Gerar um token" (clique direito numa ficha): quando chegar, avisa em vez de abrir o editor
     let abrirEditorAoCriar = false; // online: o token genérico foi pedido pelo "+ Criar token": quando chegar, abre o "Editar token"
     let fichaDoMenu: Ficha | null = null; // o documento (ficha) em que o clique direito abriu o menu
     let aguardandoToken = false; // online: o pedido de criar token já foi ao servidor e a resposta ainda não chegou
@@ -254,7 +277,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         texto.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase().replace(/×/g, "x");
 
     function atualizar(): void {
-        const guardados = estado.tokens.filter((t) => t.guardado);
+        const guardados = estado.tokens.filter((t) => t.guardado && t.copiaDe === null); // (só os tokens da BOLSA: as peças do tabuleiro não aparecem aqui)
         // A pesquisa filtra pelo nome e pelo tamanho; vazia, mostra todos.
         const busca = normalizar(campoBusca.value.trim());
         bolsa.classList.toggle("buscando", busca !== ""); // pesquisando, a prévia grande some e os resultados sobem
@@ -269,7 +292,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                 : expandida
                   ? "Nenhum token guardado ainda. Crie um ao lado."
                   : "Arraste tokens para cá para guardá-los.";
-        const cheia = estado.tokens.length >= MAX_TOKENS;
+        const cheia = quantosModelos() >= MAX_TOKENS;
         botaoCriar.disabled = aguardandoToken || cheia;
         botaoCriar.title = cheia ? `Limite de ${MAX_TOKENS} tokens na mesa` : "";
 
@@ -279,8 +302,8 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                 ficha.className = "ficha";
                 ficha.dataset.id = String(token.id);
                 ficha.title = expandida
-                    ? `${token.nome} (${token.size}×${token.size}): clique para selecionar, clique de novo para editar (botão direito: mais opções)`
-                    : `${token.nome} (${token.size}×${token.size}): arraste para o mapa; clique para selecionar, clique de novo para editar (botão direito: mais opções)`;
+                    ? `${token.nome} (${token.size}×${token.size}): clique para selecionar, duplo clique para abrir a ficha (botão direito: mais opções)`
+                    : `${token.nome} (${token.size}×${token.size}): arraste para o mapa; clique para selecionar, duplo clique para abrir a ficha (botão direito: mais opções)`;
                 ficha.setAttribute("aria-label", `${token.nome}, ${token.size} por ${token.size}`);
 
                 const disco = document.createElement("span");
@@ -295,6 +318,26 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                 tamanho.textContent = `${token.size}×${token.size}`;
                 ficha.append(disco, nome, tamanho, ...marcasDoItem("tokens", token));
                 ficha.title += dicaDosGrupos(token);
+                const noMapa = pecasDoModelo(token.id).length;
+                if (noMapa > 0) {
+                    // Quantas PEÇAS (cópias) deste token já estão no tabuleiro.
+                    const contador = document.createElement("span");
+                    contador.className = "item-no-mapa";
+                    contador.textContent = `${noMapa} no mapa`;
+                    contador.setAttribute("aria-hidden", "true");
+                    ficha.append(contador);
+                    ficha.title += ` · ${noMapa} no mapa`;
+                }
+                const fichaDoToken = token.ficha === null ? undefined : estado.fichas.find((f) => f.id === token.ficha);
+                if (fichaDoToken) {
+                    // A ficha atribuída: um selinho no canto (o nome vai por textContent/title, nunca como HTML).
+                    const vinculo = document.createElement("span");
+                    vinculo.className = "item-ficha-vinculo";
+                    vinculo.textContent = "▤";
+                    vinculo.setAttribute("aria-hidden", "true");
+                    ficha.append(vinculo);
+                    ficha.title += ` · Ficha: ${fichaDoToken.nome}`;
+                }
 
                 ficha.addEventListener("pointerdown", (e) => {
                     pontoDoAperto = { x: e.clientX, y: e.clientY };
@@ -302,7 +345,12 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                     e.preventDefault(); // sem selecionar texto nem arrastar a "imagem" do botão
                     if (opcoes.aoComecarArrasto(token.id, { x: e.clientX, y: e.clientY })) acompanhar();
                 });
-                ficha.addEventListener("click", (e) => aoClicarItem(token.id, e, () => opcoes.aoEditar(token)));
+                // O 2º clique NÃO abre mais o "Editar token" (o duplo clique abre a FICHA; "Editar token…" fica no clique direito). Enter (clique sem mouse) abre a ficha.
+                ficha.addEventListener("click", (e) => aoClicarItem(token.id, e, () => { if (e.detail === 0) opcoes.aoAbrirFichaDoToken(token); }));
+                ficha.addEventListener("dblclick", (e) => {
+                    if (e.ctrlKey || e.metaKey || e.shiftKey) return; // (com Ctrl/Shift o gesto é de seleção)
+                    opcoes.aoAbrirFichaDoToken(token);
+                });
                 // Botão direito: menu de ações (em vez do menu do navegador). Num item fora da seleção, ele vira a seleção (como no Windows).
                 ficha.addEventListener("contextmenu", (e) => {
                     e.preventDefault();
@@ -486,6 +534,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         renderizarChips();
         atualizar();
         atualizarFichas();
+        mostrarStatusDaMesa(); // (os nomes dos grupos nos menus dos status)
     }
 
     /** Se o menu "Grupos…" está aberto, refaz as linhas (✓ e –) com o estado de agora (vale também quando a confirmação do servidor chega depois). */
@@ -708,14 +757,11 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         const n = selDaAba().ids.size;
         const barra = n > 1 && expandida; // a barra de ações é para VÁRIOS itens, e vários só na tela cheia (com um só, o clique direito e o clique de novo bastam)
         // ONDE a barra fica: na aba Fichas em tela cheia, na linha do botão "Instruções"; nos outros casos, na linha da pesquisa (no lugar dela).
-        const naLinhaDasInstrucoes = expandida && aba === "fichas";
-        const destino = naLinhaDasInstrucoes ? pegar("bolsa-fichas-botoes") : (botaoFechar.parentElement as HTMLElement);
-        if (barraSelecao.parentElement !== destino) naLinhaDasInstrucoes ? destino.append(barraSelecao) : destino.insertBefore(barraSelecao, botaoFechar);
-        const abaixoDasAbas = expandida && aba === "tokens"; // (Tokens em tela cheia não tem a linha das instruções: a barra ganha uma linha própria, abaixo das abas)
-        barraSelecao.classList.toggle("na-linha-das-instrucoes", naLinhaDasInstrucoes);
-        barraSelecao.classList.toggle("abaixo-das-abas", abaixoDasAbas);
+        // A barra fica SEMPRE no alto, na linha da pesquisa (nas duas abas): numa linha própria ela empurraria o resto da interface para baixo.
+        const destino = botaoFechar.parentElement as HTMLElement;
+        if (barraSelecao.parentElement !== destino) destino.insertBefore(barraSelecao, botaoFechar);
         barraSelecao.hidden = !barra;
-        bolsa.classList.toggle("com-selecao", barra && !naLinhaDasInstrucoes && !abaixoDasAbas); // (nos dois casos a pesquisa continua onde está)
+        bolsa.classList.toggle("com-selecao", barra); // (a pesquisa continua à vista; a classe só dá o espaço entre ela e a barra)
         contagemSelecao.textContent = `${n} selecionados`;
         atualizarRotulosDeFavorito();
         menuSelecaoExcluir.textContent = `Excluir ${n} ${aba === "tokens" ? "tokens" : "fichas"}`;
@@ -893,6 +939,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         pontoDoMenu = { x, y };
         atualizarRotulosDeFavorito();
         tokenDoMenu = token;
+        menuFichaDoToken.textContent = token.ficha !== null && estado.fichas.some((f) => f.id === token.ficha) ? "Trocar ficha" : "Adicionar ficha";
         menuFicha.hidden = false;
         // Dentro da janela: se não couber à direita/embaixo, abre para o lado oposto do clique.
         const caixa = menuFicha.getBoundingClientRect();
@@ -926,17 +973,20 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         fecharMenuFicha();
         if (ficha) opcoes.aoAbrirFicha(ficha);
     });
+    menuDocGerarToken.addEventListener("click", () => {
+        const ficha = fichaDoMenu;
+        fecharMenuFicha();
+        if (ficha) gerarTokenDaFicha(ficha);
+    });
     menuDocExcluir.addEventListener("click", () => {
         const ficha = fichaDoMenu;
         fecharMenuFicha();
         if (ficha) opcoes.aoExcluirFicha(ficha);
     });
-    menuAlterar.addEventListener("click", async () => {
+    menuFichaDoToken.addEventListener("click", () => {
         const token = tokenDoMenu;
         fecharMenuFicha();
-        if (!token) return;
-        const imagem = await escolherEcortar(token.cor);
-        if (imagem) opcoes.aoMudarImagem(token.id, imagem);
+        if (token) opcoes.aoAdicionarFicha(token);
     });
     // O menu fecha com um aperto fora dele (captura: roda antes de qualquer outro tratamento), com Esc e ao rolar.
     document.addEventListener(
@@ -1044,6 +1094,13 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     function tokenCriado(token: Token): void {
         if (!aguardandoToken) return atualizar(); // o token é de outra pessoa: só a lista muda
         aguardandoToken = false;
+        if (avisarAoCriar !== null) {
+            const nomeDaFicha = avisarAoCriar;
+            avisarAoCriar = null;
+            atualizar();
+            opcoes.aoAvisar(`Token "${token.nome}" criado na bolsa (aba Tokens), com a ficha "${nomeDaFicha}".`);
+            return;
+        }
         if (abrirEditorAoCriar) {
             abrirEditorAoCriar = false; // veio do "+ Criar token": o formulário da tela cheia não é tocado; abre o "Editar token"
             atualizar();
@@ -1058,6 +1115,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         if (!aguardandoToken) return;
         aguardandoToken = false;
         abrirEditorAoCriar = false;
+        avisarAoCriar = null;
         aviso.textContent = motivo;
         atualizar();
     }
@@ -1273,7 +1331,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
      * para a pessoa dar nome, imagem e cores. (O formulário completo continua na tela cheia, pelo ⤢.)
      */
     function criarTokenGenerico(): void {
-        if (aguardandoToken || estado.tokens.length >= MAX_TOKENS) return;
+        if (aguardandoToken || quantosModelos() >= MAX_TOKENS) return;
         campoBusca.value = ""; // (o token novo precisa aparecer na lista)
         const resultado = opcoes.aoCriarToken({ nome: "", cor: COR_INICIAL_TOKEN, corBorda: COR_BORDA_INICIAL_TOKEN, tamanho: TAMANHO_INICIAL_TOKEN, imagem: null });
         if (resultado === "enviado") {
@@ -1286,6 +1344,22 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         }
     }
     botaoCriarToken.addEventListener("click", criarTokenGenerico);
+    /**
+     * "Gerar um token" (clique direito numa ficha): cria um token com o NOME da ficha (cortado no limite de nome de token), as cores padrão, já guardado na bolsa
+     * e ATRIBUÍDO a ela. Uma ficha pode gerar quantos tokens quiser. Não abre nenhuma janela: só avisa onde o token ficou.
+     */
+    function gerarTokenDaFicha(ficha: Ficha): void {
+        if (aguardandoToken) return;
+        if (quantosModelos() >= MAX_TOKENS) return opcoes.aoAvisar(`Não foi possível criar: a mesa tem o limite de ${MAX_TOKENS} tokens.`);
+        const resultado = opcoes.aoCriarToken({ nome: ficha.nome, cor: COR_INICIAL_TOKEN, corBorda: COR_BORDA_INICIAL_TOKEN, tamanho: TAMANHO_INICIAL_TOKEN, imagem: null, ficha: ficha.id });
+        if (resultado === "enviado") {
+            aguardandoToken = true; // online: o token chega pelo servidor (tokenCriado), e só então vem o aviso
+            avisarAoCriar = ficha.nome;
+        } else if (resultado !== null) {
+            atualizar();
+            opcoes.aoAvisar(`Token "${resultado.nome}" criado na bolsa (aba Tokens), com a ficha "${ficha.nome}".`);
+        }
+    }
 
     campoBusca.addEventListener("input", atualizar); // filtra os tokens a cada letra
     campoBuscaFichas.addEventListener("input", atualizarFichas); // e esta, só as fichas (cada aba tem a sua pesquisa)
@@ -1326,8 +1400,10 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     atualizarEscolha();
     atualizar();
     atualizarFichas();
+    mostrarStatusDaMesa();
 
     return {
+        statusMudaram: mostrarStatusDaMesa,
         get aba() {
             return aba;
         },

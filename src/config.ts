@@ -10,6 +10,7 @@ export const CHAVE_ORDEM_PILHA = "tabuleirinho.pilha.ordem"; // a ordem das barr
 export const CHAVE_DESENHO_RECOLHIDO = "tabuleirinho.desenho.recolhido"; // "1" = o painel de Desenho está recolhido
 export const CHAVE_ORDEM_TOKENS = "tabuleirinho.bolsa.ordem.tokens"; // a ordem escolhida na aba Tokens (ver ORDENS em ui/bolsa.ts)
 export const CHAVE_ORDEM_FICHAS = "tabuleirinho.bolsa.ordem.fichas"; // idem na aba Fichas
+export const CHAVE_STATUS_AJUDA = "tabuleirinho.status.ajuda.v2"; // "1" = a pessoa deixou à MOSTRA as instruções dos status (o "?"); sem escolha guardada: OCULTAS (pedido do dono; a chave é nova de propósito: a escolha antiga, de quando o padrão era à mostra, não vale mais)
 export const CHAVE_ABA_LATERAL = "tabuleirinho.lateral.aba"; // "chat" ou "bolsa": a aba da coluna da direita (sem escolha guardada: "bolsa"; o index.html repete a regra)
 export const CHAVE_DADOS_RECOLHIDO = "tabuleirinho.dados.recolhido"; // "1" = a barra de dados está recolhida, "0" = aberta (sem valor: abre, salvo em janela baixa)
 // (O index.html repete estas chaves num script que roda ANTES da primeira pintura: se mudar uma aqui, mude lá também.)
@@ -89,6 +90,36 @@ export const ZOOM_MIN = 0.2;
 export const ZOOM_MAX = 3;
 export const PASSO_ZOOM = 1.25;
 /** Ctrl + roda do mouse: cada unidade de rolagem multiplica o zoom por e^(-delta × isto). 0,001 faz um "clique" da roda (100) valer ~1,1× (mais suave que o PASSO_ZOOM; era 0,002, forte demais para o dono). */
+// --- STATUS do token (as barras embaixo dele no tabuleiro: HP e outras) ---
+/** Quantos status (barras) um token pode ter. */
+export const MAX_STATUS_TOKEN = 20;
+/** Quantas barras a "Prévia das barras" (embaixo da prévia do token, na bolsa em tela cheia) mostra: só as primeiras, para a prévia ter altura fixa e não empurrar a lista de tokens. */
+export const BARRAS_NA_PREVIA_STATUS = 3;
+
+// --- AÇÕES dos tokens (Dano, Cura e as que o dono criar): mudam o valor de um status de uma peça (ex.: tirar PV) ---
+/** Quantas ações a mesa pode ter. */
+export const MAX_ACOES_MESA = 12;
+/** Tamanho máximo do nome de uma ação (ex.: "Dano", "Cura", "Veneno"). */
+export const MAX_CARACTERES_NOME_ACAO = 20;
+/** Tamanho máximo do texto do valor de uma ação (um número, ou dados como "2d6+3"). */
+export const MAX_CARACTERES_QUANTIA_ACAO = 40;
+/** O maior valor que uma ação pode somar ou tirar de uma vez. */
+export const MAX_QUANTIA_ACAO = 1_000_000;
+/** Tamanho máximo do NOME de um status (ex.: "HP", "Mana"). */
+export const MAX_CARACTERES_NOME_STATUS = 12;
+/** O status que todo token novo tem: a barra de vida "HP", que lê a variável PV:: da ficha atribuída ao token. */
+export const STATUS_PADRAO_NOME = "HP";
+export const STATUS_PADRAO_VARIAVEL = "PV";
+export const COR_STATUS_HP = 0x2ecc71;
+/** As cores oferecidas ao criar um status novo (a próxima que ainda não está em uso). */
+export const CORES_STATUS = [0x2ecc71, 0x3498db, 0xe67e22, 0x9b59b6, 0xf1c40f, 0xe74c3c];
+/** A barra no tabuleiro: altura e vão entre uma barra e a próxima (em pixels do mundo, antes do zoom). */
+export const ALTURA_BARRA_STATUS = 14; // (alta o bastante para o número "100/100" caber DENTRO da barra)
+export const VAO_BARRA_STATUS = 2;
+
+/** Duplo clique num token do tabuleiro: o 2º aperto no mesmo token vale se vier em até isto (ms) e com o mouse parado (até PX_DUPLO_CLIQUE pixels de tela). */
+export const MS_DUPLO_CLIQUE = 400;
+export const PX_DUPLO_CLIQUE = 5;
 export const SENSIBILIDADE_ZOOM_RODA = 0.001;
 
 // --- Câmera ---
@@ -103,7 +134,8 @@ export const MARGEM_AJUSTE = 24;
 export const TAMANHO_MIN_TOKEN = 1; // um token ocupa no mínimo 1x1 casa
 export const TAMANHO_MAX_TOKEN = 4; // e no máximo 4x4 casas
 export const FOLGA_TOKEN = 6; // espaço (px) entre o círculo do token e a borda do bloco
-export const MAX_TOKENS = 100; // quantos tokens a mesa aceita no total (no mapa + na bolsa)
+export const MAX_TOKENS = 100; // quantos tokens (os da BOLSA, os "modelos") a mesa aceita
+export const MAX_PECAS = 300; // quantas PEÇAS (as cópias temporárias que ficam no tabuleiro, feitas ao arrastar um token da bolsa) a mesa aceita
 export const MAX_CARACTERES_NOME_TOKEN = 20; // o nome do token é cortado a este tamanho
 
 // --- Fichas (documentos de texto guardados no servidor; ver estado.ts e servidor/fichas.ts) ---
@@ -132,6 +164,7 @@ export const MAX_CARACTERES_NOME_ROLAGEM = 60; // o nome de uma rolagem, entre p
 export const MAX_VARIAVEIS_POR_FICHA = 100; // além destas, as linhas "NOME:: valor" são ignoradas (limita o trabalho por ficha)
 export const MAX_ROLAGENS_POR_FICHA = 100; // idem para as rolagens "(Nome)[fórmula]"
 export const MAX_PROFUNDIDADE_FORMULA = 50; // profundidade da conta (cada parêntese aninhado conta 4: cabem 12 níveis)
+export const MAX_VALOR_VARIAVEL_QUE_MUDA = 999_999_999; // as variáveis que MUDAM durante o jogo ("OURO::0:150:999999999"): mínimo, inicial e máximo ficam entre -999.999.999 e +999.999.999
 export const MAX_VALOR_FORMULA = 1_000_000_000; // nenhum número (nem resultado de conta) pode passar disto: evita estouro e números absurdos
 
 // --- Imagem do token ---

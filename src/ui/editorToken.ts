@@ -6,6 +6,7 @@
 // =====================================================================
 
 import { MAX_CARACTERES_NOME_TOKEN } from "../config";
+import { estado } from "../estado";
 import type { MudancasToken, Token } from "../estado";
 import { corCss, escolherArquivo, marcarEscolhida, montarPaleta, pintarDisco } from "./aparenciaToken";
 
@@ -20,8 +21,8 @@ export interface OpcoesEditorToken {
 }
 
 export interface EditorToken {
-    /** Abre a janela com os valores atuais do token. */
-    editar(token: Token): void;
+    /** Abre a janela com os valores atuais do token. `focarFicha`: já com o cursor na lista de fichas (o "Adicionar ficha" do menu rápido). */
+    editar(token: Token, opcoes?: { focarFicha?: boolean }): void;
 }
 
 function pegar<T extends HTMLElement>(id: string): T {
@@ -36,6 +37,7 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
     const amostrasBorda = pegar("editor-token-amostras-borda");
     const seletorCor = pegar<HTMLInputElement>("editor-token-cor");
     const seletorCorBorda = pegar<HTMLInputElement>("editor-token-cor-borda");
+    const campoFicha = pegar<HTMLSelectElement>("editor-token-ficha");
     const botaoImagem = pegar<HTMLButtonElement>("editor-token-imagem");
     const botaoSemImagem = pegar<HTMLButtonElement>("editor-token-sem-imagem");
     const arquivo = pegar<HTMLInputElement>("editor-token-arquivo");
@@ -79,7 +81,7 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
         if (!token) return;
         const id = token.id;
         fechar();
-        opcoes.aoSalvar(id, { nome: campoNome.value, size: tamanho, cor, corBorda, imagem });
+        opcoes.aoSalvar(id, { nome: campoNome.value, size: tamanho, cor, corBorda, imagem, ficha: campoFicha.value === "" ? null : Number(campoFicha.value) });
     }
 
     /** Esc fecha SÓ esta janela (a captura impede que a bolsa por baixo também feche); Enter salva. */
@@ -133,9 +135,27 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
     botaoCancelar.addEventListener("click", fechar);
     botaoSalvar.addEventListener("click", salvar);
 
+    /** Enche a lista de fichas ('Nenhuma' + as fichas da mesa em ordem alfabética) e marca a atual. Os nomes entram por textContent (nunca como HTML). */
+    function montarListaDeFichas(atual: number | null): void {
+        const nenhuma = document.createElement("option");
+        nenhuma.value = "";
+        nenhuma.textContent = "Nenhuma";
+        const ordenadas = [...estado.fichas].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR") || a.id - b.id);
+        const repetidos = new Set(ordenadas.filter((f, i) => ordenadas.some((o, j) => j !== i && o.nome === f.nome)).map((f) => f.nome));
+        const opcoesDeFicha = ordenadas.map((f) => {
+            const o = document.createElement("option");
+            o.value = String(f.id);
+            o.textContent = repetidos.has(f.nome) ? `${f.nome} (nº ${f.id})` : f.nome; // (duas fichas com o mesmo nome: o número desempata)
+            return o;
+        });
+        campoFicha.replaceChildren(nenhuma, ...opcoesDeFicha);
+        campoFicha.value = atual !== null && ordenadas.some((f) => f.id === atual) ? String(atual) : "";
+    }
+
     return {
-        editar(alvo) {
+        editar(alvo, abrirCom) {
             token = alvo;
+            montarListaDeFichas(alvo.ficha);
             campoNome.value = alvo.nome;
             tamanho = alvo.size;
             cor = alvo.cor;
@@ -144,8 +164,12 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
             atualizarEscolha();
             janela.hidden = false;
             document.addEventListener("keydown", aoTeclar, true);
-            campoNome.focus();
-            campoNome.select();
+            if (abrirCom?.focarFicha) {
+                campoFicha.focus();
+            } else {
+                campoNome.focus();
+                campoNome.select();
+            }
         },
     };
 }

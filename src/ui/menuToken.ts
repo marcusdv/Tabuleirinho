@@ -5,8 +5,8 @@
 //   1) clique direito no token -> abrir(id): aparecem botões ACIMA do token (um pouco afastados dele):
 //        - no canto superior ESQUERDO, uma LISTA de ações, de cima para baixo:
 //            [ Add condição ]   <- primeiro item
-//            [ Add dano ]       <- provisório, sem função ainda
-//            [ Add cura ]       <- provisório, sem função ainda
+//            [ Dano ] [ Cura ] ... <- as AÇÕES da mesa (uma por ação; cada uma abre o modal do cálculo)
+//            [ + Nova ação ]    <- abre o modal para criar e excluir ações
 //        - no canto superior DIREITO, a engrenagem.
 //   2) clique na engrenagem     -> abre/fecha o painel da ENGRENAGEM ("Editar token" e "Remover do tabuleiro"; o primeiro abre a
 //                                  janela de edição de nome, tamanho e cores; novas opções entram aqui);
@@ -26,7 +26,7 @@
 import { CONDICOES, urlDoIcone } from "../condicoes";
 import { AFASTAMENTO_OPCOES_TOKEN, ALTURA_MIN_PAINEL, DISTANCIA_PAINEL } from "../config";
 import { limitar } from "../coordenadas";
-import { buscarToken } from "../estado";
+import { buscarToken, estado } from "../estado";
 import type { DicaCondicao } from "./dicaCondicao";
 
 export interface OpcoesMenuToken {
@@ -40,6 +40,10 @@ export interface OpcoesMenuToken {
     aoGuardar(id: number): void;
     /** Clicou numa condição: liga se estava desligada, desliga se estava ligada. */
     aoAlternarCondicao(id: number, condicaoId: string): void;
+    /** Clicou numa AÇÃO da mesa (Dano, Cura...) no token `id`: abrir o modal do cálculo. */
+    aoAcao(id: number, acaoId: number): void;
+    /** Clicou em "+ Nova ação": abrir o modal de criar e excluir ações. */
+    aoNovaAcao(): void;
 }
 
 export interface MenuToken {
@@ -77,6 +81,35 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
     // Id do token cujas opções estão abertas (null = nada aberto) e qual painel está aberto.
     let tokenAberto: number | null = null;
     let painelAberto: Painel | null = null;
+
+    /**
+     * Os botões das AÇÕES da mesa (Dano, Cura e as que o dono criou) e o "+ Nova ação": refeitos a cada abertura e atualização (a lista da mesa pode ter mudado). Ficam depois de
+     * "Add condição". Clicar numa ação fecha o menu e abre o modal do cálculo.
+     */
+    function desenharAcoes(): void {
+        for (const antigo of acoes.querySelectorAll(".acao-dinamica")) antigo.remove();
+        for (const acao of estado.acoesDaMesa) {
+            const botao = document.createElement("button");
+            botao.className = "acao-token acao-dinamica";
+            botao.textContent = acao.nome; // (o nome vem do usuário: textContent)
+            botao.title = `${acao.nome}: ${acao.efeito === "reduzir" ? "tira do" : "soma ao"} ${estado.statusDaMesa.find((s) => s.id === acao.status)?.nome ?? "status"}`;
+            botao.addEventListener("click", () => {
+                const id = tokenAberto;
+                fechar();
+                if (id !== null) opcoes.aoAcao(id, acao.id);
+            });
+            acoes.append(botao);
+        }
+        const nova = document.createElement("button");
+        nova.className = "acao-token acao-dinamica acao-nova";
+        nova.textContent = "+ Nova ação";
+        nova.title = "Criar ou excluir ações (valem para todos os tokens)";
+        nova.addEventListener("click", () => {
+            fechar();
+            opcoes.aoNovaAcao();
+        });
+        acoes.append(nova);
+    }
 
     // --- Botões das condições: criados uma vez, a partir do catálogo ---
     // Guardados por id para marcar quais estão ativas no token aberto.
@@ -116,6 +149,7 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
 
         // Painel da engrenagem: o título é o nome do token.
         titulo.textContent = token.nome;
+        desenharAcoes(); // (a lista de ações da mesa pode ter mudado)
 
         // Painel de condições: destaca as que o token já sofre.
         for (const [id, botao] of botoesCondicao) {

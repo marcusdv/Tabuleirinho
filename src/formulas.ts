@@ -29,6 +29,7 @@ import {
     MAX_QUANTIDADE_DADOS,
     MAX_ROLAGENS_POR_FICHA,
     MAX_VALOR_FORMULA,
+    MAX_VALOR_VARIAVEL_QUE_MUDA,
     MAX_VARIAVEIS_POR_FICHA,
 } from "./config.ts";
 
@@ -288,7 +289,16 @@ export interface PosicaoNoTexto {
     fim: number;
 }
 
+/** Os três números de uma variável que MUDA durante o jogo ("OURO::0:150:999999999" = mínimo 0, começa em 150, máximo 999.999.999). */
+export interface LimitesDaVariavel {
+    min: number;
+    inicial: number;
+    max: number;
+}
+
 export interface VariavelFicha {
+    /** Se a variável MUDA durante o jogo (escrita "NOME::mín:inicial:máx"): os três números. Variável fixa (a de sempre) e variável com erro: null. */
+    muda: LimitesDaVariavel | null;
     /** De qual ABA da ficha é a linha da variável (0 = a primeira). As variáveis valem para a ficha inteira; as posições abaixo são DENTRO desta aba. */
     aba: number;
     nome: string; // como foi escrito (ex.: "MOD_FOR")
@@ -333,10 +343,32 @@ const LINHA_DE_VARIAVEL = /^\s*([\p{L}_][\p{L}\p{N}_]*)\s*::\s*(.*?)\s*$/du;
 const ROLAGEM = /(?:\(([^()[\]\n]{1,200})\)[ \t]*)?\[([^[\]\n]{1,400})\]/dgu;
 const TEM_DADO = /(?:^|[^\p{L}\p{N}_])\d*[dD]\d+(?![\p{L}\p{N}_])/u;
 
-/** Lê o texto de uma ficha e devolve as variáveis (com os valores já calculados) e as rolagens (com as fórmulas já resolvidas). Nunca lança erro. */
-export function analisarFicha(texto: string): AnaliseDaFicha {
+// VARIÁVEL QUE MUDA: depois dos "::" vêm três números inteiros separados por ":" (mín:inicial:máx). Nada de contas nem de outras variáveis aqui (por enquanto).
+const NUMEROS_DA_VARIAVEL_QUE_MUDA = /^(-?\d{1,12})\s*:\s*(-?\d{1,12})\s*:\s*(-?\d{1,12})$/;
+
+/** Lê o que vem depois dos "::" quando é uma variável que MUDA. Devolve null se não é (não tem ":"), ou o resultado conferido (ou a mensagem de erro). */
+export function lerVariavelQueMuda(conta: string): Resultado<LimitesDaVariavel> | null {
+    if (!conta.includes(":")) return null;
+    const achou = NUMEROS_DA_VARIAVEL_QUE_MUDA.exec(conta);
+    if (!achou) return falha("Variável que muda: escreva NOME::mín:inicial:máx (só números inteiros).");
+    const [min, inicial, max] = [achou[1], achou[2], achou[3]].map((n) => Number(n) + 0); // (o "+ 0" troca um "-0" por 0)
+    const limite = MAX_VALOR_VARIAVEL_QUE_MUDA;
+    if (Math.abs(min) > limite || Math.abs(inicial) > limite || Math.abs(max) > limite) {
+        return falha(`Os números vão de -${limite.toLocaleString("pt-BR")} a ${limite.toLocaleString("pt-BR")}.`);
+    }
+    if (min > max) return falha("O mínimo não pode ser maior que o máximo.");
+    if (inicial < min || inicial > max) return falha("O valor inicial precisa estar entre o mínimo e o máximo.");
+    return { ok: true, valor: { min, inicial, max } };
+}
+
+/**
+ * Lê o texto de uma ficha e devolve as variáveis (com os valores já calculados) e as rolagens (com as fórmulas já resolvidas). Nunca lança erro.
+ * `atuais` (opcional) são os valores ATUAIS das variáveis que mudam (nome em MAIÚSCULAS -> valor): quem não aparece vale o inicial, e o valor é
+ * sempre mantido entre o mínimo e o máximo escritos no texto.
+ */
+export function analisarFicha(texto: string, atuais?: ReadonlyMap<string, number>): AnaliseDaFicha {
     // --- 1) as linhas "NOME:: valor" (as repetidas e as passadas do limite são ignoradas, com aviso)
-    const definicoes = new Map<string, { nome: string; conta: string }>();
+    const definicoes = new Map<string, { nome: string; conta: string; muda: Resultado<LimitesDaVariavel> | null }>();
     const variaveis: VariavelFicha[] = [];
     let deslocamento = 0; // onde a linha atual começa no texto inteiro
     for (const linha of texto.split("\n")) {
@@ -352,12 +384,13 @@ export function analisarFicha(texto: string): AnaliseDaFicha {
         const posConta = { inicio: inicioDaLinha + lugarDaConta[0], fim: inicioDaLinha + lugarDaConta[1] };
         const chave = nome.toUpperCase();
         if (nome.length > MAX_CARACTERES_NOME_VARIAVEL) {
-            variaveis.push({ aba: 0, nome: nome.slice(0, MAX_CARACTERES_NOME_VARIAVEL) + "…", conta, valor: null, erro: "Nome de variável comprido demais.", posNome, posConta });
+            variaveis.push({ aba: 0, nome: nome.slice(0, MAX_CARACTERES_NOME_VARIAVEL) + "…", conta, muda: null, valor: null, erro: "Nome de variável comprido demais.", posNome, posConta });
         } else if (definicoes.has(chave)) {
-            variaveis.push({ aba: 0, nome, conta, valor: null, erro: "Variável repetida (vale a primeira).", posNome, posConta });
+            variaveis.push({ aba: 0, nome, conta, muda: null, valor: null, erro: "Variável repetida (vale a primeira).", posNome, posConta });
         } else {
-            definicoes.set(chave, { nome, conta });
-            variaveis.push({ aba: 0, nome, conta, valor: null, erro: null, posNome, posConta }); // o valor é calculado abaixo
+            const muda = lerVariavelQueMuda(conta);
+            definicoes.set(chave, { nome, conta, muda });
+            variaveis.push({ aba: 0, nome, conta, muda: muda?.ok ? muda.valor : null, valor: null, erro: null, posNome, posConta }); // o valor é calculado abaixo
         }
     }
 
@@ -369,6 +402,14 @@ export function analisarFicha(texto: string): AnaliseDaFicha {
         if (pronta) return pronta;
         const definicao = definicoes.get(chave);
         if (!definicao) return falha(`Variável não definida: ${chave}.`);
+        if (definicao.muda) {
+            // Variável que MUDA: vale o valor atual (se alguém passou um), sempre dentro do intervalo; senão, o inicial. Não depende de nenhuma outra variável.
+            if (!definicao.muda.ok) return falha(definicao.muda.erro);
+            const { min, inicial, max } = definicao.muda.valor;
+            const atual = atuais?.get(chave);
+            const valor = atual === undefined || !Number.isFinite(atual) ? inicial : Math.min(max, Math.max(min, Math.trunc(atual)));
+            return { ok: true, valor };
+        }
         if (emAndamento.has(chave)) return falha(`A variável ${chave} depende de si mesma (ciclo).`);
         emAndamento.add(chave);
         const arvore = analisarConta(definicao.conta);
@@ -420,14 +461,14 @@ export function analisarFicha(texto: string): AnaliseDaFicha {
  * no texto da aba N, e as posições (de variáveis e de rolagens) são DENTRO do texto da aba a que pertencem. Devolve uma análise por aba.
  * Os limites (100 variáveis e 100 rolagens) valem para a ficha toda.
  */
-export function analisarAbas(textos: readonly string[]): AnaliseDaFicha[] {
+export function analisarAbas(textos: readonly string[], atuais?: ReadonlyMap<string, number>): AnaliseDaFicha[] {
     const inicios: number[] = []; // onde o texto de cada aba começa no texto juntado
     let proximo = 0;
     for (const texto of textos) {
         inicios.push(proximo);
         proximo += texto.length + 1; // (+1 da quebra de linha que separa as abas)
     }
-    const juntada = analisarFicha(textos.join("\n"));
+    const juntada = analisarFicha(textos.join("\n"), atuais);
     const abaDe = (posicao: number): number => {
         let aba = 0;
         for (let i = 0; i < inicios.length; i++) if (inicios[i] <= posicao) aba = i;
@@ -452,7 +493,7 @@ export function analisarAbas(textos: readonly string[]): AnaliseDaFicha[] {
 // ---------------------------------------------------------------------
 
 /** As categorias de cor do editor: o nome e o valor de uma variável; o NOME de uma rolagem (a "palavra" com função) e a sua fórmula. */
-export type TipoDeTrecho = "variavel-nome" | "variavel-valor" | "rolagem-nome" | "rolagem-formula";
+export type TipoDeTrecho = "variavel-nome" | "variavel-valor" | "variavel-muda" | "rolagem-nome" | "rolagem-formula";
 
 export interface TrechoDoTexto extends PosicaoNoTexto {
     tipo: TipoDeTrecho;
@@ -469,9 +510,11 @@ export function trechosDoTexto(analise: AnaliseDaFicha): TrechoDoTexto[] {
     const trechos: TrechoDoTexto[] = [];
     for (const v of analise.variaveis) {
         if (v.aba !== analise.aba) continue; // (as variáveis de OUTRAS abas valem aqui, mas não estão neste texto: nada a colorir)
-        const dica = v.erro ?? `${v.nome} = ${v.valor}`;
+        const dica = v.erro ?? (v.muda ? `${v.nome}: mín ${v.muda.min}, inicial ${v.muda.inicial}, máx ${v.muda.max}` : `${v.nome} = ${v.valor}`);
         trechos.push({ tipo: "variavel-nome", ...v.posNome, erro: v.erro, dica, rolagem: null });
-        if (v.posConta.fim > v.posConta.inicio) trechos.push({ tipo: "variavel-valor", ...v.posConta, erro: v.erro, dica, rolagem: null });
+        // Os três números de uma variável que MUDA têm cor própria (e não ganham o "= resultado" das contas).
+        const tipoDoValor: TipoDeTrecho = v.conta.includes(":") ? "variavel-muda" : "variavel-valor";
+        if (v.posConta.fim > v.posConta.inicio) trechos.push({ tipo: tipoDoValor, ...v.posConta, erro: v.erro, dica, rolagem: null });
     }
     analise.rolagens.forEach((r, indice) => {
         const dica = r.erro ?? `${r.nome}: ${r.resolvida}`;

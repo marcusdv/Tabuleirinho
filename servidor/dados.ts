@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
 export const PASTA_DE_DADOS = resolve(process.env.DADOS ?? join(dirname(fileURLToPath(import.meta.url)), "..", "dados"));
 
 /** As subpastas que existem (uma por tipo de item). */
-export type NomeDaPasta = "fichas" | "tokens" | "grupos";
+export type NomeDaPasta = "fichas" | "tokens" | "grupos" | "pecas";
 
 /** O único nome de arquivo aceito: um número inteiro positivo e ".json" (ex.: "7.json"). */
 const NOME_DE_ARQUIVO = /^([1-9]\d{0,14})\.json$/;
@@ -83,6 +83,42 @@ export async function gravarNaPasta(nome: NomeDaPasta, item: { id: number }): Pr
         await rename(temporario, destino);
     } catch (falha) {
         await unlink(temporario).catch(() => undefined); // não deixa lixo para trás
+        throw falha;
+    }
+}
+
+/** O tamanho do tabuleiro (a "mesa"): um arquivo só, `dados/mesa.json`. */
+export interface Mesa {
+    colunas: number;
+    linhas: number;
+    acoes?: unknown; // a lista de AÇÕES da mesa (Dano, Cura...); quem lê limpa (`limparAcoes`). Arquivos antigos não têm: valem as de fábrica
+    status?: unknown; // a lista de STATUS da mesa (barras: HP etc.); quem lê limpa (`limparStatus`). Arquivos antigos não têm: valem os de fábrica
+    valores?: unknown; // os valores ATUAIS das variáveis que mudam (ficha -> NOME -> valor); quem lê confere (`definirTodosOsValoresDasFichas`). Arquivos antigos não têm: valem os iniciais
+}
+
+/** Lê `dados/mesa.json`. Devolve null se não existe (a mesa começa com o tamanho de fábrica) ou se está estragado (com um aviso; o arquivo fica intacto). */
+export async function carregarMesa(): Promise<Mesa | null> {
+    const caminho = join(PASTA_DE_DADOS, "mesa.json");
+    try {
+        const bruto = JSON.parse(await readFile(caminho, "utf8")) as Record<string, unknown>;
+        if (!Number.isSafeInteger(bruto.colunas) || !Number.isSafeInteger(bruto.linhas)) throw new Error("conteúdo inválido");
+        return { colunas: bruto.colunas as number, linhas: bruto.linhas as number, ...(Array.isArray(bruto.status) && { status: bruto.status }), ...(Array.isArray(bruto.acoes) && { acoes: bruto.acoes }), ...(typeof bruto.valores === "object" && bruto.valores !== null && !Array.isArray(bruto.valores) && { valores: bruto.valores }) };
+    } catch (falha) {
+        if ((falha as NodeJS.ErrnoException).code !== "ENOENT") console.warn(`mesa.json ignorado: ${falha instanceof Error ? falha.message : "erro ao ler"}`);
+        return null;
+    }
+}
+
+/** Grava `dados/mesa.json` de forma atômica (o mesmo jeito dos outros arquivos). Lança erro se não conseguir. */
+export async function gravarMesa(mesa: Mesa): Promise<void> {
+    await mkdir(PASTA_DE_DADOS, { recursive: true });
+    const destino = join(PASTA_DE_DADOS, "mesa.json");
+    const temporario = `${destino}.${randomUUID()}.tmp`;
+    try {
+        await writeFile(temporario, JSON.stringify({ colunas: mesa.colunas, linhas: mesa.linhas, ...(mesa.status !== undefined && { status: mesa.status }), ...(mesa.acoes !== undefined && { acoes: mesa.acoes }), ...(mesa.valores !== undefined && { valores: mesa.valores }) }, null, 2) + "\n", { encoding: "utf8", flush: true });
+        await rename(temporario, destino);
+    } catch (falha) {
+        await unlink(temporario).catch(() => undefined);
         throw falha;
     }
 }

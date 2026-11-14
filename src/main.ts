@@ -38,9 +38,20 @@ import {
     buscarToken,
     apagarTodosDesenhos,
     criarToken,
-    definirImagemToken,
+    criarPeca,
+    carregarStatusDaMesa,
+    aplicarAcao,
+    carregarAcoesDaMesa,
+    definirAcoesDaMesa,
+    frasePraChatDaAcao,
+    statusAplicaveis,
+    definirStatusDaMesa,
     definirTamanhoTabuleiro,
     editarToken,
+    excluirTokenComPecas,
+    montarPeca,
+    pecasDoModelo,
+    restaurarEstadoDaPeca,
     montarGrupo,
     receberGrupo,
     definirGrupos,
@@ -51,8 +62,11 @@ import {
     redimensionarTabuleiro,
     type Ficha,
     type Grupo,
+    type AcaoNova,
+    type StatusNovo,
     type Token,
     adicionarRolagemDeFicha,
+    tokenDaRolagem,
     criarFicha,
     editarFicha,
     excluirFicha,
@@ -61,6 +75,13 @@ import {
     excluirToken,
     receberFicha,
     receberToken,
+    statusPadrao,
+    valoresAtuaisDaFicha,
+    ajustarValorDaFicha,
+    definirTodosOsValoresDasFichas,
+    definirValoresDaFicha,
+    motivoParaNaoColocar,
+    sincronizarValoresDaFicha,
 } from "./estado";
 import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS, MS_RECARGA_ROLAGEM, RAJADA_ROLAGENS, SENSIBILIDADE_ZOOM_RODA, TEMPO_AVISO_MAPA_MS, TEMPO_DESFAZER_MS } from "./config";
 import { preverGrade } from "./coordenadas";
@@ -88,6 +109,8 @@ import { criarRede, type Rede } from "./rede";
 import { criarChat } from "./ui/chat";
 import { criarLateral } from "./ui/lateral";
 import { criarAviso } from "./ui/aviso";
+import { criarModalAcao } from "./ui/modalAcao";
+import { criarModalAcoes } from "./ui/modalAcoes";
 import { criarBarra } from "./ui/barra";
 import { criarDicaCondicao } from "./ui/dicaCondicao";
 import { criarMenuToken } from "./ui/menuToken";
@@ -248,6 +271,10 @@ async function iniciar(): Promise<void> {
     // A caixa de confirmar ("Excluir token?"), no lugar da caixa do navegador.
     const confirmacao = criarConfirmacao();
 
+    // As AÇÕES dos tokens (Dano, Cura e as que o dono criar): o modal do cálculo e o que cria/exclui ações.
+    const modalAcao = criarModalAcao();
+    const modalAcoes = criarModalAcoes({ aoMudar: (lista) => mudarAcoesDaMesa(lista) });
+
     // A janela de instruções das fichas (como escrever variáveis e rolagens): abre pelos botões "Instruções".
     criarAjudaFichas();
 
@@ -260,23 +287,33 @@ async function iniciar(): Promise<void> {
                 return "enviada";
             }
             const resultado = editarFicha(id, versao, mudancas); // modo local: só na memória desta aba
-            if (resultado.ok) bolsa.atualizarFichas();
+            if (resultado.ok) {
+                bolsa.atualizarFichas();
+                aplicarValoresDaFicha(id); // (o texto pode ter mudado o mínimo/máximo de uma variável que muda: as barras dos tokens dela acompanham)
+            }
             return resultado;
         },
-        aoRolar: (id, versao, aba, indice) => {
+        aoAjustarValor: (id, nome, delta) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "ajustar_valor_ficha", ficha: id, nome, delta }); // o SERVIDOR soma, limita ao intervalo, grava e avisa todos ("valores_ficha")
+                return;
+            }
+            if (ajustarValorDaFicha(id, nome, delta).ok) aplicarValoresDaFicha(id); // modo local: tudo aqui
+        },
+        aoRolar: (id, versao, aba, indice, token) => {
             if (!podeRolarAgora()) return mensagemDeLimite; // (o editor da ficha mostra o texto no aviso dele)
             if (rede?.ativa) {
-                comAtrasoDeRolagem(() => rede?.enviar({ tipo: "rolar_ficha", id, versao, aba, indice })); // o SERVIDOR sorteia e o cartão chega pelo chat (evento "mensagem")
+                comAtrasoDeRolagem(() => rede?.enviar({ tipo: "rolar_ficha", id, versao, aba, indice, token })); // o SERVIDOR sorteia e o cartão chega pelo chat (evento "mensagem")
                 return null;
             }
             const ficha = estado.fichas.find((f) => f.id === id);
             if (!ficha) return "Essa ficha não existe.";
-            const analise = analisarAbas(ficha.abas.map((a) => a.texto))[aba]; // (as variáveis valem para a ficha toda; as rolagens são da aba)
+            const analise = analisarAbas(ficha.abas.map((a) => a.texto), valoresAtuaisDaFicha(id))[aba]; // (as variáveis valem para a ficha toda; as rolagens são da aba; as variáveis que mudam valem o valor ATUAL)
             if (!analise) return "Essa página não existe.";
             const resultado = rolarDaAnalise(analise, indice, ficha.nome, Math.random); // modo local: sorteia aqui mesmo
             if (!resultado.ok) return resultado.erro;
             comAtrasoDeRolagem(() => {
-                adicionarRolagemDeFicha(AUTOR_PROVISORIO, resultado.valor);
+                adicionarRolagemDeFicha(AUTOR_PROVISORIO, resultado.valor, tokenDaRolagem(id, token));
                 chat.atualizar();
             });
             return null;
@@ -287,12 +324,15 @@ async function iniciar(): Promise<void> {
                 mensagem: `A página "${nome}" e tudo o que está escrito nela serão removidos desta ficha (só valem depois de salvar).`,
                 confirmar: "Excluir página",
             }),
-        confirmarDescarte: () =>
-            confirmacao.perguntar({
+        confirmarDescarte: async (podeSalvar) => {
+            const resposta = await confirmacao.escolher({
                 titulo: "Fechar sem salvar?",
-                mensagem: "Esta ficha tem alterações que ainda não foram salvas.\nSe você fechar agora, elas serão perdidas.",
+                mensagem: "Esta ficha tem alterações que ainda não foram salvas.\nSe você fechar sem salvar, elas serão perdidas.",
                 confirmar: "Fechar sem salvar",
-            }),
+                ...(podeSalvar && { alternativa: "Salvar e fechar" }),
+            });
+            return resposta === "confirmar" ? "descartar" : resposta === "alternativa" ? "salvar" : "cancelar";
+        },
     });
 
     // O editor de recorte da imagem do token (arrastar, zoom, confirmar).
@@ -305,9 +345,10 @@ async function iniciar(): Promise<void> {
                 rede.enviar({ tipo: "editar_token", id, mudancas }); // o servidor confere, grava o arquivo e avisa todos ("token_editado")
                 return;
             }
-            const token = editarToken(id, mudancas); // 1) estado
+            const token = editarToken(id, mudancas); // 1) estado (editar um token da bolsa também atualiza as PEÇAS dele no tabuleiro)
             if (!token) return;
             tokens.redesenhar(token); // 2) desenho no mapa (o token pode estar escondido, guardado)
+            for (const peca of pecasDoModelo(token.id)) tokens.redesenhar(peca);
             menu.atualizar(); // 3) os botões do token acompanham o novo tamanho
             bolsa.atualizar(); // 4) a ficha da bolsa
         },
@@ -338,6 +379,7 @@ async function iniciar(): Promise<void> {
     function removerDoTabuleiro(id: number): void {
         const token = buscarToken(id);
         if (!token || token.guardado) return;
+        if (token.copiaDe !== null) return removerPeca(token); // (uma PEÇA é temporária: remover do tabuleiro a APAGA)
         const { col, row } = token; // (onde ele estava, para o "Desfazer")
         if (rede?.ativa) {
             rede.enviar({ tipo: "guardar_token", id });
@@ -346,15 +388,132 @@ async function iniciar(): Promise<void> {
             tokens.aplicarPosicao(token); // 2) desenho: o token some do mapa
             bolsa.atualizar(); // 3) a ficha aparece na bolsa
         }
-        avisarRemocao(token, col, row);
+        avisarRemocao(token.nome, () => desfazerRemocao(token.id, col, row));
     }
 
     /** O aviso "removido do tabuleiro" com o botão "Desfazer" (vale também quando o token é arrastado até a bolsa). */
-    function avisarRemocao(token: Token, col: number, row: number): void {
-        aviso.mostrar(`"${token.nome}" foi removido do tabuleiro.`, {
+    function avisarRemocao(nome: string, desfazer: () => void): void {
+        aviso.mostrar(`"${nome}" foi removido do tabuleiro.`, {
             duracaoMs: TEMPO_DESFAZER_MS,
-            acao: { rotulo: "Desfazer", aoClicar: () => desfazerRemocao(token.id, col, row) },
+            acao: { rotulo: "Desfazer", aoClicar: desfazer },
         });
+    }
+
+    /** Muda as AÇÕES da mesa inteira (criar, excluir). Online o servidor guarda em `dados/mesa.json` e avisa todos ("acoes_definidas"); local, na hora. */
+    function mudarAcoesDaMesa(lista: AcaoNova[]): void {
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "definir_acoes", acoes: lista });
+            return;
+        }
+        definirAcoesDaMesa(lista);
+        modalAcoes.atualizar();
+        menu.atualizar();
+    }
+
+    /** Clicou numa ação (Dano, Cura...) no menu do token: abre o modal do cálculo (o valor atual, o campo do valor e a conta). */
+    function abrirAcaoDoToken(tokenId: number, acaoId: number): void {
+        const token = buscarToken(tokenId);
+        const acao = estado.acoesDaMesa.find((a) => a.id === acaoId);
+        if (!token || !acao) return;
+        const status = statusAplicaveis(token).find((s) => s.id === acao.status);
+        const valor = status ? token.valores.find((v) => v.id === status.id) : undefined;
+        if (!status || !valor) {
+            aviso.mostrar(`"${token.nome}" não tem ${status ? `valor de ${status.nome}` : "o status desta ação"}: ele precisa de uma ficha com a variável do status.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            return;
+        }
+        modalAcao.abrir({
+            titulo: `${acao.nome} em ${token.nome}`,
+            nomeStatus: status.nome,
+            atual: valor.atual,
+            max: valor.max,
+            efeito: acao.efeito,
+            aoAplicar: (texto) => aplicarAcaoDoJogo(token.id, acao.id, texto),
+        });
+    }
+
+    /** Aplica a ação com o valor escrito. Online o SERVIDOR sorteia os dados, muda o valor, grava e avisa todos (a frase também vai para o chat); no modo local, tudo aqui. */
+    function aplicarAcaoDoJogo(tokenId: number, acaoId: number, texto: string): void {
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "aplicar_acao", token: tokenId, acao: acaoId, valor: texto });
+            return;
+        }
+        const token = buscarToken(tokenId);
+        if (!token) return;
+        const resultado = aplicarAcao(token, acaoId, texto, Math.random);
+        if (!resultado.ok) {
+            aviso.mostrar(resultado.erro, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            return;
+        }
+        tokens.redesenhar(token); // a barra muda na hora
+        adicionarMensagem(AUTOR_PROVISORIO, frasePraChatDaAcao(token, acaoId, resultado));
+        chat.atualizar();
+    }
+
+    /**
+     * Muda os STATUS (barras) da MESA INTEIRA (a regra vale para todos os tokens e peças). Modo local: muda o estado e redesenha todos na hora. ONLINE o servidor é o dono
+     * da regra: o pedido vai para lá, que guarda em `dados/mesa.json`, refaz os valores das peças se preciso e avisa todos ("status_definidos").
+     */
+    function mudarStatusDaMesa(lista: StatusNovo[]): void {
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "definir_status", status: lista });
+            return;
+        }
+        for (const token of definirStatusDaMesa(lista)) tokens.redesenhar(token); // 1) estado (a lista vai para todos) e 2) desenho
+    }
+
+    /**
+     * Os valores atuais das variáveis que mudam de uma ficha mudaram (ou o texto dela mudou o intervalo): refaz as barras dos tokens dela no tabuleiro (elas espelham o valor da
+     * ficha, ao vivo) e o painel da ficha, se ela está aberta. O estado já foi atualizado por quem chama.
+     */
+    function aplicarValoresDaFicha(idFicha: number): void {
+        for (const token of sincronizarValoresDaFicha(idFicha)) tokens.redesenhar(token);
+        editorFicha.valoresMudaram(idFicha);
+    }
+
+    /** Arrastou um token da BOLSA para o tabuleiro: nasce uma PEÇA (cópia temporária) na casa escolhida. O token da bolsa continua lá, e dá para arrastá-lo de novo. */
+    function colocarModeloNoTabuleiro(modelo: Token, col: number, row: number): void {
+        // Ficha de JOGADOR (variáveis que mudam): só um token por tela. Confere antes de tudo (o servidor confere de novo) e explica.
+        const motivo = motivoParaNaoColocar(modelo);
+        if (motivo) {
+            aviso.mostrar(motivo, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            return;
+        }
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "colocar_modelo", modelo: modelo.id, col, row }); // o SERVIDOR cria a peça (lê a ficha, calcula os status) e avisa todos ("peca_criada")
+            return;
+        }
+        const peca = criarPeca(modelo.id, col, row); // 1) estado (os status nascem agora, lendo a ficha)
+        if (!peca) {
+            aviso.mostrar(`Não foi possível colocar "${modelo.nome}": a posição não vale ou a mesa já tem o máximo de peças.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            return;
+        }
+        tokens.adicionar(peca); // 2) desenho no mapa
+        bolsa.atualizar(); // 3) o "no mapa: N" da fichinha
+    }
+
+    /**
+     * "Remover do tabuleiro" numa PEÇA (pelo botão ou soltando-a na bolsa): a peça é APAGADA (ela é temporária: o token da bolsa continua lá). Os status que ela
+     * tinha se perdem, mas o aviso oferece "Desfazer", que cria uma peça nova com o mesmo lugar, o PV atual e as condições de antes.
+     */
+    function removerPeca(peca: Token): void {
+        const foto = { modelo: peca.copiaDe as number, col: peca.col, row: peca.row, valores: peca.valores.map((v) => ({ id: v.id, atual: v.atual })), condicoes: [...peca.condicoes] };
+        if (rede?.ativa) rede.enviar({ tipo: "excluir_token", id: peca.id }); // o servidor apaga o arquivo e avisa todos
+        else removerTokenDoJogo(peca.id);
+        avisarRemocao(peca.nome, () => desfazerPeca(foto));
+    }
+
+    function desfazerPeca(foto: { modelo: number; col: number; row: number; valores: { id: number; atual: number }[]; condicoes: string[] }): void {
+        const modelo = buscarToken(foto.modelo);
+        if (!modelo || modelo.copiaDe !== null) return; // (o token da bolsa foi excluído nesse meio tempo)
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "colocar_modelo", modelo: foto.modelo, col: foto.col, row: foto.row, valores: foto.valores, condicoes: foto.condicoes });
+            return;
+        }
+        const peca = montarPeca(foto.modelo, foto.col, foto.row);
+        if (!peca) return;
+        restaurarEstadoDaPeca(peca, foto.valores, foto.condicoes); // o PV atual e as condições de antes
+        tokens.adicionar(receberToken(peca));
+        bolsa.atualizar();
     }
 
     /** "Desfazer": põe o token de volta onde estava. Só vale se ele ainda existe e continua na bolsa (alguém pode tê-lo excluído ou recolocado). */
@@ -425,22 +584,43 @@ async function iniciar(): Promise<void> {
         if (rede?.ativa) {
             rede.enviar({ tipo: "excluir_grupo", id: grupo.id });
         } else {
-            excluirGrupo(grupo.id);
+            const mudados = excluirGrupo(grupo.id);
+            if (mudados?.status) for (const token of estado.tokens) tokens.redesenhar(token); // (um status valia para esse grupo: as barras mudam)
             bolsa.atualizarGrupos();
+            bolsa.statusMudaram();
         }
     }
 
     /** Tira a ficha do estado e da grade (e avisa o editor, se era a que estava aberta). Vale no modo local e quando o servidor avisa. */
     function removerFichaDoJogo(id: number): void {
-        if (!excluirFicha(id)) return;
+        if (!excluirFicha(id)) return; // (os tokens que usavam esta ficha ficam sem ficha)
+        bolsa.atualizar(); // a fichinha de um token mostra a ficha dele
         bolsa.atualizarFichas();
         editorFicha.fichaExcluida(id);
     }
 
+    /**
+     * DUPLO CLIQUE num token (no tabuleiro ou na bolsa): abre a FICHA atribuída a ele. Sem ficha, um aviso explica e oferece o "Editar token", onde se atribui uma.
+     */
+    function abrirFichaDoToken(token: Token): void {
+        menu.fechar(); // (o menu e o balão do token ficariam soltos por baixo da janela da ficha)
+        balao.esconder();
+        const ficha = token.ficha === null ? undefined : estado.fichas.find((f) => f.id === token.ficha);
+        if (!ficha) {
+            aviso.mostrar(`"${token.nome}" não tem ficha. Atribua uma em "Editar token".`, {
+                acao: { rotulo: "Editar token", aoClicar: () => editorToken.editar(token) },
+                duracaoMs: TEMPO_AVISO_MAPA_MS,
+            });
+            return;
+        }
+        editorFicha.abrir(ficha, token); // (a bolsa em tela cheia, se estiver aberta, NÃO fecha: a janela da ficha fica por cima dela) // (a janela lembra POR QUAL token foi aberta: as rolagens saem com o ícone dele)
+    }
+
     /** Tira o token do estado e do desenho (e fecha o que estiver aberto sobre ele). Vale no modo local e quando o servidor avisa. */
     function removerTokenDoJogo(id: number): void {
-        if (!excluirToken(id)) return; // 1) estado (já não existia: nada a fazer)
-        tokens.remover(id); // 2) desenho no mapa (cancela o arrasto, se alguém o segurava)
+        const removidos = excluirTokenComPecas(id); // 1) estado (excluir um token da bolsa leva as peças dele junto; vazio = já não existia: nada a fazer)
+        if (removidos.length === 0) return;
+        for (const removido of removidos) tokens.remover(removido); // 2) desenho no mapa (cancela o arrasto, se alguém o segurava)
         menu.fechar(); // 3) menus e balão que estavam abertos sobre ele
         balao.esconder();
         bolsa.atualizar(); // 4) a ficha da bolsa
@@ -450,9 +630,13 @@ async function iniciar(): Promise<void> {
         ancora: (id) => tokens.ancoraNaTela(id), // "tokens" já existe quando isto for chamado
         aoEditar: (id) => {
             const token = buscarToken(id);
-            if (token) editorToken.editar(token);
+            // Uma PEÇA é cópia de um token da bolsa: "Editar token" edita o TOKEN DA BOLSA (e todas as peças dele mudam juntas).
+            const alvo = token && token.copiaDe !== null ? buscarToken(token.copiaDe) : token;
+            if (alvo) editorToken.editar(alvo);
         },
         aoGuardar: (id) => removerDoTabuleiro(id),
+        aoAcao: (id, acaoId) => abrirAcaoDoToken(id, acaoId),
+        aoNovaAcao: () => modalAcoes.abrir(),
         aoAlternarCondicao: alternarCondicaoDoToken,
         dica,
     });
@@ -471,13 +655,13 @@ async function iniciar(): Promise<void> {
         },
         aoArrastar: (ponto) => tokens.arrastarPara(ponto),
         aoSoltar: () => tokens.soltar(),
-        aoCriarToken: ({ nome, cor, corBorda, tamanho, imagem }) => {
+        aoCriarToken: ({ nome, cor, corBorda, tamanho, imagem, ficha }) => {
             if (rede?.ativa) {
                 // Online quem cria é o SERVIDOR (cria o arquivo na hora); o token chega pelo evento "token_criado".
-                rede.enviar({ tipo: "criar_token", nome, cor, corBorda, tamanho, imagem });
+                rede.enviar({ tipo: "criar_token", nome, cor, corBorda, tamanho, imagem, ...(ficha !== undefined && { ficha }) });
                 return "enviado";
             }
-            const token = criarToken(cor, tamanho, nome, imagem, corBorda); // 1) estado (o token nasce guardado na bolsa)
+            const token = criarToken(cor, tamanho, nome, imagem, corBorda, ficha ?? null); // 1) estado (o token nasce guardado na bolsa, com os status da mesa)
             if (token) tokens.adicionar(token); // 2) desenho (escondido, até ser colocado no mapa)
             return token; // a bolsa refaz a própria lista
         },
@@ -486,6 +670,11 @@ async function iniciar(): Promise<void> {
             balao.esconder();
         },
         aoEditar: (token) => editorToken.editar(token),
+        aoAbrirFichaDoToken: (token) => abrirFichaDoToken(token),
+        // Os status (barras) editados na bolsa em tela cheia são UMA regra para a MESA INTEIRA e valem AO VIVO: todos os tokens e peças mudam na hora.
+        aoMudarStatus: (status) => mudarStatusDaMesa(status),
+        aoAdicionarFicha: (token) => editorToken.editar(token, { focarFicha: true }),
+        aoAvisar: (texto) => aviso.mostrar(texto, { duracaoMs: TEMPO_AVISO_MAPA_MS }),
         editarImagem: (arquivo, corFundo) => editorImagem.editar(arquivo, corFundo),
         // Ficha nova (VAZIA). Online, quem a cria é o SERVIDOR, que cria o arquivo na máquina do mestre NA HORA, e ela chega
         // pelo evento "ficha_criada"; no modo local ela só existe na memória desta aba.
@@ -539,22 +728,11 @@ async function iniciar(): Promise<void> {
                 else removerFichaDoJogo(lista[i].id);
             }, lista.every(fichaVazia)), // (todas vazias: nada a perder, sem confirmação)
         aoAbrirFicha: (ficha) => {
-            // A bolsa em TELA CHEIA cobre o chat e escurece o fundo: ao abrir uma ficha ela volta ao tamanho anterior (média ou pequena), para
-            // a janela da ficha (flutuante) ficar sobre o tabuleiro e o chat continuar visível (dá para ver as rolagens).
-            if (bolsa.expandida) bolsa.fechar();
+            // A bolsa em TELA CHEIA NÃO fecha ao abrir uma ficha (pedido do dono, 14/11/2026): a janela da ficha (flutuante, z-index 50) fica por cima dela.
+            // O Esc dentro da ficha fecha só a ficha (`stopPropagation` em `ui/editorFicha.ts`); com o foco fora dela, o Esc é da bolsa.
             editorFicha.abrir(ficha);
         },
         aoExcluirFicha: (ficha) => void excluirFichaComConfirmacao(ficha),
-        aoMudarImagem: (id, imagem) => {
-            if (rede?.ativa) {
-                rede.enviar({ tipo: "editar_token", id, mudancas: { imagem } });
-                return;
-            }
-            const token = definirImagemToken(id, imagem); // 1) estado
-            if (!token) return;
-            tokens.redesenhar(token); // 2) desenho no mapa (o token pode estar escondido, guardado)
-            bolsa.atualizar(); // 3) a ficha da bolsa
-        },
     });
 
     const tokens = criarTokens(camera, grade, texturas, {
@@ -569,7 +747,9 @@ async function iniciar(): Promise<void> {
         },
         aoMudarSobreBolsa: (sobre) => bolsa.marcarAlvo(sobre),
         aoMudarBolsa: () => bolsa.atualizar(),
-        aoRemoverArrastando: (token, col, row) => avisarRemocao(token, col, row), // (soltar o token na bolsa também permite "Desfazer")
+        aoRemoverArrastando: (token, col, row) => avisarRemocao(token.nome, () => desfazerRemocao(token.id, col, row)), // (soltar o token na bolsa também permite "Desfazer")
+        aoSoltarModelo: (token, col, row) => colocarModeloNoTabuleiro(token, col, row),
+        aoRemoverPeca: (token) => removerPeca(token),
         aoMostrarSobreBolsa: (token, centro, diametro, borda) => bolsa.mostrarFantasma(token, centro, diametro, borda),
         aoEsconderSobreBolsa: () => bolsa.esconderFantasma(),
         // Online: o token já mudou aqui (para o arrasto ficar fluido) e o servidor é avisado; ele confere e avisa todos.
@@ -581,6 +761,7 @@ async function iniciar(): Promise<void> {
             menu.fechar();
             balao.esconder();
         },
+        aoDuploClique: (token) => abrirFichaDoToken(token),
         aoClicarDireito: (token) => {
             balao.esconder(); // os botões do token ocupam o lugar do balão
             menu.abrir(token.id);
@@ -595,7 +776,7 @@ async function iniciar(): Promise<void> {
         casas: () => painelCalibragem.casas(),
         aoMedir: (colunas, linhas) => painelCalibragem.mostrarMedida(colunas, linhas),
         aoAplicar: (colunas, linhas) => {
-            aplicarTamanho(definirTamanhoTabuleiro(colunas, linhas)); // limita a MIN/MAX_CASAS
+            mudarTamanho(colunas, linhas); // limita a MIN/MAX_CASAS
             ligarCalibragem(false); // ao SOLTAR já vale: a calibragem se conclui sozinha (a grade volta na hora; para refazer, ligue "Alinhar mapa" de novo)
         },
     });
@@ -633,7 +814,23 @@ async function iniciar(): Promise<void> {
 
     /** Botões de colunas/linhas da barra: muda o ESTADO e atualiza o desenho. */
     function aoMudarTamanhoTabuleiro(deltaColunas: number, deltaLinhas: number): void {
-        aplicarTamanho(redimensionarTabuleiro(deltaColunas, deltaLinhas)); // 1) estado, 2) desenho
+        mudarTamanho(estado.colunas + deltaColunas, estado.linhas + deltaLinhas); // (os limites MIN/MAX_CASAS são aplicados na conta)
+    }
+
+    /**
+     * Muda o tamanho do tabuleiro (botões de colunas/linhas, "Voltar ao padrão", "Alinhar mapa", "Escolher mapa"). Modo local: muda o estado e o desenho na hora.
+     * ONLINE o tamanho é do SERVIDOR (é com ele que as posições dos tokens são conferidas): o pedido vai para lá e a mudança chega pelo evento "tamanho_definido",
+     * para todos ao mesmo tempo. `depois` roda quando o tamanho já foi aplicado (ex.: ajustar a visão ao tabuleiro novo).
+     */
+    let depoisDoTamanho: (() => void) | null = null;
+    function mudarTamanho(colunas: number, linhas: number, depois?: () => void): void {
+        if (rede?.ativa) {
+            depoisDoTamanho = depois ?? null;
+            rede.enviar({ tipo: "definir_tamanho", colunas, linhas });
+            return;
+        }
+        aplicarTamanho(definirTamanhoTabuleiro(colunas, linhas)); // 1) estado e desenho
+        depois?.();
     }
 
     /** Atualiza o DESENHO depois de o ESTADO mudar o tamanho do tabuleiro (botões ou calibragem). */
@@ -649,9 +846,10 @@ async function iniciar(): Promise<void> {
 
     /** Botão "Voltar ao padrão": tamanho inicial do tabuleiro, zoom em 100% e visão centralizada. */
     function voltarAoPadrao(): void {
-        aplicarTamanho(definirTamanhoTabuleiro(COLUNAS_INICIAIS, LINHAS_INICIAIS)); // 1) estado e desenho do tamanho
-        camera.aplicarZoom(1); // 2) zoom em 100%
-        camera.centralizar();
+        mudarTamanho(COLUNAS_INICIAIS, LINHAS_INICIAIS, () => {
+            camera.aplicarZoom(1); // 2) zoom em 100%
+            camera.centralizar();
+        }); // 1) estado e desenho do tamanho
     }
 
     /**
@@ -667,8 +865,7 @@ async function iniciar(): Promise<void> {
         const tamanho = mapa.tamanhoDaImagem();
         const previsao = tamanho ? preverGrade(tamanho.largura, tamanho.altura) : null;
         if (tamanho && previsao) {
-            aplicarTamanho(definirTamanhoTabuleiro(previsao.colunas, previsao.linhas)); // 2) estado e desenho do tamanho (tokens fora do tabuleiro são puxados para dentro)
-            camera.ajustar(); // a visão acompanha o tabuleiro novo
+            mudarTamanho(previsao.colunas, previsao.linhas, () => camera.ajustar()); // 2) estado e desenho do tamanho (tokens fora do tabuleiro são puxados para dentro); a visão acompanha o tabuleiro novo
             mostrarAvisoDoMapa(
                 previsao.exata
                     ? `Mapa de ${tamanho.largura}×${tamanho.altura} px: ${previsao.colunas} colunas × ${previsao.linhas} linhas (casas de ${previsao.pxPorCasa} px).`
@@ -740,24 +937,70 @@ async function iniciar(): Promise<void> {
         /** Um evento do servidor: aplica no ESTADO (as mesmas funções de estado.ts) e atualiza o desenho. */
         const aplicarEventoDoServidor = (evento: EventoDoServidor): void => {
             switch (evento.tipo) {
-                case "estado_inicial":
-                    // Os tokens são do SERVIDOR (vêm dos arquivos de dados/tokens/): troca todos e refaz o desenho.
+                case "valores_atualizados": {
+                    const alvo = buscarToken(evento.id);
+                    if (alvo) {
+                        alvo.valores = evento.valores.map((v) => ({ ...v })); // o valor novo (uma ação foi aplicada)
+                        tokens.redesenhar(alvo);
+                    }
+                    return;
+                }
+                case "valores_ficha":
+                    definirValoresDaFicha(evento.id, evento.valores); // os números do SERVIDOR (já limitados ao intervalo) valem
+                    aplicarValoresDaFicha(evento.id);
+                    return;
+                case "acoes_definidas":
+                    carregarAcoesDaMesa(evento.acoes);
+                    modalAcoes.atualizar();
+                    menu.atualizar();
+                    return;
+                case "status_definidos": {
+                    definirStatusDaMesa(evento.status); // a regra nova copiada para todos os tokens (os valores das peças vêm do servidor, logo abaixo)
+                    for (const p of evento.pecas) {
+                        const peca = buscarToken(p.id);
+                        if (peca) peca.valores = p.valores.map((v) => ({ ...v })); // os números do SERVIDOR valem
+                    }
+                    for (const token of estado.tokens) tokens.redesenhar(token);
+                    bolsa.statusMudaram(); // o editor da bolsa mostra a lista nova (se ninguém está digitando nele)
+                    return;
+                }
+                case "estado_inicial": {
+                    // O tamanho do tabuleiro também é do SERVIDOR (dados/mesa.json): aplica antes dos tokens (a posição deles é conferida com ele).
+                    const tamanhoMudou = evento.colunas !== estado.colunas || evento.linhas !== estado.linhas;
+                    definirTamanhoTabuleiro(evento.colunas, evento.linhas);
+                    // Os tokens são do SERVIDOR (vêm dos arquivos de dados/tokens/ e dados/pecas/): troca todos e refaz o desenho.
                     definirTokens(evento.tokens);
                     tokens.reconstruir();
+                    if (tamanhoMudou) {
+                        aplicarTamanho([]); // (a grade, a imagem do mapa e a câmera acompanham o tamanho do servidor)
+                        camera.ajustar();
+                    }
                     menu.fechar();
                     balao.esconder();
                     definirMensagens(evento.mensagens);
                     definirGrupos(evento.grupos); // os grupos (de tokens e fichas) gravados no servidor
+                    carregarAcoesDaMesa(evento.acoes); // as ações (Dano, Cura...) também são da mesa
+                    carregarStatusDaMesa(evento.status); // os status (barras) são da mesa (depois dos grupos: eles citam grupos); os tokens já trazem a cópia e os valores do servidor
                     definirFichas(evento.fichas); // as fichas gravadas no servidor
+                    definirTodosOsValoresDasFichas(evento.valores); // os valores atuais das variáveis que mudam (depois das fichas: só valem para as que existem)
                     // (se uma ficha está aberta no editor, ele confere se ela mudou enquanto a conexão estava fora)
                     {
                         const aberta = estado.fichas.find((f) => f.id === editorFicha.idAberto);
                         if (aberta) editorFicha.fichaMudou(aberta);
                     }
                     chat.atualizar();
+                    bolsa.statusMudaram(); // (o editor de status da bolsa mostra os da mesa)
                     bolsa.atualizarGrupos(); // (refaz os chips e as duas listas)
                     status.mostrarEntrada(evento.voce.apelido);
                     return;
+                }
+                case "tamanho_definido": {
+                    aplicarTamanho(definirTamanhoTabuleiro(evento.colunas, evento.linhas)); // (o mesmo cálculo do servidor: os tokens que ficaram fora são puxados para dentro)
+                    const depois = depoisDoTamanho; // (só quem pediu a mudança tem algo a fazer depois: ajustar a visão, por exemplo)
+                    depoisDoTamanho = null;
+                    depois?.();
+                    return;
+                }
                 case "grupo_criado":
                     receberGrupo(evento.grupo);
                     bolsa.grupoCriado(evento.grupo);
@@ -767,7 +1010,7 @@ async function iniciar(): Promise<void> {
                     bolsa.atualizarGrupos();
                     return;
                 case "grupo_excluido":
-                    excluirGrupo(evento.id); // tira o grupo e a marca dele de todos os tokens e fichas (o servidor faz o mesmo nos arquivos)
+                    excluirGrupo(evento.id); // tira o grupo e a marca dele de todos os tokens, fichas e status (o servidor faz o mesmo nos arquivos e manda "status_definidos" se algum status o citava)
                     bolsa.atualizarGrupos();
                     return;
                 case "jogadores":
@@ -777,6 +1020,7 @@ async function iniciar(): Promise<void> {
                     const token = buscarToken(evento.id);
                     if (!token) return;
                     colocarToken(token.id, evento.col, evento.row);
+                    if (evento.valores) token.valores = evento.valores.map((v) => ({ ...v })); // os números do SERVIDOR valem (não os que este navegador calcularia)
                     tokens.aplicarPosicao(token);
                     bolsa.atualizar();
                     return;
@@ -787,6 +1031,12 @@ async function iniciar(): Promise<void> {
                     guardarToken(token.id);
                     tokens.aplicarPosicao(token);
                     bolsa.atualizar();
+                    return;
+                }
+                case "peca_criada": {
+                    const peca = receberToken(evento.token); // (uma PEÇA nova no tabuleiro, já gravada no servidor)
+                    tokens.adicionar(peca);
+                    bolsa.atualizar(); // (o "no mapa: N" da fichinha)
                     return;
                 }
                 case "token_criado": {
@@ -812,6 +1062,7 @@ async function iniciar(): Promise<void> {
                 case "ficha_editada":
                     receberFicha(evento.ficha); // já está gravada no disco do servidor (com a versão nova)
                     bolsa.atualizarFichas();
+                    for (const token of sincronizarValoresDaFicha(evento.ficha.id)) tokens.redesenhar(token); // (o texto novo pode ter mudado o intervalo de uma variável que muda)
                     editorFicha.fichaMudou(evento.ficha);
                     return;
                 case "ficha_conflito":
@@ -849,6 +1100,30 @@ async function iniciar(): Promise<void> {
         });
     }
 
+    // EXEMPLO PARA TESTES (pedido do dono): no `npm run dev`, em modo LOCAL, o jogo já abre com a ficha "Goblin Guerreiro" e um token dele na bolsa, ligado a ela.
+    // Só no desenvolvimento (a importação dinâmica não entra na versão final) e NÃO nos testes automáticos (o navegador deles se diz automatizado: os testes contam
+    // fichas e tokens e esperam a mesa vazia). Online a mesa vem dos arquivos do servidor. Reler a página recarrega o exemplo (o modo local não guarda nada).
+    if (import.meta.env.DEV && !rede && !navigator.webdriver) {
+        void import("./dev/exemploGoblin").then(({ IMAGEM_GOBLIN, NOME_GOBLIN, NOME_THORIN, TEXTO_GOBLIN, TEXTO_THORIN }) => {
+            const ficha = criarFicha();
+            if (!ficha) return;
+            ficha.nome = NOME_GOBLIN;
+            ficha.abas[0].texto = TEXTO_GOBLIN;
+            const token = criarToken(0x2f5d2a, 1, NOME_GOBLIN, IMAGEM_GOBLIN, 0xffffff, ficha.id); // (nasce na bolsa, com a ficha atribuída e o HP lendo PV)
+            if (token) tokens.adicionar(token);
+            // Uma ficha de JOGADOR (variáveis que mudam) e o token dela: a barra de vida mostra o PV da ficha, ao vivo.
+            const fichaJogador = criarFicha();
+            if (fichaJogador) {
+                fichaJogador.nome = NOME_THORIN;
+                fichaJogador.abas[0].texto = TEXTO_THORIN;
+                const tokenJogador = criarToken(0x2a4a7a, 1, NOME_THORIN, null, 0xffd54f, fichaJogador.id);
+                if (tokenJogador) tokens.adicionar(tokenJogador);
+            }
+            bolsa.atualizarFichas();
+            bolsa.atualizar();
+        });
+    }
+
     // O app terminou de montar a interface: o painel de Desenho e o de Dados (cujo conteúdo é criado por aqui) deixam de ficar escondidos.
     document.body.classList.add("app-pronta");
 
@@ -861,8 +1136,8 @@ async function iniciar(): Promise<void> {
             atrasoRolagemMs: ATRASO_ROLAGEM_MS, // (os testes zeram: tests/e2e/ajuda.mjs `abrirPagina`)
             // Só para os testes: adiciona à mesa os tokens que o TESTE mandar (o app não tem nenhum token pronto: eles vêm dos
             // arquivos de dados/tokens/ do servidor, ou nascem pela bolsa). Os dados dos tokens de teste ficam em tests/e2e/ajuda.mjs.
-            semear: (lista: Omit<Token, "condicoes" | "favorito" | "grupos">[]) => {
-                for (const dados of lista) tokens.adicionar(receberToken({ ...dados, condicoes: [], favorito: false, grupos: [] }));
+            semear: (lista: Omit<Token, "condicoes" | "favorito" | "grupos" | "ficha" | "status" | "valores" | "copiaDe">[]) => {
+                for (const dados of lista) tokens.adicionar(receberToken({ ...dados, condicoes: [], favorito: false, grupos: [], ficha: null, status: statusPadrao(), valores: [], copiaDe: null }));
                 bolsa.atualizar();
             },
             estado,

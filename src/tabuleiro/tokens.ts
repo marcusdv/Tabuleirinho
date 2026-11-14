@@ -15,9 +15,9 @@
 
 import { Assets, Container, FederatedPointerEvent, Graphics, PointData, Sprite, Text, Texture } from "pixi.js";
 import { buscarCondicao } from "../condicoes";
-import { FOLGA_TOKEN, LARGURA_BORDA_TOKEN, MAX_ICONES_CONDICAO, TAMANHO_CASA } from "../config";
+import { ALTURA_BARRA_STATUS, FOLGA_TOKEN, LARGURA_BORDA_TOKEN, MAX_ICONES_CONDICAO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, VAO_BARRA_STATUS } from "../config";
 import { casaMaisProxima, diametroDoIcone, posicoesNoAnel } from "../coordenadas";
-import { buscarToken, colocarToken, estado, guardarToken, Token } from "../estado";
+import { buscarToken, colocarToken, estado, guardarToken, statusAplicaveis, Token } from "../estado";
 import type { Camera } from "./camera";
 import type { Grade } from "./grade";
 
@@ -27,6 +27,8 @@ export interface OpcoesTokens {
     aoIniciarArrasto(): void;
     /** O usuário clicou com o botão DIREITO num token. */
     aoClicarDireito(token: Token): void;
+    /** O usuário deu um DUPLO clique (esquerdo) num token: abrir a ficha dele. O token não é arrastado por esse segundo aperto. */
+    aoDuploClique(token: Token): void;
     /** O mouse entrou em cima de um token. */
     aoPassarMouse(token: Token): void;
     /** O mouse saiu de cima de um token. */
@@ -44,6 +46,10 @@ export interface OpcoesTokens {
     aoSoltarToken(token: Token): void;
     /** Um token que ESTAVA NO MAPA foi solto na bolsa (removido do tabuleiro): `col` e `row` são onde ele estava (para o "Desfazer"). */
     aoRemoverArrastando(token: Token, col: number, row: number): void;
+    /** Um token da BOLSA foi solto no tabuleiro em (col, row): criar uma PEÇA (cópia temporária) ali. O token da bolsa NÃO muda e continua na bolsa. */
+    aoSoltarModelo(token: Token, col: number, row: number): void;
+    /** Uma PEÇA do tabuleiro foi solta em cima da bolsa: apagá-la (ela é temporária; quem trata oferece o "Desfazer"). `col`/`row`: onde ela estava. */
+    aoRemoverPeca(token: Token, col: number, row: number): void;
     /**
      * O token arrastado está SOBRE a bolsa. O canvas fica atrás dos painéis HTML, então o token do canvas
      * se esconde e quem criou esta camada mostra uma cópia em HTML POR CIMA da bolsa: centro e diâmetro
@@ -112,6 +118,7 @@ interface ViewToken {
     fotoUrl: string | null; // a imagem que a `foto` mostra agora (para saber se mudou)
     marca: Graphics;
     condicoes: Container;
+    barras: Container; // as BARRAS de status (HP etc.) embaixo do token: um Graphics (as caixas) e os textos (o nome fora, o "atual/máx" dentro)
 }
 
 /** Raio do círculo do token. Cresce junto com o tamanho (size). */
@@ -133,6 +140,7 @@ export function criarTokens(
 
     // Estado do arrasto. Só um token é arrastado por vez.
     let arrastando: { token: Token; view: ViewToken } | null = null;
+    let ultimoAperto = { id: -1, t: 0, x: 0, y: 0 }; // o último aperto esquerdo num token (para reconhecer o duplo clique)
     // Distância entre o ponto onde clicamos e o centro do token.
     // Sem isso, o token "pularia" para centralizar no cursor ao clicar.
     let deslocamentoX = 0;
@@ -148,6 +156,52 @@ export function criarTokens(
      */
     function posicionar(token: Token, view: ViewToken): void {
         view.raiz.position.set((token.col + token.size / 2) * TAMANHO_CASA, (token.row + token.size / 2) * TAMANHO_CASA);
+    }
+
+    /**
+     * As BARRAS de status (a vida "HP" e as outras que a pessoa criou), EMBAIXO do bloco do token, uma por status que tem valor, empilhadas na ordem da lista.
+     * Cada uma tem a largura do círculo; o preenchimento é a parte `atual / máximo`, na cor do status. Só existem com o token no tabuleiro e com ficha
+     * (os valores nascem ao sair da bolsa, lendo a ficha: ver `valoresIniciais`). Ficam presas à raiz do token, então andam junto com ele.
+     */
+    function desenharBarras(token: Token, view: ViewToken): void {
+        for (const filho of view.barras.removeChildren()) filho.destroy({ children: true }); // (refaz tudo: o Graphics e os textos)
+        if (token.guardado) return;
+        const caixas = new Graphics();
+        view.barras.addChild(caixas);
+        const raio = raioDoToken(token.size);
+        const topo = (token.size * TAMANHO_CASA) / 2 + VAO_BARRA_STATUS; // logo abaixo do bloco do token (a raiz está no CENTRO dele)
+        let i = 0;
+        for (const status of statusAplicaveis(token)) {
+            const valor = token.valores.find((v) => v.id === status.id);
+            if (!valor || !status.mostrar) continue; // ("Exibir status" desligado: o valor existe, mas a barra não é desenhada)
+            const y = topo + i * (ALTURA_BARRA_STATUS + VAO_BARRA_STATUS);
+            const largura = raio * 2;
+            const parte = Math.max(0, Math.min(1, valor.atual / valor.max));
+            caixas.roundRect(-raio, y, largura, ALTURA_BARRA_STATUS, 3).fill({ color: 0x15151b, alpha: 0.92 }).stroke({ width: 1, color: 0x000000, alpha: 0.8 });
+            if (parte > 0) caixas.roundRect(-raio + 1, y + 1, Math.max(2, (largura - 2) * parte), ALTURA_BARRA_STATUS - 2, 2).fill(status.cor);
+            // O número DENTRO da barra ("atual/máx", ex.: 100/100), centralizado (só com "Exibir números" ligado). Texto feito com o dobro do tamanho e reduzido (nítido ao aproximar o zoom).
+            const numero = new Text({
+                text: `${valor.atual}/${valor.max}`,
+                style: { fontFamily: "system-ui, sans-serif", fontSize: 18, fontWeight: "700", fill: 0xffffff, stroke: { color: 0x000000, width: 4 } },
+            });
+            numero.anchor.set(0.5);
+            numero.scale.set(0.5);
+            const excesso = numero.width / (largura - 4);
+            if (excesso > 1) numero.scale.set(0.5 / excesso); // (um número comprido encolhe até caber)
+            numero.position.set(0, y + ALTURA_BARRA_STATUS / 2);
+            if (status.numeros) view.barras.addChild(numero);
+            else numero.destroy();
+            // O NOME do status ("HP") FORA da caixa, à esquerda dela, alinhado à direita, na cor do status.
+            const nome = new Text({
+                text: status.nome,
+                style: { fontFamily: "system-ui, sans-serif", fontSize: 18, fontWeight: "700", fill: status.cor, stroke: { color: 0x000000, width: 4 } },
+            });
+            nome.anchor.set(1, 0.5);
+            nome.scale.set(0.5);
+            nome.position.set(-raio - 4, y + ALTURA_BARRA_STATUS / 2);
+            view.barras.addChild(nome);
+            i++;
+        }
     }
 
     /** Desenha o círculo do token. O raio acompanha o tamanho (size). */
@@ -320,13 +374,15 @@ export function criarTokens(
         const borda = new Graphics();
         const marca = new Graphics();
         const condicoes = new Container();
-        raiz.addChild(corpo, foto, borda, marca, condicoes); // do fundo para a frente
-        const view: ViewToken = { raiz, corpo, foto, borda, fotoUrl: null, marca, condicoes };
+        const barras = new Container();
+        raiz.addChild(corpo, foto, borda, marca, condicoes, barras); // do fundo para a frente
+        const view: ViewToken = { raiz, corpo, foto, borda, fotoUrl: null, marca, condicoes, barras };
 
         desenharCorpo(token, view);
         void desenharFoto(token, view);
         desenharMarca(token, view);
         desenharCondicoes(token, view);
+        desenharBarras(token, view);
         posicionar(token, view);
         views.set(token.id, view);
         mundo.addChild(raiz);
@@ -354,9 +410,22 @@ export function criarTokens(
             // Qualquer botão que não seja o esquerdo (0) é ignorado.
             if (evento.button !== 0) return;
 
+            // DUPLO CLIQUE: o segundo aperto no MESMO token, logo depois e sem o mouse ter andado, abre a ficha (e não começa um arrasto).
+            const agora = performance.now();
+            const ehDuplo =
+                ultimoAperto.id === token.id && agora - ultimoAperto.t <= MS_DUPLO_CLIQUE && Math.hypot(evento.global.x - ultimoAperto.x, evento.global.y - ultimoAperto.y) <= PX_DUPLO_CLIQUE;
+            ultimoAperto = ehDuplo ? { id: -1, t: 0, x: 0, y: 0 } : { id: token.id, t: agora, x: evento.global.x, y: evento.global.y };
+            if (ehDuplo) {
+                opcoes.aoDuploClique(token);
+                return;
+            }
+
             // --- INÍCIO DO ARRASTO ---
             opcoes.aoIniciarArrasto();
             arrastando = { token, view };
+            // O ponteiro de AGORA. `ultimoPonto` só era atualizado quando o mouse SE MOVIA durante o arrasto; um clique sem mover (ou um duplo clique) usava a posição VELHA do arrasto
+            // anterior. Depois de clicar num token da bolsa, essa posição estava em cima da bolsa: ao clicar num token do tabuleiro, `soltar` achava que ele tinha sido solto na bolsa e o REMOVIA.
+            ultimoPonto = { x: evento.global.x, y: evento.global.y };
 
             const ponto = camera.telaParaMundo(evento.global);
             deslocamentoX = raiz.x - ponto.x;
@@ -414,6 +483,7 @@ export function criarTokens(
             const view = views.get(token.id);
             if (!view || arrastando?.token.id === token.id) return;
             view.raiz.visible = !token.guardado;
+            desenharBarras(token, view); // (os status nascem ao sair da bolsa e somem ao voltar)
             posicionar(token, view);
         },
 
@@ -462,13 +532,27 @@ export function criarTokens(
             if (!arrastando) return;
             const { token, view } = arrastando;
             const veioDaBolsa = token.guardado;
+            const ehPeca = token.copiaDe !== null; // (uma PEÇA é a cópia temporária que vive no tabuleiro)
             const guardar = opcoes.sobreBolsa(ultimoPonto);
+            let depoisDaLimpeza: (() => void) | null = null; // o aviso a dar quando o arrasto já terminou (o estado muda fora daqui)
 
-            if (guardar) {
+            if (guardar && ehPeca) {
+                // Uma PEÇA solta na bolsa: ela é temporária, então é APAGADA (quem trata cuida do estado, da rede e do "Desfazer").
+                const { col: colAntes, row: rowAntes } = token;
+                view.raiz.visible = false;
+                depoisDaLimpeza = () => opcoes.aoRemoverPeca(token, colAntes, rowAntes);
+            } else if (guardar) {
                 const { col: colAntes, row: rowAntes } = token; // (onde ele estava, para o "Desfazer")
                 guardarToken(token.id); // 1) estado: na bolsa
                 view.raiz.visible = false; // 2) some do tabuleiro
+                desenharBarras(token, view); // (os status temporários se perdem: as barras somem)
                 if (!veioDaBolsa) opcoes.aoRemoverArrastando(token, colAntes, rowAntes);
+            } else if (veioDaBolsa && !ehPeca) {
+                // Um token da BOLSA solto no tabuleiro: NÃO se move para lá. Ele continua na bolsa e nasce uma PEÇA (cópia) na casa escolhida.
+                const col = casaMaisProxima(view.raiz.x, token.size, estado.colunas);
+                const row = casaMaisProxima(view.raiz.y, token.size, estado.linhas);
+                view.raiz.visible = false; // (o token da bolsa nunca aparece no tabuleiro; a peça nova terá o desenho dela)
+                depoisDaLimpeza = () => opcoes.aoSoltarModelo(token, col, row);
             } else {
                 // Encaixe: canto superior esquerdo mais próximo onde o token cabe inteiro.
                 const col = casaMaisProxima(view.raiz.x, token.size, estado.colunas);
@@ -476,6 +560,7 @@ export function criarTokens(
 
                 colocarToken(token.id, col, row); // 1) atualiza o ESTADO (e tira da bolsa, se estava lá)
                 posicionar(token, view); // 2) a VIEW encaixa no bloco
+                desenharBarras(token, view); // (se acabou de sair da bolsa, os status nasceram agora: as barras aparecem)
                 view.raiz.visible = true;
             }
 
@@ -488,7 +573,8 @@ export function criarTokens(
             sobreBolsa = false;
             // A lista da bolsa muda se o token foi guardado, ou se veio de lá e foi colocado.
             if (guardar !== veioDaBolsa) opcoes.aoMudarBolsa();
-            opcoes.aoSoltarToken(token); // (no modo online o servidor é avisado aqui)
+            if (depoisDaLimpeza) depoisDaLimpeza();
+            else opcoes.aoSoltarToken(token); // (no modo online o servidor é avisado aqui)
         },
 
         iniciarArrastoDaBolsa(id, ponto) {
@@ -530,6 +616,7 @@ export function criarTokens(
             void desenharFoto(token, view);
             desenharMarca(token, view);
             desenharCondicoes(token, view);
+            desenharBarras(token, view);
             posicionar(token, view);
             reordenar(); // o novo tamanho pode mudar quem fica por cima
         },

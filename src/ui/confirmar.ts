@@ -15,11 +15,17 @@ export interface PerguntaConfirmacao {
     mensagem: string;
     /** O texto do botão que confirma (ex.: "Excluir"). */
     confirmar: string;
+    /** Opcional: um TERCEIRO botão, em dourado, entre "Cancelar" e o de confirmar (ex.: "Salvar e fechar"). Só `escolher` o diferencia. */
+    alternativa?: string;
 }
+
+export type RespostaConfirmacao = "confirmar" | "alternativa" | "cancelar";
 
 export interface Confirmacao {
     /** Mostra a caixa e espera: devolve true se a pessoa confirmou, false se cancelou (botão, Esc ou clique no fundo). */
     perguntar(pergunta: PerguntaConfirmacao): Promise<boolean>;
+    /** Como `perguntar`, mas diz QUAL botão foi (o terceiro, `alternativa`, só aparece se a pergunta tiver esse texto). */
+    escolher(pergunta: PerguntaConfirmacao): Promise<RespostaConfirmacao>;
 }
 
 function pegar<T extends HTMLElement>(id: string): T {
@@ -32,50 +38,60 @@ export function criarConfirmacao(): Confirmacao {
     const mensagem = pegar("confirmar-mensagem");
     const botaoCancelar = pegar<HTMLButtonElement>("confirmar-cancelar");
     const botaoConfirmar = pegar<HTMLButtonElement>("confirmar-ok");
+    const botaoAlternativa = pegar<HTMLButtonElement>("confirmar-alternativa");
 
-    let resolver: ((confirmou: boolean) => void) | null = null;
+    let resolver: ((resposta: RespostaConfirmacao) => void) | null = null;
     let focoAnterior: HTMLElement | null = null; // quem tinha o foco antes de abrir (volta para ele ao fechar)
 
     /** Fecha a janela e responde a quem perguntou. */
-    function terminar(confirmou: boolean): void {
+    function terminar(resposta: RespostaConfirmacao): void {
         janela.hidden = true;
         document.removeEventListener("keydown", aoTeclar, true);
         const responder = resolver;
         resolver = null;
         focoAnterior?.focus();
         focoAnterior = null;
-        responder?.(confirmou);
+        responder?.(resposta);
     }
 
     function aoTeclar(e: KeyboardEvent): void {
         if (e.key === "Escape") {
             e.stopPropagation(); // só esta caixa fecha (a janela ou o menu que está por baixo continuam como estão)
-            terminar(false);
+            terminar("cancelar");
         } else if (e.key === "Tab") {
-            // O foco fica preso nos dois botões (a caixa é "modal": o resto da página não pode ser alcançado por baixo).
+            // O foco fica preso nos botões (a caixa é "modal": o resto da página não pode ser alcançado por baixo).
             e.preventDefault();
-            (document.activeElement === botaoCancelar ? botaoConfirmar : botaoCancelar).focus();
+            const botoes = [botaoCancelar, ...(botaoAlternativa.hidden ? [] : [botaoAlternativa]), botaoConfirmar];
+            const atual = botoes.indexOf(document.activeElement as HTMLButtonElement);
+            botoes[(atual + (e.shiftKey ? -1 : 1) + botoes.length) % botoes.length].focus();
         }
     }
 
-    botaoCancelar.addEventListener("click", () => terminar(false));
-    botaoConfirmar.addEventListener("click", () => terminar(true));
+    botaoCancelar.addEventListener("click", () => terminar("cancelar"));
+    botaoAlternativa.addEventListener("click", () => terminar("alternativa"));
+    botaoConfirmar.addEventListener("click", () => terminar("confirmar"));
     janela.addEventListener("click", (e) => {
-        if (e.target === janela) terminar(false); // clicou no fundo escuro, fora da caixa
+        if (e.target === janela) terminar("cancelar"); // clicou no fundo escuro, fora da caixa
     });
 
-    return {
-        perguntar(pergunta) {
-            if (resolver) terminar(false); // já havia uma aberta: cancela a antiga
+    function escolher(pergunta: PerguntaConfirmacao): Promise<RespostaConfirmacao> {
+            if (resolver) terminar("cancelar"); // já havia uma aberta: cancela a antiga
             titulo.textContent = pergunta.titulo;
             mensagem.textContent = pergunta.mensagem;
             botaoConfirmar.textContent = pergunta.confirmar;
-            const resposta = new Promise<boolean>((resolve) => (resolver = resolve));
+            botaoAlternativa.hidden = !pergunta.alternativa;
+            janela.classList.toggle("com-alternativa", Boolean(pergunta.alternativa)); // (com 3 botões, eles se espalham: Cancelar à esquerda, o principal à direita)
+            botaoAlternativa.textContent = pergunta.alternativa ?? "";
+            const resposta = new Promise<RespostaConfirmacao>((resolve) => (resolver = resolve));
             focoAnterior = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             janela.hidden = false;
             document.addEventListener("keydown", aoTeclar, true);
             botaoCancelar.focus(); // começa em "Cancelar": confirmar exige uma ação de propósito
             return resposta;
-        },
+    }
+
+    return {
+        escolher,
+        perguntar: async (pergunta) => (await escolher(pergunta)) === "confirmar",
     };
 }

@@ -156,12 +156,14 @@ ok("9h) depois de criar, o formulário volta a 'sem imagem' (e as cores escolhid
 const fichaFoto = p.locator(".ficha", { hasText: "Com foto" });
 ok("9i) a ficha mostra a imagem", await fichaFoto.locator(".disco").evaluate((e) => e.classList.contains("com-imagem")));
 await fichaFoto.click({ button: "right" });
-ok("9j) clique direito na ficha abre o menu com 'Editar token…', 'Alterar imagem…', 'Favoritar', 'Grupos…' e 'Excluir token' (o 'Remover imagem' fica dentro de Editar token)", (await p.locator("#menu-ficha").isVisible()) && (await p.locator("#menu-ficha button:visible").allTextContents()).join("|") === "Editar token…|Alterar imagem…|Favoritar|Grupos…|Excluir token");
-await escolherArquivo("#menu-ficha-alterar", outraFoto);
+ok("9j) clique direito na ficha abre o menu com 'Editar token…', 'Adicionar ficha', 'Favoritar', 'Grupos…' e 'Excluir token' (trocar/remover a imagem fica SÓ dentro de Editar token)", (await p.locator("#menu-ficha").isVisible()) && (await p.locator("#menu-ficha button:visible").allTextContents()).join("|") === "Editar token…|Adicionar ficha|Favoritar|Grupos…|Excluir token");
+await p.click("#menu-ficha-editar"); // a imagem agora se troca DENTRO do Editar token
+await escolherArquivo("#editor-token-imagem", outraFoto);
 await editorPronto();
 await p.click("#editor-imagem-usar");
+await p.click("#editor-token-salvar");
 const trocada = (await tokens()).find((t) => t.nome === "Com foto");
-ok("9k) 'Alterar imagem' troca a miniatura do token", trocada.imagem?.startsWith("data:image/webp") && trocada.imagem !== comFoto.imagem);
+ok("9k) 'Alterar imagem…' (dentro do Editar token) troca a miniatura do token", trocada.imagem?.startsWith("data:image/webp") && trocada.imagem !== comFoto.imagem);
 await fichaFoto.click({ button: "right" });
 await p.keyboard.press("Escape");
 ok("9l) Esc fecha só o menu (a bolsa continua aberta)", !(await p.locator("#menu-ficha").isVisible()) && (await expandida()));

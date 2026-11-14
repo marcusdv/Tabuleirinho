@@ -12,7 +12,8 @@
 
 import { DURACAO_ANIMACAO_CHAT, MAX_CARACTERES_MENSAGEM, MAX_DADOS_NO_CARTAO } from "../config";
 import { detalheDaRolagem, formulaDosDados } from "../dados";
-import { estado, type Mensagem } from "../estado";
+import { buscarToken, estado, type Mensagem } from "../estado";
+import { pintarDisco } from "./aparenciaToken";
 
 export interface OpcoesChat {
     /** O usuário enviou uma mensagem (texto já sem espaços nas pontas e nunca vazio). */
@@ -112,10 +113,18 @@ function aplicarMarca(cartao: HTMLElement, marca: "critico" | "falha" | null): v
  * silhueta cinza), porque ainda não há foto de perfil nem imagem de token ligada à rolagem. Quando houver, é aqui que a imagem entra (a área já
  * é um círculo de tamanho fixo). O desenho é um SVG estático criado por createElementNS (nada vindo do jogador vira HTML); o nome vai só na dica.
  */
-function criarAvatar(nome: string): HTMLElement {
+function criarAvatar(nome: string, idDoToken?: number): HTMLElement {
     const area = document.createElement("div");
     area.className = "chat-avatar";
     area.title = nome;
+    // Rolagem feita POR UM TOKEN (a ficha foi aberta por ele): o ícone é o disco do token (cor, borda e imagem). Se o token já não existe, vale o padrão.
+    const token = idDoToken === undefined ? undefined : buscarToken(idDoToken);
+    if (token) {
+        area.classList.add("com-token");
+        area.title = `${token.nome} (${nome})`;
+        pintarDisco(area, token.cor, token.corBorda, token.imagem);
+        return area;
+    }
     const ns = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(ns, "svg");
     svg.setAttribute("viewBox", "0 0 24 24");
@@ -200,7 +209,7 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             linha.className = "chat-linha";
             linha.append(bandeja, total);
             aplicarMarca(cartao, marcaDoCartao(grupos));
-            cartao.append(criarAvatar(mensagem.autor), cabecalho, titulo, criatura, linha);
+            cartao.append(criarAvatar(mensagem.autor, mensagem.token), cabecalho, titulo, criatura, linha);
             cartao.append(detalhe); // a conta (com os bônus fixos) fica embaixo, em cinza
             return cartao;
         }

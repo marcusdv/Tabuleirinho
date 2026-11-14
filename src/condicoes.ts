@@ -8,7 +8,9 @@
 // Para adicionar uma condição nova: coloque o PNG na pasta e inclua uma linha aqui.
 //
 // As DESCRIÇÕES são a tradução para português do resumo "Conditions" (imagem de
-// referência enviada pelo dono do projeto). "Sangrando" não existe nessa imagem:
+// referência enviada pelo dono do projeto; revisadas contra a versão corrigida da imagem em
+// 14/11/2026). Na imagem, "AV" = vantagem e "DA" = desvantagem; os textos usam VANTAGEM e DESVANTAGEM.
+// "Concentração" aparece na imagem só como regra citada (não é uma condição), mas continua no catálogo. "Sangrando" não existe nessa imagem:
 // usa o texto de "Death" (morrer e testes de morte), que é a regra de quem
 // está sangrando até a morte. Ajuste se a sua mesa usar outra regra.
 // Distâncias: a imagem usa pés; aqui estão em METROS (5 pés = 1,5 m, como no
@@ -37,16 +39,16 @@ export const CONDICOES: Condicao[] = [
         nome: "Agarrado",
         descricao: [
             "A velocidade é 0 e não pode ser aumentada.",
-            "Atacar qualquer um que não seja quem o agarra: DESVANTAGEM.",
-            "Quem agarra pode arrastá-lo gastando 1 metro extra de movimento por metro arrastado (a menos que o agarrado seja Miúdo ou 2+ tamanhos menor).",
+            "DESVANTAGEM em jogadas de ataque contra qualquer alvo que não seja quem o agarra.",
+            "Quem agarra pode arrastá-lo ou carregá-lo quando se move, mas cada metro custa 1 metro extra, a menos que o agarrado seja Miúdo ou duas ou mais categorias de tamanho menor que quem agarra.",
         ],
     },
     {
         id: "Amedrontado",
         nome: "Amedrontado",
         descricao: [
-            "DESVANTAGEM em testes e ataques enquanto a fonte do medo estiver na linha de visão.",
-            "Não pode se aproximar da fonte do medo.",
+            "DESVANTAGEM em testes de habilidade e jogadas de ataque enquanto a fonte do medo estiver na linha de visão.",
+            "Não pode se aproximar voluntariamente da fonte do medo.",
         ],
     },
     {
@@ -55,23 +57,26 @@ export const CONDICOES: Condicao[] = [
         descricao: [
             "Tem a condição Incapacitado.",
             "Falha automaticamente em testes de resistência de FOR e DES.",
-            "Atacantes têm VANTAGEM.",
+            "Jogadas de ataque contra a criatura têm VANTAGEM.",
         ],
     },
     {
         id: "Caido",
         nome: "Caído",
         descricao: [
-            "Gasta metade da velocidade de movimento para encerrar a condição.",
-            "Precisa rastejar (1 metro extra por metro, ou 2 metros extras por metro em terreno difícil).",
-            "Ataca com DESVANTAGEM.",
-            "Atacantes têm VANTAGEM a até 1,5 metro e DESVANTAGEM a mais de 1,5 metro.",
+            "As únicas opções de movimento são rastejar ou gastar metade da velocidade para se levantar e encerrar a condição.",
+            "Não consegue se levantar se a velocidade for 0.",
+            "DESVANTAGEM em jogadas de ataque.",
+            "Jogadas de ataque contra a criatura têm VANTAGEM se o atacante estiver a até 1,5 metro; caso contrário, têm DESVANTAGEM.",
         ],
     },
     {
         id: "Cego",
         nome: "Cego",
-        descricao: ["Falha em testes que dependem da visão.", "Ataca com DESVANTAGEM; atacantes têm VANTAGEM."],
+        descricao: [
+            "Não consegue enxergar: falha automaticamente em qualquer teste de habilidade que exija visão.",
+            "Jogadas de ataque contra a criatura têm VANTAGEM, e as jogadas de ataque dela têm DESVANTAGEM.",
+        ],
     },
     {
         id: "Concentracao",
@@ -86,8 +91,8 @@ export const CONDICOES: Condicao[] = [
         id: "Contido",
         nome: "Contido",
         descricao: [
-            "A velocidade é 0 e não pode ser aumentada.",
-            "Ataca com DESVANTAGEM; atacantes têm VANTAGEM.",
+            "A velocidade é 0.",
+            "Jogadas de ataque contra a criatura têm VANTAGEM, e as jogadas de ataque dela têm DESVANTAGEM.",
             "DESVANTAGEM em testes de resistência de DES.",
         ],
     },
@@ -95,23 +100,25 @@ export const CONDICOES: Condicao[] = [
         id: "Encantado",
         nome: "Encantado",
         descricao: [
-            "O encantado não pode ferir quem o encantou.",
-            "Quem o encantou tem VANTAGEM em testes sociais contra ele.",
+            "Não pode atacar quem o encantou nem escolhê-lo como alvo de habilidades danosas ou efeitos mágicos.",
+            "Quem o encantou tem VANTAGEM em qualquer teste de habilidade para interagir socialmente com ele.",
         ],
     },
     {
         id: "Envenenado",
         nome: "Envenenado",
-        descricao: ["DESVANTAGEM em jogadas de ataque e testes de habilidade."],
+        descricao: [
+            "DESVANTAGEM em jogadas de ataque e testes de habilidade.",
+        ],
     },
     {
         id: "Exaustao",
         nome: "Exaustão",
         descricao: [
-            "Acumula até 6 vezes; morre ao chegar a 6 acúmulos.",
-            "Reduz os testes de d20 em 2 × o nº de acúmulos.",
-            "Reduz a velocidade em 1,5 metro × o nº de acúmulos.",
-            "Um descanso longo remove 1 acúmulo.",
+            "Testes de d20 são reduzidos em 2 × o nível de exaustão.",
+            "A velocidade é reduzida em 1,5 metro × o nível de exaustão.",
+            "Um descanso longo remove 1 nível de exaustão.",
+            "Morre se o nível de exaustão chegar a 6.",
         ],
     },
     {
@@ -119,6 +126,7 @@ export const CONDICOES: Condicao[] = [
         nome: "Incapacitado",
         descricao: [
             "Não pode realizar ações, ações bônus nem reações.",
+            "A concentração é interrompida.",
             "Não pode falar.",
             "DESVANTAGEM em testes de iniciativa.",
         ],
@@ -129,9 +137,11 @@ export const CONDICOES: Condicao[] = [
         id: "Inconsciente",
         nome: "Inconsciente",
         descricao: [
-            "Tem a condição Caído.",
-            "Tem os efeitos da condição Paralisado (sem estar paralisado).",
+            "Tem as condições Incapacitado e Caído, e larga o que estiver segurando. Quando a condição termina, continua Caído.",
             "A velocidade é 0 e não pode ser aumentada.",
+            "Jogadas de ataque contra a criatura têm VANTAGEM.",
+            "Falha automaticamente em testes de resistência de FOR e DES.",
+            "Qualquer jogada de ataque que o acerte é um acerto crítico se o atacante estiver a até 1,5 metro.",
             "Não tem consciência do que acontece ao redor.",
         ],
     },
@@ -140,27 +150,31 @@ export const CONDICOES: Condicao[] = [
         nome: "Invisível",
         descricao: [
             "VANTAGEM em testes de iniciativa.",
-            "Não pode ser alvo de efeitos que exijam visão.",
-            "Ataca com VANTAGEM; atacantes têm DESVANTAGEM.",
+            "Não é afetado por nenhum efeito que exija que o alvo seja visto, a menos que o criador do efeito consiga vê-lo. Qualquer equipamento que esteja usando também fica oculto.",
+            "Jogadas de ataque contra a criatura têm DESVANTAGEM, e as jogadas de ataque dela têm VANTAGEM. Perde esse benefício contra criaturas que a enxerguem.",
         ],
     },
     {
         id: "Paralisado",
         nome: "Paralisado",
         descricao: [
-            "Tem os efeitos da condição Atordoado (sem estar atordoado).",
-            "Atacantes causam acerto crítico automático se estiverem a até 1,5 metro.",
+            "Tem a condição Incapacitado.",
+            "A velocidade é 0.",
+            "Falha automaticamente em testes de resistência de FOR e DES.",
+            "Jogadas de ataque contra a criatura têm VANTAGEM.",
+            "Qualquer jogada de ataque que a acerte é um acerto crítico se o atacante estiver a até 1,5 metro.",
         ],
     },
     {
         id: "Petrificado",
         nome: "Petrificado",
         descricao: [
-            "Tem os efeitos da condição Atordoado (sem estar atordoado).",
-            "É transformado: o peso aumenta 10 vezes.",
-            "A velocidade é 0 e não pode ser aumentada.",
+            "É transformado numa substância inanimada (geralmente pedra), junto com os objetos não mágicos que veste e carrega. O peso aumenta 10 vezes e a criatura deixa de envelhecer.",
+            "Tem a condição Incapacitado.",
+            "A velocidade é 0.",
+            "Falha automaticamente em testes de resistência de FOR e DES.",
             "Resistência a todo dano.",
-            "Imune à condição Envenenado.",
+            "Imunidade a veneno.",
         ],
     },
     {
@@ -176,7 +190,9 @@ export const CONDICOES: Condicao[] = [
     {
         id: "Surdo",
         nome: "Surdo",
-        descricao: ["Não consegue ouvir nada.", "Falha em testes que dependem da audição."],
+        descricao: [
+            "Não consegue ouvir e falha automaticamente em testes de habilidade que exijam audição.",
+        ],
     },
     {
         // Sempre por ÚLTIMO na lista (pedido do dono do projeto), fora da ordem alfabética.

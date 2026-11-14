@@ -8,3 +8,6 @@
 !/dados/tokens/.gitkeep
 /dados/grupos/*
 !/dados/grupos/.gitkeep
+/dados/pecas/*
+!/dados/pecas/.gitkeep
+/dados/mesa.json
