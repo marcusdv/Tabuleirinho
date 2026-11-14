@@ -68,7 +68,7 @@ import { criarTokens } from "./tabuleiro/tokens";
 import { criarBalaoToken } from "./ui/balaoToken";
 import { criarBolsa } from "./ui/bolsa";
 import { criarEditorImagem } from "./ui/editorImagem";
-import { rolarDaFicha } from "./formulas";
+import { analisarAbas, rolarDaAnalise } from "./formulas";
 import { criarAjudaFichas } from "./ui/ajudaFichas";
 import { criarConfirmacao } from "./ui/confirmar";
 import { criarEditorFicha } from "./ui/editorFicha";
@@ -157,6 +157,7 @@ async function iniciar(): Promise<void> {
     tornarArrastavel({ elemento: porId("chat"), alca: porId("chat-alca") });
     tornarArrastavel({
         elemento: porId("bolsa"),
+        camada: porId("canto-inferior-direito"), // (a bolsa fica dentro desta coluna: é ela que sobe para a frente)
         alca: porId("bolsa").querySelector<HTMLElement>(".bolsa-topo")!,
         ignorar: (alvo) => alvo.closest("button, input, #bolsa-abas") !== null,
         desligado: () => bolsa.expandida, // em tela cheia a bolsa cobre a tela: não anda
@@ -189,26 +190,34 @@ async function iniciar(): Promise<void> {
         aoMudarAberta: (id) => bolsa.marcarFichaAberta(id), // (a bolsa é criada logo abaixo; isto só roda quando a janela abre ou fecha)
         aoSalvar: (id, versao, mudancas) => {
             if (rede?.ativa) {
-                rede.enviar({ tipo: "editar_ficha", id, versao, nome: mudancas.nome, texto: mudancas.texto }); // o servidor confere a VERSÃO e grava o arquivo
+                rede.enviar({ tipo: "editar_ficha", id, versao, nome: mudancas.nome, abas: mudancas.abas }); // o servidor confere a VERSÃO e grava o arquivo
                 return "enviada";
             }
             const resultado = editarFicha(id, versao, mudancas); // modo local: só na memória desta aba
             if (resultado.ok) bolsa.atualizarFichas();
             return resultado;
         },
-        aoRolar: (id, versao, indice) => {
+        aoRolar: (id, versao, aba, indice) => {
             if (rede?.ativa) {
-                rede.enviar({ tipo: "rolar_ficha", id, versao, indice }); // o SERVIDOR sorteia e o cartão chega pelo chat (evento "mensagem")
+                rede.enviar({ tipo: "rolar_ficha", id, versao, aba, indice }); // o SERVIDOR sorteia e o cartão chega pelo chat (evento "mensagem")
                 return null;
             }
             const ficha = estado.fichas.find((f) => f.id === id);
             if (!ficha) return "Essa ficha não existe.";
-            const resultado = rolarDaFicha(ficha.texto, indice, ficha.nome, Math.random); // modo local: sorteia aqui mesmo
+            const analise = analisarAbas(ficha.abas.map((a) => a.texto))[aba]; // (as variáveis valem para a ficha toda; as rolagens são da aba)
+            if (!analise) return "Essa página não existe.";
+            const resultado = rolarDaAnalise(analise, indice, ficha.nome, Math.random); // modo local: sorteia aqui mesmo
             if (!resultado.ok) return resultado.erro;
             adicionarRolagemDeFicha(AUTOR_PROVISORIO, resultado.valor);
             chat.atualizar();
             return null;
         },
+        confirmarExcluirAba: (nome) =>
+            confirmacao.perguntar({
+                titulo: "Excluir página?",
+                mensagem: `A página "${nome}" e tudo o que está escrito nela serão removidos desta ficha (só valem depois de salvar).`,
+                confirmar: "Excluir página",
+            }),
         confirmarDescarte: () =>
             confirmacao.perguntar({
                 titulo: "Fechar sem salvar?",

@@ -1,7 +1,7 @@
 // Teste e2e: desenho. Rodar: npm run test:e2e -- desenho
 // (precisa do servidor: npm run dev). Veja tests/e2e/ajuda.mjs.
 import { PNG } from "pngjs";
-import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar } from "./ajuda.mjs";
+import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar, recolherDados } from "./ajuda.mjs";
 const b = await lancar();
 const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
@@ -10,6 +10,7 @@ let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
 const perto = (a, c, tol = 3) => Math.abs(a - c) <= tol;
 await abrirPagina(p);
+await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 
 const MAGENTA = [255, 0, 255], VERDE = [0, 255, 0], AMARELO = [0xff, 0xd5, 0x4f], VERMELHO = [0xe7, 0x4c, 0x3c], ROXO = [0x9b, 0x59, 0xb6];
 // Conta pixels de uma cor numa região (opcional) e devolve a caixa que os envolve.
@@ -59,7 +60,8 @@ await p.click("#zoom-mais"); await p.waitForTimeout(300); // zoom com a régua v
 ok("B7) mudar o zoom com a régua na tela mantém a medida", (await dist()) === "Distância: 4 □ = 6 m");
 await p.click("#voltar-padrao"); await p.waitForTimeout(500);
 await ferr("mover");
-ok("B8) voltar a 'Mover' apaga a medida (painel e linha)", (await dist()) === null && (await cor(AMARELO, { x0: 170, x1: 1225, y0: 0, y1: 560 }, `${S}/d1b.png`)).n < 20);
+const amarelosB8 = (await cor(AMARELO, { x0: 170, x1: 1040, y0: 60, y1: 430 }, `${S}/d1b.png`)).n; // (só o mapa livre: a bolsa do canto e a barra têm detalhes dourados)
+ok("B8) voltar a 'Mover' apaga a medida (painel e linha)", (await dist()) === null && amarelosB8 < 20, `dist=${await dist()} amarelos=${amarelosB8}`);
 
 // ================= C) lápis e cor
 await ferr("lapis"); await fill("#ff00ff");
@@ -187,6 +189,7 @@ ok("K3) o botão voltou a ficar desativado", await p.locator("#desenho-apagar-tu
 
 // ================= L) recolher o painel
 await p.click("#desenho-alternar");
+await p.waitForTimeout(450); // (a animação de recolher)
 ok("L1) o painel recolhe (some a lista de ferramentas)", !(await p.locator("#lista-ferramentas").isVisible()));
 await p.click("#desenho-alternar");
 ok("L2) ...e expande de novo", await p.locator("#lista-ferramentas").isVisible());

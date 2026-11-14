@@ -12,7 +12,7 @@ const erros = [];
 p.on("pageerror", (e) => erros.push(String(e)));
 await abrirPagina(p);
 
-const fichas = () => p.evaluate(() => window.__tabuleirinho.estado.fichas.map((f) => ({ id: f.id, nome: f.nome, texto: f.texto, versao: f.versao })));
+const fichas = () => p.evaluate(() => window.__tabuleirinho.estado.fichas.map((f) => ({ id: f.id, nome: f.nome, texto: f.abas[0].texto, versao: f.versao })));
 const classe = async () => (await p.locator("#bolsa").getAttribute("class")) ?? "";
 const topos = () => p.locator(".bolsa-doc").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top)));
 
@@ -31,17 +31,18 @@ ok("2c2) na bolsa do canto o número da VERSÃO fica oculto (continua na dica do
 ok("2d) criar a ficha NÃO expande a bolsa (a bolsa do canto não expande ao clicar)", !(await classe()).includes("expandida"));
 
 // 3) vários cliques: ids únicos e a grade como a de tokens (5 por linha)
-for (let i = 0; i < 5; i++) await p.click("#bolsa-ficha-criar-botao");
+for (let i = 0; i < 4; i++) await p.click("#bolsa-ficha-criar-botao"); // (já existe 1: mais 4 dão 5)
 const cinco = await fichas();
 ok("3a) 5 fichas, com ids 1 a 5 e nomes 'Ficha 1' a 'Ficha 5'", cinco.map((f) => f.id).join() === "1,2,3,4,5" && cinco.every((f) => f.nome === `Ficha ${f.id}`), JSON.stringify(cinco.map((f) => f.nome)));
+await p.click("#bolsa-ficha-criar-botao"); // a sexta, para ver a linha de baixo
 const t = await topos();
 ok("3b) na bolsa do canto a grade tem 5 por linha (a sexta vai para a linha de baixo)", t.length === 6 && new Set(t.slice(0, 5)).size === 1 && t[5] > t[0], t.join());
 
 // 4) a aba escolhida vale nos outros tamanhos, e a grade usa a largura toda na tela cheia
-ok("4a) na bolsa do canto a aba Fichas continua aberta, com a grade e o botão", (await p.locator("#bolsa-fichas").isVisible()) && (await p.locator(".bolsa-doc").count()) === 5);
+ok("4a) na bolsa do canto a aba Fichas continua aberta, com a grade e o botão", (await p.locator("#bolsa-fichas").isVisible()) && (await p.locator(".bolsa-doc").count()) === 6);
 await p.click("#bolsa-gerenciar");
 const t2 = await topos();
-ok("4b) na tela cheia as 5 fichas cabem numa linha só (a grade usa a largura toda)", (await classe()).includes("expandida") && t2.length === 5 && new Set(t2).size === 1, t2.join());
+ok("4b) na tela cheia as 6 fichas cabem numa linha só (a grade usa a largura toda)", (await classe()).includes("expandida") && t2.length === 6 && new Set(t2).size === 1, t2.join());
 ok("4c) na tela cheia o botão 'Criar ficha' continua à vista", await p.locator("#bolsa-ficha-criar-botao").isVisible());
 ok("4d) e na tela cheia o número da VERSÃO aparece ao lado do nome", (await p.locator(".bolsa-doc small").first().isVisible()) && (await p.locator(".bolsa-doc small").first().textContent()) === "v1");
 

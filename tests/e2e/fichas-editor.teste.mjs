@@ -12,7 +12,7 @@ const erros = [];
 p.on("pageerror", (e) => erros.push(String(e)));
 await abrirPagina(p);
 
-const ficha = () => p.evaluate(() => { const f = window.__tabuleirinho.estado.fichas[0]; return f && { nome: f.nome, texto: f.texto, versao: f.versao }; });
+const ficha = () => p.evaluate(() => { const f = window.__tabuleirinho.estado.fichas[0]; return f && { nome: f.nome, texto: f.abas[0].texto, versao: f.versao }; });
 const aberto = () => p.locator("#editor-ficha").isVisible();
 const confirmarAberta = () => p.locator("#confirmar").isVisible();
 const versao = () => p.locator("#editor-ficha-versao").textContent();

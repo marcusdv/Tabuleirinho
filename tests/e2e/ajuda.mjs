@@ -55,6 +55,16 @@ export async function abrirPagina(p, consulta = "") {
     if (!consulta.includes("online")) await p.evaluate((lista) => window.__tabuleirinho.semear(lista), TOKENS_DE_TESTE);
 }
 
+/**
+ * Recolhe o painel de Dados (que por padrão fica aberto no alto da tela, em x 176 a 528 e y 12 a 206): testes que arrastam ou clicam no MAPA
+ * nessa faixa cairiam em cima dele. Recolhido, sobra só o cabeçalho (y 12 a ~47). Espera a animação de recolher terminar.
+ */
+export async function recolherDados(p) {
+    if (await p.evaluate(() => document.getElementById("dados")?.classList.contains("recolhida"))) return;
+    await p.click("#dados-alternar");
+    await p.waitForTimeout(450);
+}
+
 /** Os 5 tokens que os testes locais usam (os mesmos que o app tinha ao abrir, antes de os tokens virarem arquivos). Só existem AQUI. */
 export const TOKENS_DE_TESTE = [
     { id: 1, nome: "Token 1", imagem: null, col: 3, row: 3, cor: 0x2ecc71, corBorda: 0xffffff, size: 1, guardado: false },

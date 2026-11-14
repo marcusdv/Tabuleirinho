@@ -289,6 +289,8 @@ export interface PosicaoNoTexto {
 }
 
 export interface VariavelFicha {
+    /** De qual ABA da ficha é a linha da variável (0 = a primeira). As variáveis valem para a ficha inteira; as posições abaixo são DENTRO desta aba. */
+    aba: number;
     nome: string; // como foi escrito (ex.: "MOD_FOR")
     conta: string; // o que vem depois dos "::" (ex.: "(FOR - 10) / 2")
     valor: number | null; // null se deu erro
@@ -314,7 +316,11 @@ export interface RolagemFicha {
 }
 
 export interface AnaliseDaFicha {
+    /** De qual aba é esta análise: as `rolagens` (e as posições delas) são só desta aba. */
+    aba: number;
+    /** TODAS as variáveis da ficha (de qualquer aba; `aba` diz de onde cada uma vem). Numa ficha de uma aba só, são as dela. */
     variaveis: VariavelFicha[];
+    /** As rolagens DESTA aba (cada aba tem as suas). */
     rolagens: RolagemFicha[];
 }
 
@@ -344,12 +350,12 @@ export function analisarFicha(texto: string): AnaliseDaFicha {
         const posConta = { inicio: inicioDaLinha + lugarDaConta[0], fim: inicioDaLinha + lugarDaConta[1] };
         const chave = nome.toUpperCase();
         if (nome.length > MAX_CARACTERES_NOME_VARIAVEL) {
-            variaveis.push({ nome: nome.slice(0, MAX_CARACTERES_NOME_VARIAVEL) + "…", conta, valor: null, erro: "Nome de variável comprido demais.", posNome, posConta });
+            variaveis.push({ aba: 0, nome: nome.slice(0, MAX_CARACTERES_NOME_VARIAVEL) + "…", conta, valor: null, erro: "Nome de variável comprido demais.", posNome, posConta });
         } else if (definicoes.has(chave)) {
-            variaveis.push({ nome, conta, valor: null, erro: "Variável repetida (vale a primeira).", posNome, posConta });
+            variaveis.push({ aba: 0, nome, conta, valor: null, erro: "Variável repetida (vale a primeira).", posNome, posConta });
         } else {
             definicoes.set(chave, { nome, conta });
-            variaveis.push({ nome, conta, valor: null, erro: null, posNome, posConta }); // o valor é calculado abaixo
+            variaveis.push({ aba: 0, nome, conta, valor: null, erro: null, posNome, posConta }); // o valor é calculado abaixo
         }
     }
 
@@ -402,7 +408,41 @@ export function analisarFicha(texto: string): AnaliseDaFicha {
         }
         rolagens.push({ nome, formula, resolvida, erro, posNome, posFormula });
     }
-    return { variaveis, rolagens };
+    return { aba: 0, variaveis, rolagens };
+}
+
+/**
+ * Analisa as ABAS de uma ficha (`textos` = o texto de cada aba, na ordem). As VARIÁVEIS valem para a ficha inteira (uma definida numa aba pode ser
+ * usada nas outras), por isso o texto de todas as abas é analisado JUNTO (separado por uma quebra de linha: nenhuma variável nem rolagem
+ * atravessa linhas, então nada se mistura entre abas). As ROLAGENS, ao contrário, são de cada aba: a análise da aba N só tem as rolagens que estão
+ * no texto da aba N, e as posições (de variáveis e de rolagens) são DENTRO do texto da aba a que pertencem. Devolve uma análise por aba.
+ * Os limites (100 variáveis e 100 rolagens) valem para a ficha toda.
+ */
+export function analisarAbas(textos: readonly string[]): AnaliseDaFicha[] {
+    const inicios: number[] = []; // onde o texto de cada aba começa no texto juntado
+    let proximo = 0;
+    for (const texto of textos) {
+        inicios.push(proximo);
+        proximo += texto.length + 1; // (+1 da quebra de linha que separa as abas)
+    }
+    const juntada = analisarFicha(textos.join("\n"));
+    const abaDe = (posicao: number): number => {
+        let aba = 0;
+        for (let i = 0; i < inicios.length; i++) if (inicios[i] <= posicao) aba = i;
+        return aba;
+    };
+    const deslocar = (pos: PosicaoNoTexto, desconto: number): PosicaoNoTexto => ({ inicio: pos.inicio - desconto, fim: pos.fim - desconto });
+    const variaveis = juntada.variaveis.map((v): VariavelFicha => {
+        const aba = abaDe(v.posNome.inicio);
+        return { ...v, aba, posNome: deslocar(v.posNome, inicios[aba]), posConta: deslocar(v.posConta, inicios[aba]) };
+    });
+    return textos.map((_, aba) => ({
+        aba,
+        variaveis,
+        rolagens: juntada.rolagens
+            .filter((r) => abaDe(r.posFormula.inicio) === aba)
+            .map((r): RolagemFicha => ({ ...r, posNome: r.posNome && deslocar(r.posNome, inicios[aba]), posFormula: deslocar(r.posFormula, inicios[aba]) })),
+    }));
 }
 
 // ---------------------------------------------------------------------
@@ -426,6 +466,7 @@ export interface TrechoDoTexto extends PosicaoNoTexto {
 export function trechosDoTexto(analise: AnaliseDaFicha): TrechoDoTexto[] {
     const trechos: TrechoDoTexto[] = [];
     for (const v of analise.variaveis) {
+        if (v.aba !== analise.aba) continue; // (as variáveis de OUTRAS abas valem aqui, mas não estão neste texto: nada a colorir)
         const dica = v.erro ?? `${v.nome} = ${v.valor}`;
         trechos.push({ tipo: "variavel-nome", ...v.posNome, erro: v.erro, dica, rolagem: null });
         if (v.posConta.fim > v.posConta.inicio) trechos.push({ tipo: "variavel-valor", ...v.posConta, erro: v.erro, dica, rolagem: null });

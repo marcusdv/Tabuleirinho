@@ -1,5 +1,5 @@
 // =====================================================================
-// EDITOR DE FICHA (HTML): a janela onde se ABRE uma ficha (um clique no documento da grade da aba Fichas) para mudar o NOME e o TEXTO.
+// EDITOR DE FICHA (HTML): a janela onde se ABRE uma ficha (um clique no documento da grade da aba Fichas) para mudar o NOME e o TEXTO (de cada ABA/página; ver o item das abas abaixo).
 //
 //   - É uma janela FLUTUANTE e ARRASTÁVEL (por qualquer parte neutra: o título, o fundo, os rótulos...), e NÃO escurece o fundo nem bloqueia o resto da tela: dá para ver e usar o
 //     chat, os dados e o tabuleiro com a ficha aberta (ver as rolagens). Por isso as teclas Esc e Ctrl+S só valem com o foco DENTRO da janela
@@ -22,6 +22,9 @@
 //   - BOTÕES NO ALTO: "Ocultar instruções" e "Ocultar rolagens" escondem (ou mostram de novo) as duas partes do painel lateral, e o ✕ fecha a
 //     ficha (igual ao Esc: com alterações não salvas pergunta antes). Sem nenhuma das duas partes, o painel some e o texto ocupa a largura
 //     toda. A escolha fica guardada no navegador (localStorage) para as próximas vezes.
+//   - ABAS (PÁGINAS): uma ficha tem de 1 a 6 abas, todas no MESMO arquivo. Uma linha de abas fica embaixo do nome: clicar abre a página, o "+" cria
+//     uma nova, o DUPLO clique renomeia e o CLIQUE DIREITO abre o menu "Renomear página / Excluir página". Cada aba tem o seu texto e as suas ROLAGENS, mas as VARIÁVEIS valem para a ficha inteira (as
+//     das outras abas aparecem esmaecidas na lista). O limite de caracteres é a SOMA de todas as abas. As abas são parte do rascunho: só valem ao Salvar.
 //   - PAINEL LATERAL: em cima, a tela de rolagens (lê o texto enquanto você escreve, com formulas.ts): as VARIÁVEIS ("FOR:: 16" -> FOR = 16) e
 //     as ROLAGENS ("(Ataque)[1d20 + FOR]" -> nome e fórmula já com os valores), com os erros. Embaixo, as dicas de uso, sempre à vista.
 //
@@ -30,10 +33,22 @@
 // (ids "editor-ficha-*").
 // =====================================================================
 
-import { MAX_CARACTERES_NOME_FICHA, MAX_CARACTERES_TEXTO_FICHA } from "../config";
+import { MAX_ABAS_FICHA, MAX_CARACTERES_NOME_ABA_FICHA, MAX_CARACTERES_NOME_FICHA, MAX_CARACTERES_TEXTO_FICHA } from "../config";
 import { limitar } from "../coordenadas";
-import { normalizarNomeFicha, normalizarTextoFicha, type Ficha, type MudancasFicha, type ResultadoEdicaoFicha } from "../estado";
-import { analisarFicha, trechosDoTexto, type AnaliseDaFicha } from "../formulas";
+import {
+    abasIguais,
+    nomePadraoDaAba,
+    normalizarAbas,
+    normalizarNomeAba,
+    normalizarNomeFicha,
+    tamanhoDoTextoDasAbas,
+    type AbaFicha,
+    type Ficha,
+    type MudancasFicha,
+    type ResultadoEdicaoFicha,
+} from "../estado";
+import { analisarAbas, trechosDoTexto, type AnaliseDaFicha } from "../formulas";
+import { formatarTexto } from "../formatacao";
 
 export interface OpcoesEditorFicha {
     /**
@@ -42,14 +57,16 @@ export interface OpcoesEditorFicha {
      * `recusada`).
      */
     aoSalvar(id: number, versao: number, mudancas: Required<MudancasFicha>): ResultadoEdicaoFicha | "enviada";
+    /** A pessoa quer excluir uma aba que tem texto: pergunta se pode. Devolve true se sim. */
+    confirmarExcluirAba(nome: string): Promise<boolean>;
     /** Há alterações não salvas e a pessoa quer fechar: pergunta se pode descartá-las. Devolve true se sim. */
     confirmarDescarte(): Promise<boolean>;
     /**
-     * A pessoa clicou numa ROLAGEM (o nome no texto, ou o item da lista): rolar a rolagem de posição `indice` da ficha `id`, na versão `versao`
-     * (a SALVA: o servidor é quem sabe o texto e sorteia). Devolve uma mensagem de erro para mostrar na janela, ou null se deu certo (o
+     * A pessoa clicou numa ROLAGEM (o nome no texto, ou o item da lista): rolar a rolagem de posição `indice` da ABA `aba` da ficha `id`, na versão
+     * `versao` (a SALVA: o servidor é quem sabe o texto e sorteia). Devolve uma mensagem de erro para mostrar na janela, ou null se deu certo (o
      * resultado aparece no chat; online, um erro do servidor volta depois por `recusada`).
      */
-    aoRolar(id: number, versao: number, indice: number): string | null;
+    aoRolar(id: number, versao: number, aba: number, indice: number): string | null;
     /** A ficha aberta mudou: `id` da que abriu (ou trocou), ou null quando a janela fechou. A bolsa usa isto para destacar o nome dela. */
     aoMudarAberta(id: number | null): void;
 }
@@ -100,11 +117,21 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     const botaoFonteMais = pegar<HTMLButtonElement>("editor-ficha-fonte-mais");
     const alcaRedimensionar = pegar("editor-ficha-redimensionar");
     const camadaCores = pegar("editor-ficha-cores");
+    const listaAbas = pegar("editor-ficha-abas-lista");
+    const botaoNovaAba = pegar<HTMLButtonElement>("editor-ficha-aba-nova");
+    const menuAba = pegar("menu-aba");
+    const menuAbaRenomear = pegar<HTMLButtonElement>("menu-aba-renomear");
+    const menuAbaExcluir = pegar<HTMLButtonElement>("menu-aba-excluir");
+    const barraFormatar = pegar("editor-ficha-formatar");
+    const botaoVer = pegar<HTMLButtonElement>("editor-ficha-ver");
+    const previa = pegar("editor-ficha-previa");
 
     campoNome.maxLength = MAX_CARACTERES_NOME_FICHA; // o navegador corta ao digitar/colar (a regra também vale no servidor)
     campoTexto.maxLength = MAX_CARACTERES_TEXTO_FICHA;
 
-    let base: Ficha | null = null; // a ficha como o servidor a tem (a última que esta janela conhece): nome, texto e VERSÃO
+    let base: Ficha | null = null; // a ficha como o servidor a tem (a última que esta janela conhece): nome, abas e VERSÃO
+    let rascunho: AbaFicha[] = []; // as abas como estão na janela agora (com o que a pessoa escreveu e renomeou, ainda não salvo)
+    let abaAtual = 0; // qual aba está aberta no campo de texto
     let salvando = false; // online: o pedido foi ao servidor e a resposta ainda não chegou
     let enviado: Required<MudancasFicha> | null = null; // o que foi mandado no salvamento em andamento
     let maisNova: Ficha | null = null; // uma versão mais nova que a minha (alguém salvou): enquanto existir, salvar fica bloqueado
@@ -300,13 +327,22 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     /** Há alterações não salvas? (Compara com a limpeza que o servidor faz: espaços repetidos no nome não contam como mudança.) */
     function sujo(): boolean {
         if (!base) return false;
-        return normalizarNomeFicha(base.id, campoNome.value) !== base.nome || normalizarTextoFicha(campoTexto.value) !== base.texto;
+        const abas = normalizarAbas(rascunho);
+        return normalizarNomeFicha(base.id, campoNome.value) !== base.nome || abas === null || !abasIguais(abas, base.abas);
+    }
+
+    /** O limite de caracteres é a SOMA das abas: o campo desta aba só aceita o que sobra depois dos textos das outras. */
+    function ajustarLimiteDoCampo(): void {
+        const dasOutras = tamanhoDoTextoDasAbas(rascunho) - (rascunho[abaAtual]?.texto.length ?? 0);
+        campoTexto.maxLength = Math.max(0, MAX_CARACTERES_TEXTO_FICHA - dasOutras);
     }
 
     function atualizarTela(): void {
         if (!base) return;
         rotuloVersao.textContent = `Versão ${base.versao}${sujo() ? " · alterações não salvas" : ""}`;
-        contagem.textContent = `${campoTexto.value.length}/${MAX_CARACTERES_TEXTO_FICHA}`;
+        contagem.textContent = `${tamanhoDoTextoDasAbas(rascunho)}/${MAX_CARACTERES_TEXTO_FICHA}`;
+        botaoNovaAba.disabled = rascunho.length >= MAX_ABAS_FICHA;
+        botaoNovaAba.title = rascunho.length >= MAX_ABAS_FICHA ? `Limite de ${MAX_ABAS_FICHA} páginas` : "Nova página";
         botaoSalvar.disabled = !sujo() || salvando || maisNova !== null || excluida;
         botaoSalvar.textContent = salvando ? "Salvando…" : "Salvar";
         caixaConflito.hidden = maisNova === null && !excluida;
@@ -352,6 +388,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         // atributo `data-resultado` e o CSS o desenha (::after): não é texto da ficha, não se seleciona e não ocupa espaço (não muda a quebra).
         const resultadoPorPosicao = new Map<number, number>();
         for (const v of analise.variaveis) {
+            if (v.aba !== analise.aba) continue; // (as posições das variáveis são dentro da aba delas)
             if (v.erro === null && v.valor !== null && !/^\s*-?\d+\s*$/.test(v.conta)) resultadoPorPosicao.set(v.posConta.inicio, v.valor);
         }
         for (const trecho of trechosDoTexto(analise)) {
@@ -380,12 +417,18 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
      */
     function atualizarAssistente(): void {
         const texto = campoTexto.value;
-        const analise = analisarFicha(texto);
+        if (!previa.hidden) desenharPrevia(); // (a visualização formatada acompanha a aba aberta)
+        const analise = analisarAbas(rascunho.map((aba) => aba.texto))[abaAtual]; // (variáveis da ficha toda; rolagens só desta aba)
         ultimaAnalise = analise;
         semVariaveis.hidden = analise.variaveis.length > 0;
         semRolagens.hidden = analise.rolagens.length > 0;
         listaVariaveis.replaceChildren(
-            ...analise.variaveis.map((v) => itemDaLista("variavel", v.nome, v.erro ?? String(v.valor), `${v.nome}:: ${v.conta}`, v.erro !== null)),
+            ...analise.variaveis.map((v) => {
+                const deOutra = v.aba !== abaAtual;
+                const item = itemDaLista("variavel", v.nome, v.erro ?? String(v.valor), `${v.nome}:: ${v.conta}${deOutra ? ` (definida na página "${rascunho[v.aba]?.nome ?? ""}")` : ""}`, v.erro !== null);
+                if (deOutra) item.classList.add("de-outra-aba"); // (vale aqui também, mas está escrita em outra página)
+                return item;
+            }),
         );
         listaRolagens.replaceChildren(
             ...analise.rolagens.map((r, i) => itemDaLista("rolagem", r.nome, r.erro ?? r.resolvida ?? "", r.erro ?? `Clique para rolar: [${r.formula}]`, r.erro !== null, i)),
@@ -409,7 +452,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         if (excluida || maisNova !== null) return mostrarAviso("Esta ficha foi alterada por outra pessoa. Carregue a versão atual para rolar.", true);
         if (sujo()) return mostrarAviso("Salve a ficha (Ctrl+S) para rolar com as mudanças que você fez.", true);
         if (rolagem.erro !== null) return mostrarAviso(`Não dá para rolar "${rolagem.nome}": ${rolagem.erro}`, true);
-        const erro = opcoes.aoRolar(base.id, base.versao, indice);
+        const erro = opcoes.aoRolar(base.id, base.versao, abaAtual, indice);
         if (erro) return mostrarAviso(erro, true);
         mostrarAviso(`"${rolagem.nome}" rolada: veja o resultado no chat.`);
         aguardandoRolagem = true; // (online, um erro do servidor nos próximos instantes é desta rolagem)
@@ -426,14 +469,255 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     }
 
     /** Põe esta ficha na janela (descartando o que estava escrito): vira a "base" para comparar e para a checagem de versão. */
-    function carregar(ficha: Ficha): void {
+    function carregar(ficha: Ficha, manterAba = false): void {
         base = ficha;
+        rascunho = ficha.abas.map((aba) => ({ ...aba }));
+        abaAtual = manterAba ? Math.min(abaAtual, rascunho.length - 1) : 0;
         maisNova = null;
         salvando = false;
         enviado = null;
         excluida = false;
         campoNome.value = ficha.nome;
-        campoTexto.value = ficha.texto;
+        campoTexto.value = rascunho[abaAtual].texto;
+        ajustarLimiteDoCampo();
+        renderizarAbas();
+        atualizarTela();
+        atualizarAssistente();
+    }
+
+    // --- As ABAS (páginas): escolher, criar, renomear (duplo clique) e excluir. Tudo mexe só no rascunho: vale ao Salvar. ---
+
+    /** Refaz a linha de abas a partir do rascunho (nomes entram por textContent). */
+    function renderizarAbas(): void {
+        listaAbas.replaceChildren(
+            ...rascunho.map((aba, i) => {
+                const item = document.createElement("div");
+                item.className = "aba-ficha" + (i === abaAtual ? " ativa" : "");
+                item.setAttribute("role", "tab");
+                item.setAttribute("aria-selected", String(i === abaAtual));
+                const rotulo = document.createElement("button");
+                rotulo.type = "button";
+                rotulo.className = "aba-ficha-nome";
+                rotulo.textContent = aba.nome;
+                rotulo.title = `${aba.nome} (clique direito: renomear ou excluir)`;
+                rotulo.addEventListener("click", () => selecionarAba(i));
+                rotulo.addEventListener("dblclick", () => renomearAba(i, item));
+                item.addEventListener("contextmenu", (e) => {
+                    e.preventDefault();
+                    abrirMenuAba(i, e.clientX, e.clientY);
+                });
+                item.append(rotulo);
+                return item;
+            }),
+        );
+    }
+
+    /** Põe no campo de texto a aba `i` (o rascunho da aba que estava aberta já está guardado, a cada tecla). */
+    function selecionarAba(i: number): void {
+        if (i === abaAtual || i < 0 || i >= rascunho.length) return;
+        abaAtual = i;
+        campoTexto.value = rascunho[i].texto;
+        campoTexto.scrollTop = 0;
+        ajustarLimiteDoCampo();
+        renderizarAbas();
+        atualizarTela();
+        atualizarAssistente();
+        campoTexto.focus();
+    }
+
+    function novaAba(): void {
+        if (!base || rascunho.length >= MAX_ABAS_FICHA) return;
+        // O primeiro "Página N" que ainda não está em uso (apagando a 2 de 1, 2, 3, a próxima volta a ser "Página 2", e não outra "Página 3").
+        const usados = new Set(rascunho.map((aba) => aba.nome));
+        let numero = 0;
+        while (usados.has(nomePadraoDaAba(numero))) numero += 1;
+        rascunho.push({ nome: nomePadraoDaAba(numero), texto: "" });
+        mostrarAviso("");
+        selecionarAba(rascunho.length - 1);
+    }
+
+    /** Duplo clique no nome: o botão vira um campo. Enter ou sair do campo confirma; Esc cancela (e só isso: não fecha a ficha). */
+    function renomearAba(i: number, item: HTMLElement): void {
+        const rotulo = item.querySelector(".aba-ficha-nome");
+        if (!rotulo) return;
+        const campo = document.createElement("input");
+        campo.type = "text";
+        campo.className = "aba-ficha-campo";
+        campo.dataset.renomeandoAba = ""; // (o Esc e o Ctrl+S da janela deixam este campo em paz)
+        campo.maxLength = MAX_CARACTERES_NOME_ABA_FICHA;
+        campo.value = rascunho[i].nome;
+        campo.setAttribute("aria-label", "Nome da página");
+        rotulo.replaceWith(campo);
+        campo.focus();
+        campo.select();
+        let terminou = false;
+        const concluir = (aplicar: boolean): void => {
+            if (terminou) return;
+            terminou = true;
+            if (aplicar) rascunho[i].nome = normalizarNomeAba(i, campo.value);
+            renderizarAbas();
+            atualizarTela();
+            if (aplicar) atualizarAssistente(); // (o nome aparece na dica das variáveis)
+            campoTexto.focus();
+        };
+        campo.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                concluir(true);
+            } else if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                concluir(false);
+            }
+        });
+        campo.addEventListener("blur", () => concluir(true));
+    }
+
+    /** Menu do clique direito numa aba: "Renomear página" e "Excluir página" (a última página não se exclui). */
+    let abaDoMenu = -1;
+    function fecharMenuAba(): void {
+        menuAba.hidden = true;
+        abaDoMenu = -1;
+    }
+    function abrirMenuAba(i: number, x: number, y: number): void {
+        abaDoMenu = i;
+        menuAbaExcluir.disabled = rascunho.length <= 1;
+        menuAbaExcluir.title = rascunho.length <= 1 ? "A ficha precisa ter pelo menos uma página" : "";
+        menuAba.hidden = false;
+        const caixa = menuAba.getBoundingClientRect();
+        menuAba.style.left = `${Math.max(4, Math.min(x, window.innerWidth - caixa.width - 4))}px`;
+        menuAba.style.top = `${Math.max(4, Math.min(y, window.innerHeight - caixa.height - 4))}px`;
+        menuAbaRenomear.focus();
+    }
+    menuAbaRenomear.addEventListener("click", () => {
+        const i = abaDoMenu;
+        fecharMenuAba();
+        const item = listaAbas.children[i];
+        if (item instanceof HTMLElement) renomearAba(i, item);
+    });
+    menuAbaExcluir.addEventListener("click", () => {
+        const i = abaDoMenu;
+        fecharMenuAba();
+        void excluirAba(i);
+    });
+    // Fecha com clique fora, Esc (só o menu: o Esc não fecha a ficha), roda do mouse ou ao mexer na janela.
+    document.addEventListener("mousedown", (e) => {
+        if (!menuAba.hidden && !menuAba.contains(e.target as Node)) fecharMenuAba();
+    }, true);
+    document.addEventListener("keydown", (e) => {
+        if (menuAba.hidden || e.key !== "Escape") return;
+        e.preventDefault();
+        e.stopPropagation();
+        fecharMenuAba();
+    }, true);
+    window.addEventListener("resize", fecharMenuAba);
+
+    // --- FORMATAÇÃO: botões que inserem as marcas no texto (ver formatacao.ts) e a visualização formatada. ---
+
+    /** Troca o trecho [de, ate) do campo por `novo`, mantendo o desfazer (Ctrl+Z) quando o navegador deixa; respeita o limite de caracteres. */
+    function substituirNoCampo(de: number, ate: number, novo: string, selecionarDe: number, selecionarAte: number): void {
+        if (novo.length - (ate - de) > campoTexto.maxLength - campoTexto.value.length) {
+            mostrarAviso("Sem espaço: o limite de caracteres da ficha foi atingido.", true);
+            return;
+        }
+        campoTexto.focus();
+        campoTexto.setSelectionRange(de, ate);
+        if (!document.execCommand("insertText", false, novo)) {
+            campoTexto.setRangeText(novo, de, ate, "end");
+            campoTexto.dispatchEvent(new Event("input", { bubbles: true })); // (atualiza o rascunho, as cores e as rolagens)
+        }
+        campoTexto.setSelectionRange(selecionarDe, selecionarAte);
+    }
+
+    /** Negrito (`**`) e itálico (`*`): cerca a seleção com a marca; se ela já está cercada, tira. Sem seleção, põe o par e deixa o cursor no meio. */
+    function alternarMarca(marca: string): void {
+        const texto = campoTexto.value;
+        const de = campoTexto.selectionStart;
+        const ate = campoTexto.selectionEnd;
+        const m = marca.length;
+        if (de >= m && texto.startsWith(marca, de - m) && texto.startsWith(marca, ate) && texto[de - m - 1] !== "*" && texto[ate + m] !== "*") {
+            substituirNoCampo(de - m, ate + m, texto.slice(de, ate), de - m, ate - m); // já estava cercada: tira
+        } else {
+            substituirNoCampo(de, ate, marca + texto.slice(de, ate) + marca, de + m, ate + m);
+        }
+    }
+
+    /** Título: põe "#"×nível no começo de cada linha tocada pela seleção (troca o que já tinha); nível 0 tira o título. */
+    function definirTitulo(nivel: number): void {
+        const texto = campoTexto.value;
+        const de = campoTexto.selectionStart;
+        const ate = campoTexto.selectionEnd;
+        const inicio = texto.lastIndexOf("\n", de - 1) + 1;
+        let fim = texto.indexOf("\n", ate);
+        if (fim < 0) fim = texto.length;
+        const prefixo = nivel > 0 ? "#".repeat(nivel) + " " : "";
+        const novo = texto
+            .slice(inicio, fim)
+            .split("\n")
+            .map((linha) => prefixo + linha.replace(/^#{1,5} /, ""))
+            .join("\n");
+        substituirNoCampo(inicio, fim, novo, inicio, inicio + novo.length);
+    }
+
+    barraFormatar.addEventListener("mousedown", (e) => {
+        if ((e.target as HTMLElement).closest("button[data-formatar]")) e.preventDefault(); // o campo de texto NÃO perde o foco (nem a seleção)
+    });
+    barraFormatar.addEventListener("click", (e) => {
+        const botao = (e.target as HTMLElement).closest<HTMLButtonElement>("button[data-formatar]");
+        if (!botao || botao.disabled || !base) return;
+        const que = botao.dataset.formatar ?? "";
+        if (que === "negrito") alternarMarca("**");
+        else if (que === "italico") alternarMarca("*");
+        else definirTitulo(Number(que));
+    });
+    campoTexto.addEventListener("keydown", (e) => {
+        if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey) return;
+        const tecla = e.key.toLowerCase();
+        if (tecla !== "b" && tecla !== "i") return;
+        e.preventDefault();
+        alternarMarca(tecla === "b" ? "**" : "*");
+    });
+
+    /** Desenha a aba aberta já formatada. Tudo por createElement + textContent: o texto da ficha NUNCA vira HTML. */
+    function desenharPrevia(): void {
+        previa.replaceChildren(
+            ...formatarTexto(campoTexto.value).map((linha) => {
+                const bloco = document.createElement("div");
+                if (linha.nivel > 0) bloco.className = `titulo t${linha.nivel}`;
+                if (linha.pedacos.length === 0) bloco.append(document.createElement("br")); // (linha vazia mantém a altura)
+                for (const pedaco of linha.pedacos) {
+                    const trecho = document.createElement("span");
+                    if (pedaco.negrito) trecho.classList.add("negrito");
+                    if (pedaco.italico) trecho.classList.add("italico");
+                    trecho.textContent = pedaco.texto;
+                    bloco.append(trecho);
+                }
+                return bloco;
+            }),
+        );
+    }
+    function mostrarPrevia(ligada: boolean): void {
+        previa.hidden = !ligada;
+        botaoVer.setAttribute("aria-pressed", String(ligada));
+        botaoVer.textContent = ligada ? "Editar" : "Visualizar";
+        for (const b of barraFormatar.querySelectorAll<HTMLButtonElement>("button[data-formatar]")) b.disabled = ligada;
+        if (ligada) desenharPrevia();
+        else campoTexto.focus();
+    }
+    botaoVer.addEventListener("click", () => mostrarPrevia(previa.hidden === true));
+
+    /** ✕ da aba: tira a página do rascunho (pergunta antes se ela tem texto). A última página não pode ser excluída. */
+    async function excluirAba(i: number): Promise<void> {
+        if (rascunho.length <= 1 || !rascunho[i]) return;
+        if (rascunho[i].texto.trim() !== "" && !(await opcoes.confirmarExcluirAba(rascunho[i].nome))) return;
+        if (rascunho.length <= 1 || !rascunho[i]) return; // (a ficha pode ter mudado enquanto a caixa estava aberta)
+        rascunho.splice(i, 1);
+        if (i < abaAtual) abaAtual -= 1;
+        abaAtual = Math.min(abaAtual, rascunho.length - 1);
+        campoTexto.value = rascunho[abaAtual].texto;
+        ajustarLimiteDoCampo();
+        renderizarAbas();
+        mostrarAviso("");
         atualizarTela();
         atualizarAssistente();
     }
@@ -447,13 +731,13 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
 
     /** O salvamento deu certo: a ficha que o servidor guardou é a nova base. */
     function salvou(ficha: Ficha): void {
-        carregar(ficha); // (o servidor pode ter limpado o texto: a janela mostra exatamente o que ficou guardado)
+        carregar(ficha, true); // (o servidor pode ter limpado o texto: a janela mostra exatamente o que ficou guardado; continua na mesma aba)
         mostrarAviso(`Salva na versão ${ficha.versao}.`);
     }
 
     function salvar(): void {
         if (!base || botaoSalvar.disabled) return;
-        const dados = { nome: campoNome.value, texto: campoTexto.value };
+        const dados = { nome: campoNome.value, abas: rascunho.map((aba) => ({ ...aba })) };
         mostrarAviso("");
         const resultado = opcoes.aoSalvar(base.id, base.versao, dados);
         if (resultado === "enviada") {
@@ -464,7 +748,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
             salvou(resultado.ficha);
         } else {
             mostrarAviso(
-                resultado.erro === "nao_existe" ? "Essa ficha não existe mais." : resultado.erro === "texto_longo" ? `O texto passa de ${MAX_CARACTERES_TEXTO_FICHA} caracteres.` : "Esta ficha mudou. Feche e abra de novo.",
+                resultado.erro === "nao_existe" ? "Essa ficha não existe mais." : resultado.erro === "texto_longo" ? `O texto passa de ${MAX_CARACTERES_TEXTO_FICHA} caracteres (somando todas as páginas).` : resultado.erro === "abas_invalidas" ? `A ficha precisa ter de 1 a ${MAX_ABAS_FICHA} páginas.` : "Esta ficha mudou. Feche e abra de novo.",
                 true,
             );
         }
@@ -480,6 +764,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         salvando = false;
         enviado = null;
         excluida = false;
+        rascunho = [];
     }
 
     async function fechar(): Promise<void> {
@@ -492,6 +777,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         if (document.getElementById("confirmar")?.hidden === false || document.getElementById("ajuda-fichas")?.hidden === false) return;
         // A janela não é modal: com o foco FORA dela (no chat, por exemplo) estas teclas são de quem tem o foco.
         if (!janela.contains(document.activeElement)) return;
+        if (e.target instanceof HTMLElement && e.target.dataset.renomeandoAba !== undefined) return; // renomeando uma aba: Enter e Esc são do campo dela
         if (e.key === "Escape") {
             e.stopPropagation(); // só esta janela fecha (a bolsa por baixo continua aberta)
             void fechar();
@@ -503,11 +789,16 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
 
     for (const campo of [campoNome, campoTexto]) {
         campo.addEventListener("input", () => {
+            if (campo === campoTexto && rascunho[abaAtual]) {
+                rascunho[abaAtual].texto = campoTexto.value; // (o rascunho da aba aberta acompanha cada tecla)
+                ajustarLimiteDoCampo();
+            }
             mostrarAviso(""); // ("Salva na versão N." já não vale: a pessoa voltou a escrever)
             atualizarTela();
             atualizarAssistente();
         });
     }
+    botaoNovaAba.addEventListener("click", novaAba);
     // A camada de cores acompanha a rolagem do campo (os dois têm o mesmo tamanho e a mesma quebra de linha).
     campoTexto.addEventListener("scroll", () => {
         camadaCores.scrollTop = campoTexto.scrollTop;
@@ -537,7 +828,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     botaoX.addEventListener("click", () => void fechar()); // o ✕ do alto faz o mesmo que o Esc e o botão Fechar
     botaoRecarregar.addEventListener("click", () => {
         if (!maisNova) return;
-        carregar(maisNova);
+        carregar(maisNova, true);
         mostrarAviso(`Versão ${base?.versao} carregada.`);
     });
 
@@ -558,17 +849,19 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         fichaMudou(ficha) {
             if (!base || ficha.id !== base.id) return;
             // O que chegou é o resultado do MEU salvamento? (mesma versão seguinte e o mesmo conteúdo que eu mandei, já limpo.)
+            const abasEnviadas = enviado ? normalizarAbas(enviado.abas) : null;
             const ehMinha =
                 salvando &&
                 enviado !== null &&
+                abasEnviadas !== null &&
                 ficha.versao >= base.versao &&
                 ficha.nome === normalizarNomeFicha(ficha.id, enviado.nome) &&
-                ficha.texto === normalizarTextoFicha(enviado.texto);
+                abasIguais(ficha.abas, abasEnviadas);
             if (ehMinha) return salvou(ficha);
             if (ficha.versao <= base.versao) return; // notícia velha (ou a mesma versão que já tenho)
             if (!sujo() && !salvando) {
                 // Eu não tinha mudado nada: a janela só se atualiza.
-                carregar(ficha);
+                carregar(ficha, true);
                 mostrarAviso(`Atualizada: outra pessoa salvou a versão ${ficha.versao}.`);
             } else {
                 mostrarConflito(ficha); // eu tinha mudanças: não as apago; o salvamento fica bloqueado até eu decidir

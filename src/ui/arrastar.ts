@@ -25,6 +25,8 @@ const DISTANCIA_MINIMA = 4; // px que o mouse precisa andar para um clique virar
 export interface OpcoesArrasto {
     /** A caixa que anda. */
     elemento: HTMLElement;
+    /** A caixa que vai para a FRENTE quando esta é agarrada, se for outra que não `elemento` (ex.: a coluna que guarda a bolsa: o `z-index` vale no nível dela). */
+    camada?: HTMLElement;
     /** Onde se agarra (o cabeçalho, a abinha...). Pode ser mais de um. */
     alca: HTMLElement | HTMLElement[];
     /** Outras caixas presas a esta (ex.: a barra de dados, que fica pendurada na esquerda do chat): a parede vale para o CONJUNTO. */
@@ -42,6 +44,17 @@ interface Arrastavel {
     reaplicar(): void;
 }
 const todas: Arrastavel[] = [];
+
+// A ordem das caixas da frente para trás: a que a pessoa agarrou por último fica POR CIMA das outras (senão uma caixa arrastada para baixo da bolsa,
+// por exemplo, ficaria com os botões inalcançáveis). Cada uma ganha um `z-index` de 10 a 10 + (quantas caixas há) - 1, acima do padrão (10) de quem
+// nunca foi agarrado e abaixo das janelas (35 a 60).
+const ordemDasCamadas: HTMLElement[] = [];
+function trazerParaFrente(camada: HTMLElement): void {
+    const posicao = ordemDasCamadas.indexOf(camada);
+    if (posicao >= 0) ordemDasCamadas.splice(posicao, 1);
+    ordemDasCamadas.push(camada);
+    ordemDasCamadas.forEach((el, i) => (el.style.zIndex = String(11 + i)));
+}
 
 interface Retangulo {
     left: number;
@@ -89,6 +102,7 @@ export function restaurarPosicoes(): void {
 
 export function tornarArrastavel(opcoes: OpcoesArrasto): void {
     const { elemento } = opcoes;
+    const camada = opcoes.camada ?? elemento;
     const chave = PREFIXO_CHAVE + elemento.id;
     const alcas = Array.isArray(opcoes.alca) ? opcoes.alca : [opcoes.alca];
     // Padrão: botões, campos e links DENTRO da alça são deles (a própria alça, mesmo sendo um botão como a abinha dos dados, arrasta).
@@ -211,6 +225,7 @@ export function tornarArrastavel(opcoes: OpcoesArrasto): void {
             if (e.button !== 0 || opcoes.desligado?.()) return;
             const alvo = e.target;
             if (alvo instanceof HTMLElement && ignorar(alvo)) return;
+            trazerParaFrente(camada); // a caixa agarrada passa por cima das outras
             const r = elemento.getBoundingClientRect();
             comeco = { mouseX: e.clientX, mouseY: e.clientY, x, y, r0: { left: r.left, right: r.right, top: r.top, bottom: r.bottom }, alca };
             arrastando = false;

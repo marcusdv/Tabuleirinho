@@ -1,12 +1,13 @@
 // Teste e2e: calibragem. Rodar: npm run test:e2e -- calibragem
 // (precisa do servidor: npm run dev). Veja tests/e2e/ajuda.mjs.
-import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar } from "./ajuda.mjs";
+import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar, recolherDados } from "./ajuda.mjs";
 const b = await lancar();
 const p = await b.newPage({ viewport: { width: 1400, height: 900 } });
 const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
 await abrirPagina(p);
+await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 const txt = (s) => p.locator(s).evaluate((e) => e.value ?? e.textContent);
 const vis = (s) => p.locator(s).isVisible();
 
@@ -54,7 +55,7 @@ ok("9) abaixo do mínimo: usa 5 (o mínimo do tabuleiro) e a calibragem também 
 // "Cancelar" sai da calibragem sem medir
 await p.click("#calibrar-alternar");
 ok("10a) reabre", await vis("#painel-calibragem"));
-ok("10b) o botão agora se chama 'Cancelar'", (await txt("#calibragem-concluir")) === "Cancelar");
+ok("10b) o botão agora se chama 'Cancelar'", (await p.locator("#calibragem-concluir").textContent()) === "Cancelar");
 await p.click("#calibragem-concluir");
 ok("10) Cancelar esconde o painel sem mudar o tamanho (5 colunas)", !(await vis("#painel-calibragem")) && (await txt("#colunas-valor")) === "5");
 ok("11) botão deixa de estar ativo", !(await p.locator("#calibrar-alternar").getAttribute("class")).includes("ativo"));

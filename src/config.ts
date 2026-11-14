@@ -90,7 +90,9 @@ export const MAX_CARACTERES_NOME_TOKEN = 20; // o nome do token é cortado a est
 // --- Fichas (documentos de texto guardados no servidor; ver estado.ts e servidor/fichas.ts) ---
 export const MAX_FICHAS = 200; // quantas fichas a mesa aceita
 export const MAX_CARACTERES_NOME_FICHA = 40; // o nome da ficha é cortado a este tamanho
-export const MAX_CARACTERES_TEXTO_FICHA = 25000; // o texto de uma ficha (cerca de 8 páginas de Word) passa disto: é recusado (não é cortado, para não perder o fim sem avisar). Hoje só confere os arquivos lidos do disco; o salvamento do texto virá depois
+export const MAX_ABAS_FICHA = 6; // quantas ABAS (páginas) uma ficha pode ter: continua sendo UM arquivo só em dados/fichas
+export const MAX_CARACTERES_NOME_ABA_FICHA = 20; // o nome de uma aba é cortado a este tamanho (vazio vira "Página N")
+export const MAX_CARACTERES_TEXTO_FICHA = 25000; // o texto de uma ficha (cerca de 8 páginas de Word) é a SOMA de todas as abas; passar disto é recusado (não é cortado, para não perder o fim sem avisar)
 export const TAMANHO_MAX_ARQUIVO_TOKEN = 262144; // bytes (256 KB): ao ligar, o servidor ignora arquivos de token maiores que isto. Tem de caber a imagem máxima (150 mil caracteres) e o resto
 export const TAMANHO_MAX_ARQUIVO_FICHA = 131072; // bytes (128 KB): ao ligar, o servidor ignora arquivos de ficha maiores que isto (alguém pode ter mexido na pasta). Tem de caber o texto máximo: 25000 caracteres valem até ~75 KB em UTF-8
 

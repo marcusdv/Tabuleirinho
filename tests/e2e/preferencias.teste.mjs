@@ -37,7 +37,11 @@ ok("2b) depois de RECARREGAR a bolsa volta na aba Fichas", (await aba()) === "fi
 ok("2c) e a barra de Ferramentas e o painel de Desenho continuam recolhidos (com o botão ▾ de expandir)", (await recolhida("#barra")) && (await recolhida("#ferramentas-desenho")) && (await p.locator("#barra-alternar").textContent()) === "▾" && (await p.locator("#desenho-alternar").textContent()) === "▾");
 ok("2c1) a bolsa também volta MINIMIZADA (só o título e os ícones, com o ▾)", (await p.locator("#bolsa").evaluate((e) => e.classList.contains("recolhida"))) && (await p.locator("#bolsa-alternar").textContent()) === "▾");
 ok("2c2) o painel de dados também volta recolhido (só o cabeçalho 'Dados', com o botão ▾)", (await dadosRecolhido()) && (await p.locator("#dados-alternar").textContent()) === "▾");
-ok("2d) a pesquisa da aba restaurada é a das fichas", (await p.locator("#bolsa-fichas-busca").isVisible()) && !(await p.locator("#bolsa-busca").isVisible()));
+// (a bolsa volta MINIMIZADA, e minimizada ela esconde a pesquisa: abre um instante para conferir e a minimiza de novo)
+await p.click("#bolsa-alternar"); await p.waitForTimeout(450);
+const pesquisaDasFichas = (await p.locator("#bolsa-fichas-busca").isVisible()) && !(await p.locator("#bolsa-busca").isVisible());
+await p.click("#bolsa-alternar"); await p.waitForTimeout(450);
+ok("2d) a pesquisa da aba restaurada é a das fichas", pesquisaDasFichas);
 
 // ================= o estado vale ANTES do app carregar (sem o "pisca" de 1 segundo)
 // Bloqueia o main.ts (o app) e recarrega: só o script do index.html roda, e ele já tem de ter deixado tudo como estava guardado.
@@ -56,10 +60,10 @@ await p.unroute("**/src/main.ts*");
 await recarregar();
 
 // ================= voltar também é lembrado
+await p.click("#bolsa-alternar"); await p.waitForTimeout(450); // (a bolsa voltou minimizada: abre para chegar às abas)
 await p.click("#bolsa-aba-tokens");
 await p.click("#barra-alternar"); await p.waitForTimeout(450);
 await p.click("#dados-alternar"); await p.waitForTimeout(450);
-await p.click("#bolsa-alternar"); await p.waitForTimeout(450);
 await recarregar();
 ok("3a) voltar para Tokens, expandir a barra e reabrir os dados também é lembrado (o painel de Desenho continua recolhido)", (await aba()) === "tokens" && !(await recolhida("#barra")) && (await recolhida("#ferramentas-desenho")) && !(await dadosRecolhido()) && !(await p.locator("#bolsa").evaluate((e) => e.classList.contains("recolhida"))));
 

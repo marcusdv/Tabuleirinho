@@ -61,7 +61,7 @@ try {
     let n = c.recebidos.length;
     criar(c);
     const criada = await esperarEvento(c, "ficha_criada", n);
-    ok("2a) ficha_criada: id 1, 'Ficha 1', versão 1, texto vazio", criada?.ficha?.id === 1 && criada.ficha.nome === "Ficha 1" && criada.ficha.versao === 1 && criada.ficha.texto === "", JSON.stringify(criada));
+    ok("2a) ficha_criada: id 1, 'Ficha 1', versão 1, texto vazio", criada?.ficha?.id === 1 && criada.ficha.nome === "Ficha 1" && criada.ficha.versao === 1 && criada.ficha.abas[0].texto === "", JSON.stringify(criada));
     ok("2b) o arquivo 1.json JÁ existe no disco e bate com a ficha", existsSync(join(pastaFichas, "1.json")) && JSON.stringify(JSON.parse(readFileSync(join(pastaFichas, "1.json"), "utf8"))) === JSON.stringify(criada.ficha));
     ok("2c) nenhum .tmp sobrou", !readdirSync(pastaFichas).some((f) => f.endsWith(".tmp")), readdirSync(pastaFichas).join(","));
     n = c.recebidos.length;
@@ -75,7 +75,7 @@ try {
         // campos extras (nome com "../", id e versão forjados) são DESCARTADOS: a ficha é sempre a que o servidor monta
         c.ws.send(JSON.stringify({ tipo: "criar_ficha", nome: "../../etc/passwd", id: 999, versao: 50, texto: "forjado" }));
         const e = await esperarEvento(c, "ficha_criada", n);
-        ok("3a) campos extras ignorados: id 3, 'Ficha 3', versão 1, sem texto; arquivo dentro da pasta", e?.ficha?.id === 3 && e.ficha.nome === "Ficha 3" && e.ficha.versao === 1 && e.ficha.texto === "" && existsSync(join(pastaFichas, "3.json")) && !existsSync(join(pastaFichas, "999.json")), JSON.stringify(e));
+        ok("3a) campos extras ignorados: id 3, 'Ficha 3', versão 1, sem texto; arquivo dentro da pasta", e?.ficha?.id === 3 && e.ficha.nome === "Ficha 3" && e.ficha.versao === 1 && e.ficha.abas[0].texto === "" && existsSync(join(pastaFichas, "3.json")) && !existsSync(join(pastaFichas, "999.json")), JSON.stringify(e));
         const k = c.recebidos.length;
         c.ws.send("{criar_ficha");
         const erro = await esperarEvento(c, "erro", k, 800);
@@ -134,7 +134,8 @@ try {
         const k = c.recebidos.length;
         criar(c);
         const e = await esperarEvento(c, "ficha_criada", k);
-        ok("7d) a próxima ficha tem id 200 (o maior carregado + 1) e o arquivo é criado", e?.ficha?.id === 200 && existsSync(join(pastaFichas, "200.json")), JSON.stringify(e?.ficha?.id));
+        // (o servidor RESERVA também os ids dos arquivos ignorados — 901 e 903 — para nunca sobrescrever um arquivo que o dono esteja consertando: o próximo é 904)
+        ok("7d) a próxima ficha tem id 904 (acima de TODOS os ids de arquivo, até dos ignorados) e o arquivo é criado", e?.ficha?.id === 904 && existsSync(join(pastaFichas, "904.json")), JSON.stringify(e?.ficha?.id));
     }
     await desligar(s);
 } finally {

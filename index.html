@@ -48,6 +48,29 @@
                 user-select: none; /* evita selecionar texto ao clicar rápido */
             }
 
+            /* ALTURA LIMITADA (pedido do dono, para telas baixas, ex.: 800 px): a barra de Ferramentas aberta NÃO passa para cima da bolsa do canto
+               (que ocupa --altura-bolsa embaixo, à direita, na mesma coluna): o espaço que sobra é o limite e o CONTEÚDO rola por dentro, como no
+               painel de Desenho. Com a calibragem aberta (o painel dela fica empilhado em cima da bolsa, ~204 px + 8 de vão) a barra encolhe mais.
+               Abaixo de 720 px o painel da calibragem vai para outro lugar, então só vale o limite da bolsa. */
+            #barra {
+                display: flex;
+                flex-direction: column;
+                max-height: calc(100vh - 12px - var(--altura-bolsa, 346px) - 12px - 8px);
+            }
+            @media (min-height: 721px) {
+                body:has(#painel-calibragem:not([hidden])) #barra {
+                    max-height: calc(100vh - 12px - var(--altura-bolsa, 346px) - 12px - 8px - 212px);
+                }
+            }
+            #barra .cabecalho {
+                flex: none; /* o título e o botão de recolher ficam sempre à vista */
+            }
+            #barra .conteudo {
+                flex: 1 1 auto;
+                min-height: 0; /* sem isto o conteúdo não encolhe para caber: é ele que rola */
+                overflow-y: auto;
+            }
+
             /* CAIXAS ARRASTÁVEIS (ui/arrastar.ts): as alças mostram a mãozinha, e durante o arrasto a caixa fica por cima e sem selecionar texto. A bolsa
                em TELA CHEIA não anda (o deslocamento é ignorado). */
             .alca-arrastar {
@@ -60,7 +83,6 @@
             }
             /* Durante o arrasto a caixa fica por cima das outras e sem selecionar texto. */
             .arrastando-caixa {
-                z-index: 30 !important;
                 user-select: none;
             }
             .arrastando-caixa .alca-arrastar {
@@ -586,7 +608,7 @@
             .chat-formula strong {
                 color: #fff;
             }
-            /* O cartão de uma rolagem de FICHA: o nome da rolagem (cor do nome na ficha) e, ao lado, o nome da ficha; cortados com "…" se forem comprido. */
+            /* O cartão de uma rolagem de FICHA: o nome da rolagem (cor do nome na ficha), embaixo o nome da ficha (a criatura) e embaixo o cálculo; cortados com "…" se forem compridos. */
             .chat-mensagem p.chat-titulo-ficha {
                 white-space: nowrap;
                 overflow: hidden;
@@ -595,9 +617,13 @@
             .chat-titulo-ficha strong {
                 color: #ffcc80;
             }
-            .chat-titulo-ficha small {
+            /* A criatura (nome da ficha), embaixo do nome do golpe. */
+            .chat-mensagem p.chat-criatura {
                 color: #9a9aa8;
                 font-size: 11px;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
             }
             .chat-total {
                 flex: 0 0 auto;
@@ -812,6 +838,13 @@
                 flex-direction: column;
                 align-items: flex-end;
                 gap: 8px;
+                pointer-events: none; /* a coluna em si é invisível: só a bolsa e o painel da calibragem (abaixo) pegam o mouse; o resto da área deixa o clique passar */
+            }
+            #canto-inferior-direito > #painel-calibragem {
+                pointer-events: auto;
+            }
+            #canto-inferior-direito.bolsa-aberta {
+                pointer-events: auto; /* tela cheia: a margem escura (o ::before) fecha a bolsa ao ser clicada */
             }
 
             /* A vaga da bolsa (ver ui/bolsa.ts): uma caixa invisível que não pega o mouse; só a bolsa dentro dela pega. */
@@ -985,7 +1018,7 @@
 
             /* Bolsa EXPANDIDA: cobre quase a tela toda; só uma margem separa dela o fundo do site. */
             #canto-inferior-direito.bolsa-aberta {
-                z-index: 35; /* acima do chat, da barra e dos painéis */
+                z-index: 35 !important; /* acima do chat, da barra e dos painéis (!important: as caixas arrastadas ganham um z-index próprio, de 11 a 16) */
             }
             #canto-inferior-direito.bolsa-aberta::before {
                 content: "";
@@ -2130,6 +2163,181 @@
                 padding: 0 10px;
                 font-weight: 600;
             }
+            /* Menu do clique direito numa aba da ficha (acima do editor, que tem z-index 50). */
+            #menu-aba {
+                position: fixed;
+                z-index: 52;
+                min-width: 170px;
+                padding: 4px;
+                background: #2a2a33;
+                border: 1px solid #4a4a58;
+                border-radius: 8px;
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+            }
+            #menu-aba button {
+                display: block;
+                width: 100%;
+                padding: 7px 10px;
+                background: none;
+                border: none;
+                border-radius: 5px;
+                color: inherit;
+                font: inherit;
+                font-size: 13px;
+                text-align: left;
+                cursor: pointer;
+            }
+            #menu-aba button:hover:not(:disabled) {
+                background: #3b3b49;
+            }
+            #menu-aba button:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+            #menu-aba #menu-aba-excluir:not(:disabled) {
+                color: #ff9a9a;
+            }
+            /* Barra de formatação do texto da ficha. */
+            #editor-ficha-formatar {
+                flex: none;
+                display: flex;
+                flex-wrap: wrap;
+                gap: 4px;
+            }
+            #editor-ficha-formatar button {
+                min-width: 30px;
+                padding: 3px 8px;
+                font: inherit;
+                font-size: 12px;
+                color: inherit;
+                background: #2f2f3a;
+                border: 1px solid #4a4a58;
+                border-radius: 5px;
+                cursor: pointer;
+            }
+            #editor-ficha-formatar button:hover:not(:disabled) {
+                border-color: #ffd54f;
+            }
+            #editor-ficha-formatar button:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+            #editor-ficha-formatar #editor-ficha-ver {
+                margin-left: auto;
+            }
+            #editor-ficha-formatar #editor-ficha-ver[aria-pressed="true"] {
+                color: #ffd54f;
+                border-color: #ffd54f;
+            }
+            /* A visualização formatada ocupa o lugar do campo de texto (a área tem position: relative). */
+            #editor-ficha-previa {
+                position: absolute;
+                inset: 0;
+                overflow: auto;
+                padding: 10px;
+                font-size: var(--fonte-ficha, 15px);
+                background: #1f1f27;
+                border-radius: 6px;
+                line-height: 1.4;
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
+            }
+            #editor-ficha-previa[hidden] {
+                display: none;
+            }
+            #editor-ficha-previa .titulo {
+                font-weight: 700;
+                line-height: 1.2;
+            }
+            #editor-ficha-previa .t1 { font-size: 1.9em; }
+            #editor-ficha-previa .t2 { font-size: 1.6em; }
+            #editor-ficha-previa .t3 { font-size: 1.35em; }
+            #editor-ficha-previa .t4 { font-size: 1.15em; }
+            #editor-ficha-previa .t5 { font-size: 1em; text-transform: uppercase; letter-spacing: 0.04em; }
+            #editor-ficha-previa .negrito { font-weight: 700; }
+            #editor-ficha-previa .italico { font-style: italic; }
+            /* A linha de ABAS (páginas) da ficha, embaixo do nome. */
+            #editor-ficha-abas {
+                flex: none;
+                display: flex;
+                align-items: flex-end;
+                gap: 6px;
+                border-bottom: 1px solid #4a4a58;
+            }
+            #editor-ficha-abas-lista {
+                flex: 1;
+                min-width: 0;
+                display: flex;
+                gap: 4px;
+                overflow-x: auto;
+            }
+            .aba-ficha {
+                flex: none;
+                display: flex;
+                align-items: center;
+                margin-bottom: -1px; /* a aba ativa "afunda" na linha de baixo e se junta ao texto */
+                background: #25252e;
+                border: 1px solid #3c3c4a;
+                border-bottom-color: #4a4a58;
+                border-radius: 8px 8px 0 0;
+            }
+            .aba-ficha:hover {
+                background: #2f2f3a;
+            }
+            .aba-ficha.ativa {
+                background: #3d3d4c;
+                border-color: #4a4a58;
+                border-top: 2px solid #ffd54f;
+                border-bottom-color: #3d3d4c;
+            }
+            .aba-ficha button,
+            .aba-ficha-campo,
+            #editor-ficha-aba-nova {
+                font: inherit;
+                font-size: 12px;
+                color: inherit;
+                background: transparent;
+                border: none;
+                cursor: pointer;
+            }
+            .aba-ficha-nome {
+                max-width: 150px;
+                padding: 5px 12px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .aba-ficha.ativa .aba-ficha-nome {
+                color: #ffd54f;
+            }
+            .aba-ficha-campo {
+                width: 120px;
+                padding: 4px 8px;
+                cursor: text;
+                outline: none;
+                box-shadow: inset 0 -2px 0 #ffd54f;
+            }
+            #editor-ficha-aba-nova {
+                flex: none;
+                width: 26px;
+                height: 26px;
+                background: #2f2f3a;
+                border: 1px solid #4a4a58;
+                border-radius: 6px;
+                font-size: 15px;
+                line-height: 1;
+            }
+            #editor-ficha-aba-nova:hover:not(:disabled) {
+                border-color: #ffd54f;
+            }
+            #editor-ficha-aba-nova:disabled {
+                opacity: 0.4;
+                cursor: not-allowed;
+            }
+            /* Variável escrita em OUTRA página: vale aqui também, mas aparece esmaecida. */
+            #editor-ficha-lateral li.variavel.de-outra-aba {
+                opacity: 0.6;
+            }
             #editor-ficha-corpo {
                 flex: 1;
                 min-height: 0;
@@ -3032,6 +3240,11 @@
             <button id="menu-ficha-excluir" role="menuitem">Excluir token</button>
         </div>
         <!-- Menu do clique direito num DOCUMENTO (ficha) da aba Fichas. Ids usados no ui/bolsa.ts. -->
+        <!-- Menu do clique direito numa ABA (página) da ficha. -->
+        <div id="menu-aba" hidden role="menu">
+            <button id="menu-aba-renomear" role="menuitem">Renomear página</button>
+            <button id="menu-aba-excluir" role="menuitem">Excluir página</button>
+        </div>
         <div id="menu-doc" hidden role="menu">
             <button id="menu-doc-abrir" role="menuitem">Abrir e editar</button>
             <button id="menu-doc-excluir" role="menuitem">Excluir ficha</button>
@@ -3105,19 +3318,38 @@
                     </div>
                 </div>
                 <input type="text" id="editor-ficha-nome" placeholder="Nome da ficha" aria-label="Nome da ficha" autocomplete="off" />
+                <!-- As ABAS (páginas) da ficha: até 6, todas no mesmo arquivo. Duplo clique no nome renomeia; o ✕ exclui; o "+" cria. -->
+                <div id="editor-ficha-abas">
+                    <div id="editor-ficha-abas-lista" role="tablist" aria-label="Páginas da ficha"></div>
+                    <button id="editor-ficha-aba-nova" type="button" title="Nova página" aria-label="Nova página">+</button>
+                </div>
+                <!-- FORMATAÇÃO: botões que inserem as marcas no texto (negrito, itálico, títulos) e o botão que mostra o resultado já formatado. -->
+                <div id="editor-ficha-formatar" role="toolbar" aria-label="Formatação do texto">
+                    <button type="button" data-formatar="negrito" title="Negrito (Ctrl+B): **texto**"><b>N</b></button>
+                    <button type="button" data-formatar="italico" title="Itálico (Ctrl+I): *texto*"><i>I</i></button>
+                    <button type="button" data-formatar="1" title="Título 1 (o maior): # Título">T1</button>
+                    <button type="button" data-formatar="2" title="Título 2: ## Título">T2</button>
+                    <button type="button" data-formatar="3" title="Título 3: ### Título">T3</button>
+                    <button type="button" data-formatar="4" title="Título 4: #### Título">T4</button>
+                    <button type="button" data-formatar="5" title="Título 5 (o menor): ##### Título">T5</button>
+                    <button type="button" data-formatar="0" title="Tirar o título da linha">Aa</button>
+                    <button type="button" id="editor-ficha-ver" aria-pressed="false" title="Ver o texto já formatado (só leitura)">Visualizar</button>
+                </div>
                 <div id="editor-ficha-corpo">
                     <!-- O campo de texto tem POR CIMA uma camada só de cores (o texto do campo é transparente): variáveis, nomes e fórmulas. -->
                     <div id="editor-ficha-area">
                         <textarea id="editor-ficha-texto" placeholder="Escreva o conteúdo da ficha…" aria-label="Texto da ficha" spellcheck="false"></textarea>
                         <div id="editor-ficha-cores" aria-hidden="true"></div>
+                        <!-- A visualização formatada (só leitura; criada por createElement/textContent, nunca como HTML). -->
+                        <div id="editor-ficha-previa" hidden aria-label="Texto formatado"></div>
                     </div>
                     <aside id="editor-ficha-lateral" aria-label="Variáveis, rolagens e dicas da ficha">
                         <!-- EM CIMA, a tela de rolagens: o que o programa reconheceu no texto, já calculado. -->
                         <div id="editor-ficha-assistente">
-                            <h4>Variáveis</h4>
+                            <h4 title="Valem para todas as páginas da ficha">Variáveis da ficha</h4>
                             <ul id="editor-ficha-variaveis"></ul>
                             <p id="editor-ficha-sem-variaveis">Nenhuma variável definida.</p>
-                            <h4>Rolagens</h4>
+                            <h4 title="Cada página tem as suas rolagens">Rolagens desta página</h4>
                             <ul id="editor-ficha-rolagens"></ul>
                             <p id="editor-ficha-sem-rolagens">Nenhuma rolagem definida.</p>
                         </div>

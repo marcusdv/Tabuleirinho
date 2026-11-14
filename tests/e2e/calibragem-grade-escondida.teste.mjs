@@ -1,13 +1,14 @@
 // Teste e2e: calibragem-grade-escondida. Rodar: npm run test:e2e -- calibragem
 // (precisa do servidor: npm run dev). Veja tests/e2e/ajuda.mjs.
 import { PNG } from "pngjs";
-import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar } from "./ajuda.mjs";
+import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar, recolherDados } from "./ajuda.mjs";
 const b = await lancar();
 const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
 await abrirPagina(p);
+await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 
 // Região do tabuleiro sem tokens, barra nem painel: x 60-330, y 380-540 (token azul pequeno fica em ~390,370; evitamos)
 const REG = { x0: 40, x1: 330, y0: 400, y1: 560 };

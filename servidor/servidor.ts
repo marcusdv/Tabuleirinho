@@ -61,7 +61,7 @@ import {
     tokenValido,
     type Ficha,
 } from "../src/estado.ts";
-import { analisarFicha, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
+import { analisarAbas, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
 import { lerPedido, limparApelido, type EventoDoServidor, type Jogador, type PedidoDoCliente } from "../src/protocolo.ts";
 import { apagarDaPasta, carregarPasta, gravarNaPasta, PASTA_DE_DADOS } from "./dados.ts";
 
@@ -193,14 +193,21 @@ async function criarFichaNoServidor(c: Conexao): Promise<void> {
  * então guarda na mesa e avisa todos. Roda na fila de arquivos: dois salvamentos seguidos nunca se misturam.
  */
 async function editarFichaNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "editar_ficha" }>): Promise<void> {
-    const resultado = montarEdicaoDaFicha(pedido.id, pedido.versao, { nome: pedido.nome, texto: pedido.texto });
+    const resultado = montarEdicaoDaFicha(pedido.id, pedido.versao, { nome: pedido.nome, abas: pedido.abas });
     if (!resultado.ok) {
         if (resultado.erro === "versao_antiga") {
             const atual = estado.fichas.find((f) => f.id === pedido.id);
             if (atual) enviar(c.ws, { tipo: "ficha_conflito", ficha: atual });
             return;
         }
-        return erro(c.ws, resultado.erro === "nao_existe" ? "Essa ficha não existe." : `O texto da ficha passa de ${MAX_CARACTERES_TEXTO_FICHA} caracteres.`);
+        return erro(
+            c.ws,
+            resultado.erro === "nao_existe"
+                ? "Essa ficha não existe."
+                : resultado.erro === "abas_invalidas"
+                  ? "A ficha precisa ter de 1 a 6 páginas."
+                  : `O texto da ficha (somando todas as páginas) passa de ${MAX_CARACTERES_TEXTO_FICHA} caracteres.`,
+        );
     }
     if (resultado.mudou) {
         try {
@@ -234,13 +241,14 @@ async function excluirFichaNoServidor(c: Conexao, id: number): Promise<void> {
 
 // A análise do texto de uma ficha (variáveis e rolagens) custa um pouco, e a mesma ficha é rolada muitas vezes: guardamos a análise por
 // ficha e só a refazemos quando a VERSÃO muda (o servidor é quem manda na versão, então nunca fica velha).
-const analisesDasFichas = new Map<number, { versao: number; analise: AnaliseDaFicha }>();
-function analiseDaFicha(ficha: Ficha): AnaliseDaFicha {
+// (uma análise POR ABA: as variáveis valem para a ficha inteira, mas cada aba só tem as rolagens do seu texto.)
+const analisesDasFichas = new Map<number, { versao: number; analises: AnaliseDaFicha[] }>();
+function analiseDaFicha(ficha: Ficha, aba: number): AnaliseDaFicha | undefined {
     const guardada = analisesDasFichas.get(ficha.id);
-    if (guardada?.versao === ficha.versao) return guardada.analise;
-    const analise = analisarFicha(ficha.texto);
-    analisesDasFichas.set(ficha.id, { versao: ficha.versao, analise });
-    return analise;
+    if (guardada?.versao === ficha.versao) return guardada.analises[aba];
+    const analises = analisarAbas(ficha.abas.map((a) => a.texto));
+    analisesDasFichas.set(ficha.id, { versao: ficha.versao, analises });
+    return analises[aba];
 }
 
 /** Igual às fichas: monta o token (valida), GRAVA o arquivo e só então o guarda na mesa e avisa todos. Nasce guardado na bolsa. */
@@ -347,11 +355,13 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             return;
         }
         case "rolar_ficha": {
-            // Rola a rolagem de uma ficha SALVA: o cliente só diz QUAL (ficha, versão e posição); o texto e o sorteio são do servidor.
+            // Rola a rolagem de uma ficha SALVA: o cliente só diz QUAL (ficha, versão, aba e posição); o texto e o sorteio são do servidor.
             const ficha = estado.fichas.find((f) => f.id === pedido.id);
             if (!ficha) return erro(c.ws, "Essa ficha não existe.");
             if (ficha.versao !== pedido.versao) return erro(c.ws, "Esta ficha foi alterada. Feche e abra de novo para rolar.");
-            const resultado = rolarDaAnalise(analiseDaFicha(ficha), pedido.indice, ficha.nome, sortear); // o SERVIDOR sorteia
+            const analise = analiseDaFicha(ficha, pedido.aba);
+            if (!analise) return erro(c.ws, "Essa página não existe.");
+            const resultado = rolarDaAnalise(analise, pedido.indice, ficha.nome, sortear); // o SERVIDOR sorteia
             if (!resultado.ok) return erro(c.ws, resultado.erro);
             avisarTodos({ tipo: "mensagem", mensagem: adicionarRolagemDeFicha(autor, resultado.valor) });
             return;

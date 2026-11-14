@@ -83,7 +83,7 @@ export function criarChat(opcoes: OpcoesChat): Chat {
         hora.textContent = formatarHora(mensagem.hora);
         cabecalho.append(autor, hora);
 
-        // Rolagem de FICHA (ex.: o "Ataque com espada"): o NOME da rolagem (e o da ficha), a fórmula com o que saiu em cada dado, e o TOTAL
+        // Rolagem de FICHA (ex.: o "Ataque com espada"): o NOME da rolagem (o golpe), EMBAIXO a criatura (o nome da ficha), embaixo disso o cálculo com o que saiu em cada dado, e o TOTAL
         // grande à direita. Tudo entra por textContent (os nomes vêm de uma ficha escrita por um jogador).
         if (mensagem.rolagemFicha) {
             const r = mensagem.rolagemFicha;
@@ -93,10 +93,14 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             titulo.className = "chat-formula chat-titulo-ficha";
             const nome = document.createElement("strong");
             nome.textContent = r.nome;
-            const ficha = document.createElement("small");
-            ficha.textContent = r.ficha;
-            titulo.append(nome, " ", ficha);
-            titulo.title = `${r.nome} (${r.ficha})`;
+            titulo.append(nome);
+            titulo.title = r.nome;
+
+            // A criatura (o nome da ficha) fica EMBAIXO do nome do golpe, e o cálculo embaixo dela.
+            const criatura = document.createElement("p");
+            criatura.className = "chat-criatura";
+            criatura.textContent = r.ficha;
+            criatura.title = r.ficha;
 
             const detalhe = document.createElement("p");
             detalhe.className = "chat-detalhe";
@@ -105,7 +109,7 @@ export function criarChat(opcoes: OpcoesChat): Chat {
 
             const informacoes = document.createElement("div");
             informacoes.className = "chat-rolagem-info";
-            informacoes.append(cabecalho, titulo, detalhe);
+            informacoes.append(cabecalho, titulo, criatura, detalhe);
 
             const total = document.createElement("div");
             total.className = "chat-total";

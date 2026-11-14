@@ -70,8 +70,8 @@ ok("a bolsa aberta termina a 12 px da borda de baixo e da direita (o canto de se
 await p.click("#bolsa-alternar"); await p.waitForTimeout(450);
 const m = await p.locator("#bolsa").boundingBox();
 ok("minimizada, a bolsa fica com o TOPO no mesmo lugar (sobra só o cabeçalho; ela não desce para o canto)", Math.abs(m.y - b.y) <= 1 && m.height < 70, JSON.stringify({ b, m }));
-const clicavel = await p.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest("#bolsa") === null, [b.x + 100, b.y + b.height - 20]);
-ok("o espaço vazio que a bolsa minimizada deixa (a vaga) NÃO pega o mouse: o clique passa para o tabuleiro", clicavel);
+const clicavel = await p.evaluate(([x, y]) => document.elementFromPoint(x, y)?.closest("#bolsa, #canto-inferior-direito") === null, [b.x + 100, b.y + b.height - 20]);
+ok("o espaço vazio que a bolsa minimizada deixa (a vaga e a coluna em volta) NÃO pega o mouse: o clique passa para o tabuleiro", clicavel);
 await p.click("#bolsa-alternar"); await p.waitForTimeout(450);
 
 // ================= clicar de novo no meio da animação inverte, sem pulo

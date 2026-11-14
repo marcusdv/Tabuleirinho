@@ -13,7 +13,7 @@ p.on("pageerror", (e) => erros.push(String(e)));
 await abrirPagina(p);
 
 const cartoes = () => p.locator(".chat-mensagem.chat-rolagem-ficha").evaluateAll((els) => els.map((e) => ({
-    autor: e.querySelector("strong")?.textContent, titulo: e.querySelector(".chat-titulo-ficha strong")?.textContent, ficha: e.querySelector(".chat-titulo-ficha small")?.textContent,
+    autor: e.querySelector("strong")?.textContent, titulo: e.querySelector(".chat-titulo-ficha strong")?.textContent, ficha: e.querySelector(".chat-criatura")?.textContent,
     detalhe: e.querySelector(".chat-detalhe")?.textContent, total: e.querySelector(".chat-total")?.textContent,
 })));
 

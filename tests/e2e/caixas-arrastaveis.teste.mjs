@@ -6,7 +6,7 @@
 // caixas INDEPENDENTES (arrastar um não leva o outro); Ferramentas, Desenho e Dados NÃO PODEM SE BATER (param ao encostar, deslizam pela borda e,
 // se uma cresce e passa a bater, ela se afasta); a posição vale depois de recarregar (inclusive ANTES do app carregar, sem pular); a bolsa em tela
 // cheia não anda; "Reorganizar telas" leva tudo de volta ao lugar de fábrica.
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, cruza, lancar, ok, terminar } from "./ajuda.mjs";
 
 const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 800 } });
@@ -35,8 +35,8 @@ const recarregar = async () => {
 const antes = {};
 for (const id of ["#barra", "#ferramentas-desenho", "#chat", "#dados", "#bolsa"]) antes[id] = await caixa(id);
 
-await arrastar("#barra .cabecalho h1", -300, 120);
-ok("1a) a barra de Ferramentas anda pelo cabeçalho (300 px à esquerda, 120 para baixo)", move(antes["#barra"], await caixa("#barra"), -300, 120));
+await arrastar("#barra .cabecalho h1", -400, 0);
+ok("1a) a barra de Ferramentas anda pelo cabeçalho (400 px para a esquerda; fica longe da bolsa, que o teste arrasta depois)", move(antes["#barra"], await caixa("#barra"), -400, 0));
 await arrastar("#ferramentas-desenho .cabecalho h1", 0, 60);
 ok("1b) o painel de Desenho anda pelo cabeçalho", move(antes["#ferramentas-desenho"], await caixa("#ferramentas-desenho"), 0, 60));
 await arrastar("#bolsa .bolsa-titulo", -250, -150);
@@ -116,6 +116,11 @@ const barraG = await caixa("#barra"), dadosG = await caixa("#dados");
 ok("4f) expandindo a barra (que cresceria por cima dos dados) ela se AFASTA: os dois continuam sem se bater e dentro da tela", !cruza(barraG, dadosG) && dentro(barraG) && dentro(dadosG), JSON.stringify({ barraG, dadosG }));
 await p.click("#reorganizar-telas");
 await arrastar("#bolsa .bolsa-titulo", -250, -150);
+// (as outras quatro também saem do lugar de fábrica, para os passos de "recarregar" mais abaixo terem o que lembrar)
+await arrastar("#barra .cabecalho h1", -400, 0);
+await arrastar("#ferramentas-desenho .cabecalho h1", 0, 60);
+await arrastar("#dados .cabecalho h1", 60, 200);
+await arrastar("#chat-alca", 100, -120, { x: 150, y: 4 });
 
 // ================= a bolsa em tela cheia não anda; a pesquisa e os botões da bolsa não arrastam
 await p.click("#bolsa-gerenciar");

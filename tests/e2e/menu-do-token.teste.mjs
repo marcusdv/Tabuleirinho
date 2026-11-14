@@ -89,6 +89,7 @@ await p.click("#voltar-padrao"); await p.waitForTimeout(500);
 for (let i = 0; i < 2; i++) await p.click("#zoom-mais"); // 100% -> 156%
 await p.waitForTimeout(400);
 const zoom = Number((await p.locator("#zoom-valor").textContent()).replace("%", "")) / 100;
+await p.click("#bolsa-alternar"); await p.waitForTimeout(450); // (a bolsa do canto cobriria o token roxo nesta janela: minimiza para liberar o lugar)
 const centroRoxo = await (async () => { const L = 18 * 64 * zoom, A = 10 * 64 * zoom; return { x: (1400 - L) / 2 + 14 * 64 * zoom, y: (800 - A) / 2 + 8 * 64 * zoom }; })();
 await direito(centroRoxo.x, centroRoxo.y);
 const e4 = await caixa("#engrenagem"), l4 = await caixa("#acoes-token");

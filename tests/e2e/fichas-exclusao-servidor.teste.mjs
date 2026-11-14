@@ -78,12 +78,12 @@ try {
     await recusa("2c) id em texto é recusado", { tipo: "excluir_ficha", id: "1" });
     await recusa("2d) id fora dos inteiros seguros é recusado", { tipo: "excluir_ficha", id: 1e300 });
     await recusa("2e) sem id é recusado", { tipo: "excluir_ficha" });
-    await recusa("2f) salvar uma ficha excluída dá 'não existe' e NÃO recria o arquivo", { tipo: "editar_ficha", id: 2, versao: 1, texto: "x" });
+    await recusa("2f) salvar uma ficha excluída dá 'não existe' e NÃO recria o arquivo", { tipo: "editar_ficha", id: 2, versao: 1, abas: [{ nome: "Página 1", texto: "x" }] });
     ok("2g) o arquivo 2.json continua inexistente", !existsSync(join(pasta, "2.json")));
 
     // ---- corrida: salvar e excluir logo em seguida (a fila não deixa a ficha ressuscitar)
     na = A.recebidos.length;
-    A.enviar({ tipo: "editar_ficha", id: 1, versao: 1, texto: "x".repeat(20000) });
+    A.enviar({ tipo: "editar_ficha", id: 1, versao: 1, abas: [{ nome: "Página 1", texto: "x".repeat(20000) }] });
     A.enviar({ tipo: "excluir_ficha", id: 1 });
     await esperar(800);
     const { ini: depois } = await entrar("Dani");

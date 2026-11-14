@@ -80,7 +80,7 @@ ok("5c5) o cabeçalho da aba Fichas é IDÊNTICO ao da aba Tokens (mesmos ícone
 const criarF2 = await p.locator("#bolsa-ficha-criar-botao").boundingBox();
 ok("5c6) o botão da linha da pesquisa tem o mesmo tamanho e o mesmo lugar nas duas abas ('+ Criar token' e '+ Criar ficha')", Math.abs(criarF2.x - criarTokenM.x) < 1 && Math.abs(criarF2.y - criarTokenM.y) < 1 && Math.abs(criarF2.width - criarTokenM.width) < 1 && Math.abs(criarF2.height - criarTokenM.height) < 1, JSON.stringify({ criarTokenM, criarF2 }));
 ok("5d) a aba escolhida vale na bolsa do canto", (await visivel("#bolsa-fichas")) && !(await visivel("#bolsa-conteudo")));
-await p.click("#bolsa-aba-tokens");
+await p.click("#bolsa-aba-fichas");
 await p.fill("#bolsa-fichas-busca", "ficha 1");
 await p.click("#bolsa-aba-tokens");
 ok("5e) voltando a 'Tokens': a pesquisa dos tokens aparece (VAZIA: a das fichas é independente, o texto 'ficha 1' não veio junto) e o '+ Criar ficha' e a pesquisa das fichas somem", (await visivel("#bolsa-busca")) && !(await visivel("#bolsa-fichas-busca")) && (await p.inputValue("#bolsa-busca")) === "" && (await p.locator("#bolsa-busca").getAttribute("placeholder")) === "Pesquisar token…" && (await visivel("#bolsa-gerenciar")) && !(await visivel("#bolsa-ficha-criar-botao")));
@@ -115,7 +115,8 @@ const cheia = await p.locator("#bolsa").boundingBox();
 const painel = await p.locator("#bolsa-fichas").boundingBox();
 const botaoCriarFicha = await p.locator("#bolsa-ficha-criar-botao").boundingBox();
 ok("6c) o painel das fichas fica dentro da caixa, sem sair pelos lados nem por baixo", painel.x >= cheia.x && painel.x + painel.width <= cheia.x + cheia.width + 1 && painel.y + painel.height <= cheia.y + cheia.height + 1, `${JSON.stringify(painel)} em ${JSON.stringify(cheia)}`);
-ok("6d) na tela cheia o botão 'Criar ficha' está à vista, dentro do painel", botaoCriarFicha.x >= painel.x && botaoCriarFicha.y >= painel.y && botaoCriarFicha.x + botaoCriarFicha.width <= painel.x + painel.width + 1, `${JSON.stringify(botaoCriarFicha)} em ${JSON.stringify(painel)}`);
+// (o "+ Criar ficha" fica na linha da pesquisa, NO CABEÇALHO da bolsa — o mesmo lugar do "+ Criar token" —, e não mais dentro do painel das fichas)
+ok("6d) na tela cheia o botão 'Criar ficha' está à vista, no cabeçalho da bolsa, dentro da largura dela", botaoCriarFicha.x >= painel.x && botaoCriarFicha.x + botaoCriarFicha.width <= painel.x + painel.width + 1 && botaoCriarFicha.y < painel.y, `${JSON.stringify(botaoCriarFicha)} em ${JSON.stringify(painel)}`);
 await p.keyboard.press("Escape");
 ok("6e) Esc fecha a tela cheia e volta à bolsa do canto (a aba Fichas continua escolhida)", !(await classe()).includes("expandida") && (await visivel("#bolsa-fichas")));
 

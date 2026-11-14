@@ -91,6 +91,12 @@ A chave é o par (`mesaId`, `usuarioId`): no máximo uma linha por pessoa em cad
 - Limite de tokens e fichas por jogador, para um convidado não encher a mesa (hoje o limite é global: `MAX_TOKENS` e `MAX_FICHAS`).
 - O mestre pode **transferir** a posse (mudar o `donoId`) e **retirar** uma permissão a qualquer momento.
 
+## Onde cada parte roda (e o que precisa de hospedagem)
+- **O servidor do jogo É o site do jogo:** o `npm run servidor` (Node + `ws`) entrega a interface (a pasta `dist/` do `npm run build`) e cuida do WebSocket. Ele roda na **máquina de quem mestra**; não precisa de Vercel nem de hospedagem nenhuma.
+- **Só o site central precisa ficar online o tempo todo:** cadastro, login, criação de mesa, convites e a emissão do token de entrada assinado.
+- **Esse site central pode ser só páginas ESTÁTICAS** (HTML, JS e CSS gerados pelo Vite), sem backend próprio: o Supabase faz o trabalho de servidor (Auth = contas e login; Postgres = jogadores, mesas e convites; Edge Function = assina o token). Hospedagem gratuita serve: **Cloudflare Pages** (recomendada: o dono já usa a Cloudflare), Vercel ou GitHub Pages.
+- **Continua em aberto o CAMINHO até o servidor do mestre:** os jogadores precisam conseguir chegar à máquina dele (túnel como o cloudflared, ou porta aberta no roteador). O site central só diz quem pode entrar e informa o endereço da mesa; o mestre precisa deixar o servidor ligado durante a sessão.
+
 ## Quem protege o quê
 - **Banco (RLS):** cada pessoa lê só o próprio perfil e as mesas em que participa; só o mestre cria convites e remove participantes; ninguém se promove a mestre editando a própria linha.
 - **Edge Function:** é a ÚNICA que assina tokens. A chave privada de assinatura fica só nela.

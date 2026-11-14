@@ -1,7 +1,7 @@
 // Teste e2e: escolher-mapa. Rodar: npm run test:e2e -- escolher
 // (precisa do servidor: npm run dev). Veja tests/e2e/ajuda.mjs.
 import { PNG } from "pngjs";
-import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar } from "./ajuda.mjs";
+import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar, recolherDados } from "./ajuda.mjs";
 const P = PASTA_MAPAS.replace(/\/$/, "");
 const b = await lancar();
 const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
@@ -10,6 +10,7 @@ const avisos = []; p.on("dialog", async (d) => { avisos.push(d.message()); await
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
 await abrirPagina(p);
+await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 
 // Cor média de uma região do tabuleiro (fora da barra e dos tokens)
 async function cor() {

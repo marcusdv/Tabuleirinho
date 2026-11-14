@@ -10,8 +10,8 @@
 // (o token existe? essa posição cabe? o texto passa do limite?) é conferido depois, pelas regras de estado.ts.
 // =====================================================================
 
-import { MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_TEXTO_FICHA } from "./config.ts";
-import type { Ficha, Mensagem, MudancasToken, Token } from "./estado.ts";
+import { MAX_ABAS_FICHA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_TEXTO_FICHA } from "./config.ts";
+import type { AbaFicha, Ficha, Mensagem, MudancasToken, Token } from "./estado.ts";
 
 /** Um jogador conectado à mesa. */
 export interface Jogador {
@@ -29,10 +29,10 @@ export type PedidoDoCliente =
     | { tipo: "criar_token"; nome: string; cor: number; corBorda: number; tamanho: number; imagem: string | null } // o SERVIDOR dá o id e cria o arquivo
     | { tipo: "editar_token"; id: number; mudancas: MudancasToken } // nome, tamanho, cores e/ou imagem
     | { tipo: "excluir_token"; id: number } // apaga o token E o arquivo dele
-    | { tipo: "criar_ficha" }
-    | { tipo: "editar_ficha"; id: number; versao: number; nome?: string; texto?: string } // `versao` = a que a pessoa tinha na tela ao abrir
+    | { tipo: "criar_ficha" } // sem dados: o SERVIDOR dá o id e o nome ("Ficha N") e cria o arquivo NA HORA (a ficha nasce vazia)
+    | { tipo: "editar_ficha"; id: number; versao: number; nome?: string; abas?: AbaFicha[] } // `versao` = a que a pessoa tinha na tela ao abrir; `abas` = a lista INTEIRA de abas (1 a 6)
     | { tipo: "excluir_ficha"; id: number } // apaga a ficha E o arquivo dela
-    | { tipo: "rolar_ficha"; id: number; versao: number; indice: number }; // rola a rolagem de posição `indice` da ficha SALVA (na versão `versao`) // sem dados: o SERVIDOR dá o id e o nome ("Ficha N") e cria o arquivo NA HORA (a ficha nasce vazia)
+    | { tipo: "rolar_ficha"; id: number; versao: number; aba: number; indice: number }; // rola a rolagem de posição `indice` da ABA `aba` da ficha SALVA (na versão `versao`)
 
 /** O que o servidor AVISA aos navegadores. */
 export type EventoDoServidor =
@@ -106,13 +106,26 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
         case "excluir_ficha":
             return eInteiro(p.id) ? { tipo: "excluir_ficha", id: p.id } : null;
         case "rolar_ficha":
-            return eInteiro(p.id) && eInteiro(p.versao) && eInteiro(p.indice) ? { tipo: "rolar_ficha", id: p.id, versao: p.versao, indice: p.indice } : null;
+            return eInteiro(p.id) && eInteiro(p.versao) && eInteiro(p.aba) && eInteiro(p.indice)
+                ? { tipo: "rolar_ficha", id: p.id, versao: p.versao, aba: p.aba, indice: p.indice }
+                : null;
         case "editar_ficha": {
             if (!eInteiro(p.id) || !eInteiro(p.versao)) return null;
             if (p.nome !== undefined && !eTexto(p.nome, TEXTO_MAX_BRUTO)) return null;
-            // (a limpeza só ENCURTA o texto, então este limite bruto já é o de verdade; o sentido é conferido por montarEdicaoDaFicha)
-            if (p.texto !== undefined && !eTexto(p.texto, MAX_CARACTERES_TEXTO_FICHA)) return null;
-            return { tipo: "editar_ficha", id: p.id, versao: p.versao, ...(p.nome !== undefined && { nome: p.nome }), ...(p.texto !== undefined && { texto: p.texto }) };
+            // (a limpeza só ENCURTA o texto, então este limite bruto já é o de verdade; o sentido — inclusive o limite da SOMA dos textos — é conferido por montarEdicaoDaFicha)
+            let abas: AbaFicha[] | undefined;
+            if (p.abas !== undefined) {
+                if (!Array.isArray(p.abas) || p.abas.length < 1 || p.abas.length > MAX_ABAS_FICHA) return null;
+                abas = [];
+                for (const bruta of p.abas as unknown[]) {
+                    if (typeof bruta !== "object" || bruta === null) return null;
+                    const { nome, texto } = bruta as Record<string, unknown>;
+                    if (!eTexto(nome, TEXTO_MAX_BRUTO) || !eTexto(texto, MAX_CARACTERES_TEXTO_FICHA)) return null;
+                    abas.push({ nome, texto }); // (só estes dois campos: qualquer outro é descartado)
+                }
+            }
+            if (abas && abas.reduce((soma, aba) => soma + aba.texto.length, 0) > MAX_CARACTERES_TEXTO_FICHA) return null; // (a SOMA das abas também tem o limite: recusa antes de qualquer trabalho)
+            return { tipo: "editar_ficha", id: p.id, versao: p.versao, ...(p.nome !== undefined && { nome: p.nome }), ...(abas !== undefined && { abas }) };
         }
         default:
             return null; // tipo desconhecido: só existe o que está na lista acima

@@ -12,6 +12,8 @@ import {
     MAPA_INICIAL,
     MAX_CARACTERES_MENSAGEM,
     MAX_CARACTERES_IMAGEM_TOKEN,
+    MAX_ABAS_FICHA,
+    MAX_CARACTERES_NOME_ABA_FICHA,
     MAX_CARACTERES_NOME_FICHA,
     MAX_CARACTERES_NOME_TOKEN,
     MAX_CARACTERES_TEXTO_FICHA,
@@ -149,19 +151,28 @@ function guardarMensagem(mensagem: Mensagem): Mensagem {
 }
 
 // ---------------------------------------------------------------------
-// FICHAS: cada ficha é um DOCUMENTO (nome + texto). No multiplayer o servidor guarda cada uma num arquivo JSON.
+// FICHAS: cada ficha é um DOCUMENTO (nome + de 1 a 6 abas, cada uma com o seu texto). No multiplayer o servidor guarda cada uma num arquivo JSON.
 // A ficha é CRIADA NO MESMO INSTANTE do clique em "Criar ficha": nasce VAZIA (só com o nome) e o arquivo já existe. O texto se
 // escreve depois, abrindo a ficha, e pode levar muito tempo (abrir, fechar, voltar): por isso não se espera ele ficar pronto.
 // Toda ficha tem um número de VERSÃO: começa em 1 e sobe 1 a cada vez que é salva por cima. Assim, quando duas pessoas
 // editam a mesma ficha, o servidor percebe que uma delas está com uma cópia ANTIGA e recusa o salvamento dela (em vez de
-// apagar, sem aviso, o que a outra fez). Existem CRIAR, EDITAR (nome e texto, com a checagem de versão) e EXCLUIR.
+// apagar, sem aviso, o que a outra fez). Existem CRIAR, EDITAR (nome e abas, com a checagem de versão) e EXCLUIR.
 // Por enquanto a ficha não se liga a nenhum token.
 // ---------------------------------------------------------------------
+
+/**
+ * Uma ABA (página) da ficha. Uma ficha tem de 1 a MAX_ABAS_FICHA abas, todas dentro do MESMO arquivo. Cada aba tem o seu texto e as suas
+ * ROLAGENS, mas as VARIÁVEIS valem para a ficha inteira (uma variável escrita numa aba pode ser usada nas outras).
+ */
+export interface AbaFicha {
+    nome: string; // nunca vazio (sem nome, vira "Página N")
+    texto: string;
+}
 
 export interface Ficha {
     id: number;
     nome: string; // nunca vazio (sem nome, vira "Ficha N")
-    texto: string; // o conteúdo livre da ficha (no futuro: variáveis e fórmulas)
+    abas: AbaFicha[]; // de 1 a MAX_ABAS_FICHA; o conteúdo livre da ficha (variáveis e rolagens) fica no texto de cada aba
     versao: number; // 1, 2, 3... (sobe a cada salvamento)
     criadaEm: number; // milissegundos desde 1970 (Date.now())
     alteradaEm: number;
@@ -178,7 +189,7 @@ export function montarFicha(): Ficha | null {
     if (estado.fichas.length >= MAX_FICHAS) return null;
     const id = proximoIdFicha++;
     const agora = Date.now();
-    return { id, nome: `Ficha ${id}`, texto: "", versao: 1, criadaEm: agora, alteradaEm: agora };
+    return { id, nome: `Ficha ${id}`, abas: [{ nome: nomePadraoDaAba(0), texto: "" }], versao: 1, criadaEm: agora, alteradaEm: agora };
 }
 
 /** Guarda na lista uma ficha que já está pronta (a que o servidor mandou, ou a que acabou de ser montada). Mesma id: substitui. */
@@ -209,16 +220,43 @@ export function normalizarTextoFicha(texto: string): string {
     return texto.replace(/\r\n?/g, "\n").replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, "");
 }
 
-/** O que dá para mudar numa ficha que já existe (o que faltar fica como está). */
+/** O nome de uma aba sem nome: "Página 1", "Página 2"... (`posicao` conta a partir de 0). */
+export function nomePadraoDaAba(posicao: number): string {
+    return `Página ${posicao + 1}`;
+}
+
+/** Nome de aba: mesma limpeza do nome da ficha, cortado a MAX_CARACTERES_NOME_ABA_FICHA. Vazio vira "Página N". */
+export function normalizarNomeAba(posicao: number, nome: string): string {
+    const limpo = nome.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_CARACTERES_NOME_ABA_FICHA).trim();
+    return limpo || nomePadraoDaAba(posicao);
+}
+
+/** Quantos caracteres de texto a ficha tem, SOMANDO todas as abas (é isso que o limite MAX_CARACTERES_TEXTO_FICHA mede). */
+export function tamanhoDoTextoDasAbas(abas: readonly { texto: string }[]): number {
+    return abas.reduce((soma, aba) => soma + aba.texto.length, 0);
+}
+
+/** Limpa uma lista de abas (nomes e textos). Devolve null se não tem de 1 a MAX_ABAS_FICHA abas. */
+export function normalizarAbas(abas: readonly AbaFicha[]): AbaFicha[] | null {
+    if (abas.length < 1 || abas.length > MAX_ABAS_FICHA) return null;
+    return abas.map((aba, i) => ({ nome: normalizarNomeAba(i, aba.nome), texto: normalizarTextoFicha(aba.texto) }));
+}
+
+/** As duas listas de abas são iguais (mesma quantidade, nomes e textos)? */
+export function abasIguais(a: readonly AbaFicha[], b: readonly AbaFicha[]): boolean {
+    return a.length === b.length && a.every((aba, i) => aba.nome === b[i].nome && aba.texto === b[i].texto);
+}
+
+/** O que dá para mudar numa ficha que já existe (o que faltar fica como está). `abas` troca a lista INTEIRA de abas. */
 export interface MudancasFicha {
     nome?: string;
-    texto?: string;
+    abas?: AbaFicha[];
 }
 
 /** O resultado de pedir uma edição: a ficha como ficaria, ou o motivo de a edição ser recusada. */
 export type ResultadoEdicaoFicha =
     | { ok: true; ficha: Ficha; mudou: boolean } // `mudou` = false: nada mudou de verdade (a versão não sobe)
-    | { ok: false; erro: "nao_existe" | "versao_antiga" | "texto_longo" };
+    | { ok: false; erro: "nao_existe" | "versao_antiga" | "texto_longo" | "abas_invalidas" };
 
 /**
  * Monta a ficha como ela ficaria depois da edição, SEM guardá-la na lista (o servidor grava o arquivo ANTES de guardar).
@@ -232,10 +270,11 @@ export function montarEdicaoDaFicha(id: number, versaoBase: number, mudancas: Mu
     if (!atual) return { ok: false, erro: "nao_existe" };
     if (atual.versao !== versaoBase) return { ok: false, erro: "versao_antiga" };
     const nome = mudancas.nome === undefined ? atual.nome : normalizarNomeFicha(id, mudancas.nome);
-    const texto = mudancas.texto === undefined ? atual.texto : normalizarTextoFicha(mudancas.texto);
-    if (texto.length > MAX_CARACTERES_TEXTO_FICHA) return { ok: false, erro: "texto_longo" };
-    if (nome === atual.nome && texto === atual.texto) return { ok: true, ficha: atual, mudou: false };
-    return { ok: true, ficha: { ...atual, nome, texto, versao: atual.versao + 1, alteradaEm: Date.now() }, mudou: true };
+    const abas = mudancas.abas === undefined ? atual.abas : normalizarAbas(mudancas.abas);
+    if (abas === null) return { ok: false, erro: "abas_invalidas" };
+    if (tamanhoDoTextoDasAbas(abas) > MAX_CARACTERES_TEXTO_FICHA) return { ok: false, erro: "texto_longo" };
+    if (nome === atual.nome && abasIguais(abas, atual.abas)) return { ok: true, ficha: atual, mudou: false };
+    return { ok: true, ficha: { ...atual, nome, abas, versao: atual.versao + 1, alteradaEm: Date.now() }, mudou: true };
 }
 
 /** Modo local: monta a edição e já a guarda (só na memória da aba). */
@@ -270,8 +309,24 @@ export function fichaValida(bruto: unknown): Ficha | null {
     const inteiro = (valor: unknown): valor is number => typeof valor === "number" && Number.isSafeInteger(valor);
     if (!inteiro(f.id) || f.id < 1 || !inteiro(f.versao) || f.versao < 1 || !inteiro(f.criadaEm) || !inteiro(f.alteradaEm)) return null;
     if (typeof f.nome !== "string" || f.nome.trim() === "" || f.nome.length > MAX_CARACTERES_NOME_FICHA) return null;
-    if (typeof f.texto !== "string" || f.texto.length > MAX_CARACTERES_TEXTO_FICHA) return null;
-    return { id: f.id, nome: f.nome, texto: f.texto, versao: f.versao, criadaEm: f.criadaEm, alteradaEm: f.alteradaEm };
+    // Arquivos ANTIGOS (de antes das abas) têm só `texto`: viram uma ficha de uma aba só, "Página 1". Os novos têm `abas`.
+    let abas: AbaFicha[];
+    if (Array.isArray(f.abas)) {
+        if (f.abas.length < 1 || f.abas.length > MAX_ABAS_FICHA) return null;
+        abas = [];
+        for (const bruta of f.abas as unknown[]) {
+            if (typeof bruta !== "object" || bruta === null) return null;
+            const { nome, texto } = bruta as Record<string, unknown>;
+            if (typeof nome !== "string" || nome.trim() === "" || nome.length > MAX_CARACTERES_NOME_ABA_FICHA || typeof texto !== "string") return null;
+            abas.push({ nome, texto });
+        }
+    } else if (typeof f.texto === "string") {
+        abas = [{ nome: nomePadraoDaAba(0), texto: f.texto }];
+    } else {
+        return null;
+    }
+    if (tamanhoDoTextoDasAbas(abas) > MAX_CARACTERES_TEXTO_FICHA) return null;
+    return { id: f.id, nome: f.nome, abas, versao: f.versao, criadaEm: f.criadaEm, alteradaEm: f.alteradaEm };
 }
 
 /** Um ponto em CASAS (pode ser fracionário: 3,5 = o meio da quarta casa). */

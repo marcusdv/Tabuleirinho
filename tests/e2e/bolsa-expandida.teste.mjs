@@ -156,7 +156,7 @@ ok("9h) depois de criar, o formulário volta a 'sem imagem' (e as cores escolhid
 const fichaFoto = p.locator(".ficha", { hasText: "Com foto" });
 ok("9i) a ficha mostra a imagem", await fichaFoto.locator(".disco").evaluate((e) => e.classList.contains("com-imagem")));
 await fichaFoto.click({ button: "right" });
-ok("9j) clique direito na ficha abre o menu só com 'Editar token…' e 'Alterar imagem…' (o 'Remover imagem' fica dentro de Editar token)", (await p.locator("#menu-ficha").isVisible()) && (await p.locator("#menu-ficha button:visible").allTextContents()).join("|") === "Editar token…|Alterar imagem…");
+ok("9j) clique direito na ficha abre o menu com 'Editar token…', 'Alterar imagem…' e 'Excluir token' (o 'Remover imagem' fica dentro de Editar token)", (await p.locator("#menu-ficha").isVisible()) && (await p.locator("#menu-ficha button:visible").allTextContents()).join("|") === "Editar token…|Alterar imagem…|Excluir token");
 await escolherArquivo("#menu-ficha-alterar", outraFoto);
 await editorPronto();
 await p.click("#editor-imagem-usar");

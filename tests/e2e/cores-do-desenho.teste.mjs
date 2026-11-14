@@ -1,12 +1,13 @@
 // Teste e2e: cores-do-desenho. Rodar: npm run test:e2e -- cores
 // (precisa do servidor: npm run dev). Veja tests/e2e/ajuda.mjs.
-import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar } from "./ajuda.mjs";
+import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar, recolherDados } from "./ajuda.mjs";
 const b = await lancar();
 const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
 await abrirPagina(p);
+await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 
 const cores = () => p.locator("#desenho-amostras .amostra").evaluateAll((a) => a.map((x) => x.dataset.cor));
 const escolhida = () => p.locator("#desenho-amostras .amostra.escolhida").evaluateAll((a) => a.map((x) => x.dataset.cor));

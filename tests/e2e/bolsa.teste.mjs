@@ -79,7 +79,7 @@ const fr = p.locator(".ficha", { hasText: "4×4" });
 await arrastar(centro(await fr.boundingBox()), { x: 1020, y: 592 });
 const r1 = await achar(ROXO);
 ok("5a) roxo 4×4 volta encaixado onde estava (compara com a medição inicial: o chat cobre a parte de baixo dele)", perto(r1.cx, r0.cx, 3) && perto(r1.cy, r0.cy, 3), `(${r1.cx?.toFixed(0)}, ${r1.cy?.toFixed(0)})`);
-ok("5b) mantém o tamanho (244 px) e a bolsa fica vazia", perto(r1.largura, 244, 6) && (await fichas()) === 0, `largura ${r1.largura}`);
+ok("5b) mantém o tamanho (o mesmo da medição inicial: a bolsa do canto cobre uma parte dele nesta janela) e a bolsa fica vazia", perto(r1.largura, r0.largura, 6) && (await fichas()) === 0, `largura ${r1.largura}`);
 await p.screenshot({ path: `${S}/b3_colocado.png` });
 
 // ---- 6) soltar a fichinha de volta na bolsa: continua guardado
