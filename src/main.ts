@@ -193,17 +193,20 @@ async function iniciar(): Promise<void> {
 
     // As cinco caixas da tela podem ser ARRASTADAS pela alça de cada uma (ver ui/arrastar.ts): a posição fica guardada no navegador.
     const porId = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
-    // As três caixas de ferramentas (Ferramentas, Desenho e Dados) NÃO PODEM SE BATER: cada uma é parede para as outras. O chat e a bolsa são
-    // independentes de tudo isso (o chat não tem mais nada grudado nele).
+    // TODAS as caixas NÃO PODEM SE BATER: Ferramentas, Desenho, Dados, a bolsa e o chat são paredes umas para as outras (o chat é fixo, não anda,
+    // mas é parede para quem anda). Exceção: a bolsa em TELA CHEIA cobre tudo de propósito, então nessa hora não conta como parede e ninguém a empurra.
     const caixasDeFerramentas = [porId("barra"), porId("ferramentas-desenho"), porId("dados")];
-    const bloqueadores = (): HTMLElement[] => caixasDeFerramentas;
-    for (const caixa of caixasDeFerramentas) tornarArrastavel({ elemento: caixa, alca: caixa.querySelector<HTMLElement>(".cabecalho")!, bloqueadores });
-    tornarArrastavel({ elemento: porId("chat"), alca: porId("chat-alca") });
+    const caixaDoChat = porId("chat");
+    const caixaDaBolsa = porId("bolsa");
+    const bloqueadoresDasFerramentas = (): HTMLElement[] => [...caixasDeFerramentas, caixaDoChat, ...(bolsa.expandida ? [] : [caixaDaBolsa])];
+    for (const caixa of caixasDeFerramentas) tornarArrastavel({ elemento: caixa, alca: caixa.querySelector<HTMLElement>(".cabecalho")!, bloqueadores: bloqueadoresDasFerramentas });
+    // (o chat é uma coluna fixa na borda direita: não é arrastável)
     tornarArrastavel({
         elemento: porId("bolsa"),
         camada: porId("canto-inferior-direito"), // (a bolsa fica dentro desta coluna: é ela que sobe para a frente)
         alca: porId("bolsa").querySelector<HTMLElement>(".bolsa-topo")!,
         ignorar: (alvo) => alvo.closest("button, input, #bolsa-abas") !== null,
+        bloqueadores: () => (bolsa.expandida ? [] : [...caixasDeFerramentas, caixaDoChat]),
         desligado: () => bolsa.expandida, // em tela cheia a bolsa cobre a tela: não anda
     });
 

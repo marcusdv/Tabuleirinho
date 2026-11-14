@@ -149,10 +149,9 @@ export function criarPainelDados(opcoes: OpcoesPainelDados): void {
         const recolhido = alternarRecolhida(painel, "recolhida", recolher); // (com animação: a altura cresce/encolhe, de cima para baixo)
         guardarPreferencia(CHAVE_DADOS_RECOLHIDO, recolhido ? "1" : "0"); // lembra ao recarregar a página
     });
-    // Ao abrir a página: como a pessoa deixou da última vez. Sem escolha guardada, em janelas BAIXAS (menos de 720 px) ele começa recolhido,
-    // para sobrar espaço no tabuleiro. (O index.html já aplicou isto antes da primeira pintura: aqui só se confirma.)
-    const guardadoDados = lerPreferencia(CHAVE_DADOS_RECOLHIDO);
-    recolher(guardadoDados === null ? window.innerHeight < 720 : guardadoDados === "1");
+    // Ao abrir a página: como a pessoa deixou da última vez. Sem escolha guardada, ele começa RECOLHIDO (só a bolsa começa aberta).
+    // (O index.html já aplicou isto antes da primeira pintura: aqui só se confirma.)
+    recolher(lerPreferencia(CHAVE_DADOS_RECOLHIDO) !== "0");
 
     atualizar();
 }

@@ -120,7 +120,7 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
         const recolhida = alternarRecolhida(barra, "recolhida", mostrarRecolhida); // (com animação: a altura cresce/encolhe, de cima para baixo)
         guardarPreferencia(CHAVE_BARRA_RECOLHIDA, recolhida ? "1" : "0"); // lembra ao recarregar a página
     });
-    mostrarRecolhida(lerPreferencia(CHAVE_BARRA_RECOLHIDA) === "1"); // (como a pessoa deixou da última vez)
+    mostrarRecolhida(lerPreferencia(CHAVE_BARRA_RECOLHIDA) !== "0"); // (como a pessoa deixou da última vez; sem escolha guardada: RECOLHIDA)
     // DUPLO clique em QUALQUER ponto da área de cima (o cabeçalho onde fica o nome "Ferramentas", não só nas letras) recolhe/expande.
     const cabecalhoBarra = barra.querySelector<HTMLElement>(".cabecalho")!;
     cabecalhoBarra.title = "Duplo clique para recolher ou expandir (arraste para mover)";

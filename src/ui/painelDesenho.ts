@@ -123,7 +123,7 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
         const recolhido = alternarRecolhida(painel, "recolhida", mostrarRecolhido); // (com animação: a altura cresce/encolhe, de cima para baixo)
         guardarPreferencia(CHAVE_DESENHO_RECOLHIDO, recolhido ? "1" : "0"); // lembra ao recarregar a página
     });
-    mostrarRecolhido(lerPreferencia(CHAVE_DESENHO_RECOLHIDO) === "1"); // (como a pessoa deixou da última vez)
+    mostrarRecolhido(lerPreferencia(CHAVE_DESENHO_RECOLHIDO) !== "0"); // (como a pessoa deixou da última vez; sem escolha guardada: RECOLHIDO)
     // DUPLO clique em QUALQUER ponto da área de cima (o cabeçalho onde fica o nome "Desenho", não só nas letras) recolhe/expande.
     const cabecalhoDesenho = painel.querySelector<HTMLElement>(".cabecalho")!;
     cabecalhoDesenho.title = "Duplo clique para recolher ou expandir (arraste para mover)";

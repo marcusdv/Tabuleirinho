@@ -36,7 +36,7 @@
             #barra {
                 position: fixed; /* fica parada na janela, não acompanha pan/zoom */
                 top: 12px;
-                right: 12px;
+                right: var(--recuo-chat); /* à esquerda do chat */
                 z-index: 10; /* acima do canvas */
                 width: 156px;
                 box-sizing: border-box;
@@ -90,34 +90,6 @@
             }
             #bolsa.expandida {
                 translate: none !important;
-            }
-            /* O TRACINHO de arrasto é SÓ do chat (o dono pediu para tirar das outras caixas: nelas basta o cursor de mãozinha): uma faixa fina na
-               borda de cima, com um tracinho no meio que fica AMARELO ao passar o mouse e enquanto o chat é arrastado. Cobre a folga de 8 px do
-               topo, sem mudar a altura de nada. É também a alça de arrasto do chat. */
-            #chat-alca {
-                position: absolute;
-                top: 0;
-                left: 12px;
-                right: 12px;
-                height: 8px;
-                z-index: 3;
-                border-radius: 10px 10px 0 0;
-                cursor: grab;
-            }
-            #chat-alca::after {
-                content: "";
-                position: absolute;
-                top: 2px;
-                left: 50%;
-                width: 36px;
-                height: 3px;
-                margin-left: -18px;
-                border-radius: 2px;
-                background: #4a4a58;
-            }
-            #chat-alca:hover::after,
-            #chat.arrastando-caixa #chat-alca::after {
-                background: #ffd54f;
             }
             /* Cabeçalho: título à esquerda e botão de recolher à direita. */
             .cabecalho {
@@ -278,7 +250,7 @@
                 #painel-calibragem {
                     position: fixed;
                     left: 180px;
-                    bottom: 172px;
+                    bottom: 12px;
                     z-index: 10;
                 } /* 172 = acima do chat (148 de altura + 12 de margem + folga) */ /* 180 = ao lado do painel de desenho (12 + 156 + folga) */
             }
@@ -290,7 +262,7 @@
                 /* O chat ocupa o canto inferior ESQUERDO, o mesmo lado deste painel.
                    Por isso a altura máxima é o espaço que sobra acima dessa pilha, e o CONTEÚDO rola por dentro: o painel nunca cobre o chat.
                    160 px = o chat (148) + 12 de margem; 8 px de folga. */
-                --reserva-embaixo: 160px;
+                --reserva-embaixo: 0px; /* (o chat agora é uma coluna à direita: nada embaixo do painel) */
                 display: flex;
                 flex-direction: column;
                 max-height: calc(100vh - 12px - var(--reserva-embaixo) - 8px);
@@ -386,28 +358,31 @@
             }
 
             /* ===================================================================
-         CHAT: fixo no CANTO INFERIOR ESQUERDO. As mensagens correm da ESQUERDA para a DIREITA:
-         a mais nova entra na ponta esquerda e empurra as anteriores para a direita.
-         O chat fica no canto inferior ESQUERDO. A coluna do canto direito (bolsa e painel da calibragem) é preservada.
+         CHAT: uma COLUNA fixa na borda DIREITA da tela, da altura toda (menos as folgas de 12 px). As mensagens correm de CIMA para BAIXO:
+         a mais NOVA fica EMBAIXO (como num aplicativo de conversa), o campo de digitar fica no pé da coluna e a roda do mouse rola para as antigas.
+         Ele não é arrastável: as outras caixas (Desenho, Dados, Ferramentas e a bolsa) ficam à ESQUERDA dele (ver --largura-chat).
          =================================================================== */
+            :root {
+                --largura-chat: 320px;
+                --recuo-chat: calc(12px + var(--largura-chat) + 8px); /* o que as outras caixas deixam livre na direita: folga + chat + vão */
+            }
             #chat {
                 position: fixed;
-                bottom: 12px;
+                top: 0; /* COLADO na página, em cima e embaixo (pedido do dono) */
+                bottom: 0;
+                right: 12px;
                 z-index: 10;
-                left: 12px;
-                /* 384 = 12 (folga à esquerda) + 372 (a coluna da direita: bolsa de 340 px, painel da calibragem e folgas); a largura fica entre
-                   336 e 680 px. */
-                --largura-chat: max(336px, min(680px, calc(100vw - 384px)));
-                --altura-faixa: 90px; /* altura da faixa de mensagens (e da barra de rolagem, ao lado dela) */
                 width: var(--largura-chat);
                 box-sizing: border-box;
-                padding: 8px;
+                padding: 0; /* o respiro fica DENTRO da lista (padding dela) e do campo (margem): assim a barra de rolagem encosta na parede do chat */
                 display: flex;
                 flex-direction: column;
-                gap: 8px;
+                gap: 0;
                 background: rgba(34, 34, 42, 0.94);
                 border: 1px solid #3a3a45;
-                border-radius: 10px;
+                border-top: 0;
+                border-bottom: 0;
+                border-radius: 0; /* encostado nas bordas de cima e de baixo: sem cantos arredondados */
                 box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
             }
             /* ===================================================================
@@ -417,7 +392,7 @@
             #dados {
                 position: fixed;
                 top: 12px;
-                left: 176px; /* 12 + 156 (o painel de Desenho) + 8 */
+                right: calc(var(--recuo-chat) + 156px + 8px); /* ao lado ESQUERDO da barra de Ferramentas (156 px) */
                 z-index: 10;
                 width: 352px; /* HORIZONTAL: a coluna dos dados (4 dados de 44 px) e, à direita, a do Rolar */
                 box-sizing: border-box;
@@ -591,16 +566,147 @@
                 -webkit-appearance: none;
                 margin: 0;
             }
-            /* Cartão de rolagem no chat: à esquerda a fórmula e os dados; à direita o TOTAL, bem grande. */
+            /* Cartão de rolagem no chat (coluna vertical): em cima o autor e a fórmula (ou o nome do golpe e a criatura), no meio a BANDEJA com
+               cada dado (e o modificador) e, embaixo, a conta em cinza e o TOTAL grande à direita, separados por uma linha. */
             .chat-mensagem.chat-rolagem {
+                position: relative; /* o ícone (.chat-avatar) fica solto no canto superior direito */
+                display: flex;
+                flex-direction: column;
+                gap: 5px;
+                padding: 8px 12px 10px;
+                border-color: #5a4f2e;
+            }
+            /* O ÍCONE de quem rolou (jogador ou monstro), no canto superior ESQUERDO: por enquanto o ícone PADRÃO (silhueta cinza). Quando houver imagem,
+               ela entra dentro deste círculo. O nome, a hora e a fórmula ficam à direita dele. */
+            .chat-avatar {
+                position: absolute;
+                top: 8px;
+                left: 12px;
+                width: 38px;
+                height: 38px;
+                box-sizing: border-box;
                 display: flex;
                 align-items: center;
-                gap: 10px;
-                border-color: #6b5a2a;
+                justify-content: center;
+                overflow: hidden;
+                background: #22222a;
+                border: 1px solid #4a4a58;
+                border-radius: 50%;
             }
-            .chat-rolagem-info {
+            .chat-avatar svg {
+                width: 26px;
+                height: 26px;
+                fill: #6f6f7e;
+            }
+            .chat-rolagem .chat-cabecalho {
+                padding-left: 48px; /* o ícone ocupa o canto */
+            }
+            .chat-rolagem p.chat-formula,
+            .chat-rolagem p.chat-criatura {
+                padding-left: 48px;
+            }
+            /* A linha principal: a bandeja de dados à esquerda e o TOTAL grande à direita. */
+            .chat-linha {
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+            .chat-linha .chat-dados {
                 flex: 1 1 auto;
                 min-width: 0;
+            }
+            .chat-dados {
+                display: flex;
+                flex-wrap: wrap;
+                align-items: center;
+                gap: 5px;
+                padding: 4px 0 2px;
+            }
+            /* Uma peça = um dado: o valor grande e o tipo ("d20") pequeno embaixo. Verde = o máximo do dado; vermelho = o 1. */
+            .chat-dado {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                min-width: 30px;
+                height: 36px;
+                box-sizing: border-box;
+                padding: 0 4px;
+                background: #22222a;
+                border: 1px solid #4a4a58;
+                border-radius: 8px;
+                line-height: 1;
+                font-variant-numeric: tabular-nums;
+            }
+            .chat-dado b {
+                font-size: 16px;
+                font-weight: 700;
+                color: #fff;
+            }
+            .chat-dado small {
+                margin-top: 3px;
+                font-size: 9px;
+                color: #8a8a99;
+            }
+            .chat-dado.maximo {
+                border-color: #66bb6a;
+                background: #20301f;
+            }
+            .chat-dado.maximo b {
+                color: #a5d6a7;
+            }
+            .chat-dado.minimo {
+                border-color: #e57373;
+                background: #331f21;
+            }
+            .chat-dado.minimo b {
+                color: #ef9a9a;
+            }
+            .chat-dado-resto {
+                font-size: 12px;
+                color: #9a9aa8;
+            }
+            /* O modificador: só o texto ("+2"), sem fundo e em cinza neutro (a etiqueta colorida parecia um botão ou o resultado). */
+            .chat-modificador {
+                padding: 0 2px;
+                font-size: 15px;
+                font-weight: 600;
+                color: #b4b4c0;
+            }
+            /* Crítico (um único d20 deu 20): cartão dourado com um brilho que pulsa. Falha crítica (deu 1): vermelho. */
+            .chat-mensagem.chat-critico {
+                border-color: #ffd54f;
+                background: #3a3420;
+                box-shadow: 0 0 12px rgba(255, 213, 79, 0.4);
+            }
+            .chat-mensagem.chat-falha-critica {
+                border-color: #e57373;
+                background: #3a2326;
+                box-shadow: 0 0 10px rgba(229, 115, 115, 0.3);
+            }
+            .chat-critico .chat-dado.maximo {
+                border-color: #ffd54f;
+                background: #3d3417;
+            }
+            .chat-critico .chat-dado.maximo b {
+                color: #ffd54f;
+            }
+            /* Sem mensagem escrita: o crítico e a falha crítica só mudam a COR do número total (verde e vermelho, como as peças dos dados). */
+            .chat-critico .chat-total {
+                color: #81c784;
+            }
+            .chat-falha-critica .chat-total {
+                color: #ef9a9a;
+            }
+            @media (prefers-reduced-motion: no-preference) {
+                .chat-mensagem.chat-critico {
+                    animation: chat-brilho 1.4s ease-in-out 3;
+                }
+            }
+            @keyframes chat-brilho {
+                50% {
+                    box-shadow: 0 0 22px rgba(255, 213, 79, 0.8);
+                }
             }
             .chat-formula {
                 font-size: 13px;
@@ -641,121 +747,59 @@
                 text-overflow: ellipsis; /* lista comprida: corta com "…" (a completa fica na dica do mouse) */
             }
 
-            /* Barra de rolagem PRÓPRIA, em cima do chat (a nativa fica escondida na faixa). A faixa corre da
-         esquerda (mensagens mais novas) para a direita (mais antigas). */
-            #chat-barra {
-                position: absolute; /* fora do fluxo: fica no canto DIREITO do chat, dentro da caixa, na altura das mensagens */
-                top: 8px; /* = o padding do chat: alinhada ao topo da faixa de mensagens */
-                right: 0;
-                height: var(--altura-faixa);
-                user-select: none;
-            }
-            #chat-rolagem {
-                position: relative;
-                width: 6px; /* fina: 4 px de trilha + 1 px de borda de cada lado */
-                height: 100%;
-                box-sizing: border-box;
-                background: #26262f;
-                border: 1px solid #3a3a45;
-                border-radius: 5px;
-                cursor: pointer;
-            }
-            #chat-polegar {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 4px;
-                min-height: 24px;
-                box-sizing: border-box;
-                background: #ffd54f;
-                opacity: 0.55;
-                border-radius: 5px;
-                cursor: grab;
-                touch-action: none;
-            }
-            #chat-polegar:hover,
-            #chat-polegar.arrastando {
-                opacity: 0.95;
-            }
-            #chat-polegar.arrastando {
-                cursor: grabbing;
-            }
-            /* Sem mensagens suficientes para rolar: a barra fica apagada e o cursor some. */
-            #chat-rolagem.inativa {
-                opacity: 0.4;
-                cursor: default;
-            }
-            #chat-rolagem.inativa #chat-polegar {
-                display: none;
-            }
-
-            /* Setinha de "mensagem nova": no canto ESQUERDO, por cima das mensagens, apontando para onde elas chegam. */
+            /* Aviso de mensagem nova: um botão embaixo da lista, aparece quando chega mensagem com a lista ROLADA para cima (a pessoa está lendo as antigas). */
             #chat-novas {
                 position: absolute;
                 z-index: 3; /* acima dos cartões */
-                left: 8px; /* a borda esquerda da faixa (= o padding do chat) */
-                top: calc(8px + (var(--altura-faixa) - 38px) / 2); /* no meio da altura das mensagens */
-                width: 24px;
-                height: 38px;
-                padding: 0 0 3px;
+                left: 50%;
+                translate: -50% 0;
+                bottom: 62px; /* logo acima do campo de digitar */
+                padding: 4px 12px;
                 background: rgba(34, 34, 42, 0.96);
                 border: 1px solid #ffd54f;
-                border-radius: 0 10px 10px 0;
+                border-radius: 14px;
                 color: #ffd54f;
                 font: inherit;
-                font-size: 22px;
-                line-height: 1;
+                font-size: 12px;
                 cursor: pointer;
                 box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
             }
             #chat-novas:hover {
                 background: #5a4a1f;
             }
-            #chat-novas span {
-                display: block;
-            }
-            /* A setinha dá um empurrãozinho para a esquerda, chamando a atenção (some com "reduzir movimento"). */
             @media (prefers-reduced-motion: no-preference) {
                 #chat-novas {
                     animation: chat-novas-entra 220ms ease-out;
-                }
-                #chat-novas span {
-                    animation: chat-novas-aponta 900ms ease-in-out infinite alternate;
                 }
             }
             @keyframes chat-novas-entra {
                 from {
                     opacity: 0;
-                    transform: translateX(-10px);
-                }
-            }
-            @keyframes chat-novas-aponta {
-                to {
-                    transform: translateX(-3px);
+                    transform: translateY(10px);
                 }
             }
 
+            /* A lista: ocupa toda a altura que sobra entre o topo e o campo de digitar e rola na VERTICAL (a barra é a do site, igual às outras). */
             #chat-faixa {
                 display: flex;
-                flex-direction: row;
-                align-items: stretch;
-                gap: 8px; /* mensagens LADO A LADO */
-                height: var(--altura-faixa); /* 90 px: a altura que a barra de cima ocupava foi para cá, o chat não muda de altura */
-                overflow-x: auto;
-                overflow-y: hidden; /* mensagens longas rolam dentro do próprio cartão */
-                scrollbar-width: none; /* a barra nativa some: a do chat é a #chat-rolagem, em cima */
+                flex-direction: column;
+                gap: 10px; /* mensagens uma embaixo da outra */
+                flex: 1 1 auto;
+                min-height: 0; /* sem isto a lista não encolhe e empurra o campo para fora */
+                overflow-y: auto;
+                overflow-x: hidden;
+                padding: 14px 14px 10px; /* respiro entre os cartões e a parede do chat (a barra de rolagem fica na parede, fora deste padding) */
             }
-            #chat-faixa::-webkit-scrollbar {
-                display: none;
+            /* Poucas mensagens: elas ficam COLADAS EMBAIXO (junto do campo de digitar) e a pilha cresce para cima. A margem automática da primeira
+               empurra todas para o fundo; quando a lista enche, a margem vira 0 e ela rola normalmente. (Não se usa justify-content: flex-end,
+               que em alguns navegadores impede de rolar até as primeiras mensagens.) */
+            #chat-faixa > :first-child {
+                margin-top: auto;
             }
             .chat-mensagem {
                 flex: 0 0 auto;
                 box-sizing: border-box;
-                min-width: 80px;
-                max-width: 300px;
-                max-height: 100%;
                 padding: 5px 9px;
-                overflow-y: auto;
                 background: #2f2f3a;
                 border: 1px solid #4a4a58;
                 border-radius: 8px;
@@ -784,6 +828,7 @@
             #chat-form {
                 display: flex;
                 gap: 6px;
+                margin: 0 14px 14px;
             }
             #chat-texto {
                 flex: 1;
@@ -831,7 +876,7 @@
             /* Canto inferior direito: o painel da calibragem (quando ligado) fica EM CIMA da bolsa. */
             #canto-inferior-direito {
                 position: fixed;
-                right: 12px;
+                right: var(--recuo-chat); /* encostada à esquerda do chat */
                 bottom: 12px;
                 z-index: 10;
                 display: flex;
@@ -3463,26 +3508,11 @@
             </div>
         </aside>
 
-        <!-- Chat (embaixo, fixo): mensagens da esquerda para a direita. Ids usados no ui/chat.ts. -->
+        <!-- Chat (coluna fixa na direita): mensagens de cima para baixo, a mais nova embaixo. Ids usados no ui/chat.ts. -->
         <section id="chat" aria-label="Chat">
-            <!-- A alça para ARRASTAR o chat (a borda de cima). -->
-            <div id="chat-alca" title="Arraste para mover o chat"></div>
-            <div id="chat-barra">
-                <div
-                    id="chat-rolagem"
-                    role="scrollbar"
-                    aria-controls="chat-faixa"
-                    aria-orientation="vertical"
-                    aria-label="Rolar mensagens"
-                >
-                    <div id="chat-polegar"></div>
-                </div>
-            </div>
-            <!-- Aviso de mensagem nova: só aparece quando chega mensagem com a faixa ROLADA (a pessoa está lendo as antigas). -->
-            <button id="chat-novas" type="button" hidden aria-label="Ir para a mensagem mais recente">
-                <span aria-hidden="true">‹</span>
-            </button>
             <div id="chat-faixa" tabindex="0"></div>
+            <!-- Aviso de mensagem nova: só aparece quando chega mensagem com a lista ROLADA para cima (a pessoa está lendo as antigas). -->
+            <button id="chat-novas" type="button" hidden aria-label="Ir para a mensagem mais recente">↓ Novas mensagens</button>
             <form id="chat-form" autocomplete="off">
                 <input id="chat-texto" type="text" placeholder="Escreva uma mensagem" aria-label="Mensagem do chat" />
                 <span id="chat-contador" title="Caracteres usados / limite">0/72</span>
@@ -3933,17 +3963,17 @@
                     if (el) el.textContent = valor;
                 }
                 // As posições das caixas arrastadas (ui/arrastar.ts guarda "x,y" em tabuleirinho.pos.<id>).
-                ["barra", "ferramentas-desenho", "chat", "dados", "bolsa"].forEach(function (id) {
+                ["barra", "ferramentas-desenho", "dados", "bolsa"].forEach(function (id) {
                     var el = document.getElementById(id);
                     var partes = (ler("tabuleirinho.pos." + id) || "").split(",");
                     var x = Number(partes[0]);
                     var y = Number(partes[1]);
                     if (el && partes.length === 2 && isFinite(x) && isFinite(y)) el.style.translate = x + "px " + y + "px";
                 });
-                var barra = ler("tabuleirinho.barra.recolhida") === "1";
+                var barra = ler("tabuleirinho.barra.recolhida") !== "0"; // sem escolha guardada: RECOLHIDA (só a bolsa começa aberta)
                 marcar("barra", "recolhida", barra);
                 if (barra) texto("#barra-alternar", "\u25BE"); // ▾ = expandir
-                var desenho = ler("tabuleirinho.desenho.recolhido") === "1";
+                var desenho = ler("tabuleirinho.desenho.recolhido") !== "0";
                 marcar("ferramentas-desenho", "recolhida", desenho);
                 if (desenho) texto("#desenho-alternar", "\u25BE");
                 // A altura da bolsa aberta, medida da última vez (senão ela começaria 6 px fora do lugar e pularia quando o app a medisse).
@@ -3956,8 +3986,7 @@
                 var bolsaRecolhida = ler("tabuleirinho.bolsa.recolhida") === "1";
                 marcar("bolsa", "recolhida", bolsaRecolhida);
                 if (bolsaRecolhida) texto("#bolsa-alternar", "\u25BE");
-                var guardadoDados = ler("tabuleirinho.dados.recolhido");
-                var dados = guardadoDados === null ? window.innerHeight < 720 : guardadoDados === "1";
+                var dados = ler("tabuleirinho.dados.recolhido") !== "0";
                 marcar("dados", "recolhida", dados);
                 if (dados) texto("#dados-alternar", "\u25BE"); // ▾ = expandir
             })();

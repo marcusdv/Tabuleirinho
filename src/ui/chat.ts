@@ -1,22 +1,16 @@
 // =====================================================================
-// CHAT (HTML): fixo embaixo da tela. As mensagens correm da ESQUERDA para a
-// DIREITA, em vez de empilhar de baixo para cima: a mais NOVA entra na ponta
-// ESQUERDA e empurra as anteriores para a direita (as mais antigas saem pela
-// direita). A roda do mouse rola a faixa na horizontal para ver as antigas, e uma
-// barra de rolagem PRÓPRIA, em cima do chat, mostra e controla a posição.
+// CHAT (HTML): uma COLUNA fixa na borda direita da tela. As mensagens correm de CIMA para BAIXO:
+// a mais NOVA fica EMBAIXO (como num aplicativo de conversa) e o campo de digitar fica no pé da coluna.
+// A roda do mouse (ou a barra de rolagem do site) rola a lista para ver as antigas.
 //
-// ANIMAÇÕES: a mensagem nova ENTRA com um fade e um pequeno deslize, e as que já
-// estavam DESLIZAM suavemente para a direita para abrir espaço (técnica "FLIP": o
-// navegador já põe tudo na posição final e animamos cada cartão a partir de onde
-// ele estava, o que roda na placa de vídeo e não dá "pulo"). Quem pede "reduzir
-// movimento" no sistema não vê animação.
+// Se a lista está no FIM (lendo o mais recente), a mensagem nova entra e a lista acompanha. Se a pessoa
+// subiu para ler as antigas, a lista NÃO se mexe e aparece o botão "↓ Novas mensagens".
+// A mensagem nova ENTRA com um fade e um pequeno deslize de baixo; quem pede "reduzir movimento" no sistema não vê animação.
 //
-// Por enquanto é só a interface: escrever e apertar Enter (ou "Enviar") coloca a
-// mensagem na faixa. Depois, o chat também terá as rolagens de dados.
 // A marcação e o CSS ficam no index.html; aqui só ligamos os elementos.
 // =====================================================================
 
-import { DURACAO_ANIMACAO_CHAT, MAX_CARACTERES_MENSAGEM, MAX_CARTOES_ANIMADOS, MAX_DADOS_NO_CARTAO, SUAVIDADE_ROLAGEM_CHAT } from "../config";
+import { DURACAO_ANIMACAO_CHAT, MAX_CARACTERES_MENSAGEM, MAX_DADOS_NO_CARTAO } from "../config";
 import { detalheDaRolagem, formulaDosDados } from "../dados";
 import { estado, type Mensagem } from "../estado";
 
@@ -26,7 +20,7 @@ export interface OpcoesChat {
 }
 
 export interface Chat {
-    /** Sincroniza a faixa com estado.mensagens (só acrescenta o que é novo, com animação). */
+    /** Sincroniza a lista com estado.mensagens (só acrescenta o que é novo, com animação). */
     atualizar(): void;
 }
 
@@ -43,10 +37,92 @@ const CURVA = "cubic-bezier(0.2, 0.8, 0.2, 1)";
 /** O usuário pediu menos movimento nas configurações do sistema? */
 const reduzirMovimento = (): boolean => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-/** Quantos pixels um elemento está deslocado AGORA por uma animação de transform (0 se nenhuma). */
-function deslocamentoAtual(elemento: HTMLElement): number {
-    const transformacao = getComputedStyle(elemento).transform;
-    return transformacao === "none" ? 0 : new DOMMatrixReadOnly(transformacao).m41; // m41 = deslocamento em x
+/** Até quantos pixels do fim da lista ainda contam como "estou lendo o mais recente". */
+const FOLGA_DO_FIM = 40;
+
+/** Um grupo de dados iguais que saiu numa rolagem (ex.: o "2d6" de "2d6 + 3"). */
+interface GrupoDeDados {
+    lados: number;
+    resultados: number[];
+}
+
+/** O cartão é CRÍTICO (um único d20 e deu 20), FALHA CRÍTICA (um único d20 e deu 1) ou comum? Com mais de um d20 (vantagem etc.) não destaca o cartão. */
+function marcaDoCartao(grupos: GrupoDeDados[]): "critico" | "falha" | null {
+    const d20 = grupos.filter((g) => g.lados === 20).flatMap((g) => g.resultados);
+    if (d20.length !== 1) return null;
+    return d20[0] === 20 ? "critico" : d20[0] === 1 ? "falha" : null;
+}
+
+/**
+ * A BANDEJA de dados: cada dado vira uma peça com o valor (grande) e o tipo ("d20", pequeno). O valor máximo do dado fica verde e o 1 fica vermelho.
+ * `modificador` (se não for 0) vira uma etiqueta no fim. Mostra no máximo `maximo` peças e termina com "+N" (a lista completa vai na dica do mouse).
+ * Tudo entra por textContent/createElement.
+ */
+function montarBandeja(grupos: GrupoDeDados[], modificador: number, maximo: number): HTMLElement {
+    const bandeja = document.createElement("div");
+    bandeja.className = "chat-dados";
+    let mostrados = 0;
+    let total = 0;
+    for (const g of grupos) total += g.resultados.length;
+    for (const g of grupos) {
+        for (const valor of g.resultados) {
+            if (mostrados >= maximo) break;
+            const peca = document.createElement("span");
+            peca.className = "chat-dado";
+            if (valor === g.lados) peca.classList.add("maximo");
+            else if (valor === 1 && g.lados >= 4) peca.classList.add("minimo");
+            const numero = document.createElement("b");
+            numero.textContent = String(valor);
+            const tipo = document.createElement("small");
+            tipo.textContent = `d${g.lados}`;
+            peca.append(numero, tipo);
+            bandeja.append(peca);
+            mostrados += 1;
+        }
+    }
+    if (total > mostrados) {
+        const resto = document.createElement("span");
+        resto.className = "chat-dado chat-dado-resto";
+        resto.textContent = `+${total - mostrados}`;
+        resto.title = grupos.map((g) => `d${g.lados}: ${g.resultados.join(", ")}`).join(" | "); // a lista COMPLETA
+        bandeja.append(resto);
+    }
+    if (modificador !== 0) {
+        const etiqueta = document.createElement("span");
+        etiqueta.className = "chat-modificador";
+        etiqueta.textContent = modificador > 0 ? `+${modificador}` : String(modificador);
+        bandeja.append(etiqueta);
+    }
+    return bandeja;
+}
+
+/** Aplica a marca de crítico/falha ao cartão: só classes (brilho e cor do número). Não há mensagem escrita. */
+function aplicarMarca(cartao: HTMLElement, marca: "critico" | "falha" | null): void {
+    if (marca) cartao.classList.add(marca === "critico" ? "chat-critico" : "chat-falha-critica");
+}
+
+/**
+ * A área do ÍCONE de quem rolou (jogador ou monstro), no canto superior direito do cartão de rolagem. Por enquanto só existe o ÍCONE PADRÃO (uma
+ * silhueta cinza), porque ainda não há foto de perfil nem imagem de token ligada à rolagem. Quando houver, é aqui que a imagem entra (a área já
+ * é um círculo de tamanho fixo). O desenho é um SVG estático criado por createElementNS (nada vindo do jogador vira HTML); o nome vai só na dica.
+ */
+function criarAvatar(nome: string): HTMLElement {
+    const area = document.createElement("div");
+    area.className = "chat-avatar";
+    area.title = nome;
+    const ns = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(ns, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    const cabeca = document.createElementNS(ns, "circle");
+    cabeca.setAttribute("cx", "12");
+    cabeca.setAttribute("cy", "9");
+    cabeca.setAttribute("r", "4");
+    const ombros = document.createElementNS(ns, "path");
+    ombros.setAttribute("d", "M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z");
+    svg.append(cabeca, ombros);
+    area.append(svg);
+    return area;
 }
 
 export function criarChat(opcoes: OpcoesChat): Chat {
@@ -54,12 +130,12 @@ export function criarChat(opcoes: OpcoesChat): Chat {
     const formulario = pegar<HTMLFormElement>("chat-form");
     const campo = pegar<HTMLInputElement>("chat-texto");
     const botaoNovas = pegar<HTMLButtonElement>("chat-novas");
-    let novasNaoVistas = 0; // mensagens que chegaram enquanto a faixa estava rolada (fora da tela, à esquerda)
+    let novasNaoVistas = 0; // mensagens que chegaram enquanto a lista estava rolada para cima (fora da tela, embaixo)
     const contador = pegar("chat-contador");
     // O navegador impede de digitar (ou colar) além do limite: o texto é cortado em MAX_CARACTERES_MENSAGEM.
     campo.maxLength = MAX_CARACTERES_MENSAGEM;
 
-    /** Mostra "N/40" (caracteres usados / limite) e dá destaque quando o limite é atingido. */
+    /** Mostra "N/72" (caracteres usados / limite) e dá destaque quando o limite é atingido. */
     function atualizarContador(): void {
         contador.textContent = `${campo.value.length}/${MAX_CARACTERES_MENSAGEM}`;
         contador.classList.toggle("no-limite", campo.value.length >= MAX_CARACTERES_MENSAGEM);
@@ -107,19 +183,23 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             detalhe.textContent = r.detalhe; // ex.: "1d20 [14] + 3 + 3": uma linha só, cortada com "…" se for comprida
             detalhe.title = r.detalhe;
 
-            const informacoes = document.createElement("div");
-            informacoes.className = "chat-rolagem-info";
-            informacoes.append(cabecalho, titulo, criatura, detalhe);
-
             const total = document.createElement("div");
             total.className = "chat-total";
             total.textContent = String(r.total);
 
-            cartao.append(informacoes, total);
+            // A bandeja com os dados de cada termo; a conta (com o que saiu) e o TOTAL grande ficam no rodapé.
+            const grupos = r.dados.map((d) => ({ lados: d.lados, resultados: d.resultados }));
+            const bandeja = montarBandeja(grupos, 0, MAX_DADOS_NO_CARTAO);
+            const linha = document.createElement("div");
+            linha.className = "chat-linha";
+            linha.append(bandeja, total);
+            aplicarMarca(cartao, marcaDoCartao(grupos));
+            cartao.append(criarAvatar(mensagem.autor), cabecalho, titulo, criatura, linha);
+            cartao.append(detalhe); // a conta (com os bônus fixos) fica embaixo, em cinza
             return cartao;
         }
 
-        // Rolagem de dados: à esquerda a fórmula e cada dado; à direita o TOTAL, bem grande.
+        // Rolagem de dados: a fórmula em cima, a BANDEJA com cada dado (e o modificador), e o rodapé com a conta e o TOTAL grande.
         if (mensagem.rolagem) {
             const rolagem = mensagem.rolagem;
             cartao.classList.add("chat-rolagem");
@@ -136,15 +216,18 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             detalhe.textContent = detalheDaRolagem(rolagem, MAX_DADOS_NO_CARTAO);
             detalhe.title = detalheDaRolagem(rolagem, Infinity);
 
-            const informacoes = document.createElement("div");
-            informacoes.className = "chat-rolagem-info";
-            informacoes.append(cabecalho, formula, detalhe);
-
             const total = document.createElement("div");
             total.className = "chat-total";
             total.textContent = String(rolagem.total);
 
-            cartao.append(informacoes, total);
+            const grupos = [{ lados: rolagem.lados, resultados: rolagem.resultados }];
+            const bandeja = montarBandeja(grupos, rolagem.modificador, MAX_DADOS_NO_CARTAO);
+            const linha = document.createElement("div");
+            linha.className = "chat-linha";
+            linha.append(bandeja, total);
+            aplicarMarca(cartao, marcaDoCartao(grupos));
+            cartao.append(criarAvatar(mensagem.autor), cabecalho, formula, linha);
+            cartao.append(detalhe); // (escondido por CSS nas rolagens comuns: a bandeja e a etiqueta do modificador já mostram tudo)
             return cartao;
         }
 
@@ -156,12 +239,20 @@ export function criarChat(opcoes: OpcoesChat): Chat {
         return cartao;
     }
 
+    /** A lista está no fim (lendo as mais recentes)? */
+    const noFim = (): boolean => faixa.scrollHeight - faixa.scrollTop - faixa.clientHeight <= FOLGA_DO_FIM;
+
+    /** Leva a lista ao fim (a mensagem mais recente). */
+    function irParaOFim(suave: boolean): void {
+        faixa.scrollTo({ top: faixa.scrollHeight, behavior: suave && !reduzirMovimento() ? "smooth" : "auto" });
+    }
+
     /**
-     * Sincroniza a faixa com estado.mensagens. As mensagens novas entram na ponta ESQUERDA
-     * (a mais nova mais à esquerda) e empurram as anteriores para a direita, com animação.
+     * Sincroniza a lista com estado.mensagens. As mensagens novas entram no FIM (a mais nova embaixo), com animação.
+     * Se a pessoa estava lendo as antigas (lista rolada para cima), a lista não se mexe e o botão de "novas" aparece.
      */
     function atualizar(): void {
-        // Mensagens que saíram do estado (passaram do limite): o cartão sai da faixa.
+        // Mensagens que saíram do estado (passaram do limite): o cartão sai da lista.
         const ids = new Set(estado.mensagens.map((m) => m.id));
         for (const [id, cartao] of cartoes) {
             if (!ids.has(id)) {
@@ -169,133 +260,31 @@ export function criarChat(opcoes: OpcoesChat): Chat {
                 cartoes.delete(id);
             }
         }
-        atualizarRolagem();
 
         const novas = estado.mensagens.filter((m) => !cartoes.has(m.id)); // da mais antiga para a mais nova
         if (novas.length === 0) return;
 
-        // A faixa está ROLADA (o usuário está lendo mensagens antigas)? Então a mensagem nova NÃO arrasta a
-        // faixa de volta ao início: ela entra na ponta esquerda (fora da tela) e a rolagem é compensada,
-        // para as mensagens que o usuário está vendo continuarem exatamente onde estão.
-        const rolada = faixa.scrollLeft > 1;
-        const rolagemAntes = faixa.scrollLeft;
-
-        // 1) Antes de mexer: guarda quanto cada cartão visível já está deslocado por uma animação em
-        //    andamento (se chegou outra mensagem no meio), e cancela essas animações. Assim o
-        //    movimento novo continua de onde o cartão está, sem pulo. (Com a faixa rolada os cartões
-        //    antigos não se mexem na tela, então as animações deles seguem em paz.)
-        const antigos = Array.from(faixa.querySelectorAll<HTMLElement>(".chat-mensagem")).slice(0, MAX_CARTOES_ANIMADOS);
-        const deslocamentos = rolada ? [] : antigos.map(deslocamentoAtual);
-        if (!rolada) for (const cartao of antigos) cartao.getAnimations().forEach((animacao) => animacao.cancel());
-
-        // 2) A mais nova fica na ponta ESQUERDA: o cartão entra antes dos demais. No início da faixa ela
-        //    continua no início; rolada, fica como está (compensada logo abaixo).
-        if (!rolada) {
-            pararRolagemSuave(); // uma rolagem da roda em andamento brigaria com a faixa no início
-            faixa.scrollLeft = 0;
-        }
+        const acompanhar = cartoes.size === 0 || noFim(); // lista vazia ou já no fim: segue as novas
         const criados = novas.map((mensagem) => {
             const cartao = criarCartao(mensagem);
             cartoes.set(mensagem.id, cartao);
-            faixa.insertBefore(cartao, faixa.firstChild);
+            faixa.append(cartao); // a mais nova fica EMBAIXO
             return cartao;
         });
-        const vao = parseFloat(getComputedStyle(faixa).columnGap) || 0;
-        const espaco = criados.reduce((soma, cartao) => soma + cartao.offsetWidth + vao, 0); // o que os novos empurram para a direita
-        if (rolada) {
-            // O conteúdo andou `espaco` para a direita: rola o mesmo tanto e ninguém se mexe na tela.
-            faixa.scrollLeft = rolagemAntes + espaco;
-            if (rolandoSuave) alvoRolagem += espaco; // uma rolagem da roda em andamento continua rumo ao MESMO ponto
-            atualizarRolagem();
-            mostrarAvisoDeNovas(novas.length); // a mensagem nova está fora da tela: avisa com a setinha
-            return;
-        }
-        atualizarRolagem(); // o conteúdo da faixa cresceu: o cursor encolhe e volta ao início
-        if (reduzirMovimento()) return;
 
-        // 3) FLIP. Os cartões antigos já estão na posição final (deslocados para a direita pelo
-        //    espaço dos novos). Animamos cada um DE onde estava (deslocado para a esquerda por
-        //    esse mesmo espaço) ATÉ o lugar dele.
-        const opcoesAnimacao = { duration: DURACAO_ANIMACAO_CHAT, easing: CURVA };
-        antigos.forEach((cartao, i) => {
-            cartao.animate([{ transform: `translateX(${deslocamentos[i] - espaco}px)` }, { transform: "translateX(0)" }], opcoesAnimacao);
-        });
-        // Os cartões novos entram com fade e um pequeno deslize vindo da esquerda.
-        for (const cartao of criados) {
-            const deslize = Math.min(cartao.offsetWidth, 48);
-            cartao.animate(
-                [
-                    { opacity: 0, transform: `translateX(${-deslize}px) scale(0.92)` },
-                    { opacity: 1, transform: "none" },
-                ],
-                opcoesAnimacao,
-            );
+        if (acompanhar) {
+            irParaOFim(false);
+            if (!reduzirMovimento()) {
+                // Os cartões novos entram com fade e um pequeno deslize vindo da ESQUERDA. (Nunca deslizar na vertical: um cartão fora do fim da
+                // lista, mesmo por 0,3 s, faz a lista ter o que rolar e a barra de rolagem piscar. O eixo horizontal é cortado, então não pisca.)
+                for (const cartao of criados) {
+                    cartao.animate([{ opacity: 0, transform: "translateX(-24px) scale(0.96)" }, { opacity: 1, transform: "none" }], { duration: DURACAO_ANIMACAO_CHAT, easing: CURVA });
+                }
+            }
+        } else {
+            mostrarAvisoDeNovas(novas.length); // a mensagem nova está fora da tela (embaixo): avisa com o botão
         }
     }
-
-    // --- Barra de rolagem própria (VERTICAL, no canto direito do chat, dentro da caixa) ---
-    // As mensagens correm na HORIZONTAL, mas a barra é vertical: descer o cursor anda para as mensagens mais
-    // antigas (para a direita). Trilha com um cursor: a altura dele é a fração visível da faixa e a posição,
-    // o quanto já rolou.
-    const trilha = pegar("chat-rolagem");
-    const polegar = pegar("chat-polegar");
-    const ALTURA_MIN_POLEGAR = 24; // px: o cursor nunca fica pequeno demais para pegar
-
-    /** Quanto a faixa pode rolar (px). Zero ou quase = cabe tudo, não há o que rolar. */
-    const rolagemMaxima = (): number => faixa.scrollWidth - faixa.clientWidth;
-
-    /** Mede o cursor: altura proporcional ao que está visível e quanto sobra de trilha para ele andar. */
-    function medidasDoPolegar(): { altura: number; livre: number } {
-        const trilhaAltura = trilha.clientHeight;
-        const altura = Math.max(ALTURA_MIN_POLEGAR, (trilhaAltura * faixa.clientWidth) / faixa.scrollWidth);
-        return { altura, livre: Math.max(0, trilhaAltura - altura) };
-    }
-
-    /** Põe o cursor onde a faixa está (chamada quando a faixa rola, muda de tamanho ou ganha mensagens). */
-    function atualizarRolagem(): void {
-        const maxima = rolagemMaxima();
-        trilha.classList.toggle("inativa", maxima <= 1);
-        if (maxima <= 1) return;
-        const { altura, livre } = medidasDoPolegar();
-        polegar.style.height = `${altura}px`;
-        polegar.style.transform = `translateY(${(faixa.scrollLeft / maxima) * livre}px)`;
-        trilha.setAttribute("aria-valuenow", String(Math.round((faixa.scrollLeft / maxima) * 100)));
-    }
-    faixa.addEventListener("scroll", atualizarRolagem);
-    new ResizeObserver(atualizarRolagem).observe(faixa); // janela redimensionada, chat mais estreito...
-
-    // Arrastar o cursor: o quanto o mouse andou (para baixo) na trilha vira o quanto a faixa rola (para a direita).
-    polegar.addEventListener("pointerdown", (evento) => {
-        if (evento.button !== 0) return;
-        evento.preventDefault();
-        evento.stopPropagation(); // não é um clique na trilha
-        polegar.setPointerCapture(evento.pointerId); // continua recebendo o mouse mesmo fora do cursor
-        polegar.classList.add("arrastando");
-        const inicioY = evento.clientY;
-        const inicioRolagem = faixa.scrollLeft;
-        const { livre } = medidasDoPolegar();
-
-        const mover = (e: PointerEvent): void => {
-            if (livre > 0) faixa.scrollLeft = inicioRolagem + ((e.clientY - inicioY) * rolagemMaxima()) / livre;
-        };
-        const soltar = (): void => {
-            polegar.classList.remove("arrastando");
-            polegar.removeEventListener("pointermove", mover);
-            polegar.removeEventListener("pointerup", soltar);
-            polegar.removeEventListener("pointercancel", soltar);
-        };
-        polegar.addEventListener("pointermove", mover);
-        polegar.addEventListener("pointerup", soltar);
-        polegar.addEventListener("pointercancel", soltar);
-    });
-
-    // Clicar na trilha (fora do cursor): vai até aquele ponto, com o cursor centrado no clique.
-    trilha.addEventListener("pointerdown", (evento) => {
-        if (evento.button !== 0 || rolagemMaxima() <= 1) return;
-        const { altura, livre } = medidasDoPolegar();
-        const y = evento.clientY - trilha.getBoundingClientRect().top - altura / 2;
-        faixa.scrollTo({ left: (Math.min(Math.max(y, 0), livre) / livre) * rolagemMaxima(), behavior: "smooth" });
-    });
 
     // Enter dentro do campo (ou o botão "Enviar") dispara o "submit" do formulário.
     formulario.addEventListener("submit", (evento) => {
@@ -309,12 +298,13 @@ export function criarChat(opcoes: OpcoesChat): Chat {
         campo.focus(); // continua digitando sem precisar clicar de novo
     });
 
-    // --- Aviso de mensagem nova (a setinha à esquerda) ---
-    // Quando chega mensagem com a faixa rolada, ela fica fora da tela (à esquerda). A setinha avisa; clicar leva
-    // até a mais recente. Ela some ao chegar ao início da faixa, por qualquer caminho (clique, roda, barra).
+    // --- Aviso de mensagem nova (o botão embaixo da lista) ---
+    // Quando chega mensagem com a lista rolada para cima, ela fica fora da tela. O botão avisa; clicar leva até a mais recente.
+    // Ele some ao chegar ao fim da lista, por qualquer caminho (clique, roda, barra).
     function mostrarAvisoDeNovas(quantas: number): void {
         novasNaoVistas += quantas;
         const texto = novasNaoVistas === 1 ? "1 mensagem nova" : `${novasNaoVistas} mensagens novas`;
+        botaoNovas.textContent = `↓ ${novasNaoVistas === 1 ? "1 nova" : `${novasNaoVistas} novas`}`;
         botaoNovas.title = `${texto}: ir para a mais recente`;
         botaoNovas.setAttribute("aria-label", `${texto}: ir para a mais recente`);
         botaoNovas.hidden = false;
@@ -324,71 +314,13 @@ export function criarChat(opcoes: OpcoesChat): Chat {
         botaoNovas.hidden = true;
     }
     botaoNovas.addEventListener("click", () => {
-        pararRolagemSuave(); // uma rolagem da roda em andamento brigaria com a ida ao início
         esconderAvisoDeNovas();
-        faixa.scrollTo({ left: 0, behavior: reduzirMovimento() ? "auto" : "smooth" });
+        irParaOFim(true);
         campo.focus(); // continua conversando sem precisar clicar de novo
     });
     faixa.addEventListener("scroll", () => {
-        if (faixa.scrollLeft <= 1) esconderAvisoDeNovas(); // chegou ao início: as novas já estão à vista
+        if (noFim()) esconderAvisoDeNovas(); // chegou ao fim: as novas já estão à vista
     });
-
-    // --- Rolagem SUAVE da roda do mouse ---
-    // A roda costuma rolar na vertical; na faixa (horizontal) ela rola para os lados (para baixo = para a
-    // direita, onde estão as mensagens mais antigas). Em vez de saltar, cada giro da roda só MUDA O ALVO e
-    // a faixa o persegue a cada quadro, cobrindo uma fração da distância que falta (suavização
-    // exponencial: rápida no começo, macia no fim). Vários giros seguidos somam no mesmo alvo.
-    // Arrastar o cursor da barra, o teclado e a chegada de mensagens NÃO passam por aqui (são imediatos).
-    let alvoRolagem = 0; // até onde a faixa deve chegar (px)
-    let rolandoSuave = false;
-    let ultimoQuadro = 0;
-
-    function pararRolagemSuave(): void {
-        rolandoSuave = false;
-    }
-
-    function passoRolagem(agora: number): void {
-        if (!rolandoSuave) return;
-        const dt = Math.min(agora - ultimoQuadro, 50); // um quadro atrasado não pode dar um salto enorme
-        ultimoQuadro = agora;
-        const falta = alvoRolagem - faixa.scrollLeft;
-        if (Math.abs(falta) < 1) {
-            faixa.scrollLeft = alvoRolagem; // chegou
-            rolandoSuave = false;
-            return;
-        }
-        // Fração do que falta que se cobre neste quadro (independe da taxa de quadros por segundo).
-        const fracao = 1 - Math.exp(-dt / SUAVIDADE_ROLAGEM_CHAT);
-        // Pelo menos 1 px por quadro: a posição da rolagem é arredondada em pixels e um passo menor não sairia do lugar.
-        const passo = Math.sign(falta) * Math.max(1, Math.abs(falta) * fracao);
-        faixa.scrollLeft += Math.abs(passo) > Math.abs(falta) ? falta : passo;
-        requestAnimationFrame(passoRolagem);
-    }
-
-    function aoGirarRoda(evento: WheelEvent): void {
-        if (evento.deltaY === 0) return;
-        evento.preventDefault();
-        // Algumas máquinas mandam o giro em "linhas" ou "páginas" em vez de pixels.
-        const unidade = evento.deltaMode === 1 ? 40 : evento.deltaMode === 2 ? faixa.clientWidth : 1;
-        const delta = evento.deltaY * unidade;
-        if (reduzirMovimento() || SUAVIDADE_ROLAGEM_CHAT <= 0) {
-            faixa.scrollLeft += delta; // sem animação (preferência do sistema)
-            return;
-        }
-        if (!rolandoSuave) alvoRolagem = faixa.scrollLeft; // começa de onde a faixa está
-        alvoRolagem = Math.min(Math.max(alvoRolagem + delta, 0), rolagemMaxima());
-        if (!rolandoSuave) {
-            rolandoSuave = true;
-            ultimoQuadro = performance.now();
-            requestAnimationFrame(passoRolagem);
-        }
-    }
-    // A roda rola o chat sobre a faixa, e também sobre a setinha de "mensagem nova" e a barra de rolagem
-    // (que ficam POR CIMA da faixa e, sem isto, engoliriam o giro quando o ponteiro estivesse em cima delas).
-    for (const alvo of [faixa, botaoNovas, pegar("chat-barra")]) alvo.addEventListener("wheel", aoGirarRoda, { passive: false });
-    // Quem rola por outro caminho (arrastar o cursor, setas do teclado, clicar na faixa) cancela a animação da roda.
-    polegar.addEventListener("pointerdown", pararRolagemSuave);
-    faixa.addEventListener("keydown", pararRolagemSuave);
 
     // Esc sai do campo (devolve o foco ao tabuleiro).
     campo.addEventListener("keydown", (e) => {
