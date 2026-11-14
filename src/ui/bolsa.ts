@@ -1,5 +1,5 @@
 // =====================================================================
-// BOLSA (HTML): um painel no canto inferior direito onde se GUARDAM tokens.
+// BOLSA (HTML): a aba "Bolsa" da coluna da direita (ao lado do chat), onde se GUARDAM tokens e fichas. (Já foi uma caixa flutuante no canto.)
 //   - Arrastar um token do tabuleiro até aqui e soltar o guarda (ele some do mapa).
 //   - Arrastar uma fichinha daqui para o mapa coloca o token na casa onde soltar.
 //   - O botão "⤢ Criar/editar" EXPANDE a bolsa: ela cobre quase a tela toda (sobra só uma margem) e mostra a
@@ -31,8 +31,6 @@ import {
     MAX_TOKENS,
     TAMANHO_INICIAL_TOKEN,
     CHAVE_ABA_BOLSA,
-    CHAVE_ALTURA_BOLSA,
-    CHAVE_BOLSA_RECOLHIDA,
     CHAVE_ORDEM_FICHAS,
     CHAVE_ORDEM_TOKENS,
     MAX_GRUPOS,
@@ -40,7 +38,6 @@ import {
 import { estado, type Ficha, type Grupo, type Token } from "../estado";
 import { criarEditorGrupo } from "./editorGrupo";
 import { corCss, escolherArquivo, marcarEscolhida, montarPaleta, pintarDisco } from "./aparenciaToken";
-import { alternarRecolhida } from "./animarPainel";
 import { guardarPreferencia, lerPreferencia } from "./preferencias";
 
 /** O que a área "Criar token" pede ao criar. */
@@ -157,11 +154,10 @@ function pegar<T extends HTMLElement>(id: string): T {
 
 export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     const bolsa = pegar("bolsa");
-    const canto = pegar("canto-inferior-direito"); // a coluna fixa que guarda a bolsa (e o painel da calibragem)
+    const coluna = pegar("chat"); // a COLUNA da direita (chat e bolsa): a tela cheia escurece o fundo por uma classe dela
     const itens = pegar("bolsa-itens");
     const vazia = pegar("bolsa-vazia");
     const botaoGerenciar = pegar<HTMLButtonElement>("bolsa-gerenciar"); // o ⤢ do alto: abre a tela cheia
-    const botaoAlternar = pegar<HTMLButtonElement>("bolsa-alternar"); // o ▴/▾ do alto: minimiza/expande a bolsa
     const botaoCriarToken = pegar<HTMLButtonElement>("bolsa-criar-token-botao"); // o "+ Criar token" da linha da pesquisa (abre a tela cheia)
     const botaoFechar = pegar<HTMLButtonElement>("bolsa-fechar");
     const botoesTamanho = Array.from(bolsa.querySelectorAll<HTMLButtonElement>("button[data-tamanho]"));
@@ -1082,7 +1078,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         aplicarSelecao(); // (a barra de ações muda de lugar na tela cheia)
         opcoes.aoAbrir();
         bolsa.classList.add("expandida");
-        canto.classList.add("bolsa-aberta");
+        coluna.classList.add("bolsa-aberta");
         botaoFechar.hidden = false;
         campoBusca.value = "";
         campoBuscaFichas.value = "";
@@ -1103,13 +1099,12 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         posicionarBotaoCriarFicha();
         aplicarSelecao();
         bolsa.classList.remove("expandida");
-        canto.classList.remove("bolsa-aberta");
+        coluna.classList.remove("bolsa-aberta");
         botaoFechar.hidden = true;
         campoBusca.value = ""; // as pesquisas são limpas ao voltar ao canto
         campoBuscaFichas.value = "";
         atualizar();
         atualizarFichas();
-        medirVaga();
         botaoGerenciar.focus();
     }
 
@@ -1292,46 +1287,6 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     }
     botaoCriarToken.addEventListener("click", criarTokenGenerico);
 
-    // --- Minimizar (só na bolsa do canto): sobra o título e os dois ícones. O botão ▴/▾ e o clique no NOME alternam; a escolha é lembrada. ---
-    function mostrarRecolhida(recolhida: boolean): void {
-        bolsa.classList.toggle("recolhida", recolhida);
-        botaoAlternar.textContent = recolhida ? "▾" : "▴"; // ▾ = expandir, ▴ = recolher (como nos outros painéis)
-        botaoAlternar.title = recolhida ? "Expandir a bolsa" : "Recolher a bolsa";
-        botaoAlternar.setAttribute("aria-expanded", String(!recolhida));
-    }
-    function alternarBolsa(): void {
-        // (com animação: a altura cresce/encolhe com o TOPO parado, de cima para baixo; a "vaga" invisível da bolsa tem a altura dela aberta)
-        const recolhida = alternarRecolhida(bolsa, "recolhida", mostrarRecolhida);
-        guardarPreferencia(CHAVE_BOLSA_RECOLHIDA, recolhida ? "1" : "0");
-    }
-    botaoAlternar.addEventListener("click", alternarBolsa);
-    // DUPLO clique na área de cima da bolsa (a linha do nome "Bolsa" e o espaço vazio do cabeçalho, não só nas letras). Não vale nas abas, na
-    // pesquisa nem nos botões: eles têm o seu próprio clique.
-    const cabecalhoBolsa = bolsa.querySelector<HTMLElement>(".bolsa-topo")!;
-    const nomeBolsa = bolsa.querySelector<HTMLElement>(".bolsa-titulo")!;
-    nomeBolsa.title = "Duplo clique para recolher ou expandir (arraste para mover)";
-    cabecalhoBolsa.addEventListener("dblclick", (e) => {
-        const alvo = e.target as HTMLElement;
-        const naAreaDoNome = alvo === cabecalhoBolsa || alvo.closest(".bolsa-titulo") !== null;
-        if (naAreaDoNome && !expandida) alternarBolsa(); // (em tela cheia o cabeçalho não recolhe)
-    });
-
-    // A "vaga" da bolsa: uma caixa invisível, ancorada no canto inferior direito, com a altura da bolsa ABERTA. A bolsa fica no TOPO dela:
-    // aberta, enche a vaga e chega ao canto; minimizada, sobra só o cabeçalho, e ao expandir ela cresce para BAIXO (como as outras caixas).
-    // Mede a altura aberta (a bolsa do canto tem altura fixa nas duas abas) sem pintar nada no meio.
-    const vaga = pegar("bolsa-vaga");
-    function medirVaga(): void {
-        if (expandida) return; // (a tela cheia tem outro tamanho)
-        const estava = bolsa.classList.contains("recolhida");
-        bolsa.classList.remove("recolhida");
-        const altura = bolsa.getBoundingClientRect().height;
-        // (na RAIZ da página: a vaga da bolsa E a barra de Ferramentas, que limita a própria altura pelo espaço acima da bolsa, a enxergam)
-        document.documentElement.style.setProperty("--altura-bolsa", `${altura}px`);
-        guardarPreferencia(CHAVE_ALTURA_BOLSA, String(altura)); // (o index.html a usa na próxima vez, antes da primeira pintura: a bolsa não se mexe ao carregar)
-        if (estava) bolsa.classList.add("recolhida");
-    }
-    mostrarRecolhida(lerPreferencia(CHAVE_BOLSA_RECOLHIDA) === "1"); // (como a pessoa deixou da última vez)
-    medirVaga();
     campoBusca.addEventListener("input", atualizar); // filtra os tokens a cada letra
     campoBuscaFichas.addEventListener("input", atualizarFichas); // e esta, só as fichas (cada aba tem a sua pesquisa)
     document.addEventListener("keydown", (e) => {
@@ -1355,9 +1310,9 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
             if (!limpouPesquisa() && selDaAba().ids.size > 0) limparSelecao();
         }
     });
-    // Clicar na margem escura (que é o "::before" da coluna do canto) também fecha a tela cheia.
-    canto.addEventListener("click", (e) => {
-        if (expandida && e.target === canto) fechar();
+    // Clicar na margem escura (que é o "::before" da coluna da direita) também fecha a tela cheia.
+    coluna.addEventListener("click", (e) => {
+        if (expandida && e.target === coluna) fechar();
     });
 
     montarPaleta(amostras, (cor) => {

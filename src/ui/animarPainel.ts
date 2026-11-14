@@ -61,3 +61,58 @@ export function alternarRecolhida(painel: HTMLElement, classe: string, aplicar: 
     animarRecolher(painel, novo, aplicar);
     return novo;
 }
+
+// ---------------------------------------------------------------------
+// GAVETA LATERAL (a pilha de Desenho e Ferramentas, ui/pilha.ts): em vez de a caixa crescer para baixo, o CONTEÚDO dela (a "gaveta") abre ao LADO, colado
+// na parede direita da barra, revelado da esquerda para a direita (um recorte `clip-path` que cresce). Mesma duração e curva das outras animações.
+// Ao recolher, a gaveta continua à vista até o recorte fechar e só então some (`aplicar(true)`); clicar de novo no meio do caminho INVERTE o movimento.
+// O recorte tem folga (−30 px) nos três lados que ficam abertos, para não cortar a sombra da gaveta.
+// ---------------------------------------------------------------------
+const GAVETA_FECHADA = "inset(-30px 100% -30px -30px)";
+const GAVETA_ABERTA = "inset(-30px -30px -30px -30px)";
+
+interface GavetaEmCurso {
+    animacao: Animation;
+    recolher: boolean; // o estado para onde a animação em curso está indo
+}
+const gavetasEmCurso = new WeakMap<HTMLElement, GavetaEmCurso>();
+
+/** A gaveta está (ou está indo para) RECOLHIDA? Olha o destino da animação em curso, se houver. */
+export function gavetaRecolhida(caixa: HTMLElement, gaveta: HTMLElement, classe: string): boolean {
+    return gavetasEmCurso.get(gaveta)?.recolher ?? caixa.classList.contains(classe);
+}
+
+/**
+ * Alterna a gaveta (recolhida <-> aberta) com animação e devolve o NOVO estado (true = recolhida). `aplicar(recolhida)` muda o que é de verdade (a classe
+ * que mostra/esconde a gaveta, o título do botão...) e só deve ser uma mudança de aparência.
+ */
+export function alternarGaveta(caixa: HTMLElement, gaveta: HTMLElement, classe: string, aplicar: (recolhida: boolean) => void): boolean {
+    const pendente = gavetasEmCurso.get(gaveta);
+    const novo = !gavetaRecolhida(caixa, gaveta, classe);
+    const semAnimacao = window.matchMedia("(prefers-reduced-motion: reduce)").matches || typeof gaveta.animate !== "function";
+    if (pendente) {
+        // No meio de uma animação: inverte a partir de onde está (sem pulo).
+        pendente.recolher = novo;
+        pendente.animacao.reverse();
+        return novo;
+    }
+    if (semAnimacao) {
+        aplicar(novo);
+        return novo;
+    }
+    if (!novo) aplicar(false); // abrindo: a gaveta passa a existir (recortada por inteiro) e o recorte cresce
+    // A animação vai de FECHADA para ABERTA; ao recolher ela é tocada ao contrário.
+    const animacao = gaveta.animate([{ clipPath: GAVETA_FECHADA }, { clipPath: GAVETA_ABERTA }], { duration: DURACAO_MS, easing: CURVA, fill: "both" });
+    if (novo) {
+        animacao.currentTime = DURACAO_MS; // começa de ABERTA...
+        animacao.reverse(); // ...e vai até FECHADA
+    }
+    const registro: GavetaEmCurso = { animacao, recolher: novo };
+    gavetasEmCurso.set(gaveta, registro);
+    animacao.onfinish = () => {
+        gavetasEmCurso.delete(gaveta);
+        aplicar(registro.recolher); // o estado de verdade (recolhida: a gaveta some)
+        animacao.cancel(); // (só depois: com `fill: both` a gaveta não "pisca" aberta entre o fim da animação e o `aplicar`)
+    };
+    return novo;
+}

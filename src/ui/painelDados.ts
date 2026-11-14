@@ -1,11 +1,10 @@
 // =====================================================================
-// PAINEL DE DADOS (HTML): a barra GRUDADA no lado esquerdo do chat, onde se escolhe o
-// dado (d4 a d1000), a quantidade e o modificador, e se rola. O resultado vai para o
-// chat (main.ts). A barra é RETRÁTIL: a aba entre os dados e o chat a recolhe, e sobra só a
-// aba "Dados" colada no chat. Em janelas com menos de 1184 px a barra fica EM CIMA do chat (CSS).
+// PAINEL DE DADOS (HTML): uma BARRA "Dados" no pé da coluna da direita (embaixo do chat ou da bolsa). Clicar nela
+// expande a caixa onde se escolhe o dado (d4 a d1000), a quantidade e o modificador, e se rola. O resultado vai para o
+// chat (main.ts). Recolhida, sobra só a barra.
 //
-// A marcação e o CSS ficam no index.html (o painel está DENTRO do #chat, por isso
-// acompanha a posição e a largura dele); aqui só ligamos os elementos.
+// A marcação e o CSS ficam no index.html (o painel está DENTRO do #chat, por isso acompanha a largura dele);
+// aqui só ligamos os elementos.
 // =====================================================================
 
 import { CHAVE_DADOS_RECOLHIDO, DADO_INICIAL, DADOS_DISPONIVEIS, MAX_MODIFICADOR_DADOS, MAX_QUANTIDADE_DADOS } from "../config";
@@ -132,26 +131,27 @@ export function criarPainelDados(opcoes: OpcoesPainelDados): void {
 
     botaoRolar.addEventListener("click", () => opcoes.aoRolar(lados, quantidade, modificador));
 
-    // --- Recolher/expandir: como na barra de Ferramentas e no painel de Desenho (sobram o nome e o botão; o DUPLO clique no NOME também alterna) ---
+    // --- Recolher/expandir: o painel é uma BARRA no pé da coluna da direita; clicar em QUALQUER ponto dela (não só no botão) alterna. A caixa abre para
+    // CIMA, então a setinha aponta ▴ quando está recolhida (clique para abrir) e ▾ quando está aberta (clique para fechar): ela GIRA 180° (CSS). ---
     function recolher(recolhido: boolean): void {
         painel.classList.toggle("recolhida", recolhido);
-        alternar.textContent = recolhido ? "▾" : "▴"; // ▾ = expandir (para baixo), ▴ = recolher
         alternar.title = recolhido ? "Abrir os dados" : "Recolher os dados";
         alternar.setAttribute("aria-expanded", String(!recolhido));
     }
-    // DUPLO clique em QUALQUER ponto da área de cima (o cabeçalho onde fica o nome "Dados", não só nas letras) recolhe/expande.
-    const cabecalhoDados = painel.querySelector<HTMLElement>(".cabecalho")!;
-    cabecalhoDados.title = "Duplo clique para recolher ou expandir (arraste para mover)";
-    cabecalhoDados.addEventListener("dblclick", (e) => {
-        if (!(e.target as HTMLElement).closest("button, input")) alternar.click();
+    const barraDados = painel.querySelector<HTMLElement>(".cabecalho")!;
+    barraDados.addEventListener("click", (e) => {
+        if ((e.target as HTMLElement).closest("button") === null) alternar.click(); // (o botão já tem o seu próprio clique)
     });
     alternar.addEventListener("click", () => {
         const recolhido = alternarRecolhida(painel, "recolhida", recolher); // (com animação: a altura cresce/encolhe, de cima para baixo)
+        alternar.classList.toggle("recolhido", recolhido); // a SETA gira junto com a caixa (CSS: mesma duração e curva)
         guardarPreferencia(CHAVE_DADOS_RECOLHIDO, recolhido ? "1" : "0"); // lembra ao recarregar a página
     });
     // Ao abrir a página: como a pessoa deixou da última vez. Sem escolha guardada, ele começa RECOLHIDO (só a bolsa começa aberta).
     // (O index.html já aplicou isto antes da primeira pintura: aqui só se confirma.)
-    recolher(lerPreferencia(CHAVE_DADOS_RECOLHIDO) !== "0");
+    const dadosComecamRecolhidos = lerPreferencia(CHAVE_DADOS_RECOLHIDO) !== "0";
+    recolher(dadosComecamRecolhidos);
+    alternar.classList.toggle("recolhido", dadosComecamRecolhidos); // (a seta já nasce na posição certa, sem girar)
 
     atualizar();
 }

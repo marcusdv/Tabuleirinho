@@ -1,6 +1,6 @@
 // =====================================================================
 // PAINEL DA CALIBRAGEM (HTML): aparece no canto inferior direito, enquanto a
-// ferramenta "Calibrar grade" está ligada. Tem o campo "quantas casas o
+// ferramenta "Alinhar mapa" está ligada. Tem o campo "quantas casas o
 // retângulo cobre", o resultado da medida e o botão de concluir.
 // A marcação e o CSS ficam no index.html; aqui só ligamos os elementos.
 // =====================================================================

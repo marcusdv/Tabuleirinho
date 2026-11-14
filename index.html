@@ -31,48 +31,70 @@
             }
 
             /* ===================================================================
-         BARRA DE FERRAMENTAS: flutuante, fixa na direita, retrátil
+         A PILHA DE BARRAS (ui/pilha.ts), na borda ESQUERDA: "Desenho" e "Ferramentas". Todas as barras têm SEMPRE a mesma largura (--largura-barra), por isso
+         dá para empilhá-las. Clicar numa abre o CONTEÚDO dela (.conteudo) numa GAVETA ao lado, colada na parede DIREITA da barra e com a mesma largura.
+         Uma gaveta aberta por vez. A ordem das barras é o `order` de cada uma (o ui/pilha.ts o define; arrastar uma barra troca a ordem).
          =================================================================== */
-            #barra {
-                position: fixed; /* fica parada na janela, não acompanha pan/zoom */
+            :root {
+                --largura-barra: 156px;
+            }
+            #pilha {
+                position: fixed;
                 top: 12px;
-                right: var(--recuo-chat); /* à esquerda do chat */
+                left: 12px;
                 z-index: 10; /* acima do canvas */
-                width: 156px;
+                width: var(--largura-barra);
+                display: flex;
+                flex-direction: column;
+                gap: 8px;
+            }
+            .caixa-pilha {
+                position: relative; /* a gaveta (.conteudo) é posicionada em relação à barra */
+                width: 100%;
                 box-sizing: border-box;
-                padding: 10px;
+                padding: 0 10px;
                 background: rgba(34, 34, 42, 0.94);
                 border: 1px solid #3a3a45;
                 border-radius: 10px;
                 box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
                 user-select: none; /* evita selecionar texto ao clicar rápido */
             }
-
-            /* ALTURA LIMITADA (pedido do dono, para telas baixas, ex.: 800 px): a barra de Ferramentas aberta NÃO passa para cima da bolsa do canto
-               (que ocupa --altura-bolsa embaixo, à direita, na mesma coluna): o espaço que sobra é o limite e o CONTEÚDO rola por dentro, como no
-               painel de Desenho. Com a calibragem aberta (o painel dela fica empilhado em cima da bolsa, ~204 px + 8 de vão) a barra encolhe mais.
-               Abaixo de 720 px o painel da calibragem vai para outro lugar, então só vale o limite da bolsa. */
-            #barra {
-                display: flex;
-                flex-direction: column;
-                max-height: calc(100vh - 12px - var(--altura-bolsa, 374px) - 12px - 8px);
+            .caixa-pilha > .cabecalho {
+                height: 40px;
+                flex: none;
             }
-            @media (min-height: 721px) {
-                body:has(#painel-calibragem:not([hidden])) #barra {
-                    max-height: calc(100vh - 12px - var(--altura-bolsa, 374px) - 12px - 8px - 212px);
-                }
-            }
-            #barra .cabecalho {
-                flex: none; /* o título e o botão de recolher ficam sempre à vista */
-            }
-            #barra .conteudo {
-                flex: 1 1 auto;
-                min-height: 0; /* sem isto o conteúdo não encolhe para caber: é ele que rola */
+            /* A GAVETA: o conteúdo da barra, ao lado dela. A altura é limitada pelo espaço da tela (a segunda barra começa ~60 px abaixo do topo) e o
+               conteúdo rola por dentro. Recolhida (`.recolhida`), ela some. */
+            .caixa-pilha > .conteudo {
+                position: absolute;
+                top: -1px; /* alinhada ao topo da barra (a borda da barra tem 1 px) */
+                left: calc(100% + 6px);
+                width: var(--largura-barra);
+                box-sizing: border-box;
+                max-height: calc(100vh - 12px - 60px - 12px);
+                margin: 0;
+                padding: 10px;
                 overflow-y: auto;
+                background: rgba(34, 34, 42, 0.97);
+                border: 1px solid #3a3a45;
+                border-radius: 10px;
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+            }
+            .caixa-pilha.recolhida > .conteudo {
+                display: none;
+            }
+            /* ARRASTAR uma barra dentro da pilha troca a ordem: a que é arrastada fica por cima e acompanha o mouse; as outras se afastam
+               suavemente (a classe `na-pilha` só existe durante o arrasto: sem ela, trocar a ordem na hora não faz as barras "voltarem" deslizando). */
+            .caixa-pilha.na-pilha {
+                transition: translate 150ms ease;
+            }
+            .caixa-pilha.arrastando-caixa {
+                z-index: 2;
+                transition: none;
+                box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
             }
 
-            /* CAIXAS ARRASTÁVEIS (ui/arrastar.ts): as alças mostram a mãozinha, e durante o arrasto a caixa fica por cima e sem selecionar texto. A bolsa
-               em TELA CHEIA não anda (o deslocamento é ignorado). */
+            /* As ALÇAS de arrasto (o cabeçalho de cada barra da pilha, ui/pilha.ts) mostram a mãozinha, e durante o arrasto a caixa fica sem selecionar texto. */
             .alca-arrastar {
                 cursor: grab;
                 touch-action: none;
@@ -105,6 +127,52 @@
                 text-transform: uppercase;
                 color: #c9c9d4;
             }
+            /* O aviso da previsão de colunas e linhas ao escolher um mapa: um cartão no canto de baixo, à esquerda da coluna da direita (some sozinho). */
+            #aviso-mapa {
+                position: fixed;
+                left: 12px;
+                bottom: 12px;
+                z-index: 30;
+                max-width: min(380px, calc(100vw - 24px - var(--recuo-chat)));
+                padding: 10px 14px;
+                background: rgba(34, 34, 42, 0.97);
+                border: 1px solid #ffd54f;
+                border-radius: 10px;
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+                font-size: 13px;
+                line-height: 1.4;
+                cursor: pointer;
+            }
+            #aviso-mapa[hidden] {
+                display: none;
+            }
+            /* A SETA dos botões de recolher (Ferramentas, Desenho e Dados): um ▴ que GIRA 180° junto com a caixa, com a mesma duração (260 ms) e a mesma curva
+               de ui/animarPainel.ts. Ferramentas e Desenho abrem para o LADO (recolhido = ▸, aberto = ◂); Dados abre para CIMA (recolhido = ▴, aberto = ▾).
+               O botão ganha a classe "recolhido" no instante do clique (a classe da caixa só muda no fim da animação ao recolher). */
+            .seta {
+                display: inline-block;
+                width: 1em;
+                line-height: 1;
+                text-align: center;
+                transition: transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            #dados-alternar:not(.recolhido) .seta {
+                transform: rotate(180deg);
+            }
+            /* As barras da pilha abrem para o LADO DIREITO: recolhida = ▸ (aponta para onde a gaveta vai abrir), aberta = ◂ (gira 180°). */
+            #barra-alternar .seta,
+            #desenho-alternar .seta {
+                transform: rotate(270deg); /* ◂ */
+            }
+            #barra-alternar.recolhido .seta,
+            #desenho-alternar.recolhido .seta {
+                transform: rotate(90deg); /* ▸ */
+            }
+            @media (prefers-reduced-motion: reduce) {
+                .seta {
+                    transition: none;
+                }
+            }
             #barra-alternar {
                 width: 26px;
                 height: 26px;
@@ -128,11 +196,6 @@
                 margin-top: 12px;
             }
 
-            /* Recolhida: some só o CONTEÚDO. O nome ("Ferramentas") e o botão ficam, e a largura e o padding NÃO
-               mudam: ao expandir, o painel só cresce para BAIXO. */
-            #barra.recolhida .conteudo {
-                display: none;
-            }
 
             .conteudo h2 {
                 margin: 0 0 6px;
@@ -225,7 +288,7 @@
                 opacity: 0.35;
                 cursor: not-allowed;
             }
-            /* Botão de ferramenta ligada (ex.: "Calibrar grade" em uso). */
+            /* Botão de ferramenta ligada (ex.: "Alinhar mapa" em uso). */
             .botao-largo.ativo {
                 background: #5a4a1f;
                 border-color: #ffd54f;
@@ -258,31 +321,6 @@
             /* ===================================================================
          PAINEL DE DESENHO: flutuante, fixo na esquerda, retrátil (como a barra da direita)
          =================================================================== */
-            #ferramentas-desenho {
-                /* O chat ocupa o canto inferior ESQUERDO, o mesmo lado deste painel.
-                   Por isso a altura máxima é o espaço que sobra acima dessa pilha, e o CONTEÚDO rola por dentro: o painel nunca cobre o chat.
-                   160 px = o chat (148) + 12 de margem; 8 px de folga. */
-                --reserva-embaixo: 0px; /* (o chat agora é uma coluna à direita: nada embaixo do painel) */
-                display: flex;
-                flex-direction: column;
-                max-height: calc(100vh - 12px - var(--reserva-embaixo) - 8px);
-                position: fixed;
-                top: 12px;
-                left: 12px;
-                z-index: 10;
-                width: 156px;
-                box-sizing: border-box;
-                padding: 10px;
-                background: rgba(34, 34, 42, 0.94);
-                border: 1px solid #3a3a45;
-                border-radius: 10px;
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
-                user-select: none;
-            }
-            /* Recolhido: some só o CONTEÚDO (o nome "Desenho" e o botão ficam; a largura não muda e ele expande para BAIXO). */
-            #ferramentas-desenho.recolhida .conteudo {
-                display: none;
-            }
             #desenho-alternar {
                 width: 26px;
                 height: 26px;
@@ -366,6 +404,57 @@
                 --largura-chat: 320px;
                 --recuo-chat: calc(12px + var(--largura-chat) + 8px); /* o que as outras caixas deixam livre na direita: folga + chat + vão */
             }
+            /* As ABAS da coluna ("Chat" e "Bolsa"), no alto: uma linha de botões; só um painel fica à vista (a classe aba-bolsa do #chat escolhe). */
+            #lateral-abas {
+                flex: none;
+                display: flex;
+                gap: 4px;
+                padding: 10px 14px 0;
+                border-bottom: 1px solid #3a3a45;
+            }
+            .lateral-aba {
+                flex: 1 1 0;
+                height: 32px;
+                margin-bottom: -1px; /* o traço da aba ativa cobre a linha de baixo */
+                background: transparent;
+                border: none;
+                border-bottom: 2px solid transparent;
+                color: #9a9aa8;
+                font: inherit;
+                font-size: 13px;
+                font-weight: 600;
+                letter-spacing: 0.04em;
+                cursor: pointer;
+            }
+            .lateral-aba:hover {
+                color: #ffd54f;
+            }
+            .lateral-aba[aria-selected="true"] {
+                color: #ffd54f;
+                border-bottom-color: #ffd54f;
+            }
+            /* O aviso de mensagens NÃO lidas na aba "Chat" (quando se está na Bolsa). */
+            #lateral-novas {
+                margin-left: 6px;
+                padding: 1px 6px;
+                background: #ffd54f;
+                border-radius: 9px;
+                font-size: 11px;
+                color: #2a2208;
+            }
+            #chat-painel {
+                position: relative;
+                flex: 1 1 auto;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
+            }
+            #chat.aba-bolsa #chat-painel {
+                display: none;
+            }
+            #chat:not(.aba-bolsa) #bolsa {
+                display: none;
+            }
             #chat {
                 position: fixed;
                 top: 0; /* COLADO na página, em cima e embaixo (pedido do dono) */
@@ -386,22 +475,22 @@
                 box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
             }
             /* ===================================================================
-         PAINEL DE DADOS: uma caixa FLUTUANTE como a de Ferramentas e a de Desenho: cabeçalho com o nome e o ▴ (que recolhe; clicar no nome também),
-         arrastável pelo cabeçalho. Fica por padrão no alto, à direita do painel de Desenho.
+         PAINEL DE DADOS: uma BARRA no PÉ da coluna da direita ("Dados" + uma setinha), embaixo do chat (ou da bolsa). Clicar em qualquer ponto da barra
+         expande a caixa de dados ali mesmo, empurrando o chat para cima; clicar de novo recolhe. Não é mais uma caixa flutuante nem arrastável.
          =================================================================== */
             #dados {
-                position: fixed;
-                top: 12px;
-                right: calc(var(--recuo-chat) + 156px + 8px); /* ao lado ESQUERDO da barra de Ferramentas (156 px) */
-                z-index: 10;
-                width: 352px; /* HORIZONTAL: a coluna dos dados (4 dados de 44 px) e, à direita, a do Rolar */
+                flex: none;
                 box-sizing: border-box;
-                padding: 10px;
-                background: rgba(34, 34, 42, 0.94);
-                border: 1px solid #3a3a45;
-                border-radius: 10px;
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+                padding: 0 14px;
+                border-top: 1px solid #3a3a45;
                 user-select: none;
+            }
+            #dados > .cabecalho {
+                height: 40px;
+                cursor: pointer; /* a barra inteira é o botão */
+            }
+            #dados > .cabecalho:hover h1 {
+                color: #ffd54f;
             }
             #dados-alternar {
                 width: 26px;
@@ -424,7 +513,7 @@
             #dados-conteudo {
                 display: flex;
                 gap: 10px;
-                margin-top: 12px;
+                padding-bottom: 14px; /* (a barra do alto tem 40 px de altura: o conteúdo começa logo embaixo dela) */
             }
             #dados-coluna-dados {
                 flex: 0 0 auto;
@@ -753,7 +842,7 @@
                 z-index: 3; /* acima dos cartões */
                 left: 50%;
                 translate: -50% 0;
-                bottom: 62px; /* logo acima do campo de digitar */
+                bottom: 68px; /* logo acima do rodapé do campo de digitar (relativo ao #chat-painel) */
                 padding: 4px 12px;
                 background: rgba(34, 34, 42, 0.96);
                 border: 1px solid #ffd54f;
@@ -825,10 +914,16 @@
                 margin: 0;
                 overflow-wrap: anywhere;
             }
+            /* O campo de enviar é o RODAPÉ do chat: uma linha de separação em cima, um fundo um pouco mais escuro e espaço próprio em volta,
+               para não parecer solto no meio das mensagens. */
             #chat-form {
+                flex: none;
                 display: flex;
                 gap: 6px;
-                margin: 0 14px 14px;
+                margin: 0;
+                padding: 12px 14px;
+                background: rgba(0, 0, 0, 0.22);
+                border-top: 1px solid #45454f;
             }
             #chat-texto {
                 flex: 1;
@@ -873,7 +968,7 @@
                 background: #3b3b49;
             }
 
-            /* Canto inferior direito: o painel da calibragem (quando ligado) fica EM CIMA da bolsa. */
+            /* Canto inferior direito (à esquerda do chat): só o painel da calibragem (quando ligado). */
             #canto-inferior-direito {
                 position: fixed;
                 right: var(--recuo-chat); /* encostada à esquerda do chat */
@@ -883,21 +978,12 @@
                 flex-direction: column;
                 align-items: flex-end;
                 gap: 8px;
-                pointer-events: none; /* a coluna em si é invisível: só a bolsa e o painel da calibragem (abaixo) pegam o mouse; o resto da área deixa o clique passar */
+                pointer-events: none; /* a coluna em si é invisível: só o painel da calibragem (abaixo) pega o mouse; o resto da área deixa o clique passar */
             }
             #canto-inferior-direito > #painel-calibragem {
                 pointer-events: auto;
             }
-            #canto-inferior-direito.bolsa-aberta {
-                pointer-events: auto; /* tela cheia: a margem escura (o ::before) fecha a bolsa ao ser clicada */
-            }
 
-            /* A vaga da bolsa (ver ui/bolsa.ts): uma caixa invisível que não pega o mouse; só a bolsa dentro dela pega. */
-            #bolsa-vaga {
-                width: 340px;
-                height: var(--altura-bolsa, 374px); /* (374 = a altura da bolsa aberta; o valor medido vem do ui/bolsa.ts e do script do início da página) */
-                pointer-events: none;
-            }
             /* O conteúdo do painel de Desenho e o do de Dados é criado pelo app (JavaScript) um instante depois do primeiro desenho: sem isto os
                dois apareceriam pequenos e CRESCERIAM de repente. Ficam invisíveis (sem sumir do layout) até o app montar tudo; o script do fim
                do <body> libera de qualquer jeito depois de 3 s, caso o app falhe. */
@@ -905,23 +991,20 @@
             body:not(.app-pronta) #dados {
                 visibility: hidden;
             }
-            #bolsa-vaga > #bolsa {
-                pointer-events: auto;
-            }
             /* Bolsa: guarda tokens. Arraste um token do mapa para cá; arraste uma fichinha daqui para o mapa. */
             #bolsa {
-                width: 340px; /* cabem 5 fichas por linha (e cabe na coluna da direita: o chat reserva 360 px de cada lado) */
+                /* A bolsa mora DENTRO da coluna do chat (aba "Bolsa"): ocupa o espaço que sobra embaixo das abas, sem fundo nem borda próprios. */
+                flex: 1 1 auto;
+                min-height: 0;
+                display: flex;
+                flex-direction: column;
                 box-sizing: border-box;
-                padding: 8px 10px 10px;
-                background: rgba(34, 34, 42, 0.94);
-                border: 1px solid #3a3a45;
-                border-radius: 10px;
-                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+                padding: 10px 14px 14px;
                 user-select: none;
             }
             #bolsa.alvo {
-                border-color: #ffd54f;
-                background: rgba(70, 60, 25, 0.96);
+                background: rgba(70, 60, 25, 0.6);
+                box-shadow: inset 0 0 0 2px #ffd54f;
             } /* "pode soltar aqui" */
             /* Cabeçalho da bolsa: o título e os botões do alto (e, expandida, o botão de fechar). */
             .bolsa-topo {
@@ -985,17 +1068,17 @@
             #bolsa.expandida .bolsa-icone {
                 display: none; /* a tela cheia tem o botão Fechar */
             }
-            /* Bolsa MINIMIZADA (só na do canto): sobra o título e os dois ícones; o resto some. */
-            #bolsa.recolhida:not(.expandida) .bolsa-topo {
-                margin: 0;
+            #bolsa:not(.expandida) .bolsa-titulo {
+                display: none; /* na coluna a aba "Bolsa" já diz o nome */
             }
-            #bolsa.recolhida:not(.expandida) .bolsa-topo > :not(.bolsa-titulo):not(.bolsa-icone),
-            #bolsa.recolhida:not(.expandida) #bolsa-conteudo,
-            #bolsa.recolhida:not(.expandida) #bolsa-fichas {
-                display: none;
+            /* Na coluna: as abas Tokens/Fichas e o ⤢ (tela cheia) dividem a MESMA linha. */
+            #bolsa:not(.expandida) #bolsa-abas {
+                flex: 1 1 0;
+                min-width: 0;
             }
-            .bolsa-titulo {
-                cursor: pointer; /* clicar no nome minimiza/expande (e puxar por ele arrasta a caixa) */
+            #bolsa:not(.expandida) #bolsa-gerenciar {
+                order: 6;
+                margin-left: 0;
             }
             /* Pesquisa: numa linha só dela, abaixo do título e das abas (na tela cheia fica ao lado do título; ver abaixo). */
             /* A linha da pesquisa (bolsa do canto): a barra à ESQUERDA e, à direita, um botão pequeno: "⤢ Criar/editar" na aba Tokens e
@@ -1062,10 +1145,10 @@
             }
 
             /* Bolsa EXPANDIDA: cobre quase a tela toda; só uma margem separa dela o fundo do site. */
-            #canto-inferior-direito.bolsa-aberta {
-                z-index: 35 !important; /* acima do chat, da barra e dos painéis (!important: as caixas arrastadas ganham um z-index próprio, de 11 a 16) */
+            #chat.bolsa-aberta {
+                z-index: 35 !important; /* acima da barra e dos painéis (!important: as caixas arrastadas ganham um z-index próprio, de 11 a 16) */
             }
-            #canto-inferior-direito.bolsa-aberta::before {
+            #chat.bolsa-aberta::before {
                 content: "";
                 position: fixed;
                 inset: 0;
@@ -1081,6 +1164,9 @@
                 grid-template-rows: auto minmax(0, 1fr);
                 gap: 12px 24px;
                 cursor: default;
+                border: 1px solid #3a3a45;
+                border-radius: 10px;
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
                 background: #22222a; /* opaco: sem isto o chat e a barra apareceriam por baixo */
             }
             #bolsa.expandida .bolsa-topo {
@@ -1717,11 +1803,14 @@
             #bolsa:not(.expandida) #bolsa-conteudo,
             #bolsa:not(.expandida) #bolsa-fichas {
                 position: relative;
-                height: calc(3 * 72px + 2 * 6px);
+                flex: 1 1 auto; /* a lista ocupa TODA a altura que sobra na coluna (e rola depois disso) */
+                min-height: 0;
             }
             #bolsa:not(.expandida) #bolsa-itens,
             #bolsa:not(.expandida) #bolsa-fichas-lista {
+                grid-template-columns: repeat(4, minmax(0, 1fr)); /* a coluna tem 320 px: 4 por linha */
                 grid-auto-rows: 72px;
+                align-content: start;
                 height: 100%;
                 max-height: none;
                 box-sizing: border-box;
@@ -3284,279 +3373,229 @@
     <body>
         <div id="app"></div>
 
-        <!-- Painel de desenho (esquerda): ferramentas, cor e "Apagar tudo". Ids usados no ui/painelDesenho.ts. -->
-        <aside id="ferramentas-desenho">
-            <div class="cabecalho">
-                <h1>Desenho</h1>
-                <button id="desenho-alternar" title="Recolher painel" aria-expanded="true">▴</button>
-            </div>
 
-            <div class="conteudo">
-                <section>
-                    <h2>Modo</h2>
-                    <div id="lista-ferramentas">
-                        <button
-                            class="botao-largo ativo"
-                            data-ferramenta="mover"
-                            aria-pressed="true"
-                            title="Mover tokens e a visão (Esc)"
-                        >
-                            Mover
-                        </button>
-                        <button
-                            class="botao-largo"
-                            data-ferramenta="regua"
-                            aria-pressed="false"
-                            title="Medir a distância (1 casa = 1,5 m). Para medir curvas: com o botão esquerdo apertado, clique com o direito para fixar um ponto"
-                        >
-                            Régua
-                        </button>
-                        <button
-                            class="botao-largo"
-                            data-ferramenta="lapis"
-                            aria-pressed="false"
-                            title="Desenhar à mão livre"
-                        >
-                            ✎ Lápis
-                        </button>
-                        <button
-                            class="botao-largo"
-                            data-ferramenta="borracha"
-                            aria-pressed="false"
-                            title="Apagar o desenho que ela tocar"
-                        >
-                            ⌫ Borracha
-                        </button>
-                        <button
-                            class="botao-largo"
-                            data-ferramenta="elipse"
-                            aria-pressed="false"
-                            title="Elipse: arraste de um canto ao oposto da caixa (só contorno)"
-                        >
-                            ◯ Elipse
-                        </button>
-                        <button
-                            class="botao-largo"
-                            data-ferramenta="retangulo"
-                            aria-pressed="false"
-                            title="Retângulo: arraste de um canto ao oposto (só contorno)"
-                        >
-                            ▭ Retângulo
-                        </button>
-                        <button
-                            class="botao-largo"
-                            data-ferramenta="triangulo"
-                            aria-pressed="false"
-                            title="Triângulo: arraste os cantos da caixa dele (só contorno)"
-                        >
-                            △ Triângulo
-                        </button>
-                    </div>
-                    <div id="regua-resultado" hidden></div>
-                </section>
 
-                <section>
-                    <h2>Cor</h2>
-                    <div id="desenho-amostras"></div>
-                    <input
-                        id="desenho-cor"
-                        type="color"
-                        value="#ff5252"
-                        aria-label="Escolher outra cor"
-                        title="Escolher outra cor"
-                    />
-                </section>
 
-                <section>
-                    <button id="desenho-apagar-tudo" class="botao-largo" title="Apagar todas as pinturas do mapa">
-                        Apagar tudo
-                    </button>
-                </section>
-            </div>
-        </aside>
-
-        <!-- Barra de ferramentas. Os ids são usados no ui/barra.ts. -->
-        <aside id="barra">
-            <div class="cabecalho">
-                <h1>Ferramentas</h1>
-                <button id="barra-alternar" title="Recolher barra" aria-expanded="true">▴</button>
-            </div>
-
-            <div class="conteudo">
-                <section>
-                    <h2>Zoom</h2>
-                    <div class="controle">
-                        <button id="zoom-menos" title="Diminuir zoom (afastar)">−</button>
-                        <span id="zoom-valor">100%</span>
-                        <button id="zoom-mais" title="Aumentar zoom (aproximar)">+</button>
-                    </div>
-                    <button id="zoom-ajustar" class="botao-largo" title="Ajustar o tabuleiro inteiro à janela">
-                        Ajustar à tela
-                    </button>
-                </section>
-
-                <section>
-                    <h2>Colunas</h2>
-                    <div class="controle">
-                        <button id="colunas-menos" title="Remover uma coluna">−</button>
-                        <input
-                            id="colunas-valor"
-                            type="number"
-                            min="5"
-                            max="100"
-                            step="1"
-                            value="18"
-                            aria-label="Número de colunas"
-                            title="Digite o número de colunas e aperte Enter"
-                        />
-                        <button id="colunas-mais" title="Adicionar uma coluna">+</button>
-                    </div>
-                </section>
-
-                <section>
-                    <h2>Linhas</h2>
-                    <div class="controle">
-                        <button id="linhas-menos" title="Remover uma linha">−</button>
-                        <input
-                            id="linhas-valor"
-                            type="number"
-                            min="5"
-                            max="100"
-                            step="1"
-                            value="10"
-                            aria-label="Número de linhas"
-                            title="Digite o número de linhas e aperte Enter"
-                        />
-                        <button id="linhas-mais" title="Adicionar uma linha">+</button>
-                    </div>
-                </section>
-
-                <section>
-                    <h2>Mapa</h2>
-                    <button
-                        id="mapa-escolher"
-                        class="botao-largo"
-                        style="margin-top: 0"
-                        title="Escolher uma imagem do seu computador como mapa"
-                    >
-                        Escolher mapa
-                    </button>
-                    <input id="mapa-arquivo" type="file" accept="image/*" hidden />
-                    <button
-                        id="calibrar-alternar"
-                        class="botao-largo"
-                        aria-pressed="false"
-                        title="Descobrir as colunas e linhas medindo as casas do mapa"
-                    >
-                        Calibrar grade
-                    </button>
-                </section>
-
-                <section>
-                    <button
-                        id="voltar-padrao"
-                        class="botao-largo"
-                        style="margin-top: 0"
-                        title="Zoom em 100% e tabuleiro com o tamanho inicial (18 × 10)"
-                    >
-                        Voltar ao padrão
-                    </button>
-                    <button
-                        id="reorganizar-telas"
-                        class="botao-largo"
-                        style="margin-top: 6px"
-                        title="Leva o chat, os dados, as ferramentas, o desenho e a bolsa de volta ao lugar de fábrica"
-                    >
-                        Reorganizar telas
-                    </button>
-                </section>
-            </div>
-        </aside>
-
-        <!-- Painel de DADOS: uma caixa flutuante como Ferramentas e Desenho (cabeçalho com o nome e o botão de recolher). Ids usados no ui/painelDados.ts. -->
-        <aside id="dados" aria-label="Dados">
-            <div class="cabecalho">
-                <h1>Dados</h1>
-                <button id="dados-alternar" title="Recolher os dados" aria-expanded="true">▴</button>
-            </div>
-            <div id="dados-conteudo">
-                <div id="dados-coluna-dados">
-                    <div id="dados-lados"></div>
-                    <div id="dados-coluna-valores">
-                        <div class="dados-campo">
-                            <label for="dados-qtd">Quantidade</label>
-                            <div class="dados-linha">
-                                <button id="dados-qtd-menos" title="Um dado a menos">−</button>
-                                <input id="dados-qtd" type="number" min="1" max="99" step="1" value="1" aria-label="Quantidade de dados" />
-                                <button id="dados-qtd-mais" title="Um dado a mais">+</button>
-                            </div>
-                        </div>
-                        <div class="dados-campo">
-                            <label for="dados-mod">Modificador</label>
-                            <div class="dados-linha">
-                                <button id="dados-mod-menos" title="Modificador menos 1">−</button>
-                                <input id="dados-mod" type="number" min="-99" max="99" step="1" value="0" aria-label="Modificador" />
-                                <button id="dados-mod-mais" title="Modificador mais 1">+</button>
-                            </div>
-                        </div>
-                    </div>
+        <!-- A PILHA de barras, na borda esquerda: "Desenho" e "Ferramentas", todas com a MESMA largura. Clicar numa barra abre o conteúdo dela numa gaveta ao
+             lado (na parede direita da barra); arrastar uma barra troca a ordem. Ids e regras no ui/pilha.ts. -->
+        <div id="pilha">
+            <!-- Painel de desenho (1ª barra da pilha): ferramentas, cor e "Apagar tudo". Ids usados no ui/painelDesenho.ts. -->
+            <aside id="ferramentas-desenho" class="caixa-pilha">
+                <div class="cabecalho">
+                    <h1>Desenho</h1>
+                    <button id="desenho-alternar" title="Recolher painel" aria-expanded="true"><span class="seta" aria-hidden="true">▴</span></button>
                 </div>
-                <div id="dados-coluna-rolar">
-                    <label id="dados-rolar-rotulo" for="dados-rolar">Rolar</label>
-                    <button id="dados-rolar" class="botao-largo" aria-label="Rolar os dados">1d20</button>
+
+                <div class="conteudo">
+                    <section>
+                        <h2>Modo</h2>
+                        <div id="lista-ferramentas">
+                            <button
+                                class="botao-largo ativo"
+                                data-ferramenta="mover"
+                                aria-pressed="true"
+                                title="Mover tokens e a visão (Esc)"
+                            >
+                                Mover
+                            </button>
+                            <button
+                                class="botao-largo"
+                                data-ferramenta="regua"
+                                aria-pressed="false"
+                                title="Medir a distância (1 casa = 1,5 m). Para medir curvas: com o botão esquerdo apertado, clique com o direito para fixar um ponto"
+                            >
+                                Régua
+                            </button>
+                            <button
+                                class="botao-largo"
+                                data-ferramenta="lapis"
+                                aria-pressed="false"
+                                title="Desenhar à mão livre"
+                            >
+                                ✎ Lápis
+                            </button>
+                            <button
+                                class="botao-largo"
+                                data-ferramenta="borracha"
+                                aria-pressed="false"
+                                title="Apagar o desenho que ela tocar"
+                            >
+                                ⌫ Borracha
+                            </button>
+                            <button
+                                class="botao-largo"
+                                data-ferramenta="elipse"
+                                aria-pressed="false"
+                                title="Elipse: arraste de um canto ao oposto da caixa (só contorno)"
+                            >
+                                ◯ Elipse
+                            </button>
+                            <button
+                                class="botao-largo"
+                                data-ferramenta="retangulo"
+                                aria-pressed="false"
+                                title="Retângulo: arraste de um canto ao oposto (só contorno)"
+                            >
+                                ▭ Retângulo
+                            </button>
+                            <button
+                                class="botao-largo"
+                                data-ferramenta="triangulo"
+                                aria-pressed="false"
+                                title="Triângulo: arraste os cantos da caixa dele (só contorno)"
+                            >
+                                △ Triângulo
+                            </button>
+                        </div>
+                        <div id="regua-resultado" hidden></div>
+                    </section>
+
+                    <section>
+                        <h2>Cor</h2>
+                        <div id="desenho-amostras"></div>
+                        <input
+                            id="desenho-cor"
+                            type="color"
+                            value="#ff5252"
+                            aria-label="Escolher outra cor"
+                            title="Escolher outra cor"
+                        />
+                    </section>
+
+                    <section>
+                        <button id="desenho-apagar-tudo" class="botao-largo" title="Apagar todas as pinturas do mapa">
+                            Apagar tudo
+                        </button>
+                    </section>
                 </div>
+            </aside>
+
+            <!-- Barra de ferramentas (2ª barra da pilha). Os ids são usados no ui/barra.ts. -->
+            <aside id="barra" class="caixa-pilha">
+                <div class="cabecalho">
+                    <h1>Ferramentas</h1>
+                    <button id="barra-alternar" title="Recolher barra" aria-expanded="true"><span class="seta" aria-hidden="true">▴</span></button>
+                </div>
+
+                <div class="conteudo">
+                    <section>
+                        <h2>Zoom</h2>
+                        <div class="controle">
+                            <button id="zoom-menos" title="Diminuir zoom (afastar)">−</button>
+                            <span id="zoom-valor">100%</span>
+                            <button id="zoom-mais" title="Aumentar zoom (aproximar)">+</button>
+                        </div>
+                        <button id="zoom-ajustar" class="botao-largo" title="Ajustar o tabuleiro inteiro à janela">
+                            Ajustar à tela
+                        </button>
+                    </section>
+
+                    <section>
+                        <h2>Colunas</h2>
+                        <div class="controle">
+                            <button id="colunas-menos" title="Remover uma coluna">−</button>
+                            <input
+                                id="colunas-valor"
+                                type="number"
+                                min="5"
+                                max="100"
+                                step="1"
+                                value="18"
+                                aria-label="Número de colunas"
+                                title="Digite o número de colunas e aperte Enter"
+                            />
+                            <button id="colunas-mais" title="Adicionar uma coluna">+</button>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h2>Linhas</h2>
+                        <div class="controle">
+                            <button id="linhas-menos" title="Remover uma linha">−</button>
+                            <input
+                                id="linhas-valor"
+                                type="number"
+                                min="5"
+                                max="100"
+                                step="1"
+                                value="10"
+                                aria-label="Número de linhas"
+                                title="Digite o número de linhas e aperte Enter"
+                            />
+                            <button id="linhas-mais" title="Adicionar uma linha">+</button>
+                        </div>
+                    </section>
+
+                    <section>
+                        <h2>Mapa</h2>
+                        <button
+                            id="mapa-escolher"
+                            class="botao-largo"
+                            style="margin-top: 0"
+                            title="Escolher uma imagem do seu computador como mapa"
+                        >
+                            Escolher mapa
+                        </button>
+                        <input id="mapa-arquivo" type="file" accept="image/*" hidden />
+                        <button
+                            id="calibrar-alternar"
+                            class="botao-largo"
+                            aria-pressed="false"
+                            title="Descobrir as colunas e linhas medindo as casas do mapa"
+                        >
+                            Alinhar mapa
+                        </button>
+                    </section>
+
+                    <section>
+                        <button
+                            id="voltar-padrao"
+                            class="botao-largo"
+                            style="margin-top: 0"
+                            title="Zoom em 100% e tabuleiro com o tamanho inicial (18 × 10)"
+                        >
+                            Voltar ao padrão
+                        </button>
+                        <button
+                            id="reorganizar-telas"
+                            class="botao-largo"
+                            style="margin-top: 6px"
+                            title="Devolve as barras da esquerda (Desenho e Ferramentas) à ordem de fábrica"
+                        >
+                            Reorganizar telas
+                        </button>
+                    </section>
+                </div>
+            </aside>
+        </div>
+
+        <!-- A COLUNA da direita (altura toda): no alto, as ABAS "Chat" e "Bolsa"; embaixo, o painel da aba escolhida. O chat e a bolsa têm o MESMO tamanho
+             (o da coluna). A classe `aba-bolsa` do #chat diz qual está à vista. Ids usados no ui/lateral.ts, ui/chat.ts e ui/bolsa.ts. -->
+        <section id="chat" aria-label="Chat e bolsa">
+            <div id="lateral-abas" role="tablist" aria-label="Painéis da coluna da direita">
+                <button id="lateral-aba-chat" class="lateral-aba" role="tab" data-aba="chat" aria-selected="false" aria-controls="chat-painel" tabindex="-1">
+                    Chat<span id="lateral-novas" hidden></span>
+                </button>
+                <button id="lateral-aba-bolsa" class="lateral-aba" role="tab" data-aba="bolsa" aria-selected="true" aria-controls="bolsa">Bolsa</button>
             </div>
-        </aside>
-
-        <!-- Chat (coluna fixa na direita): mensagens de cima para baixo, a mais nova embaixo. Ids usados no ui/chat.ts. -->
-        <section id="chat" aria-label="Chat">
-            <div id="chat-faixa" tabindex="0"></div>
-            <!-- Aviso de mensagem nova: só aparece quando chega mensagem com a lista ROLADA para cima (a pessoa está lendo as antigas). -->
-            <button id="chat-novas" type="button" hidden aria-label="Ir para a mensagem mais recente">↓ Novas mensagens</button>
-            <form id="chat-form" autocomplete="off">
-                <input id="chat-texto" type="text" placeholder="Escreva uma mensagem" aria-label="Mensagem do chat" />
-                <span id="chat-contador" title="Caracteres usados / limite">0/72</span>
-                <button id="chat-enviar" type="submit">Enviar</button>
-            </form>
-        </section>
-
-        <!-- Painel da calibragem, no canto inferior direito (escondido até ligar "Calibrar grade"). Ids usados no ui/painelCalibragem.ts. -->
-        <div id="canto-inferior-direito">
-            <div
-                id="painel-calibragem"
-                hidden
-                title="Dica: o botão direito (ou o do meio) do mouse move a visão enquanto você calibra."
-            >
-                <h2>Calibrar grade</h2>
-                <p>
-                    Para calibrar, selecione
-                    <input
-                        id="calibragem-casas"
-                        type="number"
-                        min="1"
-                        max="50"
-                        value="5"
-                        aria-label="Quadrados por lado"
-                    />
-                    × <span id="calibragem-casas-eco">5</span> quadrados de altura e largura.
-                </p>
-                <p class="secundario">
-                    OU, você pode contar o total de quadrados vertical e horizontal e aplicar manualmente.
-                </p>
-                <div id="calibragem-resultado" aria-live="polite"></div>
-                <button id="calibragem-concluir" class="botao-largo" title="Sair da calibragem sem medir (Esc)">Cancelar</button>
+            <!-- Painel do CHAT: mensagens de cima para baixo, a mais nova embaixo. -->
+            <div id="chat-painel">
+                <div id="chat-faixa" tabindex="0"></div>
+                <!-- Aviso de mensagem nova: só aparece quando chega mensagem com a lista ROLADA para cima (a pessoa está lendo as antigas). -->
+                <button id="chat-novas" type="button" hidden aria-label="Ir para a mensagem mais recente">↓ Novas mensagens</button>
+                <form id="chat-form" autocomplete="off">
+                    <input id="chat-texto" type="text" placeholder="Escreva uma mensagem" aria-label="Mensagem do chat" />
+                    <span id="chat-contador" title="Caracteres usados / limite">0/72</span>
+                    <button id="chat-enviar" type="submit">Enviar</button>
+                </form>
             </div>
-
-            <!-- Bolsa: guarda tokens (arrastar do mapa para cá e daqui para o mapa). Ids usados no ui/bolsa.ts. -->
-            <!-- A VAGA da bolsa: invisível, com a altura da bolsa aberta (medida no ui/bolsa.ts); a bolsa fica no topo dela e cresce para baixo. -->
-            <div id="bolsa-vaga">
+            <!-- Bolsa: guarda tokens e fichas (arrastar do mapa para cá e daqui para o mapa). Ids usados no ui/bolsa.ts. -->
             <aside id="bolsa" aria-label="Bolsa de tokens">
                 <div class="bolsa-topo">
                     <span class="bolsa-titulo">Bolsa</span>
-                    <!-- Os botões do alto, IGUAIS nas duas abas: ⤢ abre a bolsa em TELA CHEIA (criar e editar tokens e fichas) e ▴/▾ minimiza,
-                         como nos outros painéis. Clicar no NOME ("Bolsa") também minimiza/expande. -->
+                    <!-- O botão do alto, igual nas duas abas: ⤢ abre a bolsa em TELA CHEIA (criar e editar tokens e fichas). (A bolsa não se minimiza mais:
+                         ela é uma aba da coluna da direita.) -->
                     <button id="bolsa-gerenciar" class="bolsa-icone" title="Criar e editar (tela cheia)" aria-label="Abrir a bolsa em tela cheia">⤢</button>
-                    <button id="bolsa-alternar" class="bolsa-icone" title="Recolher a bolsa" aria-expanded="true">▴</button>
                     <!-- Pesquisa as fichas pelo nome (ou pelo tamanho, ex.: 3x3). -->
                     <input type="search" id="bolsa-busca" placeholder="Pesquisar token…" aria-label="Pesquisar token" autocomplete="off" />
                     <!-- A pesquisa da aba FICHAS: é outro campo, independente da dos tokens (cada aba tem o seu texto e o seu filtro). -->
@@ -3626,7 +3665,7 @@
                     <input type="color" id="bolsa-cor-borda" title="Outra cor de borda" aria-label="Outra cor de borda" />
                     <button id="bolsa-criar-botao" class="botao-largo">Criar token</button>
                     <p id="bolsa-aviso" aria-live="polite"></p>
-                </section>
+        </section>
                 <!-- Aba FICHAS: um botão "Criar ficha" e a GRADE de documentos (organizada como a de tokens). Cada ficha é um arquivo
                      guardado no servidor, criado no instante do clique. Os nomes começam com "bolsa-ficha"/"bolsa-doc" para não se
                      misturar com a classe ".ficha", que é a fichinha de um TOKEN na aba Tokens. Ids usados no ui/bolsa.ts. -->
@@ -3641,9 +3680,74 @@
                     <ul id="bolsa-fichas-lista"></ul>
                 </section>
             </aside>
+                    <!-- Painel de DADOS: uma BARRA no pé da coluna da direita (embaixo do chat ou da bolsa). Clicar nela expande a caixa de dados ali mesmo (para cima). Ids usados no ui/painelDados.ts. -->
+            <aside id="dados" aria-label="Dados">
+                <div class="cabecalho">
+                    <h1>Dados</h1>
+                    <button id="dados-alternar" title="Recolher os dados" aria-expanded="true"><span class="seta" aria-hidden="true">▴</span></button>
+                </div>
+                <div id="dados-conteudo">
+                    <div id="dados-coluna-dados">
+                        <div id="dados-lados"></div>
+                        <div id="dados-coluna-valores">
+                            <div class="dados-campo">
+                                <label for="dados-qtd">Quantidade</label>
+                                <div class="dados-linha">
+                                    <button id="dados-qtd-menos" title="Um dado a menos">−</button>
+                                    <input id="dados-qtd" type="number" min="1" max="99" step="1" value="1" aria-label="Quantidade de dados" />
+                                    <button id="dados-qtd-mais" title="Um dado a mais">+</button>
+                                </div>
+                            </div>
+                            <div class="dados-campo">
+                                <label for="dados-mod">Modificador</label>
+                                <div class="dados-linha">
+                                    <button id="dados-mod-menos" title="Modificador menos 1">−</button>
+                                    <input id="dados-mod" type="number" min="-99" max="99" step="1" value="0" aria-label="Modificador" />
+                                    <button id="dados-mod-mais" title="Modificador mais 1">+</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="dados-coluna-rolar">
+                        <label id="dados-rolar-rotulo" for="dados-rolar">Rolar</label>
+                        <button id="dados-rolar" class="botao-largo" aria-label="Rolar os dados">1d20</button>
+                    </div>
+                </div>
+            </aside>
+        </section>
+
+        <!-- Painel da calibragem, no canto inferior direito (escondido até ligar "Alinhar mapa"). Ids usados no ui/painelCalibragem.ts. -->
+        <div id="canto-inferior-direito">
+            <div
+                id="painel-calibragem"
+                hidden
+                title="Dica: o botão direito (ou o do meio) do mouse move a visão enquanto você calibra."
+            >
+                <h2>Alinhar mapa</h2>
+                <p>
+                    Para calibrar, selecione
+                    <input
+                        id="calibragem-casas"
+                        type="number"
+                        min="1"
+                        max="50"
+                        value="5"
+                        aria-label="Quadrados por lado"
+                    />
+                    × <span id="calibragem-casas-eco">5</span> quadrados do mapa de altura e largura.
+                </p>
+                <p class="secundario">
+                    OU, você pode contar o total de quadrados vertical e horizontal do mapa e aplicar manualmente.
+                </p>
+                <div id="calibragem-resultado" aria-live="polite"></div>
+                <button id="calibragem-concluir" class="botao-largo" title="Sair da calibragem sem medir (Esc)">Cancelar</button>
             </div>
+
             <input type="file" id="bolsa-arquivo" accept="image/*" hidden />
         </div>
+
+        <!-- Aviso curto da PREVISÃO de colunas e linhas ao escolher um mapa (preenchido e escondido pelo src/main.ts). -->
+        <div id="aviso-mapa" role="status" hidden title="Clique para fechar"></div>
 
         <!-- Status do modo online (só aparece com ?online no endereço). Id usado no ui/statusRede.ts. -->
         <div id="rede-status" hidden role="status" aria-live="polite"></div>
@@ -3958,37 +4062,44 @@
                     var el = document.getElementById(id);
                     if (el) el.classList.toggle(classe, ligado);
                 }
-                function texto(seletor, valor) {
+                // O botão da seta (▴) ganha a classe "recolhido": o CSS gira a seta (a mesma regra do ui/barra.ts, painelDesenho.ts e painelDados.ts).
+                function marcarSeta(seletor) {
                     var el = document.querySelector(seletor);
-                    if (el) el.textContent = valor;
+                    if (el) el.classList.add("recolhido");
                 }
-                // As posições das caixas arrastadas (ui/arrastar.ts guarda "x,y" em tabuleirinho.pos.<id>).
-                ["barra", "ferramentas-desenho", "dados", "bolsa"].forEach(function (id) {
+                // A PILHA de barras (ui/pilha.ts): a ordem guardada (`order` do CSS) e qual gaveta estava aberta (só UMA por vez; sem escolha guardada: nenhuma).
+                var padraoPilha = ["ferramentas-desenho", "barra"];
+                var guardadaPilha = (ler("tabuleirinho.pilha.ordem") || "").split(",");
+                var ordemPilha = guardadaPilha.length === 2 && padraoPilha.every(function (id) { return guardadaPilha.indexOf(id) >= 0; }) ? guardadaPilha : padraoPilha;
+                ordemPilha.forEach(function (id, i) {
                     var el = document.getElementById(id);
-                    var partes = (ler("tabuleirinho.pos." + id) || "").split(",");
-                    var x = Number(partes[0]);
-                    var y = Number(partes[1]);
-                    if (el && partes.length === 2 && isFinite(x) && isFinite(y)) el.style.translate = x + "px " + y + "px";
+                    if (el) el.style.order = String(i);
                 });
-                var barra = ler("tabuleirinho.barra.recolhida") !== "0"; // sem escolha guardada: RECOLHIDA (só a bolsa começa aberta)
-                marcar("barra", "recolhida", barra);
-                if (barra) texto("#barra-alternar", "\u25BE"); // ▾ = expandir
-                var desenho = ler("tabuleirinho.desenho.recolhido") !== "0";
-                marcar("ferramentas-desenho", "recolhida", desenho);
-                if (desenho) texto("#desenho-alternar", "\u25BE");
-                // A altura da bolsa aberta, medida da última vez (senão ela começaria 6 px fora do lugar e pularia quando o app a medisse).
-                var alturaBolsa = Number(ler("tabuleirinho.bolsa.altura"));
-                var vaga = document.getElementById("bolsa-vaga");
-                if (vaga && isFinite(alturaBolsa) && alturaBolsa > 100 && alturaBolsa < 1000) document.documentElement.style.setProperty("--altura-bolsa", alturaBolsa + "px");
+                var jaAberta = false;
+                ordemPilha.forEach(function (id) {
+                    var chave = id === "barra" ? "tabuleirinho.barra.recolhida" : "tabuleirinho.desenho.recolhido";
+                    var recolhida = ler(chave) !== "0" || jaAberta; // (duas abertas por engano: vale a de cima)
+                    if (!recolhida) jaAberta = true;
+                    marcar(id, "recolhida", recolhida);
+                    if (recolhida) marcarSeta("#" + (id === "barra" ? "barra" : "desenho") + "-alternar"); // (a seta ▸ quando recolhida: ver .seta no CSS)
+                });
                 // Libera os painéis escondidos até o app montar (ver o CSS "app-pronta"), mesmo se o app falhar.
                 setTimeout(function () { document.body.classList.add("app-pronta"); }, 3000);
                 marcar("bolsa", "aba-fichas", ler("tabuleirinho.bolsa.aba") === "fichas");
-                var bolsaRecolhida = ler("tabuleirinho.bolsa.recolhida") === "1";
-                marcar("bolsa", "recolhida", bolsaRecolhida);
-                if (bolsaRecolhida) texto("#bolsa-alternar", "\u25BE");
+                // A aba da coluna da direita ("Chat" ou "Bolsa"): sem escolha guardada, a BOLSA (a mesma regra do src/ui/lateral.ts).
+                var abaLateral = ler("tabuleirinho.lateral.aba") === "chat" ? "chat" : "bolsa";
+                marcar("chat", "aba-bolsa", abaLateral === "bolsa");
+                var botaoBolsa = document.getElementById("lateral-aba-bolsa");
+                var botaoChat = document.getElementById("lateral-aba-chat");
+                if (botaoBolsa && botaoChat) {
+                    botaoBolsa.setAttribute("aria-selected", String(abaLateral === "bolsa"));
+                    botaoChat.setAttribute("aria-selected", String(abaLateral === "chat"));
+                    botaoBolsa.tabIndex = abaLateral === "bolsa" ? 0 : -1;
+                    botaoChat.tabIndex = abaLateral === "chat" ? 0 : -1;
+                }
                 var dados = ler("tabuleirinho.dados.recolhido") !== "0";
                 marcar("dados", "recolhida", dados);
-                if (dados) texto("#dados-alternar", "\u25BE"); // ▾ = expandir
+                if (dados) marcarSeta("#dados-alternar");
             })();
         </script>
         <script type="module" src="/src/main.ts"></script>

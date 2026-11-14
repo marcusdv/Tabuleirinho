@@ -4,9 +4,7 @@
 // "Apagar tudo". A marcação e o CSS ficam no index.html.
 // =====================================================================
 
-import { CHAVE_DESENHO_RECOLHIDO, COR_INICIAL_DESENHO, CORES_FIXAS_DESENHO, CORES_RECENTES_INICIAIS } from "../config";
-import { alternarRecolhida } from "./animarPainel";
-import { guardarPreferencia, lerPreferencia } from "./preferencias";
+import { COR_INICIAL_DESENHO, CORES_FIXAS_DESENHO, CORES_RECENTES_INICIAIS } from "../config";
 import { estado } from "../estado";
 
 export type NomeFerramenta = "mover" | "regua" | "lapis" | "borracha" | "elipse" | "retangulo" | "triangulo";
@@ -111,25 +109,7 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
         if (window.confirm("Apagar todas as pinturas do mapa?")) opcoes.aoApagarTudo();
     });
 
-    // --- Recolher/expandir o painel ---
-    const alternar = pegar<HTMLButtonElement>("desenho-alternar");
-    function mostrarRecolhido(recolhido: boolean): void {
-        painel.classList.toggle("recolhida", recolhido);
-        alternar.textContent = recolhido ? "▾" : "▴"; // ▾ = expandir (para baixo), ▴ = recolher
-        alternar.title = recolhido ? "Expandir painel" : "Recolher painel";
-        alternar.setAttribute("aria-expanded", String(!recolhido));
-    }
-    alternar.addEventListener("click", () => {
-        const recolhido = alternarRecolhida(painel, "recolhida", mostrarRecolhido); // (com animação: a altura cresce/encolhe, de cima para baixo)
-        guardarPreferencia(CHAVE_DESENHO_RECOLHIDO, recolhido ? "1" : "0"); // lembra ao recarregar a página
-    });
-    mostrarRecolhido(lerPreferencia(CHAVE_DESENHO_RECOLHIDO) !== "0"); // (como a pessoa deixou da última vez; sem escolha guardada: RECOLHIDO)
-    // DUPLO clique em QUALQUER ponto da área de cima (o cabeçalho onde fica o nome "Desenho", não só nas letras) recolhe/expande.
-    const cabecalhoDesenho = painel.querySelector<HTMLElement>(".cabecalho")!;
-    cabecalhoDesenho.title = "Duplo clique para recolher ou expandir (arraste para mover)";
-    cabecalhoDesenho.addEventListener("dblclick", (e) => {
-        if (!(e.target as HTMLElement).closest("button, input")) alternar.click();
-    });
+    // (Abrir e fechar o painel é da PILHA de barras: ver ui/pilha.ts.)
 
     function atualizar(): void {
         apagarTudo.disabled = estado.desenhos.length === 0;

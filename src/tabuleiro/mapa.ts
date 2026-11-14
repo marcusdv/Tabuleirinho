@@ -22,6 +22,8 @@ export interface Mapa {
      * Devolve null se deu certo, ou o texto do problema (e o mapa atual continua).
      */
     carregarArquivo(arquivo: File): Promise<string | null>;
+    /** O tamanho ORIGINAL (em pixels) da imagem carregada agora, ou null se não há mapa. */
+    tamanhoDaImagem(): { largura: number; altura: number } | null;
 }
 
 /**
@@ -106,5 +108,9 @@ export function criarMapa(camera: Camera): Mapa {
         }
     }
 
-    return { ajustar, carregar, carregarArquivo };
+    function tamanhoDaImagem(): { largura: number; altura: number } | null {
+        return imagem.visible ? { largura: imagem.texture.width, altura: imagem.texture.height } : null; // (a textura guarda o tamanho original; o Sprite é esticado)
+    }
+
+    return { ajustar, carregar, carregarArquivo, tamanhoDaImagem };
 }

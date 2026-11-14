@@ -127,7 +127,7 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
   - Se o mapa informar o tamanho (ex.: "30×30" no nome ou na descrição), usar esses números.
   - Medir uma casa em pixels e dividir: colunas = largura da imagem ÷ pixels por casa (e o mesmo para as linhas). Se não der inteiro, a medida está errada ou há margem.
   - Tamanhos comuns de casa em pixels (70, 100, 128, 140, 256...) ajudam a reconhecer se a medida faz sentido.
-- **Calibrar grade (já implementada):** botão "Calibrar grade" na barra; o jogador arrasta um retângulo sobre N×N casas do mapa e o site calcula colunas e linhas. Quanto mais casas no retângulo, mais preciso.
+- **Alinhar mapa (já implementada):** botão "Alinhar mapa" na barra; o jogador arrasta um retângulo sobre N×N casas do mapa e o site calcula colunas e linhas. Quanto mais casas no retângulo, mais preciso.
 - **Ainda por fazer:** mostrar o tamanho da imagem em pixels; campo "pixels por casa"; destacar só um eixo da grade por vez; avisar quando a proporção do tabuleiro bater com a da imagem; detecção automática como sugestão.
 
 ## 2. Público
@@ -304,7 +304,7 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 - [x] Ajustar o tabuleiro à janela ao abrir
 - [x] Menu do token afastado do token e com painéis que abrem para cima
 - [x] Imagem de fundo (teste fixo, presa ao tabuleiro)
-- [x] Calibrar grade (arrastar um retângulo sobre N×N casas do mapa)
+- [x] Alinhar mapa (arrastar um retângulo sobre N×N casas do mapa)
 - [x] Botão "Escolher mapa" (arquivo local; falta enviar ao servidor)
 - [x] Régua (com curvas)
 - [x] Desenho livre (lápis, borracha e formas)

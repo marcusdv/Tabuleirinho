@@ -6,11 +6,11 @@
 // --- Preferências guardadas no navegador (localStorage; ver ui/preferencias.ts) ---
 export const CHAVE_ABA_BOLSA = "tabuleirinho.bolsa.aba"; // "tokens" ou "fichas": a última aba escolhida na bolsa
 export const CHAVE_BARRA_RECOLHIDA = "tabuleirinho.barra.recolhida"; // "1" = a barra de Ferramentas está recolhida
+export const CHAVE_ORDEM_PILHA = "tabuleirinho.pilha.ordem"; // a ordem das barras da pilha (Desenho/Ferramentas), ex.: "barra,ferramentas-desenho"; vazio = a de fábrica
 export const CHAVE_DESENHO_RECOLHIDO = "tabuleirinho.desenho.recolhido"; // "1" = o painel de Desenho está recolhido
-export const CHAVE_ALTURA_BOLSA = "tabuleirinho.bolsa.altura"; // a altura (px) da bolsa aberta, medida da última vez: o index.html a aplica antes da primeira pintura
 export const CHAVE_ORDEM_TOKENS = "tabuleirinho.bolsa.ordem.tokens"; // a ordem escolhida na aba Tokens (ver ORDENS em ui/bolsa.ts)
 export const CHAVE_ORDEM_FICHAS = "tabuleirinho.bolsa.ordem.fichas"; // idem na aba Fichas
-export const CHAVE_BOLSA_RECOLHIDA = "tabuleirinho.bolsa.recolhida"; // "1" = a bolsa está minimizada (só o título)
+export const CHAVE_ABA_LATERAL = "tabuleirinho.lateral.aba"; // "chat" ou "bolsa": a aba da coluna da direita (sem escolha guardada: "bolsa"; o index.html repete a regra)
 export const CHAVE_DADOS_RECOLHIDO = "tabuleirinho.dados.recolhido"; // "1" = a barra de dados está recolhida, "0" = aberta (sem valor: abre, salvo em janela baixa)
 // (O index.html repete estas chaves num script que roda ANTES da primeira pintura: se mudar uma aqui, mude lá também.)
 
@@ -23,6 +23,14 @@ export const TAMANHO_CASA = 64; // lado de cada casa, em pixels (no zoom 100%)
 // O mínimo tem que ser >= TAMANHO_MAX_TOKEN, senão um token não caberia.
 export const MIN_CASAS = 5;
 export const MAX_CASAS = 100;
+
+// --- PREVER colunas e linhas de um mapa pelo TAMANHO da imagem (coordenadas.ts: `preverGrade`) ---
+// Muitos mapas prontos são feitos com um número FIXO de pixels por quadrado (70 px é o padrão do Roll20, 50 e 100 px também são comuns). Se a largura e a
+// altura da imagem são (quase) múltiplos exatos de um destes tamanhos, a previsão é tomada como EXATA; a ordem é a de preferência.
+export const TAMANHOS_DE_CASA_COMUNS = [70, 50, 100, 140, 200, 128, 64]; // (50 antes de 100: 1000×700 cabe nos dois, e 20×14 casas é a escala mais comum em mapas táticos)
+export const TOLERANCIA_PX_GRADE = 2; // quantos pixels a imagem pode "sobrar/faltar" para ainda contar como múltiplo exato de uma casa
+export const TEMPO_AVISO_MAPA_MS = 9000; // quanto tempo o aviso da previsão fica na tela
+export const PX_POR_CASA_ESTIMADO = 70; // sem tamanho exato, a estimativa parte de casas de ~70 px (o padrão mais comum)
 
 // --- Mapa (imagem de fundo) ---
 // Imagem carregada ao abrir (teste). Fica em public/, por isso o endereço começa em "/".

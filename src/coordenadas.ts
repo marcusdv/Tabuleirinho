@@ -4,7 +4,18 @@
 // sozinhas e, no futuro, reaproveitadas no servidor.
 // =====================================================================
 
-import { ESPACO_ICONES, ICONE_CONDICAO_BASE, ICONE_CONDICAO_POR_CASA, PARTE_VISIVEL_CAMERA, TAMANHO_CASA } from "./config.ts";
+import {
+    ESPACO_ICONES,
+    ICONE_CONDICAO_BASE,
+    ICONE_CONDICAO_POR_CASA,
+    MAX_CASAS,
+    MIN_CASAS,
+    PARTE_VISIVEL_CAMERA,
+    PX_POR_CASA_ESTIMADO,
+    TAMANHO_CASA,
+    TAMANHOS_DE_CASA_COMUNS,
+    TOLERANCIA_PX_GRADE,
+} from "./config.ts";
 
 /** Limita um valor ao intervalo [min, max]. */
 export function limitar(valor: number, min: number, max: number): number {
@@ -103,4 +114,42 @@ export function gradeParaCasar(
         colunas: Math.round((casas * larguraTabuleiro) / larguraMarcada),
         linhas: Math.round((casas * alturaTabuleiro) / alturaMarcada),
     };
+}
+
+/** A previsão de colunas e linhas de um mapa. */
+export interface PrevisaoDeGrade {
+    colunas: number;
+    linhas: number;
+    /** Quantos pixels da imagem tem cada casa, nessa previsão (para mostrar ao usuário). */
+    pxPorCasa: number;
+    /** true = a imagem é um múltiplo EXATO de um tamanho de casa comum (70, 100, 50...); false = é só uma ESTIMATIVA. */
+    exata: boolean;
+}
+
+/**
+ * PREVÊ as colunas e as linhas de um mapa só pelo TAMANHO da imagem (sem olhar o desenho).
+ *
+ * 1) Tenta os tamanhos de casa comuns (TAMANHOS_DE_CASA_COMUNS, na ordem de preferência): se a largura e a altura são, nos dois eixos, múltiplos de
+ *    um deles com sobra de até TOLERANCIA_PX_GRADE pixels, e as contagens cabem em MIN_CASAS..MAX_CASAS, é uma previsão EXATA (ex.: 1000×700 com casas de
+ *    50 px = 20 × 14).
+ * 2) Senão, ESTIMA: parte de casas de ~PX_POR_CASA_ESTIMADO px e deriva as linhas pela PROPORÇÃO da imagem, para as casas saírem QUADRADAS (um mapa de
+ *    1946×1362 dá 28 colunas e 20 linhas, e não 28 × 19,5 arredondado de forma independente).
+ *
+ * Devolve null se a largura ou a altura não são números positivos. Os valores ficam sempre dentro de MIN_CASAS..MAX_CASAS.
+ */
+export function preverGrade(larguraImagem: number, alturaImagem: number): PrevisaoDeGrade | null {
+    if (!Number.isFinite(larguraImagem) || !Number.isFinite(alturaImagem) || larguraImagem <= 0 || alturaImagem <= 0) return null;
+
+    for (const casa of TAMANHOS_DE_CASA_COMUNS) {
+        const colunas = Math.round(larguraImagem / casa);
+        const linhas = Math.round(alturaImagem / casa);
+        if (colunas < MIN_CASAS || colunas > MAX_CASAS || linhas < MIN_CASAS || linhas > MAX_CASAS) continue;
+        if (Math.abs(larguraImagem - colunas * casa) <= TOLERANCIA_PX_GRADE && Math.abs(alturaImagem - linhas * casa) <= TOLERANCIA_PX_GRADE) {
+            return { colunas, linhas, pxPorCasa: casa, exata: true };
+        }
+    }
+
+    const colunas = limitar(Math.round(larguraImagem / PX_POR_CASA_ESTIMADO), MIN_CASAS, MAX_CASAS);
+    const linhas = limitar(Math.round((colunas * alturaImagem) / larguraImagem), MIN_CASAS, MAX_CASAS); // (casas quadradas: a proporção da imagem)
+    return { colunas, linhas, pxPorCasa: Math.round(larguraImagem / colunas), exata: false };
 }

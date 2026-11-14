@@ -17,11 +17,17 @@ import { estado, type Mensagem } from "../estado";
 export interface OpcoesChat {
     /** O usuário enviou uma mensagem (texto já sem espaços nas pontas e nunca vazio). */
     aoEnviar(texto: string): void;
+    /** O painel do chat está à vista? (Ele fica escondido quando a aba "Bolsa" está aberta: então a lista não rola nem anima.) */
+    visivel(): boolean;
+    /** Chegaram mensagens enquanto o chat estava escondido (a aba "Chat" mostra o contador de não lidas). */
+    aoChegarEscondida(quantas: number): void;
 }
 
 export interface Chat {
     /** Sincroniza a lista com estado.mensagens (só acrescenta o que é novo, com animação). */
     atualizar(): void;
+    /** O chat voltou a ficar à vista (a pessoa abriu a aba "Chat"): leva a lista ao fim, onde está a mensagem mais recente. */
+    mostrou(): void;
 }
 
 function pegar<T extends HTMLElement>(id: string): T {
@@ -264,7 +270,8 @@ export function criarChat(opcoes: OpcoesChat): Chat {
         const novas = estado.mensagens.filter((m) => !cartoes.has(m.id)); // da mais antiga para a mais nova
         if (novas.length === 0) return;
 
-        const acompanhar = cartoes.size === 0 || noFim(); // lista vazia ou já no fim: segue as novas
+        const escondido = !opcoes.visivel(); // (aba "Bolsa" aberta: a lista não tem tamanho, não dá para medir nem rolar)
+        const acompanhar = escondido || cartoes.size === 0 || noFim(); // lista vazia ou já no fim: segue as novas
         const criados = novas.map((mensagem) => {
             const cartao = criarCartao(mensagem);
             cartoes.set(mensagem.id, cartao);
@@ -272,7 +279,9 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             return cartao;
         });
 
-        if (acompanhar) {
+        if (escondido) {
+            opcoes.aoChegarEscondida(novas.length); // sem animação: ninguém está vendo (ao abrir a aba, o chat vai ao fim: ver `mostrou`)
+        } else if (acompanhar) {
             irParaOFim(false);
             if (!reduzirMovimento()) {
                 // Os cartões novos entram com fade e um pequeno deslize vindo da ESQUERDA. (Nunca deslizar na vertical: um cartão fora do fim da
@@ -327,6 +336,11 @@ export function criarChat(opcoes: OpcoesChat): Chat {
         if (e.key === "Escape") campo.blur();
     });
 
+    function mostrou(): void {
+        esconderAvisoDeNovas();
+        irParaOFim(false);
+    }
+
     atualizar();
-    return { atualizar };
+    return { atualizar, mostrou };
 }

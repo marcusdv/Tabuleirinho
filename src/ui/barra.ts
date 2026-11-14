@@ -3,17 +3,15 @@
 // A marcação HTML e o CSS ficam no index.html; aqui só ligamos os botões.
 // =====================================================================
 
-import { CHAVE_BARRA_RECOLHIDA, MAX_CASAS, MIN_CASAS, PASSO_ZOOM, ZOOM_MAX, ZOOM_MIN } from "../config";
-import { alternarRecolhida } from "./animarPainel";
-import { restaurarPosicoes } from "./arrastar";
-import { guardarPreferencia, lerPreferencia } from "./preferencias";
+import { MAX_CASAS, MIN_CASAS, PASSO_ZOOM, ZOOM_MAX, ZOOM_MIN } from "../config";
+import { restaurarPilha } from "./pilha";
 import { estado } from "../estado";
 import type { Camera } from "../tabuleiro/camera";
 
 export interface OpcoesBarra {
     /** Pediu para adicionar/remover colunas e/ou linhas do tabuleiro. */
     aoMudarTamanhoTabuleiro(deltaColunas: number, deltaLinhas: number): void;
-    /** Clicou em "Calibrar grade" (liga ou desliga a ferramenta). */
+    /** Clicou em "Alinhar mapa" (liga ou desliga a ferramenta). */
     aoAlternarCalibragem(): void;
     /** O usuário escolheu um arquivo de imagem para ser o mapa. */
     aoEscolherMapa(arquivo: File): void;
@@ -24,7 +22,7 @@ export interface OpcoesBarra {
 export interface Barra {
     /** Atualiza os números exibidos e desativa botões que chegaram ao limite. */
     atualizar(): void;
-    /** Destaca o botão "Calibrar grade" enquanto a ferramenta está ligada. */
+    /** Destaca o botão "Alinhar mapa" enquanto a ferramenta está ligada. */
     marcarCalibragem(ligada: boolean): void;
 }
 
@@ -93,7 +91,7 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
     ligarCampo("linhas-valor", "linhas");
 
     pegar("voltar-padrao").addEventListener("click", () => opcoes.aoVoltarAoPadrao());
-    pegar("reorganizar-telas").addEventListener("click", restaurarPosicoes); // as caixas arrastadas voltam ao lugar de fábrica
+    pegar("reorganizar-telas").addEventListener("click", restaurarPilha); // as barras da pilha voltam à ordem de fábrica
 
     // "Escolher mapa": o botão aparente abre o seletor de arquivos do navegador
     // (o <input type="file"> fica escondido; o navegador só permite abri-lo por um clique do usuário).
@@ -106,27 +104,7 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
         campoArquivo.value = "";
     });
 
-    // Botão de recolher/expandir: alterna a classe "recolhida" na barra.
-    // O CSS esconde só o conteúdo: o nome "Ferramentas", o botão e a largura continuam, e ao expandir ela cresce para baixo.
-    const barra = pegar("barra");
-    const alternar = pegar<HTMLButtonElement>("barra-alternar");
-    function mostrarRecolhida(recolhida: boolean): void {
-        barra.classList.toggle("recolhida", recolhida);
-        alternar.textContent = recolhida ? "▾" : "▴"; // ▾ = expandir (para baixo), ▴ = recolher
-        alternar.title = recolhida ? "Expandir barra" : "Recolher barra";
-        alternar.setAttribute("aria-expanded", String(!recolhida)); // acessibilidade
-    }
-    alternar.addEventListener("click", () => {
-        const recolhida = alternarRecolhida(barra, "recolhida", mostrarRecolhida); // (com animação: a altura cresce/encolhe, de cima para baixo)
-        guardarPreferencia(CHAVE_BARRA_RECOLHIDA, recolhida ? "1" : "0"); // lembra ao recarregar a página
-    });
-    mostrarRecolhida(lerPreferencia(CHAVE_BARRA_RECOLHIDA) !== "0"); // (como a pessoa deixou da última vez; sem escolha guardada: RECOLHIDA)
-    // DUPLO clique em QUALQUER ponto da área de cima (o cabeçalho onde fica o nome "Ferramentas", não só nas letras) recolhe/expande.
-    const cabecalhoBarra = barra.querySelector<HTMLElement>(".cabecalho")!;
-    cabecalhoBarra.title = "Duplo clique para recolher ou expandir (arraste para mover)";
-    cabecalhoBarra.addEventListener("dblclick", (e) => {
-        if (!(e.target as HTMLElement).closest("button, input")) alternar.click(); // (o botão ▴ tem o seu próprio clique)
-    });
+    // (Abrir e fechar a barra é da PILHA de barras: ver ui/pilha.ts.)
 
     atualizar();
     return { atualizar, marcarCalibragem };

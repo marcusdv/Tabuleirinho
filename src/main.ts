@@ -62,7 +62,8 @@ import {
     receberFicha,
     receberToken,
 } from "./estado";
-import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS, MS_RECARGA_ROLAGEM, RAJADA_ROLAGENS } from "./config";
+import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS, MS_RECARGA_ROLAGEM, RAJADA_ROLAGENS, TEMPO_AVISO_MAPA_MS } from "./config";
+import { preverGrade } from "./coordenadas";
 import { gastar, novoBalde } from "./limite";
 import { criarCalibragem } from "./tabuleiro/calibragem";
 import { criarCamera } from "./tabuleiro/camera";
@@ -85,11 +86,12 @@ import { rolarDados } from "./dados";
 import type { EventoDoServidor } from "./protocolo";
 import { criarRede, type Rede } from "./rede";
 import { criarChat } from "./ui/chat";
+import { criarLateral } from "./ui/lateral";
 import { criarBarra } from "./ui/barra";
 import { criarDicaCondicao } from "./ui/dicaCondicao";
 import { criarMenuToken } from "./ui/menuToken";
 import { criarPainelCalibragem } from "./ui/painelCalibragem";
-import { tornarArrastavel } from "./ui/arrastar";
+import { criarPilha } from "./ui/pilha";
 import { criarPainelDados } from "./ui/painelDados";
 import { criarPainelDesenho, type NomeFerramenta } from "./ui/painelDesenho";
 import { criarStatusRede } from "./ui/statusRede";
@@ -130,8 +132,13 @@ async function iniciar(): Promise<void> {
     // valida, aplica e avisa todos; sem isso (ou sem conexão) tudo vale só localmente, como sempre foi.
     let rede: Rede | null = null;
 
-    // O chat (embaixo, fixo). Local: enviar guarda a mensagem no estado e refaz a faixa. Online: o servidor cria e avisa.
+    // A COLUNA da direita tem duas abas, "Chat" e "Bolsa" (ver ui/lateral.ts). O chat e a lateral dependem um do outro: cada um recebe uma função que só
+    // roda depois de os dois existirem.
+    const lateral = criarLateral({ aoMostrarChat: () => chat.mostrou() });
+    // O chat (coluna da direita). Local: enviar guarda a mensagem no estado e refaz a lista. Online: o servidor cria e avisa.
     const chat = criarChat({
+        visivel: () => lateral.chatVisivel(),
+        aoChegarEscondida: (quantas) => lateral.avisarNovas(quantas),
         aoEnviar: (texto) => {
             if (rede?.ativa) {
                 rede.enviar({ tipo: "enviar_mensagem", texto });
@@ -191,24 +198,9 @@ async function iniciar(): Promise<void> {
         },
     });
 
-    // As cinco caixas da tela podem ser ARRASTADAS pela alça de cada uma (ver ui/arrastar.ts): a posição fica guardada no navegador.
-    const porId = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
-    // TODAS as caixas NÃO PODEM SE BATER: Ferramentas, Desenho, Dados, a bolsa e o chat são paredes umas para as outras (o chat é fixo, não anda,
-    // mas é parede para quem anda). Exceção: a bolsa em TELA CHEIA cobre tudo de propósito, então nessa hora não conta como parede e ninguém a empurra.
-    const caixasDeFerramentas = [porId("barra"), porId("ferramentas-desenho"), porId("dados")];
-    const caixaDoChat = porId("chat");
-    const caixaDaBolsa = porId("bolsa");
-    const bloqueadoresDasFerramentas = (): HTMLElement[] => [...caixasDeFerramentas, caixaDoChat, ...(bolsa.expandida ? [] : [caixaDaBolsa])];
-    for (const caixa of caixasDeFerramentas) tornarArrastavel({ elemento: caixa, alca: caixa.querySelector<HTMLElement>(".cabecalho")!, bloqueadores: bloqueadoresDasFerramentas });
-    // (o chat é uma coluna fixa na borda direita: não é arrastável)
-    tornarArrastavel({
-        elemento: porId("bolsa"),
-        camada: porId("canto-inferior-direito"), // (a bolsa fica dentro desta coluna: é ela que sobe para a frente)
-        alca: porId("bolsa").querySelector<HTMLElement>(".bolsa-topo")!,
-        ignorar: (alvo) => alvo.closest("button, input, #bolsa-abas") !== null,
-        bloqueadores: () => (bolsa.expandida ? [] : [...caixasDeFerramentas, caixaDoChat]),
-        desligado: () => bolsa.expandida, // em tela cheia a bolsa cobre a tela: não anda
-    });
+    // A PILHA de barras da esquerda ("Desenho" e "Ferramentas"): clicar abre a gaveta ao lado; arrastar troca a ordem (ver ui/pilha.ts). As caixas do chat,
+    // da bolsa e dos dados moram na coluna da direita e não se mexem.
+    criarPilha();
 
     const painelCalibragem = criarPainelCalibragem({ aoConcluir: () => ligarCalibragem(false) });
 
@@ -517,7 +509,15 @@ async function iniciar(): Promise<void> {
     });
 
     const tokens = criarTokens(camera, grade, texturas, {
-        sobreBolsa: (ponto) => bolsa.contem(ponto),
+        sobreBolsa: (ponto) => {
+            // Arrastando um token até a COLUNA da direita com a aba "Chat" à vista: a coluna troca sozinha para a "Bolsa" (que estava escondida), e então
+            // o token já pode ser solto nela para ser guardado. (Só roda durante o arrasto de um token: é só aí que o tabuleiro chama esta função.)
+            if (lateral.aba === "chat") {
+                const coluna = (document.getElementById("chat") as HTMLElement).getBoundingClientRect();
+                if (ponto.x >= coluna.left && ponto.x <= coluna.right && ponto.y >= coluna.top && ponto.y <= coluna.bottom) lateral.escolher("bolsa");
+            }
+            return bolsa.contem(ponto);
+        },
         aoMudarSobreBolsa: (sobre) => bolsa.marcarAlvo(sobre),
         aoMudarBolsa: () => bolsa.atualizar(),
         aoMostrarSobreBolsa: (token, centro, diametro, borda) => bolsa.mostrarFantasma(token, centro, diametro, borda),
@@ -546,7 +546,7 @@ async function iniciar(): Promise<void> {
         aoMedir: (colunas, linhas) => painelCalibragem.mostrarMedida(colunas, linhas),
         aoAplicar: (colunas, linhas) => {
             aplicarTamanho(definirTamanhoTabuleiro(colunas, linhas)); // limita a MIN/MAX_CASAS
-            ligarCalibragem(false); // ao SOLTAR já vale: a calibragem se conclui sozinha (a grade volta na hora; para refazer, ligue "Calibrar grade" de novo)
+            ligarCalibragem(false); // ao SOLTAR já vale: a calibragem se conclui sozinha (a grade volta na hora; para refazer, ligue "Alinhar mapa" de novo)
         },
     });
 
@@ -604,18 +604,43 @@ async function iniciar(): Promise<void> {
         camera.centralizar();
     }
 
-    /** Botão "Escolher mapa": troca a imagem de fundo (o tamanho do tabuleiro continua o mesmo). */
+    /**
+     * Botão "Escolher mapa": troca a imagem de fundo e PREVÊ as colunas e as linhas pelo tamanho dela (`preverGrade`, em coordenadas.ts): o tabuleiro já
+     * se ajusta, e um aviso diz o que foi previsto (exato, ou só uma estimativa para a pessoa refinar pelos botões ou por "Alinhar mapa").
+     */
     async function escolherMapa(arquivo: File): Promise<void> {
         const problema = await mapa.carregarArquivo(arquivo); // 1) estado + imagem
         if (problema) {
             alert(problema); // o mapa anterior continua
             return;
         }
-        grade.desenhar(); // 2) a grade se adapta (fundo e cor das linhas dependem de haver mapa)
+        const tamanho = mapa.tamanhoDaImagem();
+        const previsao = tamanho ? preverGrade(tamanho.largura, tamanho.altura) : null;
+        if (tamanho && previsao) {
+            aplicarTamanho(definirTamanhoTabuleiro(previsao.colunas, previsao.linhas)); // 2) estado e desenho do tamanho (tokens fora do tabuleiro são puxados para dentro)
+            camera.ajustar(); // a visão acompanha o tabuleiro novo
+            mostrarAvisoDoMapa(
+                previsao.exata
+                    ? `Mapa de ${tamanho.largura}×${tamanho.altura} px: ${previsao.colunas} colunas × ${previsao.linhas} linhas (casas de ${previsao.pxPorCasa} px).`
+                    : `Estimativa pelo tamanho da imagem (${tamanho.largura}×${tamanho.altura} px): ${previsao.colunas} colunas × ${previsao.linhas} linhas. Ajuste pelos botões ou use "Alinhar mapa".`,
+            );
+        }
+        grade.desenhar(); // 3) a grade se adapta (fundo e cor das linhas dependem de haver mapa)
         barra.atualizar();
     }
 
-    /** Botão "Calibrar grade" da barra: liga se estava desligada, e vice-versa. */
+    // O aviso curto da previsão (some sozinho depois de alguns segundos ou ao clicar nele). O texto entra por textContent.
+    const avisoDoMapa = document.getElementById("aviso-mapa") as HTMLElement;
+    let temporizadorDoAvisoDoMapa: number | undefined;
+    function mostrarAvisoDoMapa(texto: string): void {
+        avisoDoMapa.textContent = texto;
+        avisoDoMapa.hidden = false;
+        window.clearTimeout(temporizadorDoAvisoDoMapa);
+        temporizadorDoAvisoDoMapa = window.setTimeout(() => (avisoDoMapa.hidden = true), TEMPO_AVISO_MAPA_MS);
+    }
+    avisoDoMapa.addEventListener("click", () => (avisoDoMapa.hidden = true));
+
+    /** Botão "Alinhar mapa" da barra: liga se estava desligada, e vice-versa. */
     function alternarCalibragem(): void {
         ligarCalibragem(!calibragem.ativa);
     }
