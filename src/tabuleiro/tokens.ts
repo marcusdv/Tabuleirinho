@@ -42,6 +42,8 @@ export interface OpcoesTokens {
      * criou esta camada manda o pedido ao servidor, que é quem decide.
      */
     aoSoltarToken(token: Token): void;
+    /** Um token que ESTAVA NO MAPA foi solto na bolsa (removido do tabuleiro): `col` e `row` são onde ele estava (para o "Desfazer"). */
+    aoRemoverArrastando(token: Token, col: number, row: number): void;
     /**
      * O token arrastado está SOBRE a bolsa. O canvas fica atrás dos painéis HTML, então o token do canvas
      * se esconde e quem criou esta camada mostra uma cópia em HTML POR CIMA da bolsa: centro e diâmetro
@@ -463,8 +465,10 @@ export function criarTokens(
             const guardar = opcoes.sobreBolsa(ultimoPonto);
 
             if (guardar) {
+                const { col: colAntes, row: rowAntes } = token; // (onde ele estava, para o "Desfazer")
                 guardarToken(token.id); // 1) estado: na bolsa
                 view.raiz.visible = false; // 2) some do tabuleiro
+                if (!veioDaBolsa) opcoes.aoRemoverArrastando(token, colAntes, rowAntes);
             } else {
                 // Encaixe: canto superior esquerdo mais próximo onde o token cabe inteiro.
                 const col = casaMaisProxima(view.raiz.x, token.size, estado.colunas);

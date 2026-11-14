@@ -38,7 +38,7 @@ export function criarPilha(): void {
     const pegar = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
     const barras: Barra[] = [
         { id: "ferramentas-desenho", nome: "Desenho", chave: CHAVE_DESENHO_RECOLHIDO, botao: "desenho-alternar" },
-        { id: "barra", nome: "Ferramentas", chave: CHAVE_BARRA_RECOLHIDA, botao: "barra-alternar" },
+        { id: "barra", nome: "Tabuleiro", chave: CHAVE_BARRA_RECOLHIDA, botao: "barra-alternar" },
     ].map((d) => {
         const caixa = pegar(d.id);
         return { id: d.id, nome: d.nome, chave: d.chave, caixa, botao: pegar(d.botao) as HTMLButtonElement, gaveta: caixa.querySelector<HTMLElement>(".conteudo")!, cabecalho: caixa.querySelector<HTMLElement>(".cabecalho")! };

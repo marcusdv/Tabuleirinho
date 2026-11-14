@@ -3,10 +3,23 @@
 // A marcação HTML e o CSS ficam no index.html; aqui só ligamos os botões.
 // =====================================================================
 
-import { MAX_CASAS, MIN_CASAS, PASSO_ZOOM, ZOOM_MAX, ZOOM_MIN } from "../config";
+import {
+    CHAVE_GRADE,
+    ESPESSURA_GRADE_MAX,
+    ESPESSURA_GRADE_MIN,
+    ESPESSURA_GRADE_PADRAO,
+    MAX_CASAS,
+    MIN_CASAS,
+    PASSO_ESPESSURA_GRADE,
+    PASSO_ZOOM,
+    ZOOM_MAX,
+    ZOOM_MIN,
+} from "../config";
+import { guardarPreferencia, lerPreferencia } from "./preferencias";
 import { restaurarPilha } from "./pilha";
 import { estado } from "../estado";
 import type { Camera } from "../tabuleiro/camera";
+import type { AjustesDaGrade } from "../tabuleiro/grade";
 
 export interface OpcoesBarra {
     /** Pediu para adicionar/remover colunas e/ou linhas do tabuleiro. */
@@ -17,6 +30,8 @@ export interface OpcoesBarra {
     aoEscolherMapa(arquivo: File): void;
     /** Clicou em "Voltar ao padrão" (zoom 100% e tamanho inicial do tabuleiro). */
     aoVoltarAoPadrao(): void;
+    /** A pessoa mudou os ajustes da grade (mostrar, espessura ou cor). */
+    aoMudarGrade(ajustes: AjustesDaGrade): void;
 }
 
 export interface Barra {
@@ -24,6 +39,8 @@ export interface Barra {
     atualizar(): void;
     /** Destaca o botão "Alinhar mapa" enquanto a ferramenta está ligada. */
     marcarCalibragem(ligada: boolean): void;
+    /** Os ajustes da grade guardados no navegador (a camada da grade os aplica ao ser criada). */
+    ajustesDaGrade(): AjustesDaGrade;
 }
 
 /** Atalho para buscar um elemento da página pelo id. */
@@ -104,8 +121,52 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
         campoArquivo.value = "";
     });
 
+    // --- Ajustes da GRADE: mostrar/esconder, espessura da linha e cor. Ficam guardados no navegador. ---
+    const botaoMostrarGrade = pegar<HTMLButtonElement>("grade-mostrar");
+    const valorEspessura = pegar("grade-espessura-valor");
+    const campoCorGrade = pegar<HTMLInputElement>("grade-cor");
+    let ajustesGrade = lerAjustesDaGrade();
+    function mostrarAjustesDaGrade(): void {
+        botaoMostrarGrade.textContent = ajustesGrade.mostrar ? "Esconder grade" : "Mostrar grade";
+        botaoMostrarGrade.setAttribute("aria-pressed", String(!ajustesGrade.mostrar));
+        valorEspessura.textContent = `${String(ajustesGrade.espessura).replace(".", ",")} px`;
+        pegar<HTMLButtonElement>("grade-espessura-menos").disabled = ajustesGrade.espessura <= ESPESSURA_GRADE_MIN;
+        pegar<HTMLButtonElement>("grade-espessura-mais").disabled = ajustesGrade.espessura >= ESPESSURA_GRADE_MAX;
+        campoCorGrade.value = ajustesGrade.cor ?? "#000000";
+        pegar("grade-cor-auto").classList.toggle("escolhido", ajustesGrade.cor === null);
+    }
+    function mudarGrade(mudancas: Partial<AjustesDaGrade>): void {
+        ajustesGrade = { ...ajustesGrade, ...mudancas };
+        mostrarAjustesDaGrade();
+        guardarPreferencia(CHAVE_GRADE, JSON.stringify(ajustesGrade));
+        opcoes.aoMudarGrade(ajustesGrade);
+    }
+    botaoMostrarGrade.addEventListener("click", () => mudarGrade({ mostrar: !ajustesGrade.mostrar }));
+    pegar("grade-espessura-menos").addEventListener("click", () => mudarGrade({ espessura: Math.max(ESPESSURA_GRADE_MIN, ajustesGrade.espessura - PASSO_ESPESSURA_GRADE) }));
+    pegar("grade-espessura-mais").addEventListener("click", () => mudarGrade({ espessura: Math.min(ESPESSURA_GRADE_MAX, ajustesGrade.espessura + PASSO_ESPESSURA_GRADE) }));
+    campoCorGrade.addEventListener("input", () => mudarGrade({ cor: campoCorGrade.value })); // (o navegador só devolve "#rrggbb")
+    pegar("grade-cor-auto").addEventListener("click", () => mudarGrade({ cor: null }));
+    mostrarAjustesDaGrade();
+
     // (Abrir e fechar a barra é da PILHA de barras: ver ui/pilha.ts.)
 
     atualizar();
-    return { atualizar, marcarCalibragem };
+    return { atualizar, marcarCalibragem, ajustesDaGrade: () => ajustesGrade };
+}
+
+/** Lê os ajustes da grade guardados; qualquer coisa estranha (ou nada guardado) volta ao padrão. */
+function lerAjustesDaGrade(): AjustesDaGrade {
+    const padrao: AjustesDaGrade = { mostrar: true, espessura: ESPESSURA_GRADE_PADRAO, cor: null };
+    try {
+        const lido: unknown = JSON.parse(lerPreferencia(CHAVE_GRADE) ?? "null");
+        if (typeof lido !== "object" || lido === null) return padrao;
+        const { mostrar, espessura, cor } = lido as Record<string, unknown>;
+        return {
+            mostrar: typeof mostrar === "boolean" ? mostrar : padrao.mostrar,
+            espessura: typeof espessura === "number" && espessura >= ESPESSURA_GRADE_MIN && espessura <= ESPESSURA_GRADE_MAX ? espessura : padrao.espessura,
+            cor: typeof cor === "string" && /^#[0-9a-fA-F]{6}$/.test(cor) ? cor : null,
+        };
+    } catch {
+        return padrao;
+    }
 }

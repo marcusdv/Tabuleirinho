@@ -62,7 +62,7 @@ import {
     receberFicha,
     receberToken,
 } from "./estado";
-import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS, MS_RECARGA_ROLAGEM, RAJADA_ROLAGENS, TEMPO_AVISO_MAPA_MS } from "./config";
+import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS, MS_RECARGA_ROLAGEM, RAJADA_ROLAGENS, SENSIBILIDADE_ZOOM_RODA, TEMPO_AVISO_MAPA_MS, TEMPO_DESFAZER_MS } from "./config";
 import { preverGrade } from "./coordenadas";
 import { gastar, novoBalde } from "./limite";
 import { criarCalibragem } from "./tabuleiro/calibragem";
@@ -87,6 +87,7 @@ import type { EventoDoServidor } from "./protocolo";
 import { criarRede, type Rede } from "./rede";
 import { criarChat } from "./ui/chat";
 import { criarLateral } from "./ui/lateral";
+import { criarAviso } from "./ui/aviso";
 import { criarBarra } from "./ui/barra";
 import { criarDicaCondicao } from "./ui/dicaCondicao";
 import { criarMenuToken } from "./ui/menuToken";
@@ -118,6 +119,28 @@ async function iniciar(): Promise<void> {
     // --- Criação dos módulos (a ORDEM importa: grade antes dos tokens, para
     // os tokens ficarem desenhados por cima da grade) ---
     const camera = criarCamera(app);
+    // Ctrl + RODA do mouse = zoom, em torno do cursor. (preventDefault: sem isso o navegador daria zoom na PÁGINA inteira; por isso o ouvinte não é "passivo".)
+    // Só vale sobre o tabuleiro: os painéis HTML (chat, bolsa, barras) ficam por cima do canvas e recebem a roda deles.
+    app.canvas.addEventListener(
+        "wheel",
+        (e) => {
+            if (!e.ctrlKey) return;
+            e.preventDefault();
+            const retangulo = app.canvas.getBoundingClientRect();
+            const ponto = { x: e.clientX - retangulo.left, y: e.clientY - retangulo.top };
+            camera.aplicarZoom(camera.zoom * Math.exp(-Math.max(-300, Math.min(300, e.deltaY)) * SENSIBILIDADE_ZOOM_RODA), ponto);
+        },
+        { passive: false },
+    );
+    // "Ajustar o mapa à tela" encaixa o mapa entre a pilha de barras (esquerda) e a coluna do chat/bolsa (direita), não atrás deles.
+    camera.areaCoberta = () => {
+        const pilha = document.getElementById("pilha")?.getBoundingClientRect();
+        const coluna = document.getElementById("chat")?.getBoundingClientRect();
+        return {
+            esquerda: pilha ? pilha.right + 8 : 0,
+            direita: coluna ? Math.max(0, window.innerWidth - coluna.left) + 8 : 0,
+        };
+    };
     const mapa = criarMapa(camera); // antes da grade: a imagem fica por baixo de tudo
     const grade = criarGrade(camera);
     // As pinturas ficam por cima do mapa e da grade e por baixo dos tokens (criadas antes deles).
@@ -126,7 +149,8 @@ async function iniciar(): Promise<void> {
         aoCriar: (cor) => painelDesenho.usarCor(cor), // a cor entra na pilha das recentes
     });
 
-    const barra = criarBarra(camera, { aoMudarTamanhoTabuleiro, aoAlternarCalibragem: alternarCalibragem, aoEscolherMapa: escolherMapa, aoVoltarAoPadrao: voltarAoPadrao });
+    const barra = criarBarra(camera, { aoMudarGrade: (ajustes) => grade.definirAjustes(ajustes), aoMudarTamanhoTabuleiro, aoAlternarCalibragem: alternarCalibragem, aoEscolherMapa: escolherMapa, aoVoltarAoPadrao: voltarAoPadrao });
+    grade.definirAjustes(barra.ajustesDaGrade()); // os ajustes da grade que a pessoa deixou guardados (mostrar, espessura e cor)
 
     // O modo ONLINE (protótipo, só com ?online no endereço): enquanto `rede.ativa`, as ações abaixo vão para o SERVIDOR, que
     // valida, aplica e avisa todos; sem isso (ou sem conexão) tudo vale só localmente, como sempre foi.
@@ -218,6 +242,9 @@ async function iniciar(): Promise<void> {
     // e pelo balão do token.
     const dica = criarDicaCondicao();
 
+    // O AVISO curto do canto (com botão de ação opcional, ex.: "Desfazer"): a previsão do mapa, remover token do tabuleiro...
+    const aviso = criarAviso();
+
     // A caixa de confirmar ("Excluir token?"), no lugar da caixa do navegador.
     const confirmacao = criarConfirmacao();
 
@@ -304,17 +331,43 @@ async function iniciar(): Promise<void> {
         return true;
     }
 
-    /** "Guardar na bolsa" da engrenagem: o token sai do mapa. Online o servidor confirma e avisa todos ("token_guardado"). */
-    function guardarNaBolsa(id: number): void {
+    /**
+     * "Remover do tabuleiro" da engrenagem: o token sai do tabuleiro (o modelo CONTINUA na bolsa). Online o servidor confirma e avisa todos
+     * ("token_guardado"). Um aviso com "Desfazer" fica na tela por alguns segundos (`avisarRemocao`).
+     */
+    function removerDoTabuleiro(id: number): void {
+        const token = buscarToken(id);
+        if (!token || token.guardado) return;
+        const { col, row } = token; // (onde ele estava, para o "Desfazer")
         if (rede?.ativa) {
             rede.enviar({ tipo: "guardar_token", id });
+        } else {
+            guardarToken(id); // 1) estado
+            tokens.aplicarPosicao(token); // 2) desenho: o token some do mapa
+            bolsa.atualizar(); // 3) a ficha aparece na bolsa
+        }
+        avisarRemocao(token, col, row);
+    }
+
+    /** O aviso "removido do tabuleiro" com o botão "Desfazer" (vale também quando o token é arrastado até a bolsa). */
+    function avisarRemocao(token: Token, col: number, row: number): void {
+        aviso.mostrar(`"${token.nome}" foi removido do tabuleiro.`, {
+            duracaoMs: TEMPO_DESFAZER_MS,
+            acao: { rotulo: "Desfazer", aoClicar: () => desfazerRemocao(token.id, col, row) },
+        });
+    }
+
+    /** "Desfazer": põe o token de volta onde estava. Só vale se ele ainda existe e continua na bolsa (alguém pode tê-lo excluído ou recolocado). */
+    function desfazerRemocao(id: number, col: number, row: number): void {
+        const token = buscarToken(id);
+        if (!token || !token.guardado) return;
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "colocar_token", id, col, row }); // o servidor confere e avisa todos
             return;
         }
-        const token = buscarToken(id);
-        if (!token) return;
-        guardarToken(id); // 1) estado
-        tokens.aplicarPosicao(token); // 2) desenho: o token some do mapa
-        bolsa.atualizar(); // 3) a ficha aparece na bolsa
+        colocarToken(id, col, row); // 1) estado (tira da bolsa)
+        tokens.aplicarPosicao(token); // 2) desenho: o token volta ao mapa
+        bolsa.atualizar(); // 3) a ficha some da bolsa
     }
 
     /**
@@ -399,11 +452,7 @@ async function iniciar(): Promise<void> {
             const token = buscarToken(id);
             if (token) editorToken.editar(token);
         },
-        aoGuardar: (id) => guardarNaBolsa(id),
-        aoExcluir: (id) => {
-            const token = buscarToken(id);
-            return token ? excluirComConfirmacao(token) : Promise.resolve(false);
-        },
+        aoGuardar: (id) => removerDoTabuleiro(id),
         aoAlternarCondicao: alternarCondicaoDoToken,
         dica,
     });
@@ -520,6 +569,7 @@ async function iniciar(): Promise<void> {
         },
         aoMudarSobreBolsa: (sobre) => bolsa.marcarAlvo(sobre),
         aoMudarBolsa: () => bolsa.atualizar(),
+        aoRemoverArrastando: (token, col, row) => avisarRemocao(token, col, row), // (soltar o token na bolsa também permite "Desfazer")
         aoMostrarSobreBolsa: (token, centro, diametro, borda) => bolsa.mostrarFantasma(token, centro, diametro, borda),
         aoEsconderSobreBolsa: () => bolsa.esconderFantasma(),
         // Online: o token já mudou aqui (para o arrasto ficar fluido) e o servidor é avisado; ele confere e avisa todos.
@@ -629,16 +679,8 @@ async function iniciar(): Promise<void> {
         barra.atualizar();
     }
 
-    // O aviso curto da previsão (some sozinho depois de alguns segundos ou ao clicar nele). O texto entra por textContent.
-    const avisoDoMapa = document.getElementById("aviso-mapa") as HTMLElement;
-    let temporizadorDoAvisoDoMapa: number | undefined;
-    function mostrarAvisoDoMapa(texto: string): void {
-        avisoDoMapa.textContent = texto;
-        avisoDoMapa.hidden = false;
-        window.clearTimeout(temporizadorDoAvisoDoMapa);
-        temporizadorDoAvisoDoMapa = window.setTimeout(() => (avisoDoMapa.hidden = true), TEMPO_AVISO_MAPA_MS);
-    }
-    avisoDoMapa.addEventListener("click", () => (avisoDoMapa.hidden = true));
+    // O aviso da previsão (o cartão do canto, ver ui/aviso.ts).
+    const mostrarAvisoDoMapa = (texto: string): void => aviso.mostrar(texto, { duracaoMs: TEMPO_AVISO_MAPA_MS });
 
     /** Botão "Alinhar mapa" da barra: liga se estava desligada, e vice-versa. */
     function alternarCalibragem(): void {

@@ -4,15 +4,27 @@
 // =====================================================================
 
 import { Graphics } from "pixi.js";
-import { TAMANHO_CASA } from "../config";
+import { ESPESSURA_GRADE_PADRAO, TAMANHO_CASA } from "../config";
 import { estado } from "../estado";
 import type { Camera } from "./camera";
 
+/** Os ajustes da grade que a pessoa escolhe na barra "Tabuleiro". */
+export interface AjustesDaGrade {
+    /** As linhas aparecem? (O destaque da casa de destino do arrasto não é afetado.) */
+    mostrar: boolean;
+    /** Espessura da linha, em pixels NA TELA. 0 = SEM grade (nada é desenhado). */
+    espessura: number;
+    /** Cor da linha ("#rrggbb"), ou null = automática (escura sobre um mapa, cinza sem mapa). */
+    cor: string | null;
+}
+
 export interface Grade {
-    /** (Re)desenha a grade conforme colunas, linhas e zoom atuais. */
+    /** (Re)desenha a grade conforme colunas, linhas, zoom e ajustes atuais. */
     desenhar(): void;
-    /** Mostra ou esconde as linhas da grade (o destaque de arrasto não é afetado). */
+    /** Esconde/mostra as linhas SÓ enquanto se calibra o mapa (a escolha da pessoa, em `definirAjustes`, continua valendo depois). */
     definirVisivel(visivel: boolean): void;
+    /** Aplica os ajustes escolhidos na barra "Tabuleiro" (mostrar, espessura e cor) e redesenha. */
+    definirAjustes(ajustes: AjustesDaGrade): void;
     /** Mostra o destaque com o tamanho de um token, numa casa. */
     mostrarDestaque(size: number, col: number, row: number): void;
     /** Move o destaque para outra casa (canto superior esquerdo). */
@@ -29,6 +41,14 @@ export function criarGrade(camera: Camera): Grade {
     // Os tokens são adicionados depois (em tokens.ts), então ficam acima dos dois.
     camera.mundo.addChild(grade);
     camera.mundo.addChild(destaque);
+
+    // Dois motivos independentes para esconder a grade: a escolha da pessoa (`ajustes.mostrar`) e a calibragem do mapa (que a esconde por um tempo).
+    let ajustes: AjustesDaGrade = { mostrar: true, espessura: ESPESSURA_GRADE_PADRAO, cor: null };
+    let escondidaPelaCalibragem = false;
+    function aplicarVisibilidade(): void {
+        // Esconder (em vez de apagar) mantém o desenho pronto: ao reexibir, nada é refeito.
+        grade.visible = ajustes.mostrar && ajustes.espessura > 0 && !escondidaPelaCalibragem; // (espessura 0 = sem grade)
+    }
 
     function desenhar(): void {
         const largura = estado.colunas * TAMANHO_CASA;
@@ -52,11 +72,9 @@ export function criarGrade(camera: Camera): Grade {
         // A espessura é dividida pelo zoom: como o mundo é escalado, isso mantém
         // a linha com ~1 pixel NA TELA em qualquer zoom (sem sumir nem engrossar).
         // Sobre um mapa, linhas escuras semitransparentes aparecem melhor e deixam a imagem visível.
-        grade.stroke(
-            temMapa
-                ? { width: 1 / camera.zoom, color: 0x000000, alpha: 0.5 }
-                : { width: 1 / camera.zoom, color: 0x55555f },
-        );
+        const largura1 = ajustes.espessura / camera.zoom; // (a espessura escolhida, em pixels da TELA)
+        if (ajustes.cor !== null) grade.stroke({ width: largura1, color: ajustes.cor, alpha: 0.85 }); // a cor escolhida pela pessoa
+        else grade.stroke(temMapa ? { width: largura1, color: 0x000000, alpha: 0.5 } : { width: largura1, color: 0x55555f });
     }
 
     desenhar();
@@ -65,8 +83,14 @@ export function criarGrade(camera: Camera): Grade {
         desenhar,
 
         definirVisivel(visivel) {
-            // Esconder (em vez de apagar) mantém o desenho pronto: ao reexibir, nada é refeito.
-            grade.visible = visivel;
+            escondidaPelaCalibragem = !visivel;
+            aplicarVisibilidade();
+        },
+
+        definirAjustes(novos) {
+            ajustes = { ...novos };
+            aplicarVisibilidade();
+            desenhar(); // espessura e cor mudam o desenho
         },
 
         mostrarDestaque(size, col, row) {

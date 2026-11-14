@@ -48,6 +48,26 @@
                 flex-direction: column;
                 gap: 8px;
             }
+            /* O zoom rápido: uma mini-barra fixa no topo da pilha, com o visual das barras. */
+            #zoom-rapido {
+                box-sizing: border-box;
+                height: 40px;
+                padding: 0 8px;
+                gap: 4px;
+                background: rgba(34, 34, 42, 0.94);
+                border: 1px solid #3a3a45;
+                border-radius: 10px;
+                box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+                user-select: none;
+            }
+            #zoom-rapido button {
+                width: 26px;
+                height: 28px;
+                font-size: 16px;
+            }
+            #zoom-rapido span {
+                font-size: 13px;
+            }
             .caixa-pilha {
                 position: relative; /* a gaveta (.conteudo) é posicionada em relação à barra */
                 width: 100%;
@@ -71,7 +91,7 @@
                 left: calc(100% + 6px);
                 width: var(--largura-barra);
                 box-sizing: border-box;
-                max-height: calc(100vh - 12px - 60px - 12px);
+                max-height: calc(100vh - 12px - 108px - 12px); /* (a pilha começa com o zoom rápido: 48 px a mais) */
                 margin: 0;
                 padding: 10px;
                 overflow-y: auto;
@@ -127,13 +147,16 @@
                 text-transform: uppercase;
                 color: #c9c9d4;
             }
-            /* O aviso da previsão de colunas e linhas ao escolher um mapa: um cartão no canto de baixo, à esquerda da coluna da direita (some sozinho). */
-            #aviso-mapa {
+            /* O AVISO curto (ui/aviso.ts): um cartão no canto de baixo, à esquerda da coluna da direita, que some sozinho; pode ter um botão de ação ("Desfazer"). */
+            #aviso {
                 position: fixed;
                 left: 12px;
                 bottom: 12px;
                 z-index: 30;
-                max-width: min(380px, calc(100vw - 24px - var(--recuo-chat)));
+                display: flex;
+                align-items: center;
+                gap: 14px;
+                max-width: min(420px, calc(100vw - 24px - var(--recuo-chat)));
                 padding: 10px 14px;
                 background: rgba(34, 34, 42, 0.97);
                 border: 1px solid #ffd54f;
@@ -143,8 +166,22 @@
                 line-height: 1.4;
                 cursor: pointer;
             }
-            #aviso-mapa[hidden] {
+            #aviso[hidden] {
                 display: none;
+            }
+            #aviso-acao {
+                flex: none;
+                padding: 4px 12px;
+                background: #5a4a1f;
+                border: 1px solid #ffd54f;
+                border-radius: 6px;
+                color: #ffd54f;
+                font: inherit;
+                font-weight: 600;
+                cursor: pointer;
+            }
+            #aviso-acao:hover {
+                background: #6f5b26;
             }
             /* A SETA dos botões de recolher (Ferramentas, Desenho e Dados): um ▴ que GIRA 180° junto com a caixa, com a mesma duração (260 ms) e a mesma curva
                de ui/animarPainel.ts. Ferramentas e Desenho abrem para o LADO (recolhido = ▸, aberto = ◂); Dados abre para CIMA (recolhido = ▴, aberto = ▾).
@@ -262,6 +299,24 @@
             }
             .controle button:active:not(:disabled) {
                 background: #46465a;
+            }
+            /* A cor da grade: o seletor de cor do navegador, mais baixo que os campos de número; "Auto" é um botão de texto (o escolhido fica dourado). */
+            .controle input[type="color"] {
+                appearance: auto;
+                -moz-appearance: auto;
+                padding: 2px;
+                height: 28px;
+                cursor: pointer;
+            }
+            #grade-cor-auto {
+                width: auto;
+                height: 28px;
+                padding: 0 10px;
+                font-size: 12px;
+            }
+            #grade-cor-auto.escolhido {
+                color: #ffd54f;
+                border-color: #6b5a2a;
             }
             .controle button:disabled {
                 opacity: 0.35;
@@ -1061,17 +1116,24 @@
             .bolsa-icone:hover {
                 background: #3b3b49;
             }
+            /* "Abrir bolsa" (abre a tela cheia): um botão de TEXTO, com mais presença que o antigo ícone ⤢ (dourado, para se notar). */
             #bolsa-gerenciar {
-                margin-left: auto; /* os dois ícones ficam juntos, na ponta direita do título */
-                font-size: 14px;
+                margin-left: auto;
+                height: 26px;
+                padding: 0 12px;
+                font-size: 12px;
+                font-weight: 600;
+                color: #ffd54f;
+                border-color: #6b5a2a;
+                white-space: nowrap;
             }
-            #bolsa.expandida .bolsa-icone {
+            #bolsa.expandida #bolsa-gerenciar {
                 display: none; /* a tela cheia tem o botão Fechar */
             }
             #bolsa:not(.expandida) .bolsa-titulo {
                 display: none; /* na coluna a aba "Bolsa" já diz o nome */
             }
-            /* Na coluna: as abas Tokens/Fichas e o ⤢ (tela cheia) dividem a MESMA linha. */
+            /* Na coluna: as abas Tokens/Fichas e o "Abrir bolsa" (tela cheia) dividem a MESMA linha. */
             #bolsa:not(.expandida) #bolsa-abas {
                 flex: 1 1 0;
                 min-width: 0;
@@ -3379,6 +3441,14 @@
         <!-- A PILHA de barras, na borda esquerda: "Desenho" e "Ferramentas", todas com a MESMA largura. Clicar numa barra abre o conteúdo dela numa gaveta ao
              lado (na parede direita da barra); arrastar uma barra troca a ordem. Ids e regras no ui/pilha.ts. -->
         <div id="pilha">
+            <!-- ZOOM RÁPIDO: fica FIXO acima das barras (não entra na troca de ordem). Os ids são os de sempre, usados em ui/barra.ts. -->
+            <div id="zoom-rapido" class="controle">
+                <button id="zoom-menos" title="Diminuir zoom (afastar)">−</button>
+                <span id="zoom-valor">100%</span>
+                <button id="zoom-mais" title="Aumentar zoom (aproximar)">+</button>
+                <button id="zoom-ajustar" title="Ajustar o mapa à tela">⤢</button>
+            </div>
+
             <!-- Painel de desenho (1ª barra da pilha): ferramentas, cor e "Apagar tudo". Ids usados no ui/painelDesenho.ts. -->
             <aside id="ferramentas-desenho" class="caixa-pilha">
                 <div class="cabecalho">
@@ -3473,23 +3543,11 @@
             <!-- Barra de ferramentas (2ª barra da pilha). Os ids são usados no ui/barra.ts. -->
             <aside id="barra" class="caixa-pilha">
                 <div class="cabecalho">
-                    <h1>Ferramentas</h1>
+                    <h1>Tabuleiro</h1>
                     <button id="barra-alternar" title="Recolher barra" aria-expanded="true"><span class="seta" aria-hidden="true">▴</span></button>
                 </div>
 
                 <div class="conteudo">
-                    <section>
-                        <h2>Zoom</h2>
-                        <div class="controle">
-                            <button id="zoom-menos" title="Diminuir zoom (afastar)">−</button>
-                            <span id="zoom-valor">100%</span>
-                            <button id="zoom-mais" title="Aumentar zoom (aproximar)">+</button>
-                        </div>
-                        <button id="zoom-ajustar" class="botao-largo" title="Ajustar o tabuleiro inteiro à janela">
-                            Ajustar à tela
-                        </button>
-                    </section>
-
                     <section>
                         <h2>Colunas</h2>
                         <div class="controle">
@@ -3548,6 +3606,22 @@
                     </section>
 
                     <section>
+                        <h2>Grade</h2>
+                        <button id="grade-mostrar" class="botao-largo" style="margin-top: 0" aria-pressed="false" title="Mostrar ou esconder as linhas da grade">
+                            Esconder grade
+                        </button>
+                        <div class="controle" style="margin-top: 6px">
+                            <button id="grade-espessura-menos" title="Linha mais fina">−</button>
+                            <span id="grade-espessura-valor" title="Espessura da linha da grade (0 px = sem grade)">1 px</span>
+                            <button id="grade-espessura-mais" title="Linha mais grossa">+</button>
+                        </div>
+                        <div class="controle" style="margin-top: 6px">
+                            <input id="grade-cor" type="color" value="#000000" aria-label="Cor da linha da grade" title="Cor da linha da grade" />
+                            <button id="grade-cor-auto" title="Cor automática (escura sobre o mapa, cinza sem mapa)">Auto</button>
+                        </div>
+                    </section>
+
+                    <section>
                         <button
                             id="voltar-padrao"
                             class="botao-largo"
@@ -3560,7 +3634,7 @@
                             id="reorganizar-telas"
                             class="botao-largo"
                             style="margin-top: 6px"
-                            title="Devolve as barras da esquerda (Desenho e Ferramentas) à ordem de fábrica"
+                            title="Devolve as barras da esquerda (Desenho e Tabuleiro) à ordem de fábrica"
                         >
                             Reorganizar telas
                         </button>
@@ -3595,7 +3669,7 @@
                     <span class="bolsa-titulo">Bolsa</span>
                     <!-- O botão do alto, igual nas duas abas: ⤢ abre a bolsa em TELA CHEIA (criar e editar tokens e fichas). (A bolsa não se minimiza mais:
                          ela é uma aba da coluna da direita.) -->
-                    <button id="bolsa-gerenciar" class="bolsa-icone" title="Criar e editar (tela cheia)" aria-label="Abrir a bolsa em tela cheia">⤢</button>
+                    <button id="bolsa-gerenciar" class="bolsa-botao-pequeno" title="Abrir a bolsa em tela cheia (criar e editar tokens e fichas)" aria-label="Abrir a bolsa em tela cheia">Abrir bolsa</button>
                     <!-- Pesquisa as fichas pelo nome (ou pelo tamanho, ex.: 3x3). -->
                     <input type="search" id="bolsa-busca" placeholder="Pesquisar token…" aria-label="Pesquisar token" autocomplete="off" />
                     <!-- A pesquisa da aba FICHAS: é outro campo, independente da dos tokens (cada aba tem o seu texto e o seu filtro). -->
@@ -3746,8 +3820,11 @@
             <input type="file" id="bolsa-arquivo" accept="image/*" hidden />
         </div>
 
-        <!-- Aviso curto da PREVISÃO de colunas e linhas ao escolher um mapa (preenchido e escondido pelo src/main.ts). -->
-        <div id="aviso-mapa" role="status" hidden title="Clique para fechar"></div>
+        <!-- AVISO curto (some sozinho), com um botão de ação opcional (ex.: "Desfazer"). Usado pelo src/ui/aviso.ts. -->
+        <div id="aviso" role="status" hidden title="Clique para fechar">
+            <span id="aviso-texto"></span>
+            <button id="aviso-acao" type="button" hidden></button>
+        </div>
 
         <!-- Status do modo online (só aparece com ?online no endereço). Id usado no ui/statusRede.ts. -->
         <div id="rede-status" hidden role="status" aria-live="polite"></div>
@@ -4021,8 +4098,7 @@
             <section>
                 <!-- Opções do token (engrenagem): cada uma é um botão DIRETO. As próximas entram aqui. Ids usados no ui/menuToken.ts. -->
                 <button id="botao-editar-token" class="botao-largo" title="Editar nome, tamanho e cores do token">Editar token</button>
-                <button id="botao-guardar-token" class="botao-largo" title="Tira o token do mapa e o guarda na bolsa">Guardar na bolsa</button>
-                <button id="botao-excluir-token" class="botao-largo botao-excluir" title="Apaga o token para sempre (pede confirmação)">Excluir token</button>
+                <button id="botao-guardar-token" class="botao-largo" title="Tira o token do tabuleiro (ele continua na bolsa). Dá para desfazer logo depois.">Remover do tabuleiro</button>
             </section>
         </div>
 

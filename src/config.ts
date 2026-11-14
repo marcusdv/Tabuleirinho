@@ -30,6 +30,13 @@ export const MAX_CASAS = 100;
 export const TAMANHOS_DE_CASA_COMUNS = [70, 50, 100, 140, 200, 128, 64]; // (50 antes de 100: 1000×700 cabe nos dois, e 20×14 casas é a escala mais comum em mapas táticos)
 export const TOLERANCIA_PX_GRADE = 2; // quantos pixels a imagem pode "sobrar/faltar" para ainda contar como múltiplo exato de uma casa
 export const TEMPO_AVISO_MAPA_MS = 9000; // quanto tempo o aviso da previsão fica na tela
+// --- Ajustes da GRADE (barra "Tabuleiro": mostrar/esconder, espessura da linha e cor). Hoje ficam no navegador de cada pessoa; depois serão da CENA. ---
+export const CHAVE_GRADE = "tabuleirinho.grade"; // JSON: { mostrar, espessura, cor }
+export const ESPESSURA_GRADE_PADRAO = 1; // px NA TELA (a linha é desenhada com a espessura dividida pelo zoom, então não muda ao dar zoom)
+export const ESPESSURA_GRADE_MIN = 0; // 0 px = SEM grade (pedido do dono: para quem prefere jogar sem as linhas)
+export const ESPESSURA_GRADE_MAX = 4;
+export const PASSO_ESPESSURA_GRADE = 0.5;
+export const TEMPO_DESFAZER_MS = 8000; // quanto tempo o "Desfazer" de remover um token do tabuleiro fica à disposição
 export const PX_POR_CASA_ESTIMADO = 70; // sem tamanho exato, a estimativa parte de casas de ~70 px (o padrão mais comum)
 
 // --- Mapa (imagem de fundo) ---
@@ -81,6 +88,8 @@ export const MAX_DADOS_NO_CARTAO = 12; // o cartão do chat mostra no máximo es
 export const ZOOM_MIN = 0.2;
 export const ZOOM_MAX = 3;
 export const PASSO_ZOOM = 1.25;
+/** Ctrl + roda do mouse: cada unidade de rolagem multiplica o zoom por e^(-delta × isto). 0,001 faz um "clique" da roda (100) valer ~1,1× (mais suave que o PASSO_ZOOM; era 0,002, forte demais para o dono). */
+export const SENSIBILIDADE_ZOOM_RODA = 0.001;
 
 // --- Câmera ---
 // O tabuleiro pode ser arrastado para qualquer lado, deixando muito espaço em branco em volta,
