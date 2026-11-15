@@ -137,10 +137,7 @@ export const estado = {
     /** Os STATUS (barras: HP etc.): UMA regra para a MESA INTEIRA. Todo token e toda peça copiam esta lista (o servidor a guarda em `dados/mesa.json`); só os VALORES (PV atual) são de cada peça. */
     statusDaMesa: [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false }] as StatusDoToken[],
     /** As AÇÕES da mesa (Dano, Cura...): também UMA regra para todos (o servidor a guarda em `dados/mesa.json`). De fábrica: Dano e Cura, que mexem no status 1 (o HP). */
-    acoesDaMesa: [
-        { id: 1, nome: "Dano", status: 1, efeito: "reduzir" },
-        { id: 2, nome: "Cura", status: 1, efeito: "aumentar" },
-    ] as AcaoDaMesa[],
+    acoesDaMesa: acoesPadrao(), // (Dano e Cura; a função é declarada mais abaixo, e as declarações de função já existem quando este objeto é criado)
     // Imagem de fundo, esticada sobre o tabuleiro inteiro (null = sem imagem).
     mapa: (MAPA_INICIAL ? { url: MAPA_INICIAL } : null) as { url: string } | null,
     // Pinturas feitas no mapa (lápis e formas), da mais antiga para a mais nova.
@@ -458,7 +455,7 @@ export function ajustarValorDaFicha(idFicha: number, nome: string, delta: number
     const variavel = analisarAbas(ficha.abas.map((a) => a.texto), valoresAtuaisDaFicha(idFicha))[0].variaveis.find(
         (v) => v.erro === null && v.muda !== null && v.valor !== null && v.nome.toUpperCase() === nome.toUpperCase(),
     );
-    if (!variavel || !variavel.muda || variavel.valor === null) return { ok: false, erro: "Essa variável não existe ou não é uma variável que muda." };
+    if (!variavel || !variavel.muda || variavel.valor === null) return { ok: false, erro: "Esse recurso não existe nesta ficha." };
     const depois = limitar(variavel.valor + delta, variavel.muda.min, variavel.muda.max);
     definirValorAtualDaFicha(idFicha, variavel.nome, depois);
     return { ok: true, nome: variavel.nome, antes: variavel.valor, depois };
@@ -480,7 +477,7 @@ export function motivoParaNaoColocar(modelo: Token): string | null {
     if (modelo.ficha === null || !fichaDeJogador(modelo.ficha)) return null;
     if (!estado.tokens.some((t) => !t.guardado && t.ficha === modelo.ficha)) return null;
     const ficha = estado.fichas.find((f) => f.id === modelo.ficha);
-    return `"${ficha?.nome ?? "Esta ficha"}" é uma ficha de jogador (tem variáveis que mudam): só pode ter um token por tela, e ele já está no tabuleiro.`;
+    return `"${ficha?.nome ?? "Esta ficha"}" é uma Ficha Token Único (tem recursos): só pode ter um token por tela, e ele já está no tabuleiro.`;
 }
 
 /**
@@ -1250,18 +1247,6 @@ export function editarToken(id: number, mudancas: MudancasToken): Token | null {
         token.row = limitar(token.row, 0, estado.linhas - token.size);
     }
     if (token.copiaDe === null) sincronizarPecas(token, token.ficha !== fichaAntes || token.grupos.join(",") !== gruposAntes); // (mudar os grupos do token muda quais status valem para as peças dele) // (editar o modelo atualiza todas as peças dele)
-    return token;
-}
-
-/**
- * Troca a imagem de um token (null = tirar a imagem; o token volta a ser preenchido com a cor).
- * Devolve o token alterado, ou null se o token não existe ou a imagem não é válida.
- * No multiplayer, é aqui que enviaremos o evento "mudar_imagem_token".
- */
-export function definirImagemToken(id: number, imagem: string | null): Token | null {
-    const token = buscarToken(id);
-    if (!token || (imagem !== null && !imagemValida(imagem))) return null;
-    token.imagem = imagem;
     return token;
 }
 

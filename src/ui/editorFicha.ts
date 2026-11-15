@@ -50,7 +50,7 @@ import {
     type Token,
     valoresAtuaisDaFicha,
 } from "../estado";
-import { analisarAbas, trechosDoTexto, type AnaliseDaFicha, type VariavelFicha } from "../formulas";
+import { analisarAbas, calcularConta, trechosDoTexto, type AnaliseDaFicha, type Resultado, type VariavelFicha } from "../formulas";
 import { ehLinhaDeVariavel, formatarTexto, lerPedacos } from "../formatacao";
 
 export interface OpcoesEditorFicha {
@@ -115,11 +115,14 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     const botaoRecarregar = pegar<HTMLButtonElement>("editor-ficha-recarregar");
     const botaoFechar = pegar<HTMLButtonElement>("editor-ficha-fechar");
     const botaoSalvar = pegar<HTMLButtonElement>("editor-ficha-salvar");
+    const botaoMinimizar = pegar<HTMLButtonElement>("editor-ficha-minimizar");
+    const miniNome = pegar("editor-ficha-mini-nome");
     const listaVariaveis = pegar("editor-ficha-variaveis");
     const listaRolagens = pegar("editor-ficha-rolagens");
     const listaMudam = pegar("editor-ficha-mudam");
     const semMudam = pegar("editor-ficha-sem-mudam");
     const semVariaveis = pegar("editor-ficha-sem-variaveis");
+    const etiquetaDoTipo = pegar("editor-ficha-tipo"); // "Ficha Token Único" (tem recursos: um token só) ou "Ficha Multi Tokens" (sem recursos: vários tokens)
     const semRolagens = pegar("editor-ficha-sem-rolagens");
     const lateral = pegar("editor-ficha-lateral");
     const assistente = pegar("editor-ficha-assistente");
@@ -295,6 +298,26 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         painel.style.top = `${nova.y}px`;
     }
 
+    /**
+     * MINIMIZAR a ficha: a janela vira uma barrinha (o nome, o botão de restaurar e o ✕) que dá para arrastar pela tela, e o resto fica escondido (o texto não se perde: é só CSS). O botão
+     * vira "▢" (restaurar). Abrir uma ficha (ou fechar) sempre restaura. Só reposiciona com a janela VISÍVEL (escondida ela mede 0 px de largura).
+     */
+    function definirMinimizada(minimizada: boolean): void {
+        painel.classList.toggle("minimizada", minimizada);
+        botaoMinimizar.textContent = minimizada ? "▢" : "–";
+        botaoMinimizar.title = minimizada ? "Restaurar a ficha" : "Minimizar a ficha: ela vira uma barrinha que dá para arrastar pela tela";
+        botaoMinimizar.setAttribute("aria-label", minimizada ? "Restaurar a ficha" : "Minimizar a ficha");
+        if (minimizada) miniNome.textContent = campoNome.value.trim() || "Ficha";
+        if (!janela.hidden) {
+            if (!minimizada && lugar) {
+                // Restaurando: a janela GRANDE volta a caber na tela (a barrinha pode ter ficado num canto, até parcialmente fora dela, e a janela inteira não pode herdar isso).
+                posicionar(limitar(lugar.x, 0, Math.max(0, window.innerWidth - painel.offsetWidth)), limitar(lugar.y, 0, Math.max(0, window.innerHeight - painel.offsetHeight)));
+            } else colocarNaTela(); // (a barrinha nunca sai da tela por inteiro: sempre sobra um pedaço para agarrar)
+            agendarBarraDeRolagem();
+        }
+    }
+    botaoMinimizar.addEventListener("click", () => definirMinimizada(!painel.classList.contains("minimizada")));
+
     /** Ao abrir: volta ao último lugar; na primeira vez, centraliza na horizontal e encosta no topo (a faixa de baixo, do chat, fica livre). */
     function colocarNaTela(): void {
         if (lugar) posicionar(lugar.x, lugar.y);
@@ -316,9 +339,22 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         return !naBarraVertical && !naBarraHorizontal;
     }
 
+    /**
+     * Clicar numa parte NEUTRA da janela (fora do campo do valor de um recurso) APLICA a conta que está nele. Neutra = o clique cancela o padrão do navegador (para a janela arrastar e para o
+     * foco não sair do texto), então o campo não perderia o foco sozinho: tira-se o foco dele aqui (o "blur" do campo aplica) e o foco vai para a JANELA (o Esc e o Ctrl+S continuam valendo).
+     */
+    function aplicarCampoDoRecursoAberto(): void {
+        const ativo = document.activeElement;
+        if (ativo instanceof HTMLInputElement && ativo.classList.contains("campo-muda")) {
+            ativo.blur();
+            painel.focus({ preventScroll: true });
+        }
+    }
+
     let arrasto: { dx: number; dy: number } | null = null; // quanto o mouse estava longe do canto da janela ao agarrar
     painel.addEventListener("pointerdown", (e) => {
         if (e.button !== 0 || !ehParteNeutra(e)) return;
+        aplicarCampoDoRecursoAberto();
         arrasto = { dx: e.clientX - painel.offsetLeft, dy: e.clientY - painel.offsetTop };
         painel.setPointerCapture(e.pointerId); // o arrasto continua mesmo se o mouse sair da janela
         painel.classList.add("arrastando");
@@ -326,7 +362,9 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     });
     // Sem isto, apertar numa parte neutra tiraria o foco do campo de texto (e o Esc e o Ctrl+S, que só valem com o foco na janela, parariam).
     painel.addEventListener("mousedown", (e) => {
-        if (ehParteNeutra(e)) e.preventDefault();
+        if (!ehParteNeutra(e)) return;
+        e.preventDefault();
+        aplicarCampoDoRecursoAberto(); // (se o navegador mandar o mousedown mesmo com o pointerdown cancelado)
     });
     painel.addEventListener("pointermove", (e) => {
         if (arrasto) posicionar(e.clientX - arrasto.dx, e.clientY - arrasto.dy);
@@ -397,6 +435,8 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     }
 
     const formatarNumero = (n: number): string => n.toLocaleString("pt-BR");
+    /** A fórmula tem um d20 (ex.: "1d20 + MOD", "2d20")? Só o d20 de verdade: "d200" ou "ad20x" não contam. */
+    const TEM_D20 = /(?:^|[^\p{L}\p{N}_])\d*[dD]20(?![\p{L}\p{N}_])/u;
 
     /**
      * Pede para mudar o valor ATUAL de uma variável que muda (a conta é uma SOMA: nunca "valor novo"). Quem aplica limita ao intervalo e depois manda `valoresMudaram`, que
@@ -428,7 +468,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         limites.className = "limites-muda";
         const { muda, valor } = v;
         if (v.erro !== null || !muda || valor === null) {
-            limites.textContent = v.erro ?? "Variável que muda inválida.";
+            limites.textContent = v.erro ?? "Recurso inválido.";
             item.append(linha, limites);
             return item;
         }
@@ -447,30 +487,49 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         const campo = document.createElement("input");
         campo.type = "text";
         campo.className = "campo-muda";
-        campo.inputMode = "numeric";
+        campo.inputMode = "text"; // (aceita contas: + − * /)
         campo.autocomplete = "off";
         campo.dataset.controle = "campo";
         campo.value = formatarNumero(valor);
         campo.setAttribute("aria-label", `Valor atual de ${v.nome}`);
-        campo.addEventListener("focus", () => campo.select());
-        campo.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") campo.blur();
+        campo.title = "Valor atual. Clique e continue com uma conta (ex.: 44 - 7); aperte Enter ou clique fora para aplicar.";
+        // Ao clicar, o valor atual FICA no campo (sem os pontos de milhar) com o cursor no fim: é só continuar a conta ("44" + " - 5") e aplicar. (O clique põe o cursor onde foi; o
+        // temporizador o leva ao fim depois. Para trocar o valor por outro, selecione tudo e digite.)
+        campo.addEventListener("focus", () => {
+            campo.value = String(valor);
+            window.setTimeout(() => campo.setSelectionRange(campo.value.length, campo.value.length), 0);
         });
-        // O que está escrito no campo: aceita "1.250", "1250" e "-5"; qualquer outra coisa não vale (null).
-        const valorDigitado = (): number | null => {
-            const digitado = campo.value.replace(/[.\s]/g, "");
-            return /^-?\d{1,12}$/.test(digitado) ? Number(digitado) : null;
+        campo.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") campo.blur(); // (Enter e clicar fora aplicam do mesmo jeito: pelo "blur" logo abaixo)
+        });
+        // A conta escrita no campo: só números e + − * / (a divisão arredonda para baixo); os pontos de milhar ("1.250 - 50") são tirados antes. Campo vazio: nada a calcular.
+        const lerCampo = (): Resultado<number> | null => {
+            if (campo.value.trim() === "") return null;
+            return calcularConta(campo.value.replace(/(?<=\d)\.(?=\d{3}(?!\d))/g, ""));
         };
         campo.addEventListener("blur", () => {
-            const digitado = valorDigitado();
-            if (digitado !== null && digitado !== valor) mudarValorAtual(v, digitado); // (fora do intervalo é limitado a ele)
-            else campo.value = formatarNumero(valor);
+            // Aplica um instante DEPOIS: ao clicar direto de um campo para outro, o foco ainda está chegando ao segundo; aplicar na hora refaria a lista e destruiria o campo de destino
+            // (o que a pessoa digitasse nele se perderia). Com a espera, o foco já está lá e `lembrarFocoDasVariaveisQueMudam` o devolve ao campo novo.
+            window.setTimeout(() => {
+                const conta = lerCampo();
+                if (conta === null) campo.value = formatarNumero(valor);
+                else if (!conta.ok) {
+                    campo.value = formatarNumero(valor); // (conta inválida: o valor não muda)
+                    campo.classList.add("invalido");
+                    window.setTimeout(() => campo.classList.remove("invalido"), 1500);
+                    mostrarAviso(`Conta inválida em ${v.nome}: ${conta.erro}`, true);
+                } else if (conta.valor !== valor) mudarValorAtual(v, conta.valor); // (fora do intervalo é limitado a ele)
+                else campo.value = formatarNumero(valor);
+            }, 0);
         });
-        // − e +: se a pessoa acabou de digitar um valor no campo, soma/subtrai DELE. O aperto do botão não tira o foco do campo (mousedown cancelado): senão o campo
+        // − e +: se a pessoa acabou de escrever uma conta no campo, soma/subtrai do RESULTADO dela. O aperto do botão não tira o foco do campo (mousedown cancelado): senão o campo
         // perderia o foco, o painel seria refeito e o botão novo nunca receberia o clique.
         for (const [botao, passo] of [[menos, -1], [mais, 1]] as const) {
             botao.addEventListener("mousedown", (e) => e.preventDefault());
-            botao.addEventListener("click", () => mudarValorAtual(v, (valorDigitado() ?? valor) + passo));
+            botao.addEventListener("click", () => {
+                const conta = lerCampo();
+                mudarValorAtual(v, (conta?.ok ? conta.valor : valor) + passo);
+            });
         }
         linha.append(menos, campo, mais);
         item.append(linha);
@@ -550,6 +609,14 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         )[abaAtual]; // (variáveis da ficha toda; rolagens só desta aba)
         ultimaAnalise = analise;
         if (!previa.hidden) desenharPrevia(); // (a leitura formatada acompanha a aba aberta; precisa da análise nova para as rolagens clicáveis)
+        // O TIPO da ficha, ao vivo: com pelo menos um recurso (válido) ela é uma "Ficha Token Único"; sem recursos, uma "Ficha Multi Tokens". (A mesma regra de `fichaDeJogador`, em
+        // `estado.ts`.) Passar o mouse na etiqueta mostra o resumo; clicar abre a telinha que explica melhor (`ui/infoTipoFicha.ts`).
+        const unica = analise.variaveis.some((v) => v.muda !== null);
+        etiquetaDoTipo.classList.toggle("unica", unica);
+        etiquetaDoTipo.textContent = unica ? "Ficha Token Único" : "Ficha Multi Tokens";
+        etiquetaDoTipo.title = unica
+            ? "Tem recursos, então só pode ser usada por um único token. Ideal para jogadores, chefões e personagens especiais do mestre. Clique para saber mais."
+            : "Sem recursos, pode ser usada por vários tokens. Clique para saber mais.";
         // Duas colunas: à esquerda as variáveis FIXAS ("NOME:: valor"), à direita as que MUDAM ("NOME::mín:inicial:máx"; o ":" no valor é o que as distingue).
         const fixas = analise.variaveis.filter((v) => !v.conta.includes(":"));
         const mudam = analise.variaveis.filter((v) => v.conta.includes(":"));
@@ -568,7 +635,11 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
         listaMudam.replaceChildren(...mudam.map((v) => itemDaVariavelQueMuda(v, v.aba !== abaAtual)));
         foco?.();
         listaRolagens.replaceChildren(
-            ...analise.rolagens.map((r, i) => itemDaLista("rolagem", r.nome, r.erro ?? r.resolvida ?? "", r.erro ?? `Clique para rolar: [${r.formula}]`, r.erro !== null, i)),
+            ...analise.rolagens.map((r, i) => {
+                const item = itemDaLista("rolagem", r.nome, r.erro ?? r.resolvida ?? "", r.erro ?? `Clique para rolar: [${r.formula}]`, r.erro !== null, i);
+                if (TEM_D20.test(r.formula)) item.classList.add("d20"); // (cor levemente diferente: testes e ataques de d20 se acham mais rápido no meio dos danos e outros dados)
+                return item;
+            }),
         );
         try {
             pintarTexto(texto, analise);
@@ -1002,6 +1073,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     function fecharSemPerguntar(): void {
         definirTokenDaAbertura(null);
         janela.hidden = true;
+        definirMinimizada(false); // (a próxima ficha abre normal)
         document.removeEventListener("keydown", aoTeclar, true);
         base = null;
         opcoes.aoMudarAberta(null);
@@ -1028,7 +1100,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
 
     function aoTeclar(e: KeyboardEvent): void {
         // Com a caixa de confirmar (ou a das instruções) aberta por cima, o Esc e as teclas são DELAS.
-        if (document.getElementById("confirmar")?.hidden === false || document.getElementById("ajuda-fichas")?.hidden === false) return;
+        if (document.getElementById("confirmar")?.hidden === false || document.getElementById("ajuda-fichas")?.hidden === false || document.getElementById("info-tipo-ficha")?.hidden === false) return;
         // A janela não é modal: com o foco FORA dela (no chat, por exemplo) estas teclas são de quem tem o foco.
         if (!janela.contains(document.activeElement)) return;
         if (e.target instanceof HTMLElement && e.target.dataset.renomeandoAba !== undefined) return; // renomeando uma aba: Enter e Esc são do campo dela
@@ -1120,6 +1192,7 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
 
     return {
         abrir(ficha, token) {
+            definirMinimizada(false); // (abrir uma ficha é querer vê-la: sai da barrinha)
             // A MESMA ficha já aberta, agora por OUTRO token: só troca o token (carregar de novo poderia descartar o que a pessoa escreveu e ainda não salvou).
             if (token && base && !janela.hidden && base.id === ficha.id) {
                 definirTokenDaAbertura(token);

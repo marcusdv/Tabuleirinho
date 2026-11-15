@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
 import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const RAIZ = fileURLToPath(new URL("../../", import.meta.url));
-const PORTA = 3737; // a mesma de PORTA_SERVIDOR em src/config.ts (o Vite repassa /ws para ela)
+const PORTA = Number(process.env.PORTA_TESTE ?? 3737); // a mesma de PORTA_SERVIDOR em src/config.ts (o Vite repassa /ws para ela). `PORTA_TESTE` troca a porta (com `PORTA_SERVIDOR=<a mesma> npm run dev` e `URL_TESTE`), para não bater no servidor do dono na 3737
 const dados = mkdtempSync(join(tmpdir(), "tabuleirinho-dados-"));
 const jsons = () => readdirSync(join(dados, "fichas")).filter((f) => f.endsWith(".json")).join();
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));

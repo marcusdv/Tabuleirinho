@@ -48,6 +48,8 @@ const MAPA_DE_TESTE = (() => {
 // O limite anti-spam do SERVIDOR (SEM_LIMITE_SPAM=1) fica desligado nos testes: eles rolam e escrevem muito rápido. Os servidores que os testes sobem herdam isto;
 // o teste `limite-spam` o liga de volta. (Defina SEM_LIMITE_SPAM=0 antes de rodar para ver o limite valendo em qualquer teste.)
 process.env.SEM_LIMITE_SPAM ??= "1";
+// As fichas de EXEMPLO (Goblin e Thorin) que o servidor cria na primeira vez ficam desligadas nos testes: eles contam fichas e tokens e esperam a mesa vazia.
+process.env.SEM_EXEMPLOS ??= "1";
 
 export async function abrirPagina(p, consulta = "", { ordemPadrao = false, manterAtrasoDasRolagens = false } = {}) {
     // O app abre as listas da bolsa com os MAIS RECENTES primeiro. Quase todos os testes foram escritos para a ordem de criação (a mais antiga

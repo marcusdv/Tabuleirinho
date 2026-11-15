@@ -15,7 +15,7 @@ import WebSocket from "ws";
 import { abrirPagina, lancar, ok, TOKENS_DE_TESTE, terminar } from "./ajuda.mjs";
 
 const RAIZ = fileURLToPath(new URL("../../", import.meta.url));
-const PORTA = 3737; // a mesma de PORTA_SERVIDOR em src/config.ts (o Vite repassa /ws para ela)
+const PORTA = Number(process.env.PORTA_TESTE ?? 3737); // a mesma de PORTA_SERVIDOR em src/config.ts (o Vite repassa /ws para ela). `PORTA_TESTE` troca a porta (com `PORTA_SERVIDOR=<a mesma> npm run dev` e `URL_TESTE`), para não bater no servidor do dono na 3737
 
 // ---------------- sobe o servidor do jogo (limpo). Ele não tem token de fábrica: os tokens vêm de ARQUIVOS, então este teste prepara uma
 // pasta de dados TEMPORÁRIA (apagada no fim; o `dados/` do projeto não é tocado) com os 5 tokens de sempre.

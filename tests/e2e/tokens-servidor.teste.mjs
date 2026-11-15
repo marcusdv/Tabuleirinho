@@ -177,7 +177,9 @@ try {
     c = await cliente("Depois");
     const ini2 = await esperarEvento(c, "estado_inicial");
     const porId = Object.fromEntries((ini2?.tokens ?? []).map((t) => [t.id, t]));
-    ok("8c) os tokens voltam com nome, tamanho, cores e posição (1: Só isto 3×3 em (5,5))", porId[1]?.nome === "Só isto" && porId[1].size === 3 && porId[1].col === 5 && porId[1].row === 5 && porId[1].guardado === false, JSON.stringify(porId[1]));
+    // MODELO "token da bolsa × peça": um arquivo ANTIGO de token que estava no tabuleiro é MIGRADO ao ligar: vira um token da BOLSA (guardado) + uma PEÇA na mesma posição (consome o id 907).
+    const pecaDoToken1 = (ini2?.tokens ?? []).find((t) => t.copiaDe === 1);
+    ok("8c) os tokens voltam com nome, tamanho e cores; o 1 (Só isto 3×3, que estava em (5,5)) volta como token da BOLSA + uma PEÇA em (5,5)", porId[1]?.nome === "Só isto" && porId[1].size === 3 && porId[1].guardado === true && pecaDoToken1?.col === 5 && pecaDoToken1?.row === 5 && pecaDoToken1?.guardado === false, JSON.stringify([porId[1], pecaDoToken1]));
     ok("8d) a imagem do token 3 voltou do arquivo", porId[3]?.imagem === "data:image/webp;base64,AAAA");
     ok("8e) o token 'no mapa mas fora do tabuleiro' (905) volta GUARDADO na bolsa", porId[905]?.guardado === true, JSON.stringify(porId[905]));
     ok("8f) o token escrito à mão com a condição 'Cego' (que existe) foi aceito e voltou com ela", porId[906]?.condicoes?.join() === "Cego", JSON.stringify(porId[906]));
@@ -185,7 +187,7 @@ try {
         const k = c.recebidos.length;
         criarToken(c, { nome: "Pós-reinício" });
         const e = await esperarEvento(c, "token_criado", k);
-        ok("8g) o próximo id é 907: o maior id da pasta (906, de um arquivo até ignorado) + 1", e?.token?.id === 907, String(e?.token?.id));
+        ok("8g) o próximo id é 908: o maior id da pasta (906, de um arquivo até ignorado) + 1 = 907, que a migração do token 1 (a peça) já usou", e?.token?.id === 908, String(e?.token?.id));
         ok("8h) os arquivos IGNORADOS continuam intactos no disco (o dono pode consertá-los à mão)", readFileSync(join(pastaTokens, "901.json"), "utf8") === "{ não é json" && existsSync(join(pastaTokens, "902.json")) && existsSync(join(pastaTokens, "904.json")));
     }
 
@@ -202,7 +204,9 @@ try {
     s = await subir();
     c = await cliente("Limite");
     const ini3 = await esperarEvento(c, "estado_inicial");
-    let total = ini3.tokens.length;
+    // O limite (MAX_TOKENS = 100) conta só os tokens da BOLSA (os "modelos"); as peças do tabuleiro não entram na conta.
+    const modelosAgora = ini3.tokens.filter((t) => t.copiaDe === null).length;
+    let total = modelosAgora;
     const arquivosAntes = jsons().length;
     while (total < 100) {
         const k2 = c.recebidos.length;
@@ -215,7 +219,7 @@ try {
     const k = c.recebidos.length;
     criarToken(c);
     const lim = await esperarEvento(c, "erro", k, 1500);
-    ok("10b) o token 101 é recusado, com o motivo, e nenhum arquivo novo", !!lim && /100/.test(lim.motivo) && jsons().length === arquivosAntes + (100 - ini3.tokens.length), JSON.stringify(lim));
+    ok("10b) o token 101 é recusado, com o motivo, e nenhum arquivo novo", !!lim && /100/.test(lim.motivo) && jsons().length === arquivosAntes + (100 - modelosAgora), JSON.stringify(lim));
     await desligar(s);
 } finally {
     rmSync(dados, { recursive: true, force: true });

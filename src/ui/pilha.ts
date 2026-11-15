@@ -138,7 +138,7 @@ export function criarPilha(): void {
             barra.caixa.style.translate = `0 ${deslocamento}px`;
             // Onde a barra se encaixaria: conta quantas das outras têm o centro ACIMA do centro dela.
             const centro = retangulos[posicaoInicial].top + deslocamento + altura / 2;
-            novaPosicao = antes.filter((b, i) => i !== posicaoInicial && retangulos[i].top + altura / 2 < centro).length;
+            novaPosicao = antes.filter((_, i) => i !== posicaoInicial && retangulos[i].top + altura / 2 < centro).length;
             // As outras se afastam para abrir o lugar: as que ficam entre a posição de origem e a nova andam um passo para o outro lado.
             antes.forEach((b, i) => {
                 if (b === barra) return;

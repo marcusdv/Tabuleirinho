@@ -228,6 +228,17 @@ function calcular(no: No, valorDe: (nome: string) => Resultado<number>, rolar?: 
     }
 }
 
+/**
+ * Faz uma conta SÓ com números e + - * / (sem variáveis, parênteses nem dados), como a que se digita no campo do valor de um recurso ("44 - 7"). A divisão arredonda para baixo, como em todas as
+ * contas do jogo. Quase todo o trabalho é do mesmo analisador seguro das variáveis (sem `eval`); a lista de caracteres permitidos vem ANTES e corta qualquer outra coisa. Nunca lança erro.
+ */
+export function calcularConta(texto: string): Resultado<number> {
+    if (!/^[\d\s+\-*/]+$/.test(texto)) return falha("Use só números e + − * /.");
+    const arvore = analisarConta(texto);
+    if (!arvore.ok) return arvore;
+    return calcular(arvore.valor, (nome) => falha(`Variáveis não valem aqui: ${nome}.`));
+}
+
 /** Quantos dados a conta tem no total, e se algum é inválido (lados que não existem, quantidade 0...). Devolve a mensagem de erro, ou null. */
 function problemaNosDados(no: No): string | null {
     let total = 0;
@@ -350,7 +361,7 @@ const NUMEROS_DA_VARIAVEL_QUE_MUDA = /^(-?\d{1,12})\s*:\s*(-?\d{1,12})\s*:\s*(-?
 export function lerVariavelQueMuda(conta: string): Resultado<LimitesDaVariavel> | null {
     if (!conta.includes(":")) return null;
     const achou = NUMEROS_DA_VARIAVEL_QUE_MUDA.exec(conta);
-    if (!achou) return falha("Variável que muda: escreva NOME::mín:inicial:máx (só números inteiros).");
+    if (!achou) return falha("Recurso: escreva NOME::mín:inicial:máx (só números inteiros).");
     const [min, inicial, max] = [achou[1], achou[2], achou[3]].map((n) => Number(n) + 0); // (o "+ 0" troca um "-0" por 0)
     const limite = MAX_VALOR_VARIAVEL_QUE_MUDA;
     if (Math.abs(min) > limite || Math.abs(inicial) > limite || Math.abs(max) > limite) {

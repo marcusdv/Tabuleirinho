@@ -25,9 +25,6 @@ export interface LinhaFormatada {
     pedacos: PedacoFormatado[];
 }
 
-/** O maior nível de título (de "#" até "###"). */
-export const NIVEL_MAX_TITULO = 3;
-
 /** Lê uma linha e separa os pedaços em negrito / itálico. Linear: cada marca procura o seu par uma vez à frente. */
 export function lerPedacos(linha: string): PedacoFormatado[] {
     const pedacos: PedacoFormatado[] = [];

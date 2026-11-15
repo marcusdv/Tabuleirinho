@@ -59,7 +59,6 @@ import {
     montarEdicaoDoGrupo,
     marcarFicha,
     estado,
-    redimensionarTabuleiro,
     type Ficha,
     type Grupo,
     type AcaoNova,
@@ -72,7 +71,6 @@ import {
     excluirFicha,
     definirFichas,
     definirTokens,
-    excluirToken,
     receberFicha,
     receberToken,
     statusPadrao,
@@ -100,6 +98,7 @@ import { criarBolsa } from "./ui/bolsa";
 import { criarEditorImagem } from "./ui/editorImagem";
 import { analisarAbas, rolarDaAnalise } from "./formulas";
 import { criarAjudaFichas } from "./ui/ajudaFichas";
+import { criarInfoTipoFicha } from "./ui/infoTipoFicha";
 import { criarConfirmacao } from "./ui/confirmar";
 import { criarEditorFicha } from "./ui/editorFicha";
 import { criarEditorToken } from "./ui/editorToken";
@@ -277,6 +276,7 @@ async function iniciar(): Promise<void> {
 
     // A janela de instruções das fichas (como escrever variáveis e rolagens): abre pelos botões "Instruções".
     criarAjudaFichas();
+    criarInfoTipoFicha(); // (a telinha que explica o tipo da ficha: abre ao clicar na etiqueta do alto da janela da ficha)
 
     // O editor de FICHA (nome e texto): abre ao clicar num documento da aba Fichas da bolsa.
     const editorFicha = criarEditorFicha({
@@ -1100,22 +1100,22 @@ async function iniciar(): Promise<void> {
         });
     }
 
-    // EXEMPLO PARA TESTES (pedido do dono): no `npm run dev`, em modo LOCAL, o jogo já abre com a ficha "Goblin Guerreiro" e um token dele na bolsa, ligado a ela.
-    // Só no desenvolvimento (a importação dinâmica não entra na versão final) e NÃO nos testes automáticos (o navegador deles se diz automatizado: os testes contam
-    // fichas e tokens e esperam a mesa vazia). Online a mesa vem dos arquivos do servidor. Reler a página recarrega o exemplo (o modo local não guarda nada).
-    if (import.meta.env.DEV && !rede && !navigator.webdriver) {
-        void import("./dev/exemploGoblin").then(({ IMAGEM_GOBLIN, NOME_GOBLIN, NOME_THORIN, TEXTO_GOBLIN, TEXTO_THORIN }) => {
+    // FICHAS DE EXEMPLO (pedido do dono): o Goblin Guerreiro (monstro) e o Thorin (jogador, com 2 páginas), cada um com o seu token na bolsa, SEMPRE entram no jogo para quem está
+    // começando se familiarizar com o texto das fichas (`src/exemplos.ts`). No modo LOCAL isto vale toda vez que a página abre (o modo local não guarda nada); online é o SERVIDOR que
+    // as cria, uma vez (`servidor/servidor.ts`). Ficam de fora dos testes automáticos (o navegador deles se diz automatizado: eles contam fichas e tokens e esperam a mesa vazia).
+    if (!rede && !navigator.webdriver) {
+        void import("./exemplos").then(({ ABAS_THORIN, IMAGEM_GOBLIN, NOME_GOBLIN, NOME_THORIN, TEXTO_GOBLIN }) => {
             const ficha = criarFicha();
             if (!ficha) return;
             ficha.nome = NOME_GOBLIN;
             ficha.abas[0].texto = TEXTO_GOBLIN;
             const token = criarToken(0x2f5d2a, 1, NOME_GOBLIN, IMAGEM_GOBLIN, 0xffffff, ficha.id); // (nasce na bolsa, com a ficha atribuída e o HP lendo PV)
             if (token) tokens.adicionar(token);
-            // Uma ficha de JOGADOR (variáveis que mudam) e o token dela: a barra de vida mostra o PV da ficha, ao vivo.
+            // A ficha de JOGADOR (tem recursos) e o token dela: a barra de vida mostra o PV da ficha, ao vivo. Duas páginas: a ficha e os itens mágicos.
             const fichaJogador = criarFicha();
             if (fichaJogador) {
                 fichaJogador.nome = NOME_THORIN;
-                fichaJogador.abas[0].texto = TEXTO_THORIN;
+                fichaJogador.abas = ABAS_THORIN.map((a) => ({ ...a }));
                 const tokenJogador = criarToken(0x2a4a7a, 1, NOME_THORIN, null, 0xffd54f, fichaJogador.id);
                 if (tokenJogador) tokens.adicionar(tokenJogador);
             }

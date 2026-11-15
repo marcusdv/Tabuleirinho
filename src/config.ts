@@ -67,8 +67,6 @@ export const AUTOR_PROVISORIO = "Você"; // nome nas mensagens enquanto não há
 export const MAX_MENSAGENS_CHAT = 100; // quantas mensagens são guardadas (as mais antigas saem)
 export const MAX_CARACTERES_MENSAGEM = 72; // limite de caracteres de uma mensagem
 export const DURACAO_ANIMACAO_CHAT = 320; // ms: a mensagem nova entra e as outras deslizam para a direita
-export const SUAVIDADE_ROLAGEM_CHAT = 90; // ms: quanto maior, mais macia (e lenta) a rolagem da roda do mouse no chat; 0 = sem suavização
-export const MAX_CARTOES_ANIMADOS = 20; // só os primeiros cartões (os visíveis) deslizam; os outros estão fora da tela
 
 // --- Rede (protótipo do servidor; ver servidor/servidor.ts e src/protocolo.ts) ---
 export const PORTA_SERVIDOR = 3737; // porta do servidor (o Vite, no desenvolvimento, repassa o endereço /ws para ela). Incomum de propósito: a 3000 costuma estar ocupada por outros projetos

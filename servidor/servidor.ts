@@ -87,6 +87,8 @@ import {
     montarGrupo,
     montarMarcacaoDaFicha,
     montarToken,
+    normalizarAbas,
+    normalizarNomeFicha,
     posicaoValida,
     receberFicha,
     receberGrupo,
@@ -96,6 +98,7 @@ import {
     type Ficha,
     type Token,
 } from "../src/estado.ts";
+import { ABAS_THORIN, IMAGEM_GOBLIN, NOME_GOBLIN, NOME_THORIN, TEXTO_GOBLIN } from "../src/exemplos.ts";
 import { analisarAbas, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
 import { gastar, novoBalde, type Balde } from "../src/limite.ts";
 import { lerPedido, limparApelido, type EventoDoServidor, type Jogador, type PedidoDoCliente } from "../src/protocolo.ts";
@@ -370,9 +373,33 @@ async function excluirGrupoNoServidor(c: Conexao, id: number): Promise<void> {
 }
 
 /** Igual às fichas: monta o token (valida), GRAVA o arquivo e só então o guarda na mesa e avisa todos. Nasce guardado na bolsa. */
+// As FICHAS DE EXEMPLO (Goblin Guerreiro, de monstro, e Thorin, de jogador, com 2 páginas) entram na mesa UMA vez, para quem está começando se familiarizar com o texto das fichas
+// (`src/exemplos.ts`). A marca `exemplos` em `dados/mesa.json` impede que voltem se o dono as apagar; SEM_EXEMPLOS=1 desliga (os testes automáticos usam isto).
+const SEM_EXEMPLOS = process.env.SEM_EXEMPLOS === "1";
+let exemplosCriados = false;
+async function semearExemplos(): Promise<void> {
+    const exemplos = [
+        { nome: NOME_GOBLIN, abas: [{ nome: "Página 1", texto: TEXTO_GOBLIN }], cor: 0x2f5d2a, corBorda: 0xffffff, imagem: IMAGEM_GOBLIN as string | null },
+        { nome: NOME_THORIN, abas: ABAS_THORIN, cor: 0x2a4a7a, corBorda: 0xffd54f, imagem: null as string | null },
+    ];
+    for (const e of exemplos) {
+        const ficha = montarFicha();
+        const abas = normalizarAbas(e.abas);
+        if (!ficha || !abas) continue;
+        ficha.nome = normalizarNomeFicha(ficha.id, e.nome);
+        ficha.abas = abas;
+        await gravarNaPasta("fichas", ficha); // (o arquivo nasce ANTES de a ficha entrar na mesa, como nas outras criações)
+        receberFicha(ficha);
+        const token = montarToken(e.cor, 1, e.nome, e.imagem, e.corBorda, ficha.id); // (nasce na bolsa, com a ficha atribuída)
+        if (!token) continue;
+        await gravarNaPasta("tokens", token);
+        receberToken(token);
+    }
+}
+
 /** Grava `dados/mesa.json` com o estado de AGORA (tamanho do tabuleiro e status da mesa). */
 function gravarMesaAtual(): Promise<void> {
-    return gravarMesa({ colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, valores: todosOsValoresDasFichas() }).catch((falha) => console.error("Não foi possível gravar mesa.json:", falha));
+    return gravarMesa({ colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, valores: todosOsValoresDasFichas(), exemplos: exemplosCriados }).catch((falha) => console.error("Não foi possível gravar mesa.json:", falha));
 }
 
 /** A pasta de um token: os tokens da BOLSA (modelos) em `dados/tokens/`, as PEÇAS do tabuleiro em `dados/pecas/`. */
@@ -740,6 +767,13 @@ try {
     aplicarStatusDaMesaAosTokens();
     await migrarTokensDoTabuleiro(); // (usa os grupos e os status: por isso por último)
     for (const ficha of estado.fichas) sincronizarValoresDaFicha(ficha.id); // (as barras ligadas a variáveis que mudam espelham o valor atual da ficha)
+    if (mesa?.exemplos === true) exemplosCriados = true;
+    else if (!SEM_EXEMPLOS) {
+        await semearExemplos();
+        exemplosCriados = true;
+        await gravarMesaAtual(); // (guarda a marca: se o dono apagar os exemplos, eles não voltam)
+        console.log("Fichas de exemplo criadas: Goblin Guerreiro e Thorin Escudo-de-Carvalho (com seus tokens na bolsa).");
+    }
     console.log(`${estado.fichas.length} ficha(s), ${estado.tokens.length} token(s) e ${estado.grupos.length} grupo(s) carregado(s) de ${PASTA_DE_DADOS}`);
 } catch (falha) {
     console.error(`Não foi possível ler/criar a pasta de dados (${PASTA_DE_DADOS}):`, falha instanceof Error ? falha.message : falha);

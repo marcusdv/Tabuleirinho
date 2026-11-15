@@ -93,6 +93,7 @@ export interface Mesa {
     linhas: number;
     acoes?: unknown; // a lista de AÇÕES da mesa (Dano, Cura...); quem lê limpa (`limparAcoes`). Arquivos antigos não têm: valem as de fábrica
     status?: unknown; // a lista de STATUS da mesa (barras: HP etc.); quem lê limpa (`limparStatus`). Arquivos antigos não têm: valem os de fábrica
+    exemplos?: boolean; // as fichas de exemplo (Goblin e Thorin) já foram criadas uma vez: se o dono as apagar, não voltam
     valores?: unknown; // os valores ATUAIS das variáveis que mudam (ficha -> NOME -> valor); quem lê confere (`definirTodosOsValoresDasFichas`). Arquivos antigos não têm: valem os iniciais
 }
 
@@ -102,7 +103,7 @@ export async function carregarMesa(): Promise<Mesa | null> {
     try {
         const bruto = JSON.parse(await readFile(caminho, "utf8")) as Record<string, unknown>;
         if (!Number.isSafeInteger(bruto.colunas) || !Number.isSafeInteger(bruto.linhas)) throw new Error("conteúdo inválido");
-        return { colunas: bruto.colunas as number, linhas: bruto.linhas as number, ...(Array.isArray(bruto.status) && { status: bruto.status }), ...(Array.isArray(bruto.acoes) && { acoes: bruto.acoes }), ...(typeof bruto.valores === "object" && bruto.valores !== null && !Array.isArray(bruto.valores) && { valores: bruto.valores }) };
+        return { colunas: bruto.colunas as number, linhas: bruto.linhas as number, ...(Array.isArray(bruto.status) && { status: bruto.status }), ...(Array.isArray(bruto.acoes) && { acoes: bruto.acoes }), ...(typeof bruto.valores === "object" && bruto.valores !== null && !Array.isArray(bruto.valores) && { valores: bruto.valores }), ...(bruto.exemplos === true && { exemplos: true }) };
     } catch (falha) {
         if ((falha as NodeJS.ErrnoException).code !== "ENOENT") console.warn(`mesa.json ignorado: ${falha instanceof Error ? falha.message : "erro ao ler"}`);
         return null;
@@ -115,7 +116,7 @@ export async function gravarMesa(mesa: Mesa): Promise<void> {
     const destino = join(PASTA_DE_DADOS, "mesa.json");
     const temporario = `${destino}.${randomUUID()}.tmp`;
     try {
-        await writeFile(temporario, JSON.stringify({ colunas: mesa.colunas, linhas: mesa.linhas, ...(mesa.status !== undefined && { status: mesa.status }), ...(mesa.acoes !== undefined && { acoes: mesa.acoes }), ...(mesa.valores !== undefined && { valores: mesa.valores }) }, null, 2) + "\n", { encoding: "utf8", flush: true });
+        await writeFile(temporario, JSON.stringify({ colunas: mesa.colunas, linhas: mesa.linhas, ...(mesa.status !== undefined && { status: mesa.status }), ...(mesa.acoes !== undefined && { acoes: mesa.acoes }), ...(mesa.valores !== undefined && { valores: mesa.valores }), ...(mesa.exemplos === true && { exemplos: true }) }, null, 2) + "\n", { encoding: "utf8", flush: true });
         await rename(temporario, destino);
     } catch (falha) {
         await unlink(temporario).catch(() => undefined);

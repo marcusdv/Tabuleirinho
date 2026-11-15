@@ -425,7 +425,6 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                 return resultado.sort(porId);
         }
     }
-    const filtrando = (qual: AbaBolsa): boolean => filtro[qual].favoritos || filtro[qual].grupos.size > 0;
 
     const grupoPorId = (id: number): Grupo | undefined => estado.grupos.find((g) => g.id === id);
     const refazerLista = (): void => (aba === "tokens" ? atualizar() : atualizarFichas());

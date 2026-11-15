@@ -11,7 +11,8 @@ const p = (w, h) => preverGrade(w, h);
 // ----- exatos
 ok("1a) 1960×1400 = 28 × 20 casas de 70 px (Roll20), exata", JSON.stringify(p(1960, 1400)) === JSON.stringify({ colunas: 28, linhas: 20, pxPorCasa: 70, exata: true }));
 ok("1b) 1000×700 cabe em 50 px (20 × 14) e em 100 px (10 × 7): vale o 50, que vem antes na preferência", p(1000, 700).colunas === 20 && p(1000, 700).linhas === 14 && p(1000, 700).pxPorCasa === 50 && p(1000, 700).exata);
-ok("1c) 3000×2000 = 30 × 20 casas de 100 px (o 70 e o 50 não dão múltiplos exatos)", JSON.stringify(p(3000, 2000)) === JSON.stringify({ colunas: 30, linhas: 20, pxPorCasa: 100, exata: true }));
+ok("1c) 3000×2000 = 60 × 40 casas de 50 px (o 70 não dá múltiplo exato; o 50 vem antes do 100 na preferência e também dá)", JSON.stringify(p(3000, 2000)) === JSON.stringify({ colunas: 60, linhas: 40, pxPorCasa: 50, exata: true }));
+ok("1c2) 2500×1500 = 50 × 30 casas de 50 px (o 70 não dá; o 50 vem antes do 100)", JSON.stringify(p(2500, 1500)) === JSON.stringify({ colunas: 50, linhas: 30, pxPorCasa: 50, exata: true }));
 ok("1d) a tolerância é de 2 px: 1961×1401 ainda é 28 × 20; 1964×1400 (4 px a mais) NÃO é exata", p(1961, 1401).exata && p(1961, 1401).colunas === 28 && !p(1964, 1400).exata);
 
 // ----- estimativas
