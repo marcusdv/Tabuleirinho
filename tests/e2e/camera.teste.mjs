@@ -36,7 +36,10 @@ ok("5) para BAIXO: sobram 240 px (a borda de cima em y=560)", perto(c.y, 800 - P
 // ---- 3) "Ajustar à tela" centraliza de novo
 await p.click("#zoom-ajustar");
 c = await camera();
-ok("6) 'Ajustar à tela' centraliza de novo", perto(c.x, (1400 - t.largura) / 2, 1) && perto(c.y, (800 - t.altura) / 2, 1), `(${c.x}, ${c.y})`);
+t = await tabuleiro(); // (o zoom mudou: o ajuste encaixa o mapa na ÁREA LIVRE, entre a pilha de barras da esquerda e a coluna da direita)
+const area = await p.evaluate(() => { const e = window.__tabuleirinho.camera.areaCoberta(); return { esquerda: e.esquerda, direita: e.direita }; });
+const centroLivre = (area.esquerda + (1400 - area.direita)) / 2;
+ok("6) 'Ajustar à tela' centraliza de novo, na área livre (entre as barras e a coluna da direita)", perto(c.x + t.largura / 2, centroLivre, 2) && perto(c.y + t.altura / 2, 400, 2), `centro (${(c.x + t.largura / 2).toFixed(1)}, ${(c.y + t.altura / 2).toFixed(1)}) esperado (${centroLivre.toFixed(1)}, 400)`);
 
 // ---- 4) zoom mínimo: o tabuleiro fica pequeno, mas nunca some
 for (let i = 0; i < 8; i++) await p.click("#zoom-menos");

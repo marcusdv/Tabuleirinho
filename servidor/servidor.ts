@@ -49,6 +49,7 @@ import {
     adicionarRolagem,
     adicionarRolagemDeFicha,
     tokenDaRolagem,
+    rolarIniciativaDoToken,
     montarPeca,
     pecasDoModelo,
     restaurarEstadoDaPeca,
@@ -550,8 +551,18 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
         }
         case "iniciativa": {
             // Uma ação na ORDEM DE COMBATE (a lista, quem tem a vez, a rodada): o servidor confere, aplica com as regras de iniciativa.ts, guarda em mesa.json e avisa todos.
-            const { acao } = pedido;
-            if (acao.acao === "adicionar" && acao.token !== null && !buscarToken(acao.token)) return erro(c.ws, "Esse token não existe.");
+            let { acao } = pedido;
+            if (acao.acao === "adicionar" && acao.token !== null) {
+                const token = buscarToken(acao.token);
+                if (!token) return erro(c.ws, "Esse token não existe.");
+                if (acao.rolar) {
+                    // "Adicionar à iniciativa" pelo token: o SERVIDOR rola a "Iniciativa" da ficha dele (o valor do pedido é ignorado); sem essa rolagem, entra com 0.
+                    const rolado = rolarIniciativaDoToken(token, sortear);
+                    if (rolado && !podeRolar(c)) return erro(c.ws, "Calma! Você está rolando rápido demais.");
+                    if (rolado) avisarTodos({ tipo: "mensagem", mensagem: adicionarRolagemDeFicha(autor, rolado.resultado, token.id) });
+                    acao = { acao: "adicionar", nome: acao.nome, token: acao.token, valor: rolado ? Math.round(rolado.total) : 0 };
+                }
+            }
             const resultado = aplicarAcaoDaIniciativa(acao);
             if (!resultado.ok) return erro(c.ws, resultado.erro);
             avisarTodos({ tipo: "iniciativa_definida", iniciativa: iniciativaComoObjeto() });

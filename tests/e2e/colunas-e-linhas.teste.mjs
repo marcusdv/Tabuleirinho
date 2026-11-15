@@ -58,7 +58,7 @@ await p.click("#voltar-padrao"); await p.waitForTimeout(500);
 await p.click("#calibrar-alternar");
 const zoom = Number((await p.locator("#zoom-valor").textContent()).replace("%", "")) / 100;
 const L = 18 * 64 * zoom, A = 10 * 64 * zoom, x0 = (1400 - L) / 2, y0 = (800 - A) / 2;
-await p.mouse.move(x0 + 100, y0 + 60); await p.mouse.down(); await p.mouse.move(x0 + 100 + (L * 5) / 30, y0 + 60 + (A * 5) / 20, { steps: 6 }); await p.mouse.up();
+await p.mouse.move(x0 + 300, y0 + 60); await p.mouse.down(); await p.mouse.move(x0 + 300 + (L * 5) / 30, y0 + 60 + (A * 5) / 20, { steps: 6 }); await p.mouse.up();
 await p.waitForTimeout(400);
 ok("14) a calibragem atualiza os campos (30×20)", (await par()) === "30×20", await par());
 

@@ -30,7 +30,7 @@ ok("1a) na tela expandida o botão 'Instruções' fica dentro da bolsa, e o '+ C
 await p.click("#bolsa-ficha-instrucoes");
 ok("1b) clicar abre a janela 'Instruções: variáveis e rolagens'", (await p.locator("#ajuda-fichas").isVisible()) && (await p.locator("#ajuda-fichas-titulo").textContent()) === "Instruções: variáveis e rolagens");
 const corpo = await p.locator("#ajuda-fichas-corpo").textContent();
-ok("1c) explica variáveis ('FOR:: 16') e rolagens ('Escreva o nome da rolagem entre parênteses e a fórmula entre colchetes')", /FOR:: 16/.test(corpo) && /Escreva o nome da rolagem entre parênteses e a fórmula entre colchetes/.test(corpo));
+ok("1c) explica variáveis ('FOR:: 16') e rolagens ('Escreva o nome da rolagem entre parênteses e a fórmula entre colchetes, juntos')", /FOR:: 16/.test(corpo) && /Escreva o nome da rolagem entre parênteses e a fórmula entre colchetes, juntos/.test(corpo));
 ok("1d) tem MAIS DE UM exemplo de rolagem (5) e mais de um de variável (3)", (await p.locator("#ajuda-fichas .rolagem-nome").count()) >= 5 && (await p.locator("#ajuda-fichas pre .variavel-nome").count()) >= 3, `${await p.locator("#ajuda-fichas .rolagem-nome").count()}`);
 await p.keyboard.press("Escape");
 ok("1e) Esc fecha as instruções", await p.locator("#ajuda-fichas").isHidden());

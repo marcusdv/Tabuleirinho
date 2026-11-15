@@ -21,8 +21,8 @@ export const CHAVE_DADOS_RECOLHIDO = "tabuleirinho.dados.recolhido"; // "1" = a 
 // (O index.html repete estas chaves num script que roda ANTES da primeira pintura: se mudar uma aqui, mude lá também.)
 
 // --- Tabuleiro ---
-export const COLUNAS_INICIAIS = 18; // quantas casas na horizontal ao abrir
-export const LINHAS_INICIAIS = 10; // quantas casas na vertical ao abrir
+export const COLUNAS_INICIAIS = 25; // quantas casas na horizontal ao abrir
+export const LINHAS_INICIAIS = 22; // quantas casas na vertical ao abrir
 export const TAMANHO_CASA = 64; // lado de cada casa, em pixels (no zoom 100%)
 
 // Limites do tamanho do tabuleiro (em casas) pela barra de ferramentas.
@@ -48,7 +48,7 @@ export const PX_POR_CASA_ESTIMADO = 70; // sem tamanho exato, a estimativa parte
 // --- Mapa (imagem de fundo) ---
 // Imagem carregada ao abrir (teste). Fica em public/, por isso o endereço começa em "/".
 // Depois virá de um botão "Imagem de fundo". null = só a grade, sem imagem.
-export const MAPA_INICIAL: string | null = "/images/maps/lago_arruinado.png";
+export const MAPA_INICIAL: string | null = "/images/maps/caverna.png";
 
 // --- Régua ---
 export const METROS_POR_CASA = 1.5; // cada casa do tabuleiro vale 1,5 m (5 pés do livro)

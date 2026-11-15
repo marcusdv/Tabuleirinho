@@ -32,7 +32,7 @@ import { COR_STATUS_HP, DADOS_DISPONIVEIS, MAX_ACOES_MESA, MAX_CARACTERES_NOME_A
 import { buscarCondicao } from "./condicoes.ts";
 import { limitar } from "./coordenadas.ts";
 import { formulaDosDados, rolarDados, type Rolagem } from "./dados.ts";
-import { analisarAbas, type RolagemDeFicha } from "./formulas.ts";
+import { analisarAbas, rolarDaAnalise, type RolagemDeFicha } from "./formulas.ts";
 
 /** Quantas casas (por lado) um token ocupa: 1 = 1x1, 2 = 2x2, 3 = 3x3, 4 = 4x4. */
 export type TamanhoToken = 1 | 2 | 3 | 4;
@@ -206,6 +206,24 @@ export function adicionarRolagemDeFicha(autor: string, rolagemFicha: RolagemDeFi
  * O token que pode aparecer como "quem rolou" numa rolagem da ficha `idDaFicha`: só vale se ele existe E tem ESSA ficha atribuída (senão alguém
  * poderia assinar uma rolagem com o ícone de qualquer token). Devolve o id, ou undefined (o chat então usa o ícone padrão).
  */
+/**
+ * A rolagem de INICIATIVA de um token: procura, na ficha dele, uma rolagem chamada "Iniciativa" (sem diferenciar maiúsculas nem acentos; a 1ª que valer, página por página) e a rola
+ * com o sorteio dado. Devolve o resultado (para o chat e o valor), ou `null` se o token não tem ficha ou a ficha não tem essa rolagem (quem chama usa 0).
+ */
+export function rolarIniciativaDoToken(token: Token, sortear: () => number): { resultado: RolagemDeFicha; total: number } | null {
+    const ficha = token.ficha === null ? undefined : estado.fichas.find((f) => f.id === token.ficha);
+    if (!ficha) return null;
+    const semAcento = (t: string): string => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+    const analises = analisarAbas(ficha.abas.map((a) => a.texto), valoresAtuaisDaFicha(ficha.id));
+    for (const analise of analises) {
+        const indice = analise.rolagens.findIndex((r) => r.erro === null && semAcento(r.nome) === "iniciativa");
+        if (indice < 0) continue;
+        const rolado = rolarDaAnalise(analise, indice, ficha.nome, sortear);
+        if (rolado.ok) return { resultado: rolado.valor, total: rolado.valor.total };
+    }
+    return null;
+}
+
 export function tokenDaRolagem(idDaFicha: number, idDoToken: number | null | undefined): number | undefined {
     if (idDoToken === null || idDoToken === undefined) return undefined;
     return estado.tokens.find((t) => t.id === idDoToken)?.ficha === idDaFicha ? idDoToken : undefined;

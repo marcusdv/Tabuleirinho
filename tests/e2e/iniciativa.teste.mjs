@@ -118,12 +118,20 @@ await p.mouse.click(pos.x, pos.y, { button: "right" });
 await p.waitForTimeout(300);
 await p.locator("#acoes-token button", { hasText: "Adicionar à iniciativa" }).click();
 await p.waitForTimeout(300);
-ok("5a) 'Adicionar à iniciativa' acrescenta o token, volta ao modo de EDIÇÃO (Confirmar) e abre a janelinha com o foco no VALOR", (await nomes()).includes("Thorin") && (await p.locator("#iniciativa-editar").innerText()) === "Confirmar" && (await modalAberto()) && (await p.evaluate(() => document.activeElement?.id === "modal-iniciativa-valor")), await nomes());
-await p.keyboard.type("18");
-await p.keyboard.press("Enter");
-await p.waitForTimeout(250);
-const aposThorin = await itens();
-ok("5b) com o valor 18 o Thorin entra no meio (Beto 20, Thorin 18, Ana Maria 12) e o disco dele tem a imagem/cor do token", aposThorin.length === 3 && /^Thorin/.test(aposThorin[1].nome) && aposThorin[1].valor === 18, JSON.stringify(aposThorin));
+const entradaThorin = (await itens()).find((i) => /^Thorin/.test(i.nome));
+const totalNoChat = await p.evaluate(() => { const m = window.__tabuleirinho.estado.mensagens.filter((x) => x.rolagemFicha && x.rolagemFicha.nome.toLowerCase() === "iniciativa").at(-1); return m ? m.rolagemFicha.total : null; });
+ok("5a) 'Adicionar à iniciativa' acrescenta o token, volta ao modo de EDIÇÃO (Confirmar) e NÃO abre a janelinha (o valor vem da ficha)", !!entradaThorin && (await p.locator("#iniciativa-editar").innerText()) === "Confirmar" && !(await modalAberto()), await nomes());
+ok("5b) o valor do Thorin é o da rolagem 'Iniciativa' da ficha dele (que foi para o chat) ou 0, se a ficha não tem essa rolagem", entradaThorin.valor === (totalNoChat ?? 0), `valor=${entradaThorin.valor} chat=${totalNoChat}`);
+// deixa o Thorin com 18 (pelo menu do botão direito) para os testes seguintes
+{
+    const linhaThorin = p.locator("#iniciativa-lista li", { hasText: "Thorin" }).first();
+    const caixaT = await linhaThorin.boundingBox();
+    await p.mouse.click(caixaT.x + 14, caixaT.y + caixaT.height / 2, { button: "right" });
+    await p.waitForTimeout(200);
+    await p.click("#menu-iniciativa-editar");
+    await p.waitForTimeout(200);
+    await preencher({ valor: 18 });
+}
 await p.mouse.click(pos.x, pos.y, { button: "right" });
 await p.waitForTimeout(250);
 await p.locator("#acoes-token button", { hasText: "Adicionar à iniciativa" }).click();

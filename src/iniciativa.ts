@@ -32,7 +32,8 @@ export interface Iniciativa {
 
 /** O que a pessoa pode pedir. O servidor confere cada campo (`lerAcaoDaIniciativa`). */
 export type AcaoDaIniciativa =
-    | { acao: "adicionar"; nome: string; valor: number; token: number | null }
+    /** `rolar` (só com `token`): o SERVIDOR (ou o modo local) usa a rolagem "Iniciativa" da ficha do token e ignora o `valor`; sem essa rolagem, o valor é 0. */
+    | { acao: "adicionar"; nome: string; valor: number; token: number | null; rolar?: boolean }
     | { acao: "remover"; id: number }
     | { acao: "mover"; id: number; para: number } // `para` = a posição (0 = a primeira) em que a entrada fica
     | { acao: "valor"; id: number; valor: number }
@@ -163,7 +164,7 @@ export function lerAcaoDaIniciativa(bruto: unknown): AcaoDaIniciativa | null {
     switch (a.acao) {
         case "adicionar":
             if (!texto(a.nome) || !eInteiro(a.valor) || !(a.token === null || (eInteiro(a.token) && a.token >= 1))) return null;
-            return { acao: "adicionar", nome: a.nome, valor: a.valor, token: a.token };
+            return { acao: "adicionar", nome: a.nome, valor: a.valor, token: a.token, ...(a.rolar === true && a.token !== null && { rolar: true }) };
         case "remover":
             return eInteiro(a.id) ? { acao: "remover", id: a.id } : null;
         case "mover":

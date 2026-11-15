@@ -13,7 +13,7 @@
 // (O PixiJS 8 só aceita filhos em Containers, não em um Graphics solto.)
 // =====================================================================
 
-import { Assets, Container, FederatedPointerEvent, Graphics, PointData, Sprite, Text, Texture } from "pixi.js";
+import { Assets, Container, FederatedPointerEvent, Graphics, PointData, Sprite, Text, Texture, Ticker } from "pixi.js";
 import { buscarCondicao } from "../condicoes";
 import { ALTURA_BARRA_STATUS, FOLGA_TOKEN, LARGURA_BORDA_TOKEN, MAX_ICONES_CONDICAO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, VAO_BARRA_STATUS } from "../config";
 import { casaMaisProxima, diametroDoIcone, posicoesNoAnel } from "../coordenadas";
@@ -77,6 +77,8 @@ export interface CamadaTokens {
     tokenEm(ponto: PointData): Token | null;
     /** Destaca (cresce um pouco) o token que está sob o resultado de dado arrastado; null tira o destaque. */
     destacarAlvo(token: Token | null): void;
+    /** Põe a borda suave e pulsante no token que TEM A VEZ na iniciativa (id do token; null tira). */
+    destacarVez(id: number | null): void;
     /**
      * Mostra o token onde o ESTADO diz que ele está (no mapa, ou escondido se está na bolsa). Usado quando a posição
      * vem de FORA (do servidor). Se o usuário está segurando este token agora, não mexe: o que ele soltar vale.
@@ -124,6 +126,7 @@ interface ViewToken {
     borda: Graphics;
     fotoUrl: string | null; // a imagem que a `foto` mostra agora (para saber se mudou)
     marca: Graphics;
+    anelVez: Graphics | null; // a borda suave e pulsante de quem tem a vez na iniciativa (só existe enquanto ele a tem)
     condicoes: Container;
     barras: Container; // as BARRAS de status (HP etc.) embaixo do token: um Graphics (as caixas) e os textos (o nome fora, o "atual/máx" dentro)
 }
@@ -144,6 +147,7 @@ export function criarTokens(
     // Guarda a view de cada token pelo id, para podermos reposicioná-la
     // quando o estado do token mudar (tabuleiro encolheu, tamanho alterado...).
     const views = new Map<number, ViewToken>();
+    let vezDestacada: number | null = null; // o token que tem a vez na iniciativa (ver `destacarVez`)
     let alvoDestacado: number | null = null; // o token que está crescido por baixo de um resultado de dado arrastado (ver `destacarAlvo`)
 
     // Estado do arrasto. Só um token é arrastado por vez.
@@ -377,6 +381,42 @@ export function criarTokens(
     let interativo = true;
 
     /** Cria o desenho (view) de UM token e liga os eventos dele. Usada ao abrir e ao criar tokens novos. */
+    // ---------------------------------------------------------------
+    // A BORDA DA VEZ: um anel suave, dourado, por trás do token, que pulsa de leve (só o brilho muda; o tamanho não). Só existe no token que tem a vez.
+    // ---------------------------------------------------------------
+    const PERIODO_PULSO_VEZ_MS = 2200;
+    const semAnimacao = typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    function pulsarVez(): void {
+        const anel = vezDestacada === null ? null : views.get(vezDestacada)?.anelVez;
+        if (!anel) return;
+        const fase = (performance.now() % PERIODO_PULSO_VEZ_MS) / PERIODO_PULSO_VEZ_MS;
+        anel.alpha = semAnimacao ? 0.8 : 0.55 + 0.35 * (0.5 - 0.5 * Math.cos(fase * Math.PI * 2)); // vai e volta entre 0,55 e 0,9
+    }
+    function aplicarAnelDaVez(): void {
+        Ticker.shared.remove(pulsarVez);
+        for (const [id, view] of views) {
+            if (view.anelVez && id !== vezDestacada) {
+                view.anelVez.destroy();
+                view.anelVez = null;
+            }
+        }
+        if (vezDestacada === null) return;
+        const token = buscarToken(vezDestacada);
+        const view = views.get(vezDestacada);
+        if (!token || !view) return;
+        const raio = raioDoToken(token.size);
+        const anel = view.anelVez ?? new Graphics();
+        anel.clear();
+        anel.circle(0, 0, raio + 5).stroke({ width: 9, color: 0xffd54f, alpha: 0.25 }); // o brilho largo e fraco
+        anel.circle(0, 0, raio + 3).stroke({ width: 3, color: 0xffd54f, alpha: 0.9 }); // o fio mais nítido
+        if (!view.anelVez) {
+            view.raiz.addChildAt(anel, 0); // por trás do corpo: só a parte de fora aparece
+            view.anelVez = anel;
+        }
+        pulsarVez();
+        if (!semAnimacao) Ticker.shared.add(pulsarVez);
+    }
+
     function criarView(token: Token): void {
         const raiz = new Container();
         const corpo = new Graphics();
@@ -388,7 +428,7 @@ export function criarTokens(
         const condicoes = new Container();
         const barras = new Container();
         raiz.addChild(corpo, foto, borda, marca, condicoes, barras); // do fundo para a frente
-        const view: ViewToken = { raiz, corpo, foto, borda, fotoUrl: null, marca, condicoes, barras };
+        const view: ViewToken = { raiz, corpo, foto, borda, fotoUrl: null, marca, anelVez: null, condicoes, barras };
 
         desenharCorpo(token, view);
         void desenharFoto(token, view);
@@ -489,6 +529,7 @@ export function criarTokens(
             for (const id of [...views.keys()]) destruirView(id);
             for (const token of estado.tokens) criarView(token);
             reordenar();
+            aplicarAnelDaVez();
         },
 
         tokenEm(ponto) {
@@ -501,6 +542,11 @@ export function criarTokens(
                 if (!achado || token.size < achado.size || (token.size === achado.size && token.id > achado.id)) achado = token;
             }
             return achado;
+        },
+
+        destacarVez(id) {
+            vezDestacada = id;
+            aplicarAnelDaVez();
         },
 
         destacarAlvo(token) {
@@ -651,6 +697,7 @@ export function criarTokens(
             desenharBarras(token, view);
             posicionar(token, view);
             reordenar(); // o novo tamanho pode mudar quem fica por cima
+            if (vezDestacada === token.id) aplicarAnelDaVez(); // (o tamanho do anel acompanha o do token)
         },
 
         ancoraNaTela(id) {

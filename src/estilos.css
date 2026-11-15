@@ -3974,10 +3974,37 @@ body:not(.app-pronta) #dados {
     border-radius: 12px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
 }
+#ajuda-fichas-cabecalho {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
 #ajuda-fichas-painel h3 {
-    margin: 0 0 8px;
+    margin: 0;
     font-size: 15px;
     font-weight: 600;
+}
+/* O botão de COPIAR todo o texto das instruções (pedido do dono). */
+#ajuda-fichas-copiar {
+    margin-left: auto;
+    min-width: 30px;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 15px;
+    line-height: 1;
+}
+#ajuda-fichas-copiar.copiado {
+    color: #b9f6ca;
+    border-color: #66bb6a;
+}
+#ajuda-fichas-corpo ul {
+    margin: 0 0 8px;
+    padding-left: 18px;
+}
+#ajuda-fichas-corpo li {
+    margin: 0 0 3px;
 }
 #ajuda-fichas-corpo {
     flex: 1;

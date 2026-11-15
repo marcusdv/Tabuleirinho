@@ -1,7 +1,7 @@
 // Teste e2e: desenho. Rodar: npm run test:e2e -- desenho
 // (precisa do servidor: npm run dev). Veja tests/e2e/ajuda.mjs.
 import { PNG } from "pngjs";
-import { CAPTURAS as S, PASTA_MAPAS, abrirPagina, lancar, recolherDados } from "./ajuda.mjs";
+import { CAPTURAS as S, PASTA_MAPAS, abrirGaveta, abrirPagina, lancar, recolherDados } from "./ajuda.mjs";
 const b = await lancar();
 const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
@@ -14,7 +14,7 @@ await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa on
 
 const MAGENTA = [255, 0, 255], VERDE = [0, 255, 0], AMARELO = [0xff, 0xd5, 0x4f], VERMELHO = [0xe7, 0x4c, 0x3c], ROXO = [0x9b, 0x59, 0xb6];
 // Conta pixels de uma cor numa região (opcional) e devolve a caixa que os envolve.
-async function cor(c, reg = { x0: 170, x1: 1225, y0: 0, y1: 800 }, arq = `${S}/d_tmp.png`, tol = 12) {
+async function cor(c, reg = { x0: 340, x1: 1050, y0: 0, y1: 800 }, arq = `${S}/d_tmp.png`, tol = 12) {
   const png = PNG.sync.read(await p.screenshot({ path: arq }));
   let n = 0, sx = 0, sy = 0, x0 = 1e9, x1 = -1, y0 = 1e9, y1 = -1;
   for (let y = reg.y0; y < reg.y1; y++) for (let x = reg.x0; x < reg.x1; x++) {
@@ -45,22 +45,22 @@ await p.screenshot({ path: `${S}/d0_painel.png` });
 // ================= B) régua
 await ferr("regua");
 ok("B1) Régua ficou ativa e Mover não", (await cls("regua")).includes("ativo") && !(await cls("mover")).includes("ativo"));
-await arrastar(casa(2, 2), casa(6, 5)); // dc=4, dr=3 -> 4 casas
-ok("B2) (2,2)->(6,5): 4 □ = 6 m", (await dist()) === "Distância: 4 □ = 6 m", await dist());
+await arrastar(casa(4, 2), casa(8, 5)); // dc=4, dr=3 -> 4 casas
+ok("B2) (4,2)->(8,5): 4 □ = 6 m", (await dist()) === "Distância: 4 □ = 6 m", await dist());
 const linha = await cor(AMARELO, { x0: 170, x1: 1225, y0: 0, y1: 560 }, `${S}/d1_regua.png`);
 ok("B3) a linha amarela da régua aparece (e continua após soltar)", linha.n > 200 && linha.x0 < 300 && linha.x1 > 520, `${linha.n} px, x ${linha.x0}..${linha.x1}`);
-await arrastar(casa(2, 2), casa(3, 2));
+await arrastar(casa(4, 2), casa(5, 2));
 ok("B4) uma casa: '1 □ = 1,5 m' (vírgula decimal)", (await dist()) === "Distância: 1 □ = 1,5 m", await dist());
-await arrastar(casa(1, 0), casa(8, 3)); // diagonal conta 1: max(7,3)=7 (a casa 0,0 fica atrás do painel de desenho)
-ok("B5) (1,0)->(8,3): 7 □ = 10,5 m (diagonal = 1 casa)", (await dist()) === "Distância: 7 □ = 10,5 m", await dist());
+await arrastar(casa(4, 0), casa(11, 3)); // diagonal conta 1: max(7,3)=7 (as casas das colunas 0 a 3 ficam atrás da gaveta do Desenho)
+ok("B5) (4,0)->(11,3): 7 □ = 10,5 m (diagonal = 1 casa)", (await dist()) === "Distância: 7 □ = 10,5 m", await dist());
 await arrastar(casa(4, 4), casa(4, 4), "left", 2);
 ok("B6) mesma casa: 0 □ = 0 m", (await dist()) === "Distância: 0 □ = 0 m", await dist());
-await arrastar(casa(1, 1), casa(5, 1));
+await arrastar(casa(4, 1), casa(8, 1));
 await p.click("#zoom-mais"); await p.waitForTimeout(300); // zoom com a régua visível: não quebra
 ok("B7) mudar o zoom com a régua na tela mantém a medida", (await dist()) === "Distância: 4 □ = 6 m");
-await p.click("#voltar-padrao"); await p.waitForTimeout(500);
+await p.evaluate(() => { window.__tabuleirinho.camera.aplicarZoom(1); window.__tabuleirinho.camera.centralizar(); }); await p.waitForTimeout(500); // (o botão "Voltar ao padrão" fica na gaveta do Tabuleiro, fechada aqui)
 await ferr("mover");
-const amarelosB8 = (await cor(AMARELO, { x0: 170, x1: 1040, y0: 60, y1: 430 }, `${S}/d1b.png`)).n; // (só o mapa livre: a bolsa do canto e a barra têm detalhes dourados)
+const amarelosB8 = (await cor(AMARELO, { x0: 340, x1: 1040, y0: 60, y1: 430 }, `${S}/d1b.png`)).n; // (só o mapa livre: a bolsa do canto e a barra têm detalhes dourados)
 ok("B8) voltar a 'Mover' apaga a medida (painel e linha)", (await dist()) === null && amarelosB8 < 20, `dist=${await dist()} amarelos=${amarelosB8}`);
 
 // ================= C) lápis e cor
@@ -79,7 +79,7 @@ ok("C4) um clique com o lápis faz um pontinho", (await cor(VERDE, { x0: 690, x1
 
 // ================= D) camadas: o desenho fica POR BAIXO dos tokens
 await fill("#ff00ff");
-await arrastar({ x: 300, y: 304 }, { x: 400, y: 304 }); // atravessa o token verde 1x1 (centro 348,304)
+await arrastar({ x: 340, y: 304 }, { x: 420, y: 304 }); // atravessa o token verde 1x1 (centro 348,304)
 const meio = PNG.sync.read(await p.screenshot());
 const i = (304 * meio.width + 348) * 4;
 ok("D1) o token verde fica POR CIMA do traço (pixel central continua verde)", Math.abs(meio.data[i] - 46) < 12 && Math.abs(meio.data[i + 1] - 204) < 12 && Math.abs(meio.data[i + 2] - 113) < 12, `rgb ${meio.data[i]},${meio.data[i + 1]},${meio.data[i + 2]}`);
@@ -155,15 +155,17 @@ const camX = () => p.evaluate(() => window.__tabuleirinho.camera.mundo.x);
 const x0Camera = await camX();
 await arrastar({ x: 400, y: 560 }, { x: 300, y: 560 }, "right");
 ok("I1) botão direito arrasta a visão (100 px p/ a esquerda) com o lápis ligado", perto((await camX()) - x0Camera, -100, 1), `dx=${((await camX()) - x0Camera).toFixed(1)}`);
-await p.click("#voltar-padrao"); await p.waitForTimeout(500);
+await p.evaluate(() => { window.__tabuleirinho.camera.aplicarZoom(1); window.__tabuleirinho.camera.centralizar(); }); await p.waitForTimeout(500); // (o botão "Voltar ao padrão" fica na gaveta do Tabuleiro, fechada aqui)
 
 // ================= J) Esc, calibragem e bolsa
 await ferr("elipse");
 await p.keyboard.press("Escape");
 ok("J1) Esc volta para 'Mover'", (await cls("mover")).includes("ativo") && !(await cls("elipse")).includes("ativo"));
 await ferr("regua");
+await abrirGaveta(p, "tabuleiro"); // (o botão "Alinhar mapa" fica na gaveta do Tabuleiro)
 await p.click("#calibrar-alternar"); await p.waitForTimeout(300);
 ok("J2) ligar a calibragem desliga a ferramenta (volta a 'Mover') e abre o painel dela", (await cls("mover")).includes("ativo") && await p.locator("#painel-calibragem").isVisible());
+await abrirGaveta(p, "desenho");
 await ferr("lapis");
 ok("J3) escolher uma ferramenta fecha a calibragem", !(await p.locator("#painel-calibragem").isVisible()));
 await ferr("mover");

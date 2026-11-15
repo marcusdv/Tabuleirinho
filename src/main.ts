@@ -65,6 +65,7 @@ import {
     type Token,
     adicionarRolagemDeFicha,
     tokenDaRolagem,
+    rolarIniciativaDoToken,
     criarFicha,
     editarFicha,
     excluirFicha,
@@ -476,6 +477,9 @@ async function iniciar(): Promise<void> {
     /** A iniciativa mudou (por esta pessoa ou por outra): redesenha a caixa. */
     function iniciativaMudou(): void {
         painelIniciativa.atualizar();
+        // A borda suave e pulsante no token de quem tem a vez: só com a iniciativa CONFIRMADA (fora do modo de edição) e se a vez é de um token.
+        const comAVez = estadoIniciativa.editando ? undefined : estadoIniciativa.entradas.find((e) => e.id === estadoIniciativa.vez);
+        tokens.destacarVez(comAVez?.token ?? null);
     }
 
     /** "Adicionar à iniciativa" no menu do token: acrescenta o token (valor 0) e leva o foco ao campo do valor, para a pessoa digitar. */
@@ -487,8 +491,17 @@ async function iniciar(): Promise<void> {
             return;
         }
         painelIniciativa.abrir();
-        painelIniciativa.editarProximaEntrada("valor"); // (a janelinha de edição abre com o foco no VALOR: o nome já é o do token)
-        aplicarAcaoIniciativa({ acao: "adicionar", nome: token.nome, valor: 0, token: id });
+        // O valor vem da rolagem "Iniciativa" da ficha do token (sem ficha ou sem essa rolagem, entra com 0). Online quem rola é o SERVIDOR (e o cartão chega pelo chat).
+        if (rede?.ativa) {
+            aplicarAcaoIniciativa({ acao: "adicionar", nome: token.nome, valor: 0, token: id, rolar: true });
+            return;
+        }
+        const rolado = rolarIniciativaDoToken(token, Math.random);
+        if (rolado) {
+            adicionarRolagemDeFicha(AUTOR_PROVISORIO, rolado.resultado, token.id);
+            chat.atualizar();
+        }
+        aplicarAcaoIniciativa({ acao: "adicionar", nome: token.nome, valor: rolado ? Math.round(rolado.total) : 0, token: id });
     }
 
     /**

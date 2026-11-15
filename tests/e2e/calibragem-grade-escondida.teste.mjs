@@ -11,7 +11,7 @@ await abrirPagina(p, "", { gaveta: "tabuleiro" });
 await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 
 // Região do tabuleiro sem tokens, barra nem painel: x 60-330, y 380-540 (token azul pequeno fica em ~390,370; evitamos)
-const REG = { x0: 40, x1: 330, y0: 400, y1: 560 };
+const REG = { x0: 340, x1: 500, y0: 400, y1: 700 }; // (à direita da gaveta aberta, sem tokens: o token 2 começa em x 508)
 async function regiao(arq) {
   const png = PNG.sync.read(await p.screenshot({ path: arq }));
   const v = [];
@@ -31,16 +31,15 @@ ok("1) calibrando, a nossa grade some (a região muda)", diff(normal, calibrando
 
 // Painel no canto inferior esquerdo, longe do centro
 const bx = await p.locator("#painel-calibragem").boundingBox();
-const bolsaBox = await p.locator("#bolsa").boundingBox();
-ok("2) painel no canto inferior direito, EMPILHADO acima da bolsa", Math.abs(bx.x + bx.width - (1400 - 12)) <= 2 && bx.y + bx.height <= bolsaBox.y + 1 && Math.abs(bolsaBox.y + bolsaBox.height - (800 - 12)) <= 2, `direita=${(bx.x + bx.width).toFixed(0)} base do painel=${(bx.y + bx.height).toFixed(0)} topo da bolsa=${bolsaBox.y.toFixed(0)}`);
-ok("3) painel não chega ao centro da tela (esquerda > 1000 px)", bx.x > 1000, `esquerda ${bx.x.toFixed(0)}`);
+ok("2) painel no canto inferior direito, à esquerda da coluna do chat/bolsa", Math.abs(bx.x + bx.width - (1400 - 12 - 320 - 8)) <= 2 && Math.abs(bx.y + bx.height - (800 - 12)) <= 2, `direita=${(bx.x + bx.width).toFixed(0)} base=${(bx.y + bx.height).toFixed(0)}`);
+ok("3) painel não chega ao centro da tela (esquerda > 600 px)", bx.x > 600, `esquerda ${bx.x.toFixed(0)}`);
 const barra = await p.locator("#barra").boundingBox(); ok("4) painel fica ABAIXO da barra de ferramentas", bx.y >= barra.y + barra.height + 4, `topo do painel ${bx.y.toFixed(0)}, base da barra ${(barra.y + barra.height).toFixed(0)}`);
 
 // Medir ainda funciona com a grade escondida
 const zoom = Number((await p.locator("#zoom-valor").evaluate((e) => e.value ?? e.textContent)).replace("%", "")) / 100;
 const colsAtual = Number(await p.locator("#colunas-valor").inputValue()), linAtual = Number(await p.locator("#linhas-valor").inputValue());
 const L = colsAtual * 64 * zoom, A = linAtual * 64 * zoom, x0 = (1400 - L) / 2, y0 = (800 - A) / 2;
-await p.mouse.move(x0 + 200, y0 + 100); await p.mouse.down(); await p.mouse.move(x0 + 200 + (L * 5) / 30, y0 + 100 + (A * 5) / 20, { steps: 6 }); await p.mouse.up();
+await p.mouse.move(x0 + 300, y0 + 100); await p.mouse.down(); await p.mouse.move(x0 + 300 + (L * 5) / 30, y0 + 100 + (A * 5) / 20, { steps: 6 }); await p.mouse.up();
 await p.waitForTimeout(500);
 ok("5) medir ainda funciona (30 × 20)", (await p.locator("#colunas-valor").evaluate((e) => e.value ?? e.textContent)) === "30" && (await p.locator("#linhas-valor").evaluate((e) => e.value ?? e.textContent)) === "20");
 await p.screenshot({ path: `${S}/g2_apos_medir.png` });

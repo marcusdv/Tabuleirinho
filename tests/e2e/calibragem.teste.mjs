@@ -25,7 +25,7 @@ const L = colsAtual * 64 * zoom, A = linAtual * 64 * zoom;
 const x0 = (1400 - L) / 2, y0 = (900 - A) / 2;
 // N=5: retângulo com largura = L*5/30 e altura = A*5/20  => esperado 30 x 20
 const w = (L * 5) / 30, h = (A * 5) / 20;
-const sx = x0 + 100, sy = y0 + 80;
+const sx = x0 + 300, sy = y0 + 80; // (a gaveta do Tabuleiro, aberta, cobre até x ≈ 330: começamos à direita dela)
 await p.mouse.move(sx, sy);
 await p.mouse.down();
 await p.mouse.move(sx + w / 2, sy + h / 2, { steps: 5 });
@@ -48,7 +48,7 @@ ok("8) clique simples não altera o tamanho nem conclui a calibragem", (await tx
 
 // Limite: N=1 num retângulo grande dá poucas colunas -> usa o mínimo (e a calibragem também se conclui)
 await p.fill("#calibragem-casas", "1");
-await p.mouse.move(300, 200); await p.mouse.down(); await p.mouse.move(900, 600, { steps: 6 }); await p.mouse.up();
+await p.mouse.move(400, 200); await p.mouse.down(); await p.mouse.move(900, 600, { steps: 6 }); await p.mouse.up();
 await p.waitForTimeout(300);
 ok("9) abaixo do mínimo: usa 5 (o mínimo do tabuleiro) e a calibragem também se conclui", (await txt("#colunas-valor")) === "5" && !(await vis("#painel-calibragem")), await txt("#colunas-valor"));
 

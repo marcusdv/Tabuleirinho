@@ -69,6 +69,34 @@ try {
     await esperar(300);
     ok("3b) adicionar um token que existe entra na ordem (Beto 18, Orc 15, Ana 12)", nomes(ultima(beto)) === "Beto,Orc,Ana" && ultima(beto).entradas[1].token === token.id, nomes(ultima(beto)));
 
+    // 3c) "Adicionar à iniciativa" pelo token (`rolar: true`): o SERVIDOR rola a "Iniciativa" da ficha dele; o `valor` do pedido é ignorado; sem ficha/rolagem entra com 0
+    const removerAdicionados = async (...ids) => { for (const id of ids) { ana.acao({ acao: "remover", id }); await esperar(200); } };
+    const msgs = () => ana.eventos.filter((e) => e.tipo === "mensagem").length;
+    let m0 = msgs();
+    ana.enviar({ tipo: "criar_token", nome: "SemFicha", cor: 1, corBorda: 2, tamanho: 1, imagem: null });
+    await esperar(300);
+    const tSem = ana.eventos.filter((e) => e.tipo === "token_criado").at(-1).token;
+    ana.acao({ acao: "adicionar", nome: "SemFicha", valor: 77, token: tSem.id, rolar: true });
+    await esperar(300);
+    const eSem = ultima(ana).entradas.find((e) => e.token === tSem.id);
+    ok("3c) 'rolar' num token SEM ficha entra com 0 (o valor do pedido é ignorado) e não gera mensagem no chat", eSem?.valor === 0 && msgs() === m0, JSON.stringify(eSem));
+    ana.enviar({ tipo: "criar_ficha" });
+    await esperar(350);
+    const fi = ana.eventos.filter((e) => e.tipo === "ficha_criada").at(-1).ficha;
+    ana.enviar({ tipo: "editar_ficha", id: fi.id, versao: fi.versao, nome: "Com Iniciativa", abas: [{ nome: "Página 1", texto: "(Ataque)[1d20]\n(INICIATIVA)[1d4 + 100]" }] });
+    await esperar(400);
+    ana.enviar({ tipo: "criar_token", nome: "ComFicha", cor: 1, corBorda: 2, tamanho: 1, imagem: null, ficha: fi.id });
+    await esperar(300);
+    const tCom = ana.eventos.filter((e) => e.tipo === "token_criado").at(-1).token;
+    m0 = msgs();
+    ana.acao({ acao: "adicionar", nome: "ComFicha", valor: 5, token: tCom.id, rolar: true });
+    await esperar(400);
+    const eCom = ultima(ana).entradas.find((e) => e.token === tCom.id);
+    const cartao = ana.eventos.filter((e) => e.tipo === "mensagem").at(-1)?.mensagem;
+    ok("3d) 'rolar' num token com a rolagem '(INICIATIVA)' (sem diferenciar maiúsculas) entra com o total rolado pelo servidor (101 a 104)", eCom && eCom.valor >= 101 && eCom.valor <= 104, JSON.stringify(eCom));
+    ok("3e) e a rolagem vai para o chat de todos, com o token e o mesmo total", msgs() === m0 + 1 && cartao?.rolagemFicha?.total === eCom.valor && cartao?.token === tCom.id, JSON.stringify(cartao?.rolagemFicha?.total));
+    await removerAdicionados(eSem.id, eCom.id);
+
     ok("4a) um pedido inválido (valor com vírgula) é recusado", (await erroDe(ana, () => ana.acao({ acao: "valor", id: 1, valor: 1.5 }))) !== null);
     ok("4b) uma ação que não existe é recusada", (await erroDe(ana, () => ana.acao({ acao: "voar" }))) !== null);
     ok("4c) mudar o valor de quem não está na iniciativa é recusado com o motivo", /não está na iniciativa/.test((await erroDe(ana, () => ana.acao({ acao: "valor", id: 9999, valor: 5 }))) ?? ""));

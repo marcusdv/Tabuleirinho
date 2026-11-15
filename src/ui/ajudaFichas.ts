@@ -37,6 +37,26 @@ export function criarAjudaFichas(): void {
         botaoFechar.focus();
     }
 
+    // O botão ⧉ copia TODO o texto das instruções (para colar numa IA, por exemplo: o rodapé sugere isso). Mostra "✓" por um instante.
+    const botaoCopiar = pegar<HTMLButtonElement>("ajuda-fichas-copiar");
+    const corpo = pegar("ajuda-fichas-corpo");
+    let temporizador: number | undefined;
+    botaoCopiar.addEventListener("click", () => {
+        const texto = `${pegar("ajuda-fichas-titulo").textContent}\n\n${corpo.innerText}`;
+        const avisar = (deuCerto: boolean): void => {
+            botaoCopiar.textContent = deuCerto ? "✓" : "!";
+            botaoCopiar.title = deuCerto ? "Copiado!" : "Não foi possível copiar: selecione o texto e use Ctrl+C";
+            botaoCopiar.classList.toggle("copiado", deuCerto);
+            window.clearTimeout(temporizador);
+            temporizador = window.setTimeout(() => {
+                botaoCopiar.textContent = "⧉";
+                botaoCopiar.title = "Copiar todo o texto das instruções";
+                botaoCopiar.classList.remove("copiado");
+            }, 1800);
+        };
+        navigator.clipboard.writeText(texto).then(() => avisar(true), () => avisar(false));
+    });
+
     for (const botao of document.querySelectorAll<HTMLElement>("[data-abrir-ajuda-fichas]")) botao.addEventListener("click", abrir);
     botaoFechar.addEventListener("click", fechar);
     janela.addEventListener("click", (e) => {
