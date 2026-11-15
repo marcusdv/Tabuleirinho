@@ -29,7 +29,7 @@ ok("0) 3 fichas criadas", (await nomes()).join() === "Ficha 1,Ficha 2,Ficha 3");
 // ---------- excluir: menu do clique direito
 await p.locator(".bolsa-doc").nth(1).click({ button: "right" });
 const itens = await p.locator("#menu-doc button").allTextContents();
-ok("1a) o clique direito num documento abre o MENU do jogo (e não o do navegador) com 'Abrir e editar', 'Favoritar', 'Grupos…' e 'Excluir ficha'", (await p.locator("#menu-doc").isVisible()) && itens.join("|") === "Abrir e editar|Favoritar|Grupos…|Excluir ficha", itens.join("|"));
+ok("1a) o clique direito num documento abre o MENU do jogo (e não o do navegador) com 'Abrir e editar', 'Gerar um token', 'Favoritar', 'Grupos…' e 'Excluir ficha'", (await p.locator("#menu-doc").isVisible()) && itens.join("|") === "Abrir e editar|Gerar um token|Favoritar|Grupos…|Excluir ficha", itens.join("|"));
 await p.click("#menu-doc-excluir");
 ok("1b) 'Excluir ficha' abre a caixa de confirmar (a do jogo), com o nome e o aviso", (await caixaAberta()) && (await p.locator("#confirmar-titulo").textContent()) === "Excluir ficha" && /"Ficha 2"/.test(await p.locator("#confirmar-mensagem").textContent()) && /não pode ser desfeito/.test(await p.locator("#confirmar-mensagem").textContent()) && nativos.length === 0);
 await p.click("#confirmar-cancelar");
@@ -53,7 +53,7 @@ await p.click("#menu-doc-abrir");
 ok("3) 'Abrir e editar' do menu abre o editor", await p.locator("#editor-ficha").isVisible());
 
 // ---------- painel de variáveis e rolagens
-ok("4a) com o texto vazio o painel mostra 'Nenhuma variável/rolagem definida.' e as DICAS de uso ficam embaixo", (await p.locator("#editor-ficha-sem-variaveis").isVisible()) && (await p.locator("#editor-ficha-sem-rolagens").isVisible()) && (await p.locator("#editor-ficha-dicas").isVisible()));
+ok("4a) com o texto vazio o painel mostra 'Nenhuma variável / Nenhum recurso / Nenhuma rolagem definida.' (as dicas fixas saíram da janela da ficha)", (await p.locator("#editor-ficha-sem-variaveis").isVisible()) && (await p.locator("#editor-ficha-sem-mudam").isVisible()) && (await p.locator("#editor-ficha-sem-rolagens").isVisible()) && (await p.locator("#editor-ficha-dicas").count()) === 0);
 await p.fill("#editor-ficha-texto", "FOR:: 16\nPROF:: 3\nMOD:: (FOR - 10) / 2\nOpa:: XPTO + 1\n\n(Ataque com espada)[1d20 + MOD + PROF]\n(Dano)[1d8 + MOD]\n(Errada)[1d20 + SORTE]\n[2d6]\n[ ] tarefa que não é rolagem");
 await p.waitForTimeout(300);
 const vs = await lateral("#editor-ficha-variaveis"), rs = await lateral("#editor-ficha-rolagens");
@@ -62,7 +62,7 @@ ok("4c) uma variável com problema mostra o ERRO no lugar do valor", vs.find((v)
 ok("4d) as rolagens mostram o NOME e a fórmula com os valores ('1d20 + 3 + 3')", rs[0]?.nome === "Ataque com espada" && rs[0].valor === "1d20 + 3 + 3" && rs[1]?.nome === "Dano" && rs[1].valor === "1d8 + 3", JSON.stringify(rs));
 ok("4e) uma rolagem com variável inexistente mostra o erro", rs[2]?.nome === "Errada" && rs[2].erro === true && /SORTE/.test(rs[2].valor), JSON.stringify(rs[2]));
 ok("4f) sem nome, a própria fórmula é o nome ('2d6'), e '[ ]' (sem dado) não vira rolagem", rs[3]?.nome === "2d6" && rs.length === 4, JSON.stringify(rs.map((r) => r.nome)));
-ok("4g) com itens, os avisos de 'nenhuma' somem, mas as DICAS de uso continuam à vista", (await p.locator("#editor-ficha-sem-variaveis").isHidden()) && (await p.locator("#editor-ficha-sem-rolagens").isHidden()) && (await p.locator("#editor-ficha-dicas").isVisible()));
+ok("4g) com itens, os avisos de 'nenhuma' (variável e rolagem) somem", (await p.locator("#editor-ficha-sem-variaveis").isHidden()) && (await p.locator("#editor-ficha-sem-rolagens").isHidden()));
 // atualiza enquanto digita
 await p.fill("#editor-ficha-texto", "FOR:: 20\n(Atq)[1d20 + (FOR - 10) / 2]");
 await p.waitForTimeout(300);

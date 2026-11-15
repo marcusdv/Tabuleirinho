@@ -6,7 +6,7 @@ const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
-await abrirPagina(p);
+await abrirPagina(p, "", { gaveta: "tabuleiro" });
 const t = (s) => p.locator(s).evaluate((e) => e.value ?? e.textContent);
 ok("1) abre com 18 colunas × 10 linhas", (await t("#colunas-valor")) === "18" && (await t("#linhas-valor")) === "10", `${await t("#colunas-valor")}×${await t("#linhas-valor")}`);
 ok("2) abre em zoom 100%", (await t("#zoom-valor")) === "100%", await t("#zoom-valor"));

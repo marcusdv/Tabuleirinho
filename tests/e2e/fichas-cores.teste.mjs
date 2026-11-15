@@ -41,7 +41,7 @@ ok("1f) clicar no fundo escuro também fecha", await p.locator("#ajuda-fichas").
 // ================= o editor: texto colorido
 await criarFichaFechada(p);
 await p.locator(".bolsa-doc").dblclick();
-ok("2a) com o texto vazio: avisos 'Nenhuma variável/rolagem definida.' em cima e as DICAS fixas embaixo", (await p.locator("#editor-ficha-sem-variaveis").isVisible()) && (await p.locator("#editor-ficha-sem-rolagens").isVisible()) && (await p.locator("#editor-ficha-dicas").isVisible()));
+ok("2a) com o texto vazio: avisos 'Nenhuma variável / Nenhum recurso / Nenhuma rolagem definida.' (as dicas fixas saíram da janela da ficha)", (await p.locator("#editor-ficha-sem-variaveis").isVisible()) && (await p.locator("#editor-ficha-sem-mudam").isVisible()) && (await p.locator("#editor-ficha-sem-rolagens").isVisible()) && (await p.locator("#editor-ficha-dicas").count()) === 0);
 const texto = "FOR:: 16\nPROF:: 3\nMOD:: (FOR - 10) / 2\nOpa:: XPTO + 1\n\n(Ataque com espada)[1d20 + MOD + PROF]\n(Dano)[1d8 + MOD]\n(Errada)[1d20 + SORTE]\n[2d6]\nCom <img src=x onerror=alert> no meio";
 await p.fill("#editor-ficha-texto", texto);
 const camada = await p.locator("#editor-ficha-cores").evaluate((el) => el.textContent);
@@ -83,22 +83,17 @@ await p.waitForTimeout(80);
 const scrolls = await p.evaluate(() => ({ campo: document.getElementById("editor-ficha-texto").scrollTop, camada: document.getElementById("editor-ficha-cores").scrollTop }));
 ok("5b) ao rolar o campo, a camada de cores ACOMPANHA (mesmo scrollTop)", scrolls.campo > 0 && scrolls.campo === scrolls.camada, JSON.stringify(scrolls));
 
-// ================= o painel lateral: tela de rolagens em cima, dicas fixas embaixo
-await p.fill("#editor-ficha-texto", "FOR:: 16\n(Ataque)[1d20 + FOR]\n(Dano)[1d8 + FOR]\n(Iniciativa)[1d20]");
-const assist = await p.locator("#editor-ficha-assistente").boundingBox();
-const dicas = await p.locator("#editor-ficha-dicas").boundingBox();
-ok("6a) a tela de rolagens fica EM CIMA e as dicas EMBAIXO", dicas.y > assist.y + 20 && dicas.y + dicas.height <= (await p.locator("#editor-ficha-lateral").boundingBox()).y + (await p.locator("#editor-ficha-lateral").boundingBox()).height + 1, JSON.stringify({ assist, dicas }));
-ok("6b) as dicas NÃO somem quando já há variáveis e rolagens (continuam visíveis)", (await p.locator("#editor-ficha-dicas").isVisible()) && (await p.locator("#editor-ficha-sem-variaveis").isHidden()));
-const dicasTexto = await p.locator("#editor-ficha-dicas").textContent();
-ok("6c) o texto das dicas é formal: 'Crie suas variáveis' / 'Crie suas rolagens' / 'Escreva o nome da rolagem entre parênteses e a fórmula entre colchetes.'", /Crie suas variáveis/.test(dicasTexto) && /Crie suas rolagens/.test(dicasTexto) && /Escreva o nome da rolagem entre parênteses e a fórmula entre colchetes\./.test(dicasTexto) && /Escreva o nome da variável, dois-pontos duplos e o valor/.test(dicasTexto), dicasTexto.slice(0, 200));
-ok("6d) há mais de um exemplo em cada dica (3 variáveis e 3 rolagens, coloridos)", (await p.locator("#editor-ficha-dicas .variavel-nome").count()) === 3 && (await p.locator("#editor-ficha-dicas .rolagem-nome").count()) === 3);
-ok("6e) a lista ao vivo mostra as variáveis e as rolagens (nome + fórmula calculada)", (await textos("#editor-ficha-variaveis li")).length === 1 && (await p.locator("#editor-ficha-rolagens li").count()) === 3);
-
-// ================= o link para as instruções completas, por cima do editor
-await p.click("#editor-ficha-instrucoes");
-ok("7a) 'Ver todas as instruções' abre a janela POR CIMA do editor", (await p.locator("#ajuda-fichas").isVisible()) && (await p.locator("#editor-ficha").isVisible()));
-await p.keyboard.press("Escape");
-ok("7b) Esc fecha SÓ as instruções (o editor continua aberto com o texto)", (await p.locator("#ajuda-fichas").isHidden()) && (await p.locator("#editor-ficha").isVisible()) && (await p.inputValue("#editor-ficha-texto")).startsWith("FOR:: 16"));
+// ================= o painel lateral: variáveis (esquerda) e recursos (direita) em cima, rolagens embaixo
+await p.fill("#editor-ficha-texto", "FOR:: 16\nPV::0:10:10\n(Ataque)[1d20 + FOR]\n(Dano)[1d8 + FOR]\n(Iniciativa)[1d20]");
+const colVar = await p.locator("#editor-ficha-variaveis").boundingBox();
+const colRec = await p.locator("#editor-ficha-mudam").boundingBox();
+const rolag = await p.locator("#editor-ficha-rolagens").boundingBox();
+ok("6a) as variáveis ficam à ESQUERDA, os recursos à DIREITA e as rolagens EMBAIXO das duas colunas", colVar.x < colRec.x && rolag.y > colVar.y + colVar.height - 1 && rolag.y > colRec.y + colRec.height - 1, JSON.stringify({ colVar, colRec, rolag }));
+ok("6b) com variáveis, recursos e rolagens, os avisos de 'nenhum' somem", (await p.locator("#editor-ficha-sem-variaveis").isHidden()) && (await p.locator("#editor-ficha-sem-mudam").isHidden()) && (await p.locator("#editor-ficha-sem-rolagens").isHidden()));
+ok("6c) a lista ao vivo mostra 1 variável (FOR), 1 recurso (PV) e 3 rolagens (nome + fórmula calculada)", (await textos("#editor-ficha-variaveis li")).length === 1 && (await p.locator("#editor-ficha-mudam li.muda").count()) === 1 && (await p.locator("#editor-ficha-rolagens li").count()) === 3);
+ok("6d) as rolagens com d20 ganham a classe 'd20' (azuladas) e a de d8 não", (await p.locator("#editor-ficha-rolagens li.d20").count()) === 2 && (await p.locator("#editor-ficha-rolagens li:not(.d20)").count()) === 1);
+ok("6e) o recurso vem com os botões − e + e o campo com o valor inicial", (await p.locator("#editor-ficha-mudam li.muda input").inputValue()) === "10" && (await p.locator("#editor-ficha-mudam li.muda .passo").count()) === 2);
+ok("7) o link 'Ver todas as instruções' saiu da janela da ficha (as instruções ficam na aba Fichas da bolsa)", (await p.locator("#editor-ficha-instrucoes").count()) === 0);
 ok("8) nenhum erro de JavaScript", erros.length === 0, erros.join(" | "));
 const codigo = terminar(erros);
 await nav.close();

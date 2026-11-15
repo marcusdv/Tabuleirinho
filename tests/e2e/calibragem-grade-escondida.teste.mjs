@@ -7,7 +7,7 @@ const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
-await abrirPagina(p);
+await abrirPagina(p, "", { gaveta: "tabuleiro" });
 await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 
 // Região do tabuleiro sem tokens, barra nem painel: x 60-330, y 380-540 (token azul pequeno fica em ~390,370; evitamos)

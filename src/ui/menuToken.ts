@@ -26,7 +26,7 @@
 import { CONDICOES, urlDoIcone } from "../condicoes";
 import { AFASTAMENTO_OPCOES_TOKEN, ALTURA_MIN_PAINEL, DISTANCIA_PAINEL } from "../config";
 import { limitar } from "../coordenadas";
-import { buscarToken, estado } from "../estado";
+import { buscarToken, estado, rotuloDoStatus } from "../estado";
 import type { DicaCondicao } from "./dicaCondicao";
 
 export interface OpcoesMenuToken {
@@ -92,7 +92,7 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
             const botao = document.createElement("button");
             botao.className = "acao-token acao-dinamica";
             botao.textContent = acao.nome; // (o nome vem do usuário: textContent)
-            botao.title = `${acao.nome}: ${acao.efeito === "reduzir" ? "tira do" : "soma ao"} ${estado.statusDaMesa.find((s) => s.id === acao.status)?.nome ?? "status"}`;
+            botao.title = `${acao.nome}: ${acao.efeito === "reduzir" ? "tira do" : "soma ao"} ${(() => { const st = estado.statusDaMesa.find((s) => s.id === acao.status); return st ? rotuloDoStatus(st) : "status"; })()}`;
             botao.addEventListener("click", () => {
                 const id = tokenAberto;
                 fechar();

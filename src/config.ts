@@ -112,7 +112,7 @@ export const COR_STATUS_HP = 0x2ecc71;
 /** As cores oferecidas ao criar um status novo (a próxima que ainda não está em uso). */
 export const CORES_STATUS = [0x2ecc71, 0x3498db, 0xe67e22, 0x9b59b6, 0xf1c40f, 0xe74c3c];
 /** A barra no tabuleiro: altura e vão entre uma barra e a próxima (em pixels do mundo, antes do zoom). */
-export const ALTURA_BARRA_STATUS = 14; // (alta o bastante para o número "100/100" caber DENTRO da barra)
+export const ALTURA_BARRA_STATUS = 10; // barras FINAS (eram 14; pedido do dono): ainda cabe o número "100/100" DENTRO dela, com a letra um pouco menor
 export const VAO_BARRA_STATUS = 2;
 
 /** Duplo clique num token do tabuleiro: o 2º aperto no mesmo token vale se vier em até isto (ms) e com o mouse parado (até PX_DUPLO_CLIQUE pixels de tela). */

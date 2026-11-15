@@ -44,7 +44,6 @@ import {
     carregarAcoesDaMesa,
     definirAcoesDaMesa,
     frasePraChatDaAcao,
-    statusAplicaveis,
     definirStatusDaMesa,
     definirTamanhoTabuleiro,
     editarToken,
@@ -76,6 +75,8 @@ import {
     statusPadrao,
     valoresAtuaisDaFicha,
     ajustarValorDaFicha,
+    statusDaAcao,
+    rotuloDoStatus,
     definirTodosOsValoresDasFichas,
     definirValoresDaFicha,
     motivoParaNaoColocar,
@@ -415,15 +416,15 @@ async function iniciar(): Promise<void> {
         const token = buscarToken(tokenId);
         const acao = estado.acoesDaMesa.find((a) => a.id === acaoId);
         if (!token || !acao) return;
-        const status = statusAplicaveis(token).find((s) => s.id === acao.status);
+        const status = statusDaAcao(token, acao);
         const valor = status ? token.valores.find((v) => v.id === status.id) : undefined;
         if (!status || !valor) {
-            aviso.mostrar(`"${token.nome}" não tem ${status ? `valor de ${status.nome}` : "o status desta ação"}: ele precisa de uma ficha com a variável do status.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            aviso.mostrar(`"${token.nome}" não tem ${status ? `valor de ${rotuloDoStatus(status)}` : "o status desta ação"}: ele precisa de uma ficha com a variável do status.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
             return;
         }
         modalAcao.abrir({
             titulo: `${acao.nome} em ${token.nome}`,
-            nomeStatus: status.nome,
+            nomeStatus: rotuloDoStatus(status),
             atual: valor.atual,
             max: valor.max,
             efeito: acao.efeito,

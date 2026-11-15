@@ -7,7 +7,7 @@ const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 900 } });
 const erros = [];
 p.on("pageerror", (e) => erros.push(String(e)));
-await abrirPagina(p, "", { manterAtrasoDasRolagens: true });
+await abrirPagina(p, "", { manterAtrasoDasRolagens: true, dados: true });
 
 const cartoes = () => p.locator(".chat-mensagem.chat-rolagem").count();
 ok("1a) o padrão do app é uma pausa de 100 ms", (await p.evaluate(() => window.__tabuleirinho.atrasoRolagemMs)) === 100);

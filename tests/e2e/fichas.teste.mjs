@@ -36,7 +36,7 @@ const cinco = await fichas();
 ok("3a) 5 fichas, com ids 1 a 5 e nomes 'Ficha 1' a 'Ficha 5'", cinco.map((f) => f.id).join() === "1,2,3,4,5" && cinco.every((f) => f.nome === `Ficha ${f.id}`), JSON.stringify(cinco.map((f) => f.nome)));
 await criarFichaFechada(p); // a sexta, para ver a linha de baixo
 const t = await topos();
-ok("3b) na bolsa do canto a grade tem 5 por linha (a sexta vai para a linha de baixo)", t.length === 6 && new Set(t.slice(0, 5)).size === 1 && t[5] > t[0], t.join());
+ok("3b) na bolsa (coluna da direita) a grade tem 4 por linha (a quinta vai para a linha de baixo)", t.length === 6 && new Set(t.slice(0, 4)).size === 1 && t[4] > t[0], t.join());
 
 // 4) a aba escolhida vale nos outros tamanhos, e a grade usa a largura toda na tela cheia
 ok("4a) na bolsa do canto a aba Fichas continua aberta, com a grade e o botão", (await p.locator("#bolsa-fichas").isVisible()) && (await p.locator(".bolsa-doc").count()) === 6);

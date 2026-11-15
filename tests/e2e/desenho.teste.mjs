@@ -9,7 +9,7 @@ const dialogos = []; p.on("dialog", async (d) => { dialogos.push(d.message()); a
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
 const perto = (a, c, tol = 3) => Math.abs(a - c) <= tol;
-await abrirPagina(p);
+await abrirPagina(p, "", { gaveta: "desenho" });
 await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 
 const MAGENTA = [255, 0, 255], VERDE = [0, 255, 0], AMARELO = [0xff, 0xd5, 0x4f], VERMELHO = [0xe7, 0x4c, 0x3c], ROXO = [0x9b, 0x59, 0xb6];

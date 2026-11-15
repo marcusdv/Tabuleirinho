@@ -1102,12 +1102,12 @@ export type ResultadoDeAcao =
 export function aplicarAcao(token: Token, acaoId: number, texto: string, sortear: () => number): ResultadoDeAcao {
     const acao = estado.acoesDaMesa.find((a) => a.id === acaoId);
     if (!acao) return { ok: false, erro: "Essa ação não existe." };
-    const status = statusAplicaveis(token).find((s) => s.id === acao.status);
+    const status = statusDaAcao(token, acao);
     if (!status) return { ok: false, erro: `Este token não usa o status desta ação.` };
     const valor = token.valores.find((v) => v.id === status.id);
     // Ficha de JOGADOR: se o status lê uma variável que MUDA, a ação muda o valor DA FICHA (e a barra, que a espelha, acompanha), limitado ao mínimo e ao máximo dela.
     const ligacao = ligacaoComVariavelQueMuda(token, status.variavel);
-    if (!valor && !ligacao) return { ok: false, erro: `"${status.nome}" não tem valor neste token: ele precisa de uma ficha com a variável ${status.variavel || "do status"}.` };
+    if (!valor && !ligacao) return { ok: false, erro: `"${rotuloDoStatus(status)}" não tem valor neste token: ele precisa de uma ficha com a variável ${status.variavel || "do status"}.` };
     const quantia = lerQuantia(texto);
     if (!quantia) return { ok: false, erro: "Escreva um número (ex.: 7) ou dados (ex.: 2d6+3)." };
     let total: number;
@@ -1124,13 +1124,27 @@ export function aplicarAcao(token: Token, acaoId: number, texto: string, sortear
         const depois = limitar(acao.efeito === "reduzir" ? ligacao.atual - total : ligacao.atual + total, ligacao.min, ligacao.max);
         definirValorAtualDaFicha(ligacao.ficha, ligacao.nome, depois);
         sincronizarValoresDaFicha(ligacao.ficha); // (a barra deste token, e a de qualquer outro dela, passa a mostrar o valor novo)
-        return { ok: true, nomeStatus: status.nome, antes: ligacao.atual, depois, max: ligacao.max, quantia: total, detalhe, fichaAlterada: ligacao.ficha };
+        return { ok: true, nomeStatus: rotuloDoStatus(status), antes: ligacao.atual, depois, max: ligacao.max, quantia: total, detalhe, fichaAlterada: ligacao.ficha };
     }
     if (!valor) return { ok: false, erro: "Valor do status indisponível." }; // (não acontece: conferido acima)
     const antes = valor.atual;
     const depois = limitar(acao.efeito === "reduzir" ? antes - total : antes + total, 0, valor.max);
     valor.atual = depois;
-    return { ok: true, nomeStatus: status.nome, antes, depois, max: valor.max, quantia: total, detalhe };
+    return { ok: true, nomeStatus: rotuloDoStatus(status), antes, depois, max: valor.max, quantia: total, detalhe };
+}
+
+/**
+ * QUAL status uma ação atinge NUM token. A ação aponta para um status (`acao.status`); se esse status vale para o token, é ele. Senão, vale o status do token que lê a MESMA VARIÁVEL
+ * (ex.: o "Dano" aponta para o HP dos JOGADORES, que lê PV, e um goblin de outro grupo tem o próprio status de HP lendo PV: o Dano atinge o dele). Sem variável ou sem outro status com ela:
+ * null (o token não usa o status desta ação). Usada pelo servidor, pelo modo local e pelo modal da ação.
+ */
+export function statusDaAcao(token: Token, acao: AcaoDaMesa): StatusDoToken | null {
+    const aplicaveis = statusAplicaveis(token);
+    const direto = aplicaveis.find((s) => s.id === acao.status);
+    if (direto) return direto;
+    const alvo = estado.statusDaMesa.find((s) => s.id === acao.status);
+    if (!alvo || alvo.variavel === "") return null;
+    return aplicaveis.find((s) => s.variavel.toUpperCase() === alvo.variavel.toUpperCase()) ?? null;
 }
 
 /** Se o status (a variável que ele lê) está ligado a uma variável que MUDA da ficha do token, devolve os dados dela (ficha, nome, intervalo e valor atual); senão, null. */
@@ -1155,6 +1169,11 @@ export function aplicarStatusDaMesaAosTokens(): void {
     for (const token of estado.tokens) token.status = statusDaMesaCopiada();
 }
 
+/** Como chamar um status numa FRASE (chat, avisos, dicas): o nome; se ele não tem nome, a variável que lê; senão, "status". (A barra no tabuleiro não usa isto: sem nome, fica sem rótulo.) */
+export function rotuloDoStatus(status: { nome: string; variavel: string }): string {
+    return status.nome || status.variavel || "status";
+}
+
 /** O status de fábrica: o HP, que lê a variável PV:: da ficha. */
 export function statusPadrao(): StatusDoToken[] {
     return [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false }];
@@ -1162,7 +1181,7 @@ export function statusPadrao(): StatusDoToken[] {
 
 /**
  * Confere e limpa uma lista de status que veio de FORA (a janela de edição, um arquivo, um pedido da rede). Devolve a lista pronta (até MAX_STATUS_TOKEN
- * itens; nome limpo e cortado, vazio vira "Status"; variável só com letras, números e "_" e sem começar por número, senão fica vazia; cor válida; ids sem
+ * itens; nome limpo e cortado (um nome VAZIO continua vazio: a barra no tabuleiro fica sem rótulo); variável só com letras, números e "_" e sem começar por número, senão fica vazia; cor válida; ids sem
  * repetir, e os novos ganham um id) ou null se não é uma lista. Nunca lança erro.
  */
 export function limparStatus(bruto: unknown, idJaUsado = 0): StatusDoToken[] | null {
@@ -1178,7 +1197,7 @@ export function limparStatus(bruto: unknown, idJaUsado = 0): StatusDoToken[] | n
         if (/^\p{N}/u.test(variavel)) variavel = ""; // (uma variável não pode começar por número)
         const cor = typeof s.cor === "number" && Number.isFinite(s.cor) ? limitar(Math.round(s.cor), 0, 0xffffff) : COR_STATUS_HP;
         const grupos = Array.isArray(s.grupos) ? limparGrupos(s.grupos.filter((g): g is number => typeof g === "number")) : null; // (sem a lista = TODOS os tokens; lista vazia = NENHUM; ids de grupos que não existem são descartados)
-        return { id, nome: nome || "Status", variavel, cor, mostrar: s.mostrar !== false, numeros: s.numeros !== false, grupos, semGrupo: grupos !== null && s.semGrupo === true }; // (sem o campo, os dois ficam ligados)
+        return { id, nome, variavel, cor, mostrar: s.mostrar !== false, numeros: s.numeros !== false, grupos, semGrupo: grupos !== null && s.semGrupo === true }; // (sem o campo, os dois ficam ligados)
     });
 }
 

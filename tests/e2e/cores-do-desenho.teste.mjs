@@ -6,7 +6,7 @@ const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
-await abrirPagina(p);
+await abrirPagina(p, "", { gaveta: "desenho" });
 await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 
 const cores = () => p.locator("#desenho-amostras .amostra").evaluateAll((a) => a.map((x) => x.dataset.cor));

@@ -10,7 +10,7 @@ const navegador = await lancar();
 const p = await navegador.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = [];
 p.on("pageerror", (e) => erros.push(String(e)));
-await abrirPagina(p);
+await abrirPagina(p, "", { gaveta: "desenho" });
 
 const dist = () => p.locator("#regua-resultado").evaluate((e) => (e.hidden ? null : e.textContent));
 const camX = () => p.evaluate(() => window.__tabuleirinho.camera.mundo.x);

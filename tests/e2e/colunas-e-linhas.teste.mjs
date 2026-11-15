@@ -6,7 +6,7 @@ const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
-await abrirPagina(p);
+await abrirPagina(p, "", { gaveta: "tabuleiro" });
 await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 const v = (s) => p.inputValue(s);
 const par = async () => `${await v("#colunas-valor")}×${await v("#linhas-valor")}`;

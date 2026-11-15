@@ -5,7 +5,7 @@
 // =====================================================================
 
 import { MAX_ACOES_MESA, MAX_CARACTERES_NOME_ACAO } from "../config";
-import { estado, type AcaoNova } from "../estado";
+import { estado, rotuloDoStatus, type AcaoNova } from "../estado";
 
 export interface OpcoesModalAcoes {
     /** A lista de ações mudou (a lista inteira, já com a ação nova ou sem a excluída). */
@@ -33,7 +33,7 @@ export function criarModalAcoes(opcoes: OpcoesModalAcoes): ModalAcoes {
     campoNome.maxLength = MAX_CARACTERES_NOME_ACAO;
     let focoAnterior: HTMLElement | null = null;
 
-    const nomeDoStatus = (id: number): string => estado.statusDaMesa.find((s) => s.id === id)?.nome ?? "(status excluído)";
+    const nomeDoStatus = (id: number): string => { const s = estado.statusDaMesa.find((x) => x.id === id); return s ? rotuloDoStatus(s) : "(status excluído)"; };
     const listaAtual = (): AcaoNova[] => estado.acoesDaMesa.map((a) => ({ ...a }));
 
     function desenhar(): void {
@@ -68,7 +68,7 @@ export function criarModalAcoes(opcoes: OpcoesModalAcoes): ModalAcoes {
             ...estado.statusDaMesa.map((s) => {
                 const opcao = document.createElement("option");
                 opcao.value = String(s.id);
-                opcao.textContent = s.nome;
+                opcao.textContent = rotuloDoStatus(s);
                 return opcao;
             }),
         );

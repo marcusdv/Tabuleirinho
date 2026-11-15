@@ -366,3 +366,5 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 - **DECIDIDO pelo dono: arrasta-se SÓ o TOTAL inteiro do cartão** (não cada dado separado).
 - **DECIDIDO pelo dono: SÓ DANO.** Soltar o resultado num token sempre SUBTRAI (não há cura por arrasto: curar continua pela ação "Cura" do menu do token). Não há tecla, menu nem etiqueta de cura. Se um dia fizer falta, as opções pensadas foram: segurar Shift ao soltar, uma etiqueta na rolagem da ficha (ex.: `(Cura)[2d4 + 2]`) ou um mini-menu "Dano / Cura" ao soltar.
 - **Perguntas em aberto:** Soltar em vários tokens de uma vez (seleção em grupo, que ainda não existe no tabuleiro)? Quem pode arrastar (qualquer jogador ou só o mestre, quando houver papéis)? Ter um "Desfazer" depois de soltar?
+
+- **Status (14/11/2026):** se o status não tiver nome, o nome fica em BRANCO na barra do tabuleiro (feito). As barras ficaram mais finas (10 px, feito). **Ideia em aberto:** as barras numa camada ABAIXO de todos os tokens, para nunca ficarem na frente de outro token (ver `CLAUDE.md`).

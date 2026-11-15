@@ -368,7 +368,9 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
 
     botaoNovo.addEventListener("click", () => {
         if (itens.length >= MAX_STATUS_TOKEN) return;
-        itens.push({ nome: "Status", variavel: "", cor: proximaCor(), mostrar: true, numeros: true, grupos: null, semGrupo: false });
+        // Um status NOVO nasce "apagado" (pedido do dono): sem nome, sem barra ("Exibir status" desligado), sem números e em NENHUM grupo (não vale para token nenhum até a pessoa escolher). Assim criar um
+        // status não muda nada no jogo por conta própria.
+        itens.push({ nome: "", variavel: "", cor: proximaCor(), mostrar: false, numeros: false, grupos: [], semGrupo: false });
         desenhar();
         avisarAgora();
         lista.querySelector<HTMLInputElement>(".status-linha:last-child .status-nome")?.select(); // (já pronto para renomear)

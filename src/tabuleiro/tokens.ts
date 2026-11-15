@@ -182,7 +182,7 @@ export function criarTokens(
             // O número DENTRO da barra ("atual/máx", ex.: 100/100), centralizado (só com "Exibir números" ligado). Texto feito com o dobro do tamanho e reduzido (nítido ao aproximar o zoom).
             const numero = new Text({
                 text: `${valor.atual}/${valor.max}`,
-                style: { fontFamily: "system-ui, sans-serif", fontSize: 18, fontWeight: "700", fill: 0xffffff, stroke: { color: 0x000000, width: 4 } },
+                style: { fontFamily: "system-ui, sans-serif", fontSize: 16, fontWeight: "700", fill: 0xffffff, stroke: { color: 0x000000, width: 3 } },
             });
             numero.anchor.set(0.5);
             numero.scale.set(0.5);
@@ -191,10 +191,14 @@ export function criarTokens(
             numero.position.set(0, y + ALTURA_BARRA_STATUS / 2);
             if (status.numeros) view.barras.addChild(numero);
             else numero.destroy();
-            // O NOME do status ("HP") FORA da caixa, à esquerda dela, alinhado à direita, na cor do status.
+            // O NOME do status ("HP") FORA da caixa, à esquerda dela, alinhado à direita, na cor do status. Um status SEM nome fica sem rótulo (só a barra).
+            if (status.nome === "") {
+                i++;
+                continue;
+            }
             const nome = new Text({
                 text: status.nome,
-                style: { fontFamily: "system-ui, sans-serif", fontSize: 18, fontWeight: "700", fill: status.cor, stroke: { color: 0x000000, width: 4 } },
+                style: { fontFamily: "system-ui, sans-serif", fontSize: 16, fontWeight: "700", fill: status.cor, stroke: { color: 0x000000, width: 3 } },
             });
             nome.anchor.set(1, 0.5);
             nome.scale.set(0.5);

@@ -51,7 +51,7 @@ process.env.SEM_LIMITE_SPAM ??= "1";
 // As fichas de EXEMPLO (Goblin e Thorin) que o servidor cria na primeira vez ficam desligadas nos testes: eles contam fichas e tokens e esperam a mesa vazia.
 process.env.SEM_EXEMPLOS ??= "1";
 
-export async function abrirPagina(p, consulta = "", { ordemPadrao = false, manterAtrasoDasRolagens = false } = {}) {
+export async function abrirPagina(p, consulta = "", { ordemPadrao = false, manterAtrasoDasRolagens = false, gaveta = null, aba = null, dados = false } = {}) {
     // O app abre as listas da bolsa com os MAIS RECENTES primeiro. Quase todos os testes foram escritos para a ordem de criação (a mais antiga
     // primeiro), então por padrão fixamos essa ordem pela preferência guardada; `ordemPadrao: true` deixa a ordem de fábrica do app.
     if (!ordemPadrao) {
@@ -73,6 +73,10 @@ export async function abrirPagina(p, consulta = "", { ordemPadrao = false, mante
     // de tokens para mover, então "semeiam" estes 5 pelo gancho do `npm run dev`. No modo online os tokens vêm do servidor, e quem
     // testa prepara os arquivos.
     if (!consulta.includes("online")) await p.evaluate((lista) => window.__tabuleirinho.semear(lista), TOKENS_DE_TESTE);
+    // Opções para o que o teste precisa à vista (o app abre com tudo recolhido e na aba Bolsa): `gaveta` = "desenho" | "tabuleiro", `aba` = "chat" | "bolsa", `dados` = abrir a barra de Dados.
+    if (gaveta) await abrirGaveta(p, gaveta);
+    if (aba) await escolherAba(p, aba);
+    if (dados) await abrirDados(p);
 }
 
 /**
@@ -81,6 +85,30 @@ export async function abrirPagina(p, consulta = "", { ordemPadrao = false, mante
  */
 export async function recolherDados(p) {
     if (await p.evaluate(() => document.getElementById("dados")?.classList.contains("recolhida"))) return;
+    await p.click("#dados-alternar");
+    await p.waitForTimeout(450);
+}
+
+/**
+ * Abre a GAVETA de uma barra da pilha da esquerda: "desenho" (o painel de Desenho, `#ferramentas-desenho`) ou "tabuleiro" (a barra Tabuleiro, `#barra`: colunas, linhas, grade, mapa...).
+ * Tudo começa recolhido, e só UMA gaveta fica aberta por vez (abrir uma fecha a outra). Espera a animação terminar.
+ */
+export async function abrirGaveta(p, qual) {
+    const caixa = qual === "desenho" ? "#ferramentas-desenho" : "#barra";
+    if (await p.evaluate((c) => !document.querySelector(c).classList.contains("recolhida"), caixa)) return;
+    await p.click(caixa + " .cabecalho");
+    await p.waitForTimeout(450);
+}
+
+/** Escolhe a aba da coluna da direita: "chat" ou "bolsa". O app abre na BOLSA; os testes de chat precisam escolher "chat". */
+export async function escolherAba(p, qual) {
+    await p.click("#lateral-aba-" + qual);
+    await p.waitForTimeout(150);
+}
+
+/** Abre a barra de DADOS do pé da coluna da direita (por padrão ela começa recolhida). Espera a animação. */
+export async function abrirDados(p) {
+    if (await p.evaluate(() => !document.getElementById("dados").classList.contains("recolhida"))) return;
     await p.click("#dados-alternar");
     await p.waitForTimeout(450);
 }
