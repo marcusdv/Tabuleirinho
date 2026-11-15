@@ -11,6 +11,7 @@
 // =====================================================================
 
 import { MAX_ABAS_FICHA, MAX_ACOES_MESA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_NOME_VARIAVEL, MAX_CARACTERES_QUANTIA_ACAO, MAX_CARACTERES_TEXTO_FICHA, MAX_GRUPOS, MAX_STATUS_TOKEN, MAX_VALOR_VARIAVEL_QUE_MUDA } from "./config.ts";
+import { lerAcaoDaIniciativa, type AcaoDaIniciativa, type Iniciativa } from "./iniciativa.ts";
 import type { AbaFicha, AcaoDaMesa, AcaoNova, Ficha, Grupo, Mensagem, MudancasToken, StatusDoToken, StatusNovo, Token, ValorDeStatus } from "./estado.ts";
 
 /** Um jogador conectado à mesa. */
@@ -25,6 +26,7 @@ export type PedidoDoCliente =
     | { tipo: "colocar_token"; id: number; col: number; row: number } // soltar um token no mapa (mover ou tirar da bolsa)
     | { tipo: "guardar_token"; id: number } // soltar um token na bolsa
     | { tipo: "ajustar_valor_ficha"; ficha: number; nome: string; delta: number } // SOMAR `delta` (+ ou -) ao valor atual de uma variável que muda da ficha: o SERVIDOR limita ao intervalo, grava e avisa todos
+    | { tipo: "iniciativa"; acao: AcaoDaIniciativa } // uma ação na ordem de COMBATE (adicionar, remover, mover, valor, ordenar, resetar, próxima vez...): o SERVIDOR aplica, guarda e avisa todos
     | { tipo: "arrastar_resultado"; token: number; mensagem: number } // o TOTAL de uma rolagem do chat foi solto num token: ele perde essa quantidade do status marcado; o SERVIDOR lê o total da mensagem (o navegador não manda número)
     | { tipo: "aplicar_acao"; token: number; acao: number; valor: string } // aplicar uma ação (Dano, Cura...) a um token: `valor` = um número ou dados ("2d6+3"); o SERVIDOR sorteia e aplica
     | { tipo: "definir_acoes"; acoes: AcaoNova[] } // mudar as AÇÕES da mesa inteira (criar, excluir)
@@ -47,8 +49,9 @@ export type PedidoDoCliente =
 
 /** O que o servidor AVISA aos navegadores. */
 export type EventoDoServidor =
-    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; status: StatusDoToken[]; acoes: AcaoDaMesa[]; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[]; grupos: Grupo[]; valores: Record<string, Record<string, number>> }
+    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; status: StatusDoToken[]; acoes: AcaoDaMesa[]; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[]; grupos: Grupo[]; valores: Record<string, Record<string, number>>; iniciativa: Iniciativa }
     | { tipo: "token_criado"; token: Token } // já gravado no disco do servidor; nasce guardado na bolsa
+    | { tipo: "iniciativa_definida"; iniciativa: Iniciativa } // a ordem de combate inteira, como ficou depois de uma ação
     | { tipo: "valores_ficha"; id: number; valores: Record<string, number> } // os valores atuais das variáveis que mudam de uma ficha (NOME em MAIÚSCULAS -> valor): o SERVIDOR já limitou; cada navegador refaz as barras dos tokens dela
     | { tipo: "valores_atualizados"; id: number; valores: ValorDeStatus[] } // os valores (PV...) de uma peça mudaram (uma ação foi aplicada)
     | { tipo: "acoes_definidas"; acoes: AcaoDaMesa[] } // a lista de ações da mesa mudou
@@ -118,6 +121,10 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             return eInteiro(p.id) ? { tipo: "guardar_token", id: p.id } : null;
         case "ajustar_valor_ficha":
             return eInteiro(p.ficha) && eTexto(p.nome, MAX_CARACTERES_NOME_VARIAVEL) && eInteiro(p.delta) && Math.abs(p.delta) <= 2 * MAX_VALOR_VARIAVEL_QUE_MUDA ? { tipo: "ajustar_valor_ficha", ficha: p.ficha, nome: p.nome, delta: p.delta } : null;
+        case "iniciativa": {
+            const acao = lerAcaoDaIniciativa(p.acao);
+            return acao ? { tipo: "iniciativa", acao } : null;
+        }
         case "arrastar_resultado":
             return eInteiro(p.token) && eInteiro(p.mensagem) ? { tipo: "arrastar_resultado", token: p.token, mensagem: p.mensagem } : null;
         case "aplicar_acao":

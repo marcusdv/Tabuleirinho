@@ -10,7 +10,7 @@
 // A marcação e o CSS ficam no index.html (um script no fim dele aplica a ordem e o que está aberto ANTES da primeira pintura: as regras são as mesmas).
 // =====================================================================
 
-import { CHAVE_BARRA_RECOLHIDA, CHAVE_DESENHO_RECOLHIDO, CHAVE_ORDEM_PILHA } from "../config";
+import { CHAVE_BARRA_RECOLHIDA, CHAVE_DESENHO_RECOLHIDO, CHAVE_INICIATIVA_RECOLHIDA, CHAVE_ORDEM_PILHA } from "../config";
 import { alternarGaveta, gavetaRecolhida } from "./animarPainel";
 import { guardarPreferencia, lerPreferencia } from "./preferencias";
 
@@ -25,7 +25,7 @@ interface Barra {
 }
 
 const DISTANCIA_MINIMA = 4; // px que o mouse precisa andar para um clique virar arrasto
-const ORDEM_DE_FABRICA = ["ferramentas-desenho", "barra"]; // de cima para baixo: Desenho e depois Ferramentas
+const ORDEM_DE_FABRICA = ["ferramentas-desenho", "barra", "iniciativa"]; // de cima para baixo: Desenho, Tabuleiro e Iniciativa
 
 let restaurarAtual: (() => void) | null = null;
 
@@ -39,6 +39,7 @@ export function criarPilha(): void {
     const barras: Barra[] = [
         { id: "ferramentas-desenho", nome: "Desenho", chave: CHAVE_DESENHO_RECOLHIDO, botao: "desenho-alternar" },
         { id: "barra", nome: "Tabuleiro", chave: CHAVE_BARRA_RECOLHIDA, botao: "barra-alternar" },
+        { id: "iniciativa", nome: "Iniciativa", chave: CHAVE_INICIATIVA_RECOLHIDA, botao: "iniciativa-alternar" },
     ].map((d) => {
         const caixa = pegar(d.id);
         return { id: d.id, nome: d.nome, chave: d.chave, caixa, botao: pegar(d.botao) as HTMLButtonElement, gaveta: caixa.querySelector<HTMLElement>(".conteudo")!, cabecalho: caixa.querySelector<HTMLElement>(".cabecalho")! };

@@ -215,6 +215,40 @@
                     </section>
                 </div>
             </aside>
+
+            <!-- A INICIATIVA (3ª barra da pilha): a ordem de combate (quem age em que ordem, de quem é a vez, a rodada). Ids usados no ui/iniciativa.ts. -->
+            <aside id="iniciativa" class="caixa-pilha">
+                <div class="cabecalho">
+                    <h1>Iniciativa</h1>
+                    <button id="iniciativa-alternar" title="Recolher iniciativa" aria-expanded="true"><span class="seta" aria-hidden="true">▴</span></button>
+                </div>
+
+                <div class="conteudo">
+                    <section>
+                        <h2>Ordenar por</h2>
+                        <select id="iniciativa-ordem" aria-label="Ordenar por">
+                            <option value="maior">Maior → menor</option>
+                            <option value="menor">Menor → maior</option>
+                            <option value="livre">Livre</option>
+                        </select>
+                    </section>
+                    <section id="iniciativa-andamento">
+                        <div id="iniciativa-topo">
+                            <span id="iniciativa-rodada">Rodada —</span>
+                            <!-- O Próximo turno SÓ APARECE depois de Confirmar (em edição ele some). -->
+                            <button id="iniciativa-proxima" class="botao-largo" title="Passa a vez para o próximo da lista">Próximo turno</button>
+                        </div>
+                        <ul id="iniciativa-lista"></ul>
+                        <p id="iniciativa-vazia">Ninguém na iniciativa. Arraste o resultado de uma rolagem do chat para cá, use o botão + ou "Adicionar à iniciativa" no menu de um token. Botão direito num personagem: editar ou remover.</p>
+                    </section>
+                    <section id="iniciativa-botoes">
+                        <!-- O "+" (acrescentar uma criatura) e o "Limpar" SÓ APARECEM em modo de edição. -->
+                        <button id="iniciativa-criatura" class="botao-largo" title="Acrescenta uma criatura que não é um token (para quando não há tabuleiro ou token)" aria-label="Acrescentar uma criatura">+</button>
+                        <button id="iniciativa-limpar" class="botao-largo" title="Limpa a iniciativa (a lista, a vez e a rodada)">Limpar</button>
+                        <button id="iniciativa-editar" class="botao-largo" title="Edita a ordem: em edição aparecem + Criatura e Limpar, e o Próximo turno some até confirmar">Editar</button>
+                    </section>
+                </div>
+            </aside>
         </div>
 
         <!-- A COLUNA da direita (altura toda): no alto, as ABAS "Chat" e "Bolsa"; embaixo, o painel da aba escolhida. O chat e a bolsa têm o MESMO tamanho
@@ -454,6 +488,12 @@
         </div>
         <!-- O retângulo de seleção (arrastar numa área vazia da lista da bolsa): só desenho, não pega o mouse. -->
         <div id="bolsa-retangulo" hidden aria-hidden="true"></div>
+        <!-- Clique direito num personagem da iniciativa: remover da fila. -->
+        <div id="menu-iniciativa" hidden role="menu">
+            <button id="menu-iniciativa-editar" role="menuitem">Editar…</button>
+            <button id="menu-iniciativa-remover" role="menuitem">Remover</button>
+        </div>
+
         <div id="menu-doc" hidden role="menu">
             <button id="menu-doc-abrir" role="menuitem">Abrir e editar</button>
             <button id="menu-doc-gerar-token" role="menuitem">Gerar um token</button>
@@ -698,6 +738,21 @@
             </div>
         </div>
 
+        <!-- O MODAL "Editar" de um personagem da iniciativa (nome e valor): abre pelo botão direito no personagem, ou sozinho ao acrescentar alguém. Ids usados no ui/iniciativa.ts. -->
+        <div id="modal-iniciativa" class="modal-simples" hidden role="dialog" aria-modal="true" aria-labelledby="modal-iniciativa-titulo">
+            <div class="editor-imagem-painel">
+                <h3 id="modal-iniciativa-titulo">Editar na iniciativa</h3>
+                <label class="bolsa-rotulo" for="modal-iniciativa-nome">Nome</label>
+                <input type="text" id="modal-iniciativa-nome" maxlength="24" autocomplete="off" />
+                <label class="bolsa-rotulo" for="modal-iniciativa-valor">Valor da iniciativa</label>
+                <input type="number" id="modal-iniciativa-valor" min="-1000" max="1000" step="1" autocomplete="off" />
+                <div class="editor-imagem-botoes">
+                    <button id="modal-iniciativa-cancelar">Cancelar</button>
+                    <button id="modal-iniciativa-salvar" class="principal">Salvar</button>
+                </div>
+            </div>
+        </div>
+
         <!-- O MODAL DE UMA AÇÃO (Dano, Cura...): escolhe o valor (número ou dados) e mostra o cálculo antes de aplicar. Ids usados no ui/modalAcao.ts. -->
         <div id="modal-acao" class="modal-simples" hidden role="dialog" aria-modal="true" aria-labelledby="modal-acao-titulo">
             <div class="editor-imagem-painel">
@@ -813,20 +868,24 @@
                     if (el) el.classList.add("recolhido");
                 }
                 // A PILHA de barras (ui/pilha.ts): a ordem guardada (`order` do CSS) e qual gaveta estava aberta (só UMA por vez; sem escolha guardada: nenhuma).
-                var padraoPilha = ["ferramentas-desenho", "barra"];
+                var padraoPilha = ["ferramentas-desenho", "barra", "iniciativa"];
+                var barrasPilha = {
+                    "ferramentas-desenho": { chave: "tabuleirinho.desenho.recolhido", seta: "#desenho-alternar" },
+                    barra: { chave: "tabuleirinho.barra.recolhida", seta: "#barra-alternar" },
+                    iniciativa: { chave: "tabuleirinho.iniciativa.recolhida", seta: "#iniciativa-alternar" },
+                };
                 var guardadaPilha = (ler("tabuleirinho.pilha.ordem") || "").split(",");
-                var ordemPilha = guardadaPilha.length === 2 && padraoPilha.every(function (id) { return guardadaPilha.indexOf(id) >= 0; }) ? guardadaPilha : padraoPilha;
+                var ordemPilha = guardadaPilha.length === padraoPilha.length && padraoPilha.every(function (id) { return guardadaPilha.indexOf(id) >= 0; }) ? guardadaPilha : padraoPilha;
                 ordemPilha.forEach(function (id, i) {
                     var el = document.getElementById(id);
                     if (el) el.style.order = String(i);
                 });
                 var jaAberta = false;
                 ordemPilha.forEach(function (id) {
-                    var chave = id === "barra" ? "tabuleirinho.barra.recolhida" : "tabuleirinho.desenho.recolhido";
-                    var recolhida = ler(chave) !== "0" || jaAberta; // (duas abertas por engano: vale a de cima)
+                    var recolhida = ler(barrasPilha[id].chave) !== "0" || jaAberta; // (duas abertas por engano: vale a de cima)
                     if (!recolhida) jaAberta = true;
                     marcar(id, "recolhida", recolhida);
-                    if (recolhida) marcarSeta("#" + (id === "barra" ? "barra" : "desenho") + "-alternar"); // (a seta ▸ quando recolhida: ver .seta no CSS)
+                    if (recolhida) marcarSeta(barrasPilha[id].seta); // (a seta ▸ quando recolhida: ver .seta no CSS)
                 });
                 // Libera os painéis escondidos até o app montar (ver o CSS "app-pronta"), mesmo se o app falhar.
                 setTimeout(function () { document.body.classList.add("app-pronta"); }, 3000);

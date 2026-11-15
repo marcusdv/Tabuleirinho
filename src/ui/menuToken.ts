@@ -44,6 +44,8 @@ export interface OpcoesMenuToken {
     aoAcao(id: number, acaoId: number): void;
     /** Clicou em "+ Nova ação": abrir o modal de criar e excluir ações. */
     aoNovaAcao(): void;
+    /** "Adicionar à iniciativa": põe este token na ordem de combate. */
+    aoAdicionarIniciativa(id: number): void;
 }
 
 export interface MenuToken {
@@ -100,6 +102,16 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
             });
             acoes.append(botao);
         }
+        const iniciativa = document.createElement("button");
+        iniciativa.className = "acao-token acao-dinamica";
+        iniciativa.textContent = "Adicionar à iniciativa";
+        iniciativa.title = "Põe este token na ordem de combate (a caixa Iniciativa, na pilha da esquerda)";
+        iniciativa.addEventListener("click", () => {
+            const id = tokenAberto;
+            fechar();
+            if (id !== null) opcoes.aoAdicionarIniciativa(id);
+        });
+        acoes.append(iniciativa);
         const nova = document.createElement("button");
         nova.className = "acao-token acao-dinamica acao-nova";
         nova.textContent = "+ Nova ação";

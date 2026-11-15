@@ -102,6 +102,8 @@ import { criarBolsa } from "./ui/bolsa";
 import { criarEditorImagem } from "./ui/editorImagem";
 import { analisarAbas, rolarDaAnalise } from "./formulas";
 import { criarAjudaFichas } from "./ui/ajudaFichas";
+import { aplicarAcaoDaIniciativa, definirIniciativa, iniciativa as estadoIniciativa, type AcaoDaIniciativa } from "./iniciativa";
+import { criarIniciativa } from "./ui/iniciativa";
 import { criarInfoTipoFicha } from "./ui/infoTipoFicha";
 import { criarConfirmacao } from "./ui/confirmar";
 import { criarEditorFicha } from "./ui/editorFicha";
@@ -190,9 +192,18 @@ async function iniciar(): Promise<void> {
         visivel: () => lateral.chatVisivel(),
         aoChegarEscondida: (quantas) => lateral.avisarNovas(quantas),
         // Arrastar o TOTAL de uma rolagem do chat até um token = dar dano a ele (só dano, só o total).
-        aoArrastarResultado: (ponto) => tokens.destacarAlvo(ponto ? tokenSobOPonto(ponto) : null),
+        aoArrastarResultado: (ponto) => {
+            const naIniciativa = ponto ? painelIniciativa.sobre(ponto) : null;
+            painelIniciativa.destacarSoltar(naIniciativa !== null); // (por cima da caixa da iniciativa: ela se destaca)
+            tokens.destacarAlvo(ponto && !naIniciativa ? tokenSobOPonto(ponto) : null);
+        },
         aoSoltarResultado: (idDaMensagem, ponto) => {
             tokens.destacarAlvo(null);
+            painelIniciativa.destacarSoltar(false);
+            if (painelIniciativa.sobre(ponto)) {
+                soltarNaIniciativa(idDaMensagem);
+                return;
+            }
             const alvo = tokenSobOPonto(ponto);
             if (alvo) darDanoArrastado(alvo, idDaMensagem);
         },
@@ -258,6 +269,10 @@ async function iniciar(): Promise<void> {
     // A PILHA de barras da esquerda ("Desenho" e "Ferramentas"): clicar abre a gaveta ao lado; arrastar troca a ordem (ver ui/pilha.ts). As caixas do chat,
     // da bolsa e dos dados moram na coluna da direita e não se mexem.
     criarPilha();
+    const painelIniciativa = criarIniciativa({
+        aoAcao: (acao) => aplicarAcaoIniciativa(acao),
+        confirmarLimpar: () => confirmacao.perguntar({ titulo: "Limpar a iniciativa?", mensagem: "A lista, a vez e a rodada serão apagadas para todos.", confirmar: "Limpar" }),
+    });
 
     const painelCalibragem = criarPainelCalibragem({ aoConcluir: () => ligarCalibragem(false) });
 
@@ -440,6 +455,53 @@ async function iniciar(): Promise<void> {
             efeito: acao.efeito,
             aoAplicar: (texto) => aplicarAcaoDoJogo(token.id, acao.id, texto),
         });
+    }
+
+    // --- INICIATIVA (a ordem de combate; ver iniciativa.ts e ui/iniciativa.ts) ---
+    /** Uma ação na ordem de combate. Online o SERVIDOR é o dono do estado (aplica, guarda e avisa todos: "iniciativa_definida"); no modo local, aplica aqui. */
+    function aplicarAcaoIniciativa(acao: AcaoDaIniciativa): void {
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "iniciativa", acao });
+            return;
+        }
+        if (acao.acao === "adicionar" && acao.token !== null && !buscarToken(acao.token)) return;
+        const resultado = aplicarAcaoDaIniciativa(acao);
+        if (!resultado.ok) {
+            aviso.mostrar(resultado.erro, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            return;
+        }
+        iniciativaMudou();
+    }
+
+    /** A iniciativa mudou (por esta pessoa ou por outra): redesenha a caixa. */
+    function iniciativaMudou(): void {
+        painelIniciativa.atualizar();
+    }
+
+    /** "Adicionar à iniciativa" no menu do token: acrescenta o token (valor 0) e leva o foco ao campo do valor, para a pessoa digitar. */
+    function adicionarTokenNaIniciativa(id: number): void {
+        const token = buscarToken(id);
+        if (!token) return;
+        if (estadoIniciativa.entradas.some((e) => e.token === id)) {
+            aviso.mostrar(`"${token.nome}" já está na iniciativa.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            return;
+        }
+        painelIniciativa.abrir();
+        painelIniciativa.editarProximaEntrada("valor"); // (a janelinha de edição abre com o foco no VALOR: o nome já é o do token)
+        aplicarAcaoIniciativa({ acao: "adicionar", nome: token.nome, valor: 0, token: id });
+    }
+
+    /**
+     * O TOTAL de uma rolagem do chat foi solto na caixa da iniciativa: entra um personagem NOVO com esse valor (quem já estava na lista fica; a pessoa tira o antigo à mão, com o botão direito).
+     * Se a rolagem veio de uma ficha aberta por um TOKEN, o novo personagem é esse token (com o ícone e o nome dele); senão, leva o nome da ficha, ou "Criatura" (rolagem do painel de dados).
+     */
+    function soltarNaIniciativa(idDaMensagem: number): void {
+        const total = totalDaRolagem(idDaMensagem);
+        if (total === null) return;
+        const mensagem = estado.mensagens.find((m) => m.id === idDaMensagem);
+        const token = mensagem?.token !== undefined ? buscarToken(mensagem.token) : undefined;
+        painelIniciativa.abrir();
+        aplicarAcaoIniciativa({ acao: "adicionar", nome: token?.nome ?? mensagem?.rolagemFicha?.ficha ?? "Criatura", valor: Math.round(total), token: token?.id ?? null });
     }
 
     /** Qual token está sob este ponto da tela? Só vale com o ponteiro sobre o TABULEIRO (o chat, a bolsa e as barras ficam por cima do canvas e não contam). */
@@ -676,6 +738,7 @@ async function iniciar(): Promise<void> {
         aoGuardar: (id) => removerDoTabuleiro(id),
         aoAcao: (id, acaoId) => abrirAcaoDoToken(id, acaoId),
         aoNovaAcao: () => modalAcoes.abrir(),
+        aoAdicionarIniciativa: (id) => adicionarTokenNaIniciativa(id),
         aoAlternarCondicao: alternarCondicaoDoToken,
         dica,
     });
@@ -984,6 +1047,10 @@ async function iniciar(): Promise<void> {
                     }
                     return;
                 }
+                case "iniciativa_definida":
+                    definirIniciativa(evento.iniciativa); // a ordem de combate do SERVIDOR vale
+                    iniciativaMudou();
+                    return;
                 case "valores_ficha":
                     definirValoresDaFicha(evento.id, evento.valores); // os números do SERVIDOR (já limitados ao intervalo) valem
                     aplicarValoresDaFicha(evento.id);
@@ -1021,6 +1088,8 @@ async function iniciar(): Promise<void> {
                     carregarAcoesDaMesa(evento.acoes); // as ações (Dano, Cura...) também são da mesa
                     carregarStatusDaMesa(evento.status); // os status (barras) são da mesa (depois dos grupos: eles citam grupos); os tokens já trazem a cópia e os valores do servidor
                     definirFichas(evento.fichas); // as fichas gravadas no servidor
+                    definirIniciativa(evento.iniciativa); // a ordem de combate gravada no servidor
+                    iniciativaMudou();
                     definirTodosOsValoresDasFichas(evento.valores); // os valores atuais das variáveis que mudam (depois das fichas: só valem para as que existem)
                     // (se uma ficha está aberta no editor, ele confere se ela mudou enquanto a conexão estava fora)
                     {

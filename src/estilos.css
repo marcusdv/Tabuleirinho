@@ -196,11 +196,13 @@ body {
 }
 /* As barras da pilha abrem para o LADO DIREITO: recolhida = ▸ (aponta para onde a gaveta vai abrir), aberta = ◂ (gira 180°). */
 #barra-alternar .seta,
-#desenho-alternar .seta {
+#desenho-alternar .seta,
+#iniciativa-alternar .seta {
     transform: rotate(270deg); /* ◂ */
 }
 #barra-alternar.recolhido .seta,
-#desenho-alternar.recolhido .seta {
+#desenho-alternar.recolhido .seta,
+#iniciativa-alternar.recolhido .seta {
     transform: rotate(90deg); /* ▸ */
 }
 @media (prefers-reduced-motion: reduce) {
@@ -208,7 +210,8 @@ body {
         transition: none;
     }
 }
-#barra-alternar {
+#barra-alternar,
+#iniciativa-alternar {
     width: 26px;
     height: 26px;
     border: 1px solid #4a4a58;
@@ -219,7 +222,8 @@ body {
     line-height: 1;
     cursor: pointer;
 }
-#barra-alternar:hover {
+#barra-alternar:hover,
+#iniciativa-alternar:hover {
     background: #3b3b49;
 }
 
@@ -4046,6 +4050,8 @@ body:not(.app-pronta) #dados {
     font-size: 13px;
     color: #c9c9d4;
 }
+#modal-iniciativa-nome,
+#modal-iniciativa-valor,
 #modal-acao-valor,
 #modal-acoes-nome {
     width: 100%;
@@ -4059,6 +4065,8 @@ body:not(.app-pronta) #dados {
     font: inherit;
     font-size: 14px;
 }
+#modal-iniciativa-nome:focus,
+#modal-iniciativa-valor:focus,
 #modal-acao-valor:focus,
 #modal-acoes-nome:focus {
     outline: none;
@@ -4304,3 +4312,219 @@ body:not(.app-pronta) #dados {
     color: #c9c9d4;
 }
 
+
+/* =====================================================================
+   INICIATIVA (a 3ª gaveta da pilha da esquerda; ui/iniciativa.ts): a ordem de combate.
+   ===================================================================== */
+/* A gaveta da iniciativa tem a LARGURA PADRÃO das outras (Desenho e Tabuleiro: `--largura-barra`, 156 px), sem regra própria (pedido do dono). */
+#iniciativa .conteudo section {
+    margin-bottom: 10px;
+}
+#iniciativa-ordem {
+    width: 100%;
+    height: 28px;
+    padding: 0 6px;
+    box-sizing: border-box;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+}
+#iniciativa-topo {
+    display: flex;
+    flex-direction: column; /* (gaveta estreita: a rodada em cima e o "Próximo turno" embaixo, com a largura toda) */
+    align-items: stretch;
+    gap: 4px;
+    margin-bottom: 6px;
+}
+#iniciativa-rodada {
+    flex: none;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffd54f;
+}
+#iniciativa-proxima {
+    width: 100%;
+    padding: 0 4px;
+}
+#iniciativa-proxima:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+#iniciativa-vazia {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #8a8a99;
+}
+#iniciativa-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 340px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+/* Cada personagem (pedido do dono): o ÍCONE e o NÚMERO lado a lado em cima, e o NOME embaixo, com a largura toda. */
+.iniciativa-item {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+        "disco valor"
+        "nome nome";
+    align-items: center;
+    column-gap: 8px;
+    row-gap: 3px;
+    padding: 5px 7px;
+    background: #2f2f3a;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    cursor: grab;
+    touch-action: none;
+}
+.iniciativa-item.vez {
+    border-color: rgba(255, 213, 79, 0.75); /* de quem é a VEZ */
+    background: #3a3626;
+}
+.iniciativa-item {
+    position: relative; /* (o personagem arrastado acompanha o mouse por `transform` e fica por cima) */
+}
+.iniciativa-item.arrastando {
+    z-index: 3;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.5);
+}
+.iniciativa-item.insercao-acima {
+    box-shadow: 0 -3px 0 0 #ffd54f; /* a LINHA dourada: o personagem arrastado vai cair acima deste */
+}
+.iniciativa-item.insercao-abaixo {
+    box-shadow: 0 3px 0 0 #ffd54f; /* ... ou abaixo deste (o último da lista) */
+}
+.iniciativa-item.arrastando {
+    opacity: 0.65;
+    cursor: grabbing;
+}
+.iniciativa-item.empate {
+    box-shadow: inset 0 0 0 1px rgba(143, 197, 255, 0.35); /* empatado com o vizinho: decida arrastando um para cima ou para baixo */
+}
+.iniciativa-disco.com-imagem {
+    background-size: cover; /* a IMAGEM do token (pintarDisco a põe em background-image) ajustada ao disco, como nas outras listas (`.disco.com-imagem`) */
+    background-position: center;
+}
+#iniciativa-criatura {
+    flex: none; /* o "+" é um botão pequeno: os outros dividem o resto da largura */
+    width: 34px;
+    font-size: 16px;
+    line-height: 1;
+}
+.iniciativa-disco {
+    grid-area: disco;
+    flex: none;
+    box-sizing: border-box;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    background-color: #5a5a68;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+}
+#iniciativa-botoes {
+    display: flex;
+    flex-wrap: wrap; /* (estreita: o "+" e o "Limpar" ficam na 1ª linha e o "Confirmar"/"Editar" na de baixo, com a largura toda) */
+    gap: 6px;
+}
+#iniciativa-botoes #iniciativa-editar {
+    flex: 1 1 100%;
+}
+#iniciativa-botoes button {
+    flex: 1;
+    width: auto;
+    padding: 0 4px;
+}
+/* O resultado de uma rolagem do chat sendo arrastado por cima da caixa: ela se destaca (soltar adiciona alguém, ou muda o valor de quem estiver embaixo). */
+#iniciativa.soltando > .conteudo,
+#iniciativa.soltando > .cabecalho {
+    outline: 2px dashed #ffd54f;
+    outline-offset: 2px;
+}
+#menu-iniciativa {
+    position: fixed;
+    z-index: 45;
+    min-width: 130px;
+    padding: 4px;
+    background: #2a2a33;
+    border: 1px solid #4a4a58;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+#menu-iniciativa button {
+    display: block;
+    width: 100%;
+    padding: 7px 10px;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    color: #ff9a9a;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+#menu-iniciativa button:hover {
+    background: #3b3b49;
+}
+#menu-iniciativa[hidden] {
+    display: none;
+}
+
+/* A caixa da iniciativa em MODO DE EDIÇÃO: o que só vale ali aparece, e o que só vale confirmado some (o `hidden` do HTML é trocado por `ui/iniciativa.ts`). */
+#iniciativa-topo[hidden],
+#iniciativa-botoes button[hidden] {
+    display: none;
+}
+#modal-iniciativa .bolsa-rotulo {
+    margin-top: 10px;
+}
+.iniciativa-nome {
+    grid-area: nome;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap; /* o nome fica numa linha só (o que não cabe vira "…"; o nome inteiro está na dica do mouse) */
+    line-height: 1.2;
+    font-size: 12px;
+}
+.iniciativa-valor {
+    grid-area: valor;
+    min-width: 0;
+    text-align: right; /* afastado do ícone, na ponta direita */
+    font-size: 18px;
+    font-weight: 700;
+    color: #ffd54f;
+    font-variant-numeric: tabular-nums;
+}
+
+/* As cores dos botões da caixa da iniciativa (pedido do dono): "Confirmar" VERDE e "Limpar" VERMELHO. */
+#iniciativa-botoes #iniciativa-editar.principal {
+    background: #1f4a2c;
+    border-color: #66bb6a;
+    color: #b9f6ca;
+}
+#iniciativa-botoes #iniciativa-editar.principal:hover {
+    background: #28603a;
+}
+#iniciativa-botoes #iniciativa-limpar {
+    border-color: #a84a4a;
+    color: #ff9a9a;
+}
+#iniciativa-botoes #iniciativa-limpar:hover {
+    background: #4a2a2a;
+}

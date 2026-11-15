@@ -6,6 +6,11 @@
 // --- Preferências guardadas no navegador (localStorage; ver ui/preferencias.ts) ---
 export const CHAVE_ABA_BOLSA = "tabuleirinho.bolsa.aba"; // "tokens" ou "fichas": a última aba escolhida na bolsa
 export const CHAVE_BARRA_RECOLHIDA = "tabuleirinho.barra.recolhida"; // "1" = a barra de Ferramentas está recolhida
+export const CHAVE_INICIATIVA_RECOLHIDA = "tabuleirinho.iniciativa.recolhida"; // "1" = a gaveta da Iniciativa está recolhida
+// --- INICIATIVA (a ordem de combate; ver iniciativa.ts) ---
+export const MAX_ENTRADAS_INICIATIVA = 60; // quantos personagens cabem na ordem
+export const MAX_CARACTERES_NOME_INICIATIVA = 24; // o nome de uma entrada (de uma pessoa temporária ou de um token)
+export const VALOR_MAX_INICIATIVA = 1000; // o valor da iniciativa vai de -1000 a 1000
 export const CHAVE_ORDEM_PILHA = "tabuleirinho.pilha.ordem"; // a ordem das barras da pilha (Desenho/Ferramentas), ex.: "barra,ferramentas-desenho"; vazio = a de fábrica
 export const CHAVE_DESENHO_RECOLHIDO = "tabuleirinho.desenho.recolhido"; // "1" = o painel de Desenho está recolhido
 export const CHAVE_ORDEM_TOKENS = "tabuleirinho.bolsa.ordem.tokens"; // a ordem escolhida na aba Tokens (ver ORDENS em ui/bolsa.ts)

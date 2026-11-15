@@ -102,6 +102,7 @@ import {
     type Ficha,
     type Token,
 } from "../src/estado.ts";
+import { aplicarAcaoDaIniciativa, definirIniciativa, iniciativaComoObjeto } from "../src/iniciativa.ts";
 import { ABAS_THORIN, IMAGEM_GOBLIN, NOME_GOBLIN, NOME_THORIN, TEXTO_GOBLIN } from "../src/exemplos.ts";
 import { analisarAbas, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
 import { gastar, novoBalde, type Balde } from "../src/limite.ts";
@@ -403,7 +404,7 @@ async function semearExemplos(): Promise<void> {
 
 /** Grava `dados/mesa.json` com o estado de AGORA (tamanho do tabuleiro e status da mesa). */
 function gravarMesaAtual(): Promise<void> {
-    return gravarMesa({ colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, valores: todosOsValoresDasFichas(), exemplos: exemplosCriados }).catch((falha) => console.error("Não foi possível gravar mesa.json:", falha));
+    return gravarMesa({ colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, valores: todosOsValoresDasFichas(), exemplos: exemplosCriados, iniciativa: iniciativaComoObjeto() }).catch((falha) => console.error("Não foi possível gravar mesa.json:", falha));
 }
 
 /** A pasta de um token: os tokens da BOLSA (modelos) em `dados/tokens/`, as PEÇAS do tabuleiro em `dados/pecas/`. */
@@ -486,7 +487,7 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
         if (c.jogador) return erro(c.ws, "Você já entrou.");
         c.jogador = { id: c.id, apelido: limparApelido(pedido.apelido, c.id) };
         // Quem entra recebe o estado COMPLETO uma vez; depois só os eventos.
-        enviar(c.ws, { tipo: "estado_inicial", voce: c.jogador, colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, tokens: estado.tokens, mensagens: estado.mensagens, fichas: estado.fichas, grupos: estado.grupos, valores: todosOsValoresDasFichas() });
+        enviar(c.ws, { tipo: "estado_inicial", voce: c.jogador, colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, tokens: estado.tokens, mensagens: estado.mensagens, fichas: estado.fichas, grupos: estado.grupos, valores: todosOsValoresDasFichas(), iniciativa: iniciativaComoObjeto() });
         avisarTodos({ tipo: "jogadores", lista: listaDeJogadores() });
         console.log(`+ ${c.jogador.apelido} entrou (${listaDeJogadores().length} na mesa)`);
         return;
@@ -545,6 +546,16 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             const resultado = aplicarAcao(alvo, pedido.acao, pedido.valor, sortear);
             if (!resultado.ok) return erro(c.ws, resultado.erro);
             publicarResultadoDeAcao(autor, alvo, resultado, frasePraChatDaAcao(alvo, pedido.acao, resultado));
+            return;
+        }
+        case "iniciativa": {
+            // Uma ação na ORDEM DE COMBATE (a lista, quem tem a vez, a rodada): o servidor confere, aplica com as regras de iniciativa.ts, guarda em mesa.json e avisa todos.
+            const { acao } = pedido;
+            if (acao.acao === "adicionar" && acao.token !== null && !buscarToken(acao.token)) return erro(c.ws, "Esse token não existe.");
+            const resultado = aplicarAcaoDaIniciativa(acao);
+            if (!resultado.ok) return erro(c.ws, resultado.erro);
+            avisarTodos({ tipo: "iniciativa_definida", iniciativa: iniciativaComoObjeto() });
+            naFilaDeArquivos(() => gravarMesaAtual());
             return;
         }
         case "arrastar_resultado": {
@@ -775,7 +786,8 @@ try {
     const gruposLidos = await carregarPasta("grupos", grupoValido, TAMANHO_MAX_ARQUIVO_GRUPO);
     // (O 2º argumento reserva os ids de arquivos IGNORADOS por estarem estragados: um item novo nunca os sobrescreve.)
     definirFichas(fichasLidas.itens, fichasLidas.maiorId + 1);
-    if (mesa?.valores !== undefined) definirTodosOsValoresDasFichas(mesa.valores); // (os valores atuais das variáveis que mudam; só de fichas que existem)
+    if (mesa?.valores !== undefined) definirTodosOsValoresDasFichas(mesa.valores);
+    if (mesa?.iniciativa !== undefined) definirIniciativa(mesa.iniciativa); // (a ordem de combate sobrevive a reiniciar o servidor) // (os valores atuais das variáveis que mudam; só de fichas que existem)
     // Os tokens da bolsa (modelos) e as peças do tabuleiro dividem a MESMA sequência de ids (e os ids de arquivos ignorados continuam reservados).
     definirTokens([...tokensLidos.itens, ...pecasLidas.itens], Math.max(tokensLidos.maiorId, pecasLidas.maiorId) + 1);
     // Uma peça cujo modelo já não existe é um resto (o arquivo continua na pasta, intacto, para o dono ver): sai da memória.
