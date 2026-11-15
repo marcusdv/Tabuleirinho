@@ -235,7 +235,6 @@ body {
     margin-top: 12px;
 }
 
-
 .conteudo h2 {
     margin: 0 0 6px;
     font-size: 11px;
@@ -459,7 +458,9 @@ body {
          =================================================================== */
 :root {
     --largura-chat: 320px;
-    --recuo-chat: calc(12px + var(--largura-chat) + 8px); /* o que as outras caixas deixam livre na direita: folga + chat + vão */
+    --recuo-chat: calc(
+        12px + var(--largura-chat) + 8px
+    ); /* o que as outras caixas deixam livre na direita: folga + chat + vão */
 }
 /* As ABAS da coluna ("Chat" e "Bolsa"), no alto: uma linha de botões; só um painel fica à vista (a classe aba-bolsa do #chat escolhe). */
 #lateral-abas {
@@ -583,6 +584,77 @@ body {
     grid-template-columns: repeat(4, 44px);
     grid-auto-rows: 38px;
     gap: 4px;
+}
+/* MINIMIZAR a coluna do chat/bolsa (pedido do dono, em TODAS as telas): um botão no fim da linha das abas, no alto da coluna. Minimizada, sobra só a linha das
+   abas (o chat, a bolsa e a barra de Dados somem; o contador de mensagens não lidas continua na aba "Chat"). Em janela larga a barra fica no ALTO (a coluna
+   cresce para baixo ao reabrir); em janela estreita ela fica no PÉ da tela (cresce para cima: ver o @media abaixo). */
+#lateral-minimizar {
+    flex: none;
+    align-self: center;
+    width: 26px;
+    height: 26px;
+    margin: 0 0 1px 4px;
+    padding: 0;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: inherit;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+#lateral-minimizar:hover {
+    background: #3b3b49;
+}
+#lateral-minimizar.recolhido .seta {
+    transform: rotate(180deg); /* minimizada (janela larga): ▾, aponta para onde a coluna vai crescer */
+}
+#chat.minimizada {
+    bottom: auto; /* janela larga: a barra fica no alto e a altura é só a das abas */
+    height: auto;
+    max-height: none;
+    border-bottom: 1px solid #3a3a45;
+    border-radius: 0 0 10px 10px;
+}
+#chat.minimizada > :not(#lateral-abas) {
+    display: none;
+}
+#chat.minimizada #lateral-abas {
+    padding-bottom: 8px;
+    border-bottom: 0;
+}
+/* JANELA ESTREITA (pedido do dono): a coluna do chat/bolsa fica MENOR para sobrar mais mapa. Mais estreita (a variável --largura-chat leva junto tudo o que se mede
+   por ela: o recuo das outras caixas, a janela da ficha, o aviso) e MAIS BAIXA: deixa de ir de cima a baixo e fica encostada no pé da tela, com uma altura limitada
+   (o mapa aparece acima dela). Os dados e as fichinhas da bolsa encolhem para caber (a grade de 4 dados de 44 px não cabe em 272 px). */
+@media (max-width: 900px) {
+    :root {
+        --largura-chat: 272px;
+    }
+    #chat {
+        top: auto; /* solta do alto: a altura vem de baixo para cima */
+        height: max(320px, 60vh);
+        max-height: calc(100vh - 12px);
+        border-top: 1px solid #3a3a45;
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
+    }
+    #chat.minimizada {
+        bottom: 0; /* janela estreita: a barra minimizada continua encostada no pé da tela */
+        border-radius: 10px 10px 0 0;
+        border-top: 1px solid #3a3a45;
+        border-bottom: 0;
+    }
+    #lateral-minimizar .seta {
+        transform: rotate(180deg); /* aberta (janela estreita): ▾, a coluna se recolhe para baixo */
+    }
+    #lateral-minimizar.recolhido .seta {
+        transform: none; /* minimizada: ▴, ela volta a crescer para cima */
+    }
+    #dados-lados {
+        grid-template-columns: repeat(4, 36px);
+        grid-auto-rows: 34px;
+        gap: 3px;
+    }
 }
 .dado {
     padding: 0;
@@ -980,7 +1052,9 @@ body {
     z-index: 70;
     transform: translate(-50%, -50%);
     padding: 4px 12px;
-    font: 700 22px/1 system-ui, sans-serif;
+    font:
+        700 22px/1 system-ui,
+        sans-serif;
     color: #fff;
     background: rgba(229, 115, 115, 0.92);
     border: 2px solid #ffd54f;
@@ -1637,7 +1711,9 @@ body:not(.app-pronta) #dados {
     font-size: 10px;
     line-height: 12px;
     font-weight: 700;
-    text-shadow: 0 0 3px #000, 0 0 3px #000;
+    text-shadow:
+        0 0 3px #000,
+        0 0 3px #000;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1665,7 +1741,9 @@ body:not(.app-pronta) #dados {
     font-size: 9px;
     font-weight: 700;
     color: #fff;
-    text-shadow: 0 0 3px #000, 0 0 3px #000;
+    text-shadow:
+        0 0 3px #000,
+        0 0 3px #000;
 }
 /* O editor de status: com muitos status (até 20), a LISTA rola por dentro e o editor nunca passa da altura da área da prévia (a lista de tokens não desce). */
 #bolsa-previa-area #bolsa-status {
@@ -1884,7 +1962,10 @@ body:not(.app-pronta) #dados {
     border-radius: 8px;
 }
 #bolsa-previa .disco {
-    width: var(--disco-previa, 168px); /* (menor que antes: a prévia das barras entrou embaixo, e a lista de tokens não pode descer) */
+    width: var(
+        --disco-previa,
+        168px
+    ); /* (menor que antes: a prévia das barras entrou embaixo, e a lista de tokens não pode descer) */
     height: var(--disco-previa, 168px);
     border-radius: 50%;
     border: 3px solid #fff;
@@ -2425,7 +2506,9 @@ body:not(.app-pronta) #dados {
     top: 1.4em;
     height: 0.2em;
     background: #9a9aa8;
-    box-shadow: 0 0.5em 0 #9a9aa8, 0 1em 0 #9a9aa8;
+    box-shadow:
+        0 0.5em 0 #9a9aa8,
+        0 1em 0 #9a9aa8;
 }
 /* A ficha que está ABERTA na janela tem o nome em outra cor (dourado), para achá-la na bolsa. */
 .bolsa-doc.aberta .bolsa-doc-nome {
@@ -3181,11 +3264,25 @@ body:not(.app-pronta) #dados {
     height: 18px;
     cursor: nwse-resize;
     touch-action: none;
-    background: linear-gradient(135deg, transparent 0 55%, #6a6a7a 55% 62%, transparent 62% 72%, #6a6a7a 72% 79%, transparent 79%);
+    background: linear-gradient(
+        135deg,
+        transparent 0 55%,
+        #6a6a7a 55% 62%,
+        transparent 62% 72%,
+        #6a6a7a 72% 79%,
+        transparent 79%
+    );
     border-bottom-right-radius: 10px;
 }
 #editor-ficha-redimensionar:hover {
-    background: linear-gradient(135deg, transparent 0 55%, #ffd54f 55% 62%, transparent 62% 72%, #ffd54f 72% 79%, transparent 79%);
+    background: linear-gradient(
+        135deg,
+        transparent 0 55%,
+        #ffd54f 55% 62%,
+        transparent 62% 72%,
+        #ffd54f 72% 79%,
+        transparent 79%
+    );
 }
 #editor-ficha-x {
     width: 28px;
@@ -3286,8 +3383,12 @@ body:not(.app-pronta) #dados {
     animation: tremer-limite 0.25s;
 }
 @keyframes tremer-limite {
-    25% { translate: -3px 0; }
-    75% { translate: 3px 0; }
+    25% {
+        translate: -3px 0;
+    }
+    75% {
+        translate: 3px 0;
+    }
 }
 #editor-ficha-previa {
     cursor: text; /* a leitura NÃO arrasta a janela (e dá para selecionar e copiar o texto); as rolagens têm a mãozinha de clicar */
@@ -3311,9 +3412,15 @@ body:not(.app-pronta) #dados {
     line-height: 1.2;
 }
 /* Três títulos bem espaçados em relação à letra normal (1em): 2, 1,5 e 1,2. */
-#editor-ficha-previa .t1 { font-size: 2em; }
-#editor-ficha-previa .t2 { font-size: 1.5em; }
-#editor-ficha-previa .t3 { font-size: 1.2em; }
+#editor-ficha-previa .t1 {
+    font-size: 2em;
+}
+#editor-ficha-previa .t2 {
+    font-size: 1.5em;
+}
+#editor-ficha-previa .t3 {
+    font-size: 1.2em;
+}
 /* ROLAGENS clicáveis na leitura: o nome (laranja, como no campo) e a fórmula (roxa, mais discreta). */
 #editor-ficha-previa .rolagem-previa {
     cursor: pointer;
@@ -3333,8 +3440,12 @@ body:not(.app-pronta) #dados {
 #editor-ficha-previa .rolagem-previa.com-erro .rolagem-previa-nome {
     text-decoration: underline wavy #ff6b6b;
 }
-#editor-ficha-previa .negrito { font-weight: 700; }
-#editor-ficha-previa .italico { font-style: italic; }
+#editor-ficha-previa .negrito {
+    font-weight: 700;
+}
+#editor-ficha-previa .italico {
+    font-style: italic;
+}
 /* A linha de ABAS (páginas) da ficha, embaixo do nome. */
 #editor-ficha-abas {
     flex: none;
@@ -3670,7 +3781,10 @@ body:not(.app-pronta) #dados {
     padding: 10px;
     border: 1px solid transparent;
     font: inherit;
-    font-size: var(--fonte-ficha, 15px); /* a pessoa escolhe com os botões A− e A+ (o campo e a camada de cores SEMPRE com a mesma fonte) */
+    font-size: var(
+        --fonte-ficha,
+        15px
+    ); /* a pessoa escolhe com os botões A− e A+ (o campo e a camada de cores SEMPRE com a mesma fonte) */
     line-height: 1.5;
     letter-spacing: normal;
     white-space: pre-wrap;
@@ -3821,10 +3935,24 @@ body:not(.app-pronta) #dados {
 }
 /* As ROLAGENS da página: DUAS por linha (cada uma é uma caixa clicável com o nome e a fórmula calculada). Seletor com mais peso que `#editor-ficha-lateral ul` (coluna única). */
 #editor-ficha-lateral #editor-ficha-rolagens {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 5px;
+    display: block;
+    columns: 2;
+    column-gap: 5px;
+    column-fill: balance;
 }
+
+#editor-ficha-lateral #editor-ficha-rolagens li.rolagem {
+    break-inside: avoid;
+    margin-bottom: 5px;
+    min-width: 0;
+    height: 40px;
+    box-sizing: border-box;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
 #editor-ficha-lateral #editor-ficha-rolagens li.rolagem {
     min-width: 0; /* o texto comprido quebra dentro da caixa em vez de alargar a coluna */
 }
@@ -4338,7 +4466,6 @@ body:not(.app-pronta) #dados {
     font-size: 12px;
     color: #c9c9d4;
 }
-
 
 /* =====================================================================
    INICIATIVA (a 3ª gaveta da pilha da esquerda; ui/iniciativa.ts): a ordem de combate.

@@ -854,9 +854,13 @@ async function iniciar(): Promise<void> {
         sobreBolsa: (ponto) => {
             // Arrastando um token até a COLUNA da direita com a aba "Chat" à vista: a coluna troca sozinha para a "Bolsa" (que estava escondida), e então
             // o token já pode ser solto nela para ser guardado. (Só roda durante o arrasto de um token: é só aí que o tabuleiro chama esta função.)
-            if (lateral.aba === "chat") {
+            // (Com a coluna MINIMIZADA acontece o mesmo: ela reabre já na Bolsa.)
+            if (lateral.aba === "chat" || lateral.minimizada) {
                 const coluna = (document.getElementById("chat") as HTMLElement).getBoundingClientRect();
-                if (ponto.x >= coluna.left && ponto.x <= coluna.right && ponto.y >= coluna.top && ponto.y <= coluna.bottom) lateral.escolher("bolsa");
+                if (ponto.x >= coluna.left && ponto.x <= coluna.right && ponto.y >= coluna.top && ponto.y <= coluna.bottom) {
+                    lateral.escolher("bolsa");
+                    lateral.minimizar(false);
+                }
             }
             return bolsa.contem(ponto);
         },

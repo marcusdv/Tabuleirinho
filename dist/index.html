@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Tabuleirinho</title>
-      <script type="module" crossorigin src="/assets/index-tK2Zy3br.js"></script>
+      <script type="module" crossorigin src="/assets/index-Chivg9YJ.js"></script>
       <link rel="modulepreload" crossorigin href="/assets/CanvasPool-cZm-qJ09.js">
       <link rel="modulepreload" crossorigin href="/assets/Filter-CBWLFxHX.js">
       <link rel="modulepreload" crossorigin href="/assets/canvasUtils-D8Fc3Bye.js">
@@ -14,7 +14,7 @@
       <link rel="modulepreload" crossorigin href="/assets/getTextureBatchBindGroup-CPM2N5IT.js">
       <link rel="modulepreload" crossorigin href="/assets/GraphicsContext-DtkgRzau.js">
       <link rel="modulepreload" crossorigin href="/assets/getTexelRangeRects-fmak5Y5p.js">
-      <link rel="stylesheet" crossorigin href="/assets/index-BWOm6c04.css">
+      <link rel="stylesheet" crossorigin href="/assets/index-Diom4cHT.css">
     </head>
     <body>
         <div id="app"></div>
@@ -269,6 +269,7 @@
                     Chat<span id="lateral-novas" hidden></span>
                 </button>
                 <button id="lateral-aba-bolsa" class="lateral-aba" role="tab" data-aba="bolsa" aria-selected="true" aria-controls="bolsa">Bolsa</button>
+                <button id="lateral-minimizar" type="button" title="Minimizar o chat e a bolsa" aria-label="Minimizar o chat e a bolsa" aria-expanded="true"><span class="seta">▴</span></button>
             </div>
             <!-- Painel do CHAT: mensagens de cima para baixo, a mais nova embaixo. -->
             <div id="chat-painel">
@@ -672,6 +673,8 @@
                     <ul>
                         <li>Somente uma variável por linha.</li>
                         <li>O valor deve ser um número ou um cálculo.</li>
+                        <li><b>Não formate variáveis:</b> sem <code>#</code>, <code>**negrito**</code> ou <code>*itálico*</code> na linha. Uma variável formatada deixa de funcionar.</li>
+                        <li><b>Pontos de vida devem usar uma variável chamada <span class="trecho variavel-nome">PV</span>::</b> É ela que a barra de vida, o Dano e a Cura leem.</li>
                     </ul>
 <pre><span class="trecho variavel-nome">FOR</span>:: <span class="trecho variavel-valor">16</span>
 <span class="trecho variavel-nome">PROF</span>:: <span class="trecho variavel-valor">3</span>
@@ -684,10 +687,11 @@
                         <li>Pode usar números, variáveis e dados.</li>
                         <li>Para ser uma rolagem, a fórmula deve ter dados.</li>
                         <li>Clique no nome, ou no botão criado automaticamente ao lado, para rolar.</li>
+                        <li><b>Não estilize rolagens: somente texto comum.</b> Sem <code>#</code>, <code>**negrito**</code> ou <code>*itálico*</code> na linha, nem dentro dos parênteses e dos colchetes. Formatar pode quebrar a rolagem ou fazê-la perder o nome.</li>
                     </ul>
 <pre><span class="trecho rolagem-nome">(Ataque com espada)</span><span class="trecho rolagem-formula">[1d20 + MOD_FOR + PROF]</span>
 <span class="trecho rolagem-nome">(Dano da espada)</span><span class="trecho rolagem-formula">[1d8 + MOD_FOR]</span>
-<span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + DES]</span>
+<span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + MOD_DES]</span>
 <span class="trecho rolagem-nome">(Bola de Fogo)</span><span class="trecho rolagem-formula">[8d6]</span>
 <span class="trecho rolagem-nome">(Cura)</span><span class="trecho rolagem-formula">[2d4 + 2]</span></pre>
 
@@ -702,7 +706,8 @@
                         <li><span class="trecho variavel-valor">#</span>, <span class="trecho variavel-valor">##</span>, <span class="trecho variavel-valor">###</span> no começo da linha: títulos.</li>
                         <li><span class="trecho variavel-valor">**texto**</span> = negrito; <span class="trecho variavel-valor">*texto*</span> = itálico.</li>
                         <li>Os botões N, I, T1, T2, T3 inserem os marcadores de formatação.</li>
-                        <li>Linhas de variável não podem ser formatadas.</li>
+                        <li><b>Variáveis não podem ser formatadas:</b> marcadores no começo ou em volta de uma linha <code>NOME:: valor</code> a fazem deixar de ser variável.</li>
+                        <li><b>Rolagens também não:</b> use somente texto comum em <code>(Nome)[fórmula]</code>.</li>
                     </ul>
 
                     <h4>Fichas Únicas</h4>
@@ -732,8 +737,8 @@
                     <h4>Fichas e tokens</h4>
                     <ul>
                         <li>Uma ficha pode ter vários tokens (Token Único: um por tela). Cada token tem uma ficha só.</li>
-                        <li>Recomenda-se fortemente escrever a variável de pontos de vida como <span class="trecho variavel-nome">PV</span>:: ou <span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">mín:atual:máx</span>, para fichas únicas.</li>
-                        <li>Recomenda-se também ter uma rolagem chamada <span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + DES]</span>: é ela que o token usa ao ser adicionado à iniciativa (modo de iniciativa rápida). Sem ela, o token entra com 0.</li>
+                        <li><b>Deve-se escrever</b> a variável de pontos de vida como <span class="trecho variavel-nome">PV</span>:: <span class="trecho variavel-valor">valor</span> para fichas comuns (ex.: ficha de monstros) e <span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">mín:atual:máx</span> para fichas únicas (ex.: ficha de jogador).</li>
+                        <li>Recomenda-se também ter uma rolagem chamada <span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + MOD_DES]</span> (ex.: <span class="trecho variavel-nome">MOD_DES</span> é o modificador de destreza): é ela que o token usa ao ser adicionado à iniciativa (modo de iniciativa rápida). Sem ela, o token entra com 0.</li>
                     </ul>
                 </div>
                 <div id="ajuda-fichas-rodape">
@@ -920,6 +925,14 @@
                     botaoChat.setAttribute("aria-selected", String(abaLateral === "chat"));
                     botaoBolsa.tabIndex = abaLateral === "bolsa" ? 0 : -1;
                     botaoChat.tabIndex = abaLateral === "chat" ? 0 : -1;
+                }
+                // A coluna da direita MINIMIZADA (só a linha das abas): a mesma regra do src/ui/lateral.ts.
+                var minimizada = ler("tabuleirinho.lateral.minimizada") === "1";
+                marcar("chat", "minimizada", minimizada);
+                var botaoMin = document.getElementById("lateral-minimizar");
+                if (botaoMin) {
+                    botaoMin.setAttribute("aria-expanded", String(!minimizada));
+                    if (minimizada) botaoMin.classList.add("recolhido"); // (a seta ▾ quando minimizada: ver .seta no CSS)
                 }
                 var dados = ler("tabuleirinho.dados.recolhido") !== "0";
                 marcar("dados", "recolhida", dados);

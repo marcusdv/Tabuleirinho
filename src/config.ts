@@ -17,6 +17,7 @@ export const CHAVE_ORDEM_TOKENS = "tabuleirinho.bolsa.ordem.tokens"; // a ordem 
 export const CHAVE_ORDEM_FICHAS = "tabuleirinho.bolsa.ordem.fichas"; // idem na aba Fichas
 export const CHAVE_STATUS_AJUDA = "tabuleirinho.status.ajuda.v2"; // "1" = a pessoa deixou à MOSTRA as instruções dos status (o "?"); sem escolha guardada: OCULTAS (pedido do dono; a chave é nova de propósito: a escolha antiga, de quando o padrão era à mostra, não vale mais)
 export const CHAVE_ABA_LATERAL = "tabuleirinho.lateral.aba"; // "chat" ou "bolsa": a aba da coluna da direita (sem escolha guardada: "bolsa"; o index.html repete a regra)
+export const CHAVE_COLUNA_MINIMIZADA = "tabuleirinho.lateral.minimizada"; // "1" = a coluna da direita (chat e bolsa) está minimizada: só sobra a linha das abas (sem escolha guardada: aberta)
 export const CHAVE_DADOS_RECOLHIDO = "tabuleirinho.dados.recolhido"; // "1" = a barra de dados está recolhida, "0" = aberta (sem valor: abre, salvo em janela baixa)
 // (O index.html repete estas chaves num script que roda ANTES da primeira pintura: se mudar uma aqui, mude lá também.)
 
