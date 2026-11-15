@@ -1,7 +1,7 @@
 // =====================================================================
 // EDITOR DE STATUS (HTML): a lista dos STATUS da MESA (as barras que aparecem EMBAIXO de cada token no tabuleiro: HP, mana...). É UMA regra só, para todos os tokens
 // (pedido do dono: "a regra que muda ali serve para TODOS OS TOKENS"). Cada status tem um NOME, a VARIÁVEL da ficha de onde vem o valor (ex.: "PV", da linha `PV:: 20`),
-// uma COR, "Exibir status" (a barra aparece), "Exibir números" (o atual/máx dentro dela) e os GRUPOS de tokens em que ele vale (por padrão todos os tokens; marcando grupos, só os deles; nada marcado, nenhum).
+// uma COR, "Exibir em jogo" (a barra aparece), "Exibir números" (o atual/máx dentro dela) e os GRUPOS de tokens em que ele vale (por padrão todos os tokens; marcando grupos, só os deles; nada marcado, nenhum).
 // Fica na bolsa em tela cheia, ao lado da prévia do token. O componente edita uma lista em memória e avisa cada mudança (`aoMudar`); tudo entra por textContent/value.
 // =====================================================================
 
@@ -23,7 +23,7 @@ export interface EditorStatus {
 
 /** A explicação que acompanha a lista (como funciona, para quem nunca viu). */
 const TEXTO_DE_AJUDA =
-    "Um status é algo que a mesa acompanha e que pode mudar durante o jogo, como a vida (HP) ou a mana. Cada status lê uma variável da ficha atribuída ao token (ex.: a linha PV:: 20 faz o HP começar em 20/20), e as ações dos tokens (Dano, Cura e as que você criar) mudam o valor dele. Você pode, opcionalmente, transformar esse status numa barra no token: \"Exibir status\" mostra a barra embaixo do token no tabuleiro e \"Exibir números\" põe o atual/máx dentro dela. Sem a barra, o status continua existindo. Cada peça guarda o seu próprio valor, que se perde quando ela sai do tabuleiro. Sem ficha, ou sem essa variável na ficha, o token não tem esse status. Em \"Grupos\", escolha quais grupos terão status específicos.";
+    "Um status é algo que a mesa acompanha e que pode mudar durante o jogo, como a vida (HP) ou a mana. Cada status lê uma variável da ficha atribuída ao token (ex.: a linha PV:: 20 faz o HP começar em 20/20), e as ações dos tokens (Dano, Cura e as que você criar) mudam o valor dele. Você pode, opcionalmente, transformar esse status numa barra no token: \"Exibir em jogo\" mostra a barra embaixo do token no tabuleiro e \"Exibir números\" põe o atual/máx dentro dela. Sem a barra, o status continua existindo. Cada peça guarda o seu próprio valor, que se perde quando ela sai do tabuleiro. Sem ficha, ou sem essa variável na ficha, o token não tem esse status. Em \"Grupos\", escolha quais grupos terão status específicos.";
 
 /** O texto do botão de grupos de um status: "Todos os tokens", "Nenhum grupo", os nomes (até 2; "Sem grupo" entra na lista) ou "N marcados". */
 function resumoDosGrupos(item: StatusNovo): string {
@@ -92,7 +92,7 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
 
     // ---------------------------------------------------------------
     // A PRÉVIA das barras, desenhada como no tabuleiro (o nome FORA da caixa, a barra, o "atual/máx" DENTRO). Como a bolsa em tela cheia cobre o tabuleiro, é aqui
-    // que se vê, a cada clique, o que cada checkbox faz: "Exibir status" liga/desliga a barra; "Exibir números" liga/desliga só os números.
+    // que se vê, a cada clique, o que cada checkbox faz: "Exibir em jogo" liga/desliga a barra; "Exibir números" liga/desliga só os números.
     // ---------------------------------------------------------------
     const tituloPrevia = previaFora?.rotulo ?? document.createElement("p");
     const previa = previaFora?.caixa ?? document.createElement("div");
@@ -340,7 +340,7 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
 
                 principal.append(cor, nome, variavel, botaoGrupos, excluir);
 
-                // Os dois checkboxes DESTA barra, ao lado dos campos: "Exibir status" (a barra aparece no tabuleiro) e "Exibir números" (o atual/máx dentro dela).
+                // Os dois checkboxes DESTA barra, ao lado dos campos: "Exibir em jogo" (a barra aparece no tabuleiro) e "Exibir números" (o atual/máx dentro dela).
                 const opcoesDaBarra = document.createElement("div");
                 opcoesDaBarra.className = "status-opcoes";
                 const caixa = (texto: string, dica: string, ligado: boolean, aoMudarCampo: (v: boolean) => void): HTMLLabelElement => {
@@ -357,8 +357,14 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
                     return rotulo;
                 };
                 opcoesDaBarra.append(
-                    caixa("Exibir status", "Mostra a barra deste status embaixo do token no tabuleiro", item.mostrar !== false, (v) => (item.mostrar = v)),
+                    caixa("Exibir em jogo", "Mostra a barra deste status embaixo do token no tabuleiro", item.mostrar !== false, (v) => (item.mostrar = v)),
                     caixa("Exibir números", "Mostra o valor (atual/máximo, ex.: 100/100) dentro da barra", item.numeros !== false, (v) => (item.numeros = v)),
+                    caixa(
+                        "Subtraído por números arrastados",
+                        "Ao arrastar o total de uma rolagem do chat e soltá-lo num token, o token perde essa quantidade DESTE status (em geral o HP)",
+                        item.recebeArrasto === true,
+                        (v) => (item.recebeArrasto = v),
+                    ),
                 );
                 linha.append(principal, opcoesDaBarra);
                 return linha;
@@ -368,9 +374,9 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
 
     botaoNovo.addEventListener("click", () => {
         if (itens.length >= MAX_STATUS_TOKEN) return;
-        // Um status NOVO nasce "apagado" (pedido do dono): sem nome, sem barra ("Exibir status" desligado), sem números e em NENHUM grupo (não vale para token nenhum até a pessoa escolher). Assim criar um
+        // Um status NOVO nasce "apagado" (pedido do dono): sem nome, sem barra ("Exibir em jogo" desligado), sem números e em NENHUM grupo (não vale para token nenhum até a pessoa escolher). Assim criar um
         // status não muda nada no jogo por conta própria.
-        itens.push({ nome: "", variavel: "", cor: proximaCor(), mostrar: false, numeros: false, grupos: [], semGrupo: false });
+        itens.push({ nome: "", variavel: "", cor: proximaCor(), mostrar: false, numeros: false, grupos: [], semGrupo: false, recebeArrasto: false });
         desenhar();
         avisarAgora();
         lista.querySelector<HTMLInputElement>(".status-linha:last-child .status-nome")?.select(); // (já pronto para renomear)

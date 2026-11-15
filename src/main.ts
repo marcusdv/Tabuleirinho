@@ -75,6 +75,9 @@ import {
     statusPadrao,
     valoresAtuaisDaFicha,
     ajustarValorDaFicha,
+    aplicarResultado,
+    frasePraChatDeDano,
+    totalDaRolagem,
     statusDaAcao,
     rotuloDoStatus,
     definirTodosOsValoresDasFichas,
@@ -186,6 +189,13 @@ async function iniciar(): Promise<void> {
     const chat = criarChat({
         visivel: () => lateral.chatVisivel(),
         aoChegarEscondida: (quantas) => lateral.avisarNovas(quantas),
+        // Arrastar o TOTAL de uma rolagem do chat até um token = dar dano a ele (só dano, só o total).
+        aoArrastarResultado: (ponto) => tokens.destacarAlvo(ponto ? tokenSobOPonto(ponto) : null),
+        aoSoltarResultado: (idDaMensagem, ponto) => {
+            tokens.destacarAlvo(null);
+            const alvo = tokenSobOPonto(ponto);
+            if (alvo) darDanoArrastado(alvo, idDaMensagem);
+        },
         aoEnviar: (texto) => {
             if (rede?.ativa) {
                 rede.enviar({ tipo: "enviar_mensagem", texto });
@@ -430,6 +440,34 @@ async function iniciar(): Promise<void> {
             efeito: acao.efeito,
             aoAplicar: (texto) => aplicarAcaoDoJogo(token.id, acao.id, texto),
         });
+    }
+
+    /** Qual token está sob este ponto da tela? Só vale com o ponteiro sobre o TABULEIRO (o chat, a bolsa e as barras ficam por cima do canvas e não contam). */
+    function tokenSobOPonto(ponto: { x: number; y: number }): Token | null {
+        if (document.elementFromPoint(ponto.x, ponto.y) !== app.canvas) return null;
+        return tokens.tokenEm(ponto);
+    }
+
+    /**
+     * O TOTAL de uma rolagem do chat foi solto num token: ele perde essa quantidade do status marcado com "Subtraído por números arrastados". Online o pedido vai ao servidor (que lê o total
+     * da mensagem e avisa todos); no modo local, tudo aqui.
+     */
+    function darDanoArrastado(token: Token, idDaMensagem: number): void {
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "arrastar_resultado", token: token.id, mensagem: idDaMensagem });
+            return;
+        }
+        const total = totalDaRolagem(idDaMensagem);
+        if (total === null) return;
+        const resultado = aplicarResultado(token, total);
+        if (!resultado.ok) {
+            aviso.mostrar(resultado.erro, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            return;
+        }
+        tokens.redesenhar(token); // a barra muda na hora
+        if (resultado.fichaAlterada !== undefined) aplicarValoresDaFicha(resultado.fichaAlterada); // (ficha Token Único: as barras e o painel da ficha acompanham)
+        adicionarMensagem(AUTOR_PROVISORIO, frasePraChatDeDano(token, resultado));
+        chat.atualizar();
     }
 
     /** Aplica a ação com o valor escrito. Online o SERVIDOR sorteia os dados, muda o valor, grava e avisa todos (a frase também vai para o chat); no modo local, tudo aqui. */

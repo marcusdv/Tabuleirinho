@@ -25,6 +25,7 @@ export type PedidoDoCliente =
     | { tipo: "colocar_token"; id: number; col: number; row: number } // soltar um token no mapa (mover ou tirar da bolsa)
     | { tipo: "guardar_token"; id: number } // soltar um token na bolsa
     | { tipo: "ajustar_valor_ficha"; ficha: number; nome: string; delta: number } // SOMAR `delta` (+ ou -) ao valor atual de uma variável que muda da ficha: o SERVIDOR limita ao intervalo, grava e avisa todos
+    | { tipo: "arrastar_resultado"; token: number; mensagem: number } // o TOTAL de uma rolagem do chat foi solto num token: ele perde essa quantidade do status marcado; o SERVIDOR lê o total da mensagem (o navegador não manda número)
     | { tipo: "aplicar_acao"; token: number; acao: number; valor: string } // aplicar uma ação (Dano, Cura...) a um token: `valor` = um número ou dados ("2d6+3"); o SERVIDOR sorteia e aplica
     | { tipo: "definir_acoes"; acoes: AcaoNova[] } // mudar as AÇÕES da mesa inteira (criar, excluir)
     | { tipo: "definir_status"; status: StatusNovo[] } // mudar os STATUS (barras) da MESA INTEIRA: vale para todos os tokens e peças; o SERVIDOR guarda e avisa todos
@@ -96,7 +97,7 @@ function lerListaDeStatus(bruto: unknown): StatusNovo[] | null {
             if (!Array.isArray(x.grupos) || x.grupos.length > MAX_GRUPOS || !x.grupos.every(eInteiro)) return null; // (a lista de grupos em que o status vale; o estado.ts descarta os que não existem)
             grupos = [...(x.grupos as number[])];
         } else grupos = x.grupos;
-        lista.push({ ...(x.id !== undefined && { id: x.id }), nome: x.nome, variavel: x.variavel, cor: x.cor, ...(x.mostrar !== undefined && { mostrar: x.mostrar }), ...(x.numeros !== undefined && { numeros: x.numeros }), ...(grupos !== undefined && { grupos }), ...(x.semGrupo === true && { semGrupo: true }) });
+        lista.push({ ...(x.id !== undefined && { id: x.id }), nome: x.nome, variavel: x.variavel, cor: x.cor, ...(x.mostrar !== undefined && { mostrar: x.mostrar }), ...(x.numeros !== undefined && { numeros: x.numeros }), ...(grupos !== undefined && { grupos }), ...(x.semGrupo === true && { semGrupo: true }), ...(x.recebeArrasto === true && { recebeArrasto: true }) });
     }
     return lista;
 }
@@ -117,6 +118,8 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             return eInteiro(p.id) ? { tipo: "guardar_token", id: p.id } : null;
         case "ajustar_valor_ficha":
             return eInteiro(p.ficha) && eTexto(p.nome, MAX_CARACTERES_NOME_VARIAVEL) && eInteiro(p.delta) && Math.abs(p.delta) <= 2 * MAX_VALOR_VARIAVEL_QUE_MUDA ? { tipo: "ajustar_valor_ficha", ficha: p.ficha, nome: p.nome, delta: p.delta } : null;
+        case "arrastar_resultado":
+            return eInteiro(p.token) && eInteiro(p.mensagem) ? { tipo: "arrastar_resultado", token: p.token, mensagem: p.mensagem } : null;
         case "aplicar_acao":
             return eInteiro(p.token) && eInteiro(p.acao) && eTexto(p.valor, MAX_CARACTERES_QUANTIA_ACAO) ? { tipo: "aplicar_acao", token: p.token, acao: p.acao, valor: p.valor } : null;
         case "definir_acoes": {

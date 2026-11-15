@@ -22,6 +22,10 @@ export interface OpcoesChat {
     visivel(): boolean;
     /** Chegaram mensagens enquanto o chat estava escondido (a aba "Chat" mostra o contador de não lidas). */
     aoChegarEscondida(quantas: number): void;
+    /** O TOTAL de uma rolagem está sendo ARRASTADO e o ponteiro passou por este ponto da tela (para destacar o token embaixo); null = o arrasto terminou ou foi cancelado. */
+    aoArrastarResultado(ponto: { x: number; y: number } | null): void;
+    /** O TOTAL de uma rolagem foi SOLTO neste ponto da tela: quem recebe vê se há um token ali e dá o dano a ele (só dano). */
+    aoSoltarResultado(idDaMensagem: number, ponto: { x: number; y: number }): void;
 }
 
 export interface Chat {
@@ -216,6 +220,57 @@ export function criarChat(opcoes: OpcoesChat): Chat {
     const cartoes = new Map<number, HTMLElement>();
 
     /** Monta o cartão de uma mensagem. O texto entra por textContent (nunca como HTML). */
+    /**
+     * Faz o TOTAL de um cartão de rolagem poder ser ARRASTADO até um token (pedido do dono: dar dano arrastando o resultado). Só começa depois de 4 px de movimento (um clique simples não
+     * faz nada); uma "sombra" com o número segue o mouse; soltar chama `aoSoltarResultado` com o ponto da tela; Esc ou cancelar do navegador abandona. O ponteiro fica "capturado" pelo
+     * total, então o movimento continua chegando mesmo sobre o canvas ou fora do chat.
+     */
+    function tornarTotalArrastavel(total: HTMLElement, idDaMensagem: number): void {
+        total.classList.add("arrastavel");
+        total.title = "Arraste até um token para dar esse dano a ele";
+        total.addEventListener("pointerdown", (e) => {
+            if (e.button !== 0) return;
+            const inicio = { x: e.clientX, y: e.clientY };
+            let sombra: HTMLElement | null = null;
+            total.setPointerCapture(e.pointerId);
+            const encerrar = (soltou: { x: number; y: number } | null): void => {
+                total.removeEventListener("pointermove", mover);
+                total.removeEventListener("pointerup", soltar);
+                total.removeEventListener("pointercancel", cancelar);
+                document.removeEventListener("keydown", aoTeclar, true);
+                if (total.hasPointerCapture(e.pointerId)) total.releasePointerCapture(e.pointerId);
+                sombra?.remove();
+                const arrastou = sombra !== null;
+                sombra = null;
+                opcoes.aoArrastarResultado(null);
+                if (arrastou && soltou) opcoes.aoSoltarResultado(idDaMensagem, soltou);
+            };
+            const mover = (ev: PointerEvent): void => {
+                if (!sombra) {
+                    if (Math.hypot(ev.clientX - inicio.x, ev.clientY - inicio.y) < 4) return; // (ainda é um clique)
+                    sombra = document.createElement("div");
+                    sombra.className = "chat-sombra-dano";
+                    sombra.textContent = total.textContent; // (só texto: nada do chat vira HTML)
+                    document.body.append(sombra);
+                }
+                sombra.style.left = `${ev.clientX}px`;
+                sombra.style.top = `${ev.clientY}px`;
+                opcoes.aoArrastarResultado({ x: ev.clientX, y: ev.clientY });
+            };
+            const soltar = (ev: PointerEvent): void => encerrar({ x: ev.clientX, y: ev.clientY });
+            const cancelar = (): void => encerrar(null);
+            const aoTeclar = (ev: KeyboardEvent): void => {
+                if (ev.key !== "Escape") return;
+                ev.stopPropagation(); // (o Esc só abandona o arrasto: nada mais fecha por causa dele)
+                encerrar(null);
+            };
+            total.addEventListener("pointermove", mover);
+            total.addEventListener("pointerup", soltar);
+            total.addEventListener("pointercancel", cancelar);
+            document.addEventListener("keydown", aoTeclar, true);
+        });
+    }
+
     function criarCartao(mensagem: Mensagem): HTMLElement {
         const cartao = document.createElement("div");
         cartao.className = "chat-mensagem";
@@ -255,6 +310,7 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             const total = document.createElement("div");
             total.className = "chat-total";
             total.textContent = String(r.total);
+            tornarTotalArrastavel(total, mensagem.id);
 
             // A bandeja com os dados de cada termo; a conta (com o que saiu) e o TOTAL grande ficam no rodapé.
             const grupos = r.dados.map((d) => ({ lados: d.lados, resultados: d.resultados }));
@@ -288,6 +344,7 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             const total = document.createElement("div");
             total.className = "chat-total";
             total.textContent = String(rolagem.total);
+            tornarTotalArrastavel(total, mensagem.id);
 
             const grupos = [{ lados: rolagem.lados, resultados: rolagem.resultados }];
             const bandeja = montarBandeja(grupos, rolagem.modificador, MAX_DADOS_NO_CARTAO);

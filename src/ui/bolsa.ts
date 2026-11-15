@@ -35,7 +35,7 @@ import {
     CHAVE_ORDEM_TOKENS,
     MAX_GRUPOS,
 } from "../config";
-import { estado, pecasDoModelo, quantosModelos, type Ficha, type Grupo, type StatusNovo, type Token } from "../estado";
+import { estado, fichaDeJogador, pecasDoModelo, quantosModelos, type Ficha, type Grupo, type StatusNovo, type Token } from "../estado";
 import { criarEditorGrupo } from "./editorGrupo";
 import { criarEditorStatus } from "./editorStatus";
 import { corCss, escolherArquivo, marcarEscolhida, montarPaleta, pintarDisco } from "./aparenciaToken";
@@ -309,7 +309,6 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                 const disco = document.createElement("span");
                 disco.className = "disco";
                 pintarDisco(disco, token.cor, token.corBorda, token.imagem);
-                disco.style.setProperty("--t", String(token.size)); // a bolsa expandida desenha o disco proporcional
                 // O nome vem do usuário: entra por textContent (nunca como HTML). Nomes longos ganham "…" (CSS).
                 const nome = document.createElement("span");
                 nome.className = "ficha-nome";
@@ -716,7 +715,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
             const caixa = document.createElement("span");
             caixa.className = "item-grupos";
             caixa.setAttribute("aria-hidden", "true");
-            for (const g of doItem.slice(0, 4)) {
+            for (const g of doItem.slice(0, 3)) { // (no máximo 3 bolinhas; os nomes de todos os grupos vão na dica do mouse)
                 const ponto = document.createElement("i");
                 ponto.style.setProperty("--cor-grupo", corCss(g.cor));
                 caixa.append(ponto);
@@ -724,6 +723,18 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
             marcas.push(caixa);
         }
         return marcas;
+    }
+
+    // Quais fichas são "Token Único" (têm recursos)? A conta analisa o texto da ficha, então guarda o resultado por ficha e versão (a bolsa se redesenha a cada seleção).
+    const cacheTokenUnico = new Map<string, boolean>();
+    function ehTokenUnico(ficha: Ficha): boolean {
+        const chave = `${ficha.id}:${ficha.versao}`;
+        let valor = cacheTokenUnico.get(chave);
+        if (valor === undefined) {
+            valor = fichaDeJogador(ficha.id);
+            cacheTokenUnico.set(chave, valor);
+        }
+        return valor;
     }
 
     /** Acrescenta os nomes dos grupos à dica do mouse do item. */
@@ -1269,6 +1280,15 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                 const versao = document.createElement("small");
                 versao.textContent = `v${ficha.versao}`;
                 doc.append(folha, nome, versao, ...marcasDoItem("fichas", ficha));
+                if (ehTokenUnico(ficha)) {
+                    // "Ficha Token Único" (tem recursos): um marcador dourado no canto superior esquerdo. (O mesmo "outro lado" do selinho "tem ficha" da fichinha do token.)
+                    const unica = document.createElement("span");
+                    unica.className = "item-unica";
+                    unica.textContent = "①";
+                    unica.setAttribute("aria-hidden", "true");
+                    doc.append(unica);
+                    doc.title += " · Ficha Token Único: só pode ter um token por tela";
+                }
                 doc.title += dicaDosGrupos(ficha);
                 return doc;
             }),

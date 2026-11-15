@@ -71,6 +71,13 @@ export interface CamadaTokens {
     /** Refaz o desenho de TODOS os tokens do estado (quando o servidor manda a lista inteira ao entrar na mesa). */
     reconstruir(): void;
     /**
+     * Qual token está sob este ponto da TELA (null = nenhum)? Só os que estão no tabuleiro; vale o CÍRCULO do token; com vários no mesmo ponto, o que fica por CIMA (os menores
+     * ficam sobre os maiores; entre iguais, o mais novo). Usado ao soltar o resultado de um dado do chat num token.
+     */
+    tokenEm(ponto: PointData): Token | null;
+    /** Destaca (cresce um pouco) o token que está sob o resultado de dado arrastado; null tira o destaque. */
+    destacarAlvo(token: Token | null): void;
+    /**
      * Mostra o token onde o ESTADO diz que ele está (no mapa, ou escondido se está na bolsa). Usado quando a posição
      * vem de FORA (do servidor). Se o usuário está segurando este token agora, não mexe: o que ele soltar vale.
      */
@@ -137,6 +144,7 @@ export function criarTokens(
     // Guarda a view de cada token pelo id, para podermos reposicioná-la
     // quando o estado do token mudar (tabuleiro encolheu, tamanho alterado...).
     const views = new Map<number, ViewToken>();
+    let alvoDestacado: number | null = null; // o token que está crescido por baixo de um resultado de dado arrastado (ver `destacarAlvo`)
 
     // Estado do arrasto. Só um token é arrastado por vez.
     let arrastando: { token: Token; view: ViewToken } | null = null;
@@ -173,7 +181,7 @@ export function criarTokens(
         let i = 0;
         for (const status of statusAplicaveis(token)) {
             const valor = token.valores.find((v) => v.id === status.id);
-            if (!valor || !status.mostrar) continue; // ("Exibir status" desligado: o valor existe, mas a barra não é desenhada)
+            if (!valor || !status.mostrar) continue; // ("Exibir em jogo" desligado: o valor existe, mas a barra não é desenhada)
             const y = topo + i * (ALTURA_BARRA_STATUS + VAO_BARRA_STATUS);
             const largura = raio * 2;
             const parte = Math.max(0, Math.min(1, valor.atual / valor.max));
@@ -481,6 +489,26 @@ export function criarTokens(
             for (const id of [...views.keys()]) destruirView(id);
             for (const token of estado.tokens) criarView(token);
             reordenar();
+        },
+
+        tokenEm(ponto) {
+            const mundo = camera.telaParaMundo(ponto);
+            let achado: Token | null = null;
+            for (const [id, view] of views) {
+                const token = buscarToken(id);
+                if (!token || token.guardado || !view.raiz.visible) continue;
+                if (Math.hypot(mundo.x - view.raiz.x, mundo.y - view.raiz.y) > raioDoToken(token.size)) continue; // (fora do círculo do token)
+                if (!achado || token.size < achado.size || (token.size === achado.size && token.id > achado.id)) achado = token;
+            }
+            return achado;
+        },
+
+        destacarAlvo(token) {
+            const novoId = token?.id ?? null;
+            if (novoId === alvoDestacado) return;
+            if (alvoDestacado !== null) views.get(alvoDestacado)?.raiz.scale.set(1);
+            alvoDestacado = novoId;
+            if (novoId !== null) views.get(novoId)?.raiz.scale.set(1.12);
         },
 
         aplicarPosicao(token) {

@@ -962,6 +962,29 @@ body {
     color: #ffd54f;
     font-variant-numeric: tabular-nums;
 }
+.chat-total.arrastavel {
+    cursor: grab; /* o TOTAL se arrasta até um token para dar dano a ele */
+    user-select: none;
+    touch-action: none;
+}
+.chat-total.arrastavel:hover {
+    text-shadow: 0 0 8px currentColor;
+}
+/* A "sombra" do número que segue o mouse durante o arrasto (fica acima de tudo, sem pegar o mouse). */
+.chat-sombra-dano {
+    position: fixed;
+    z-index: 70;
+    transform: translate(-50%, -50%);
+    padding: 4px 12px;
+    font: 700 22px/1 system-ui, sans-serif;
+    color: #fff;
+    background: rgba(229, 115, 115, 0.92);
+    border: 2px solid #ffd54f;
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    user-select: none;
+}
 .chat-mensagem p.chat-detalhe {
     color: #9a9aa8;
     font-size: 11.5px;
@@ -1344,13 +1367,13 @@ body:not(.app-pronta) #dados {
 }
 /* Na bolsa expandida as fichas só mostram o token (arrastar para o mapa é com a bolsa fechada). */
 #bolsa.expandida .ficha {
-    padding: 10px 6px;
+    padding: 20px 6px 24px;
     cursor: default;
 }
 #bolsa.expandida .ficha .disco {
-    /* O disco cresce com o tamanho do token (--t = 1..4): de 48 a 102 px. */
-    width: calc(30px + var(--t, 1) * 18px);
-    height: calc(30px + var(--t, 1) * 18px);
+    /* O MESMO tamanho para todo token (antes crescia com o tamanho do token). */
+    width: 92px;
+    height: 92px;
 }
 #bolsa.expandida .ficha small {
     font-size: 12px;
@@ -1393,21 +1416,33 @@ body:not(.app-pronta) #dados {
 /* "N no mapa": quantas peças (cópias) deste token estão no tabuleiro, no canto inferior direito da fichinha. */
 .ficha .item-no-mapa {
     position: absolute;
-    right: 4px;
-    bottom: 3px;
+    left: 0;
+    right: 0;
+    bottom: 4px;
+    text-align: center;
     font-size: 10px;
     line-height: 1;
     color: #8ec5ff;
     pointer-events: none;
 }
-.ficha .item-ficha-vinculo {
+/* A LINHA DE CIMA da fichinha (pedido do dono): tudo no mesmo nível, meio a cavalo na borda de cima. À ESQUERDA o marcador "tem ficha" (▤) do token ou "Ficha Token Único" (①) do documento; NO MEIO a
+   estrela de favorito; À DIREITA as bolinhas de grupo (no máximo 3). */
+.ficha .item-ficha-vinculo,
+.bolsa-doc .item-unica {
     position: absolute;
-    left: 4px;
-    bottom: 3px;
-    font-size: 11px;
-    line-height: 1;
+    left: 6px;
+    top: -5px;
+    font-size: 12px;
+    line-height: 12px;
     color: #ffd54f;
     pointer-events: none;
+}
+#bolsa.expandida .ficha .item-ficha-vinculo,
+#bolsa.expandida .bolsa-doc .item-unica {
+    left: 10px;
+    top: -7px;
+    font-size: 16px;
+    line-height: 16px;
 }
 #editor-token-nome {
     width: 100%;
@@ -1654,23 +1689,26 @@ body:not(.app-pronta) #dados {
     flex-direction: column;
     gap: 6px;
     margin-bottom: 8px;
+    overflow-x: auto; /* (a linha de cada status nunca quebra: se faltar largura, a lista rola de lado) */
 }
 .editor-status .status-vazio {
     margin: 0;
     font-size: 12px;
     color: #7d7d8d;
 }
-/* Cada status numa LINHA SÓ: cor, nome, variável, os dois checkboxes ("Exibir status" e "Exibir números") AO LADO e o ✕ no fim. */
+/* Cada status numa LINHA SÓ, SEMPRE (pedido do dono): cor, nome (curto), variável (curta), grupos, os três checkboxes ("Exibir em jogo", "Exibir números" e "Subtraído por números arrastados") e o ✕ no
+   fim. Nunca quebra: se a janela for estreita demais, a LISTA ganha rolagem na horizontal. */
 .editor-status .status-linha {
     display: flex;
-    flex-wrap: wrap; /* (só quebra se a janela for estreita: com espaço, tudo fica numa linha só) */
+    flex-wrap: nowrap;
     align-items: center;
     gap: 6px 8px;
+    width: max-content; /* a linha tem a largura do que cabe nela; a lista rola de lado se passar do espaço */
 }
 .editor-status .status-linha-principal {
     display: contents; /* os campos entram direto na linha; os checkboxes vêm depois deles (order) */
 }
-/* Os dois checkboxes de cada barra: "Exibir status" e "Exibir números". */
+/* Os três checkboxes de cada status: "Exibir em jogo", "Exibir números" e "Subtraído por números arrastados". */
 .editor-status .status-opcoes {
     order: 5;
     flex: none;
@@ -1712,7 +1750,8 @@ body:not(.app-pronta) #dados {
     gap: 6px;
     height: 28px;
     box-sizing: border-box;
-    max-width: 150px;
+    width: 132px; /* largura FIXA: as colunas (e o ✕ do fim) ficam alinhadas em todos os status, qualquer que seja o texto */
+    justify-content: space-between;
     padding: 0 8px;
     background: #2f2f3a;
     border: 1px solid #4a4a58;
@@ -1798,10 +1837,12 @@ body:not(.app-pronta) #dados {
     font-size: 12px;
 }
 .editor-status .status-nome {
-    flex: 1 1 70px;
+    flex: none;
+    width: 56px; /* pequena de propósito: cabem umas 4 letras (o nome é só um rótulo curto, como "HP") */
 }
 .editor-status .status-variavel {
-    flex: 1 1 70px;
+    flex: none;
+    width: 82px; /* cabe o texto "Variável" do placeholder */
 }
 .editor-status .status-nome:focus,
 .editor-status .status-variavel:focus {
@@ -2027,8 +2068,8 @@ body:not(.app-pronta) #dados {
 }
 .item-estrela {
     position: absolute;
-    top: 1px;
-    left: 3px;
+    top: -6px; /* na linha de cima, no MEIO (entre o marcador de ficha e as bolinhas de grupo; na bolsa do canto, a caixa é estreita: um pouco à esquerda do centro, para não encostar nas 3 bolinhas) */
+    left: 22px;
     font-size: 13px;
     line-height: 1;
     color: #c9c9d4;
@@ -2041,8 +2082,9 @@ body:not(.app-pronta) #dados {
 }
 /* Bolsa em TELA CHEIA (pedido do dono): estrela maior e com mais espaço em volta (a do canto está boa como está). */
 #bolsa.expandida .item-estrela {
-    top: 2px;
-    left: 2px;
+    top: -14px;
+    left: 50%;
+    transform: translateX(-50%); /* na tela cheia a caixa é larga: a estrela fica mesmo no centro */
     padding: 4px 6px;
     font-size: 22px;
 }
@@ -2053,20 +2095,36 @@ body:not(.app-pronta) #dados {
 .item-estrela:hover {
     opacity: 1;
 }
+/* Os GRUPOS: bolinhas coloridas a cavalo na borda de CIMA da fichinha, como o sinal de uma notificação. No máximo 3, bem coladas e levemente UMA SOBRE A OUTRA. */
 .item-grupos {
     position: absolute;
-    top: 4px;
-    right: 4px;
+    top: -4px; /* (a bolinha de 11 px tem o centro na mesma linha do marcador de ficha e da estrela) */
+    right: 6px;
+    z-index: 2;
     display: flex;
-    gap: 2px;
     pointer-events: none;
 }
 .item-grupos i {
-    width: 7px;
-    height: 7px;
+    width: 11px;
+    height: 11px;
+    box-sizing: border-box;
     border-radius: 50%;
     background: var(--cor-grupo, #888);
-    border: 1px solid rgba(0, 0, 0, 0.5);
+    border: 2px solid #22222a; /* o anel escuro separa as bolinhas quando uma fica sobre a outra */
+}
+.item-grupos i + i {
+    margin-left: -5px;
+}
+#bolsa.expandida .item-grupos {
+    top: -7px;
+    right: 9px;
+}
+#bolsa.expandida .item-grupos i {
+    width: 16px;
+    height: 16px;
+}
+#bolsa.expandida .item-grupos i + i {
+    margin-left: -7px;
 }
 #menu-grupos {
     position: fixed;
@@ -2283,7 +2341,8 @@ body:not(.app-pronta) #dados {
 #bolsa:not(.expandida) #bolsa-itens,
 #bolsa:not(.expandida) #bolsa-fichas-lista {
     grid-template-columns: repeat(4, minmax(0, 1fr)); /* a coluna tem 320 px: 4 por linha */
-    grid-auto-rows: 72px;
+    grid-auto-rows: 114px; /* mais alta (era 72): cabe a linha de marcadores, o ícone maior (54 px), o nome e o "N no mapa" */
+    padding-top: 7px; /* as bolinhas de grupo ficam a cavalo na borda de cima: sem este respiro a rolagem as cortaria na 1ª linha */
     align-content: start;
     height: 100%;
     max-height: none;
@@ -2319,7 +2378,7 @@ body:not(.app-pronta) #dados {
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding: 4px;
+    padding: 14px 4px 6px;
     min-width: 0;
     box-sizing: border-box;
     background: #2f2f3a;
@@ -2340,7 +2399,7 @@ body:not(.app-pronta) #dados {
     flex: none;
     width: 2.6em;
     height: 3.2em;
-    font-size: 6px; /* bolsa do canto: folha pequena (cerca de 16 × 19 px), para sobrar espaço ao nome; a tela cheia tem o seu próprio tamanho, abaixo */
+    font-size: 12px; /* bolsa do canto: folha de cerca de 31 × 38 px (era 16 × 19), a MESMA para toda ficha; a tela cheia tem o seu próprio tamanho, abaixo */
     background: #dcdce6;
     border-radius: 0.2em 0.8em 0.2em 0.2em;
 }
@@ -2422,15 +2481,16 @@ body:not(.app-pronta) #dados {
     max-height: none;
     overflow: visible;
     align-content: start;
+    padding-top: 9px; /* respiro para as bolinhas de grupo a cavalo na borda de cima */
     gap: 12px;
     grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
 }
 #bolsa.expandida .bolsa-doc {
-    padding: 12px 6px;
+    padding: 20px 6px 12px;
     font-size: 13px;
 }
 #bolsa.expandida .bolsa-doc-folha {
-    font-size: 20px;
+    font-size: 26px;
 }
 #bolsa.expandida .bolsa-doc small {
     font-size: 12px;
@@ -2473,7 +2533,7 @@ body:not(.app-pronta) #dados {
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding: 4px;
+    padding: 14px 4px 16px; /* mais ALTA: uma faixa em cima para os marcadores e outra embaixo para o "N no mapa" */
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
@@ -2489,8 +2549,8 @@ body:not(.app-pronta) #dados {
     background: #3b3b49;
 }
 .ficha .disco {
-    width: 30px;
-    height: 30px;
+    width: 54px; /* o ícone tem o MESMO tamanho para todo token, 1×1 ou 4×4 (o tamanho fica na dica do mouse); os cantos ficaram livres, então ele pôde crescer */
+    height: 54px;
     border-radius: 50%;
     border: 2px solid #fff;
     box-sizing: border-box;

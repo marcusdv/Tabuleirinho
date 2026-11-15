@@ -46,12 +46,14 @@ export interface StatusDoToken {
     nome: string;
     variavel: string; // nome da variável da ficha (sem os "::"); vazio = sem ligação (não vira barra)
     cor: number;
-    mostrar: boolean; // "Exibir status": a barra aparece no tabuleiro (desligado: o valor continua existindo, só não se vê)
+    mostrar: boolean; // "Exibir em jogo": a barra aparece no tabuleiro (desligado: o valor continua existindo, só não se vê)
     numeros: boolean; // "Exibir números": o "atual/máx" aparece DENTRO da barra
     /** Em quais GRUPOS de tokens este status vale: `null` = TODOS os tokens (inclusive os sem grupo); uma lista = só os tokens que pertencem a ALGUM desses grupos; lista VAZIA (nada marcado) = NENHUM token (pedido do dono). */
     grupos: number[] | null;
     /** Só vale quando `grupos` é uma LISTA: o status vale também para os tokens que NÃO têm grupo nenhum ("Tokens sem grupo", pedido do dono). Com `grupos: null` (todos) não importa. Sem o campo (arquivos antigos): desligado. */
     semGrupo: boolean;
+    /** "Subtraído por números arrastados": ao arrastar o TOTAL de uma rolagem do chat e soltá-lo num token, o token perde essa quantidade DESTE status (em geral o HP). Sem o campo (arquivos antigos): desligado. */
+    recebeArrasto: boolean;
 }
 
 /** O que o cliente manda ao criar/editar status: o `id` só vem nos que já existiam (os novos ganham um id). */
@@ -64,6 +66,7 @@ export interface StatusNovo {
     numeros?: boolean;
     grupos?: number[] | null; // sem o campo (ou null) vale para TODOS os tokens
     semGrupo?: boolean; // também vale para os tokens sem grupo (só conta com uma lista de grupos); sem o campo vale desligado
+    recebeArrasto?: boolean; // "Subtraído por números arrastados" (sem o campo vale desligado)
 }
 
 /**
@@ -135,7 +138,7 @@ export const estado = {
     colunas: COLUNAS_INICIAIS, // largura do tabuleiro, em casas
     linhas: LINHAS_INICIAIS, // altura do tabuleiro, em casas
     /** Os STATUS (barras: HP etc.): UMA regra para a MESA INTEIRA. Todo token e toda peça copiam esta lista (o servidor a guarda em `dados/mesa.json`); só os VALORES (PV atual) são de cada peça. */
-    statusDaMesa: [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false }] as StatusDoToken[],
+    statusDaMesa: [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false, recebeArrasto: true }] as StatusDoToken[],
     /** As AÇÕES da mesa (Dano, Cura...): também UMA regra para todos (o servidor a guarda em `dados/mesa.json`). De fábrica: Dano e Cura, que mexem no status 1 (o HP). */
     acoesDaMesa: acoesPadrao(), // (Dano e Cura; a função é declarada mais abaixo, e as declarações de função já existem quando este objeto é criado)
     // Imagem de fundo, esticada sobre o tabuleiro inteiro (null = sem imagem).
@@ -800,6 +803,7 @@ function completarToken(token: Token): void {
         if (s.numeros === undefined) s.numeros = true;
         if (s.grupos === undefined) s.grupos = null; // (servidor mais antigo: o status valia para todos)
         if (s.semGrupo === undefined) s.semGrupo = false;
+        if (s.recebeArrasto === undefined) s.recebeArrasto = false;
     }
     if (!Array.isArray(t.valores)) t.valores = [];
     if (!Array.isArray(t.grupos)) t.grupos = [];
@@ -1008,7 +1012,7 @@ export function statusDaMesaCopiada(): StatusDoToken[] {
 /**
  * Muda os STATUS da MESA INTEIRA (a regra vale para TODOS os tokens e peças, sem escolher nenhum): limpa a lista (`limparStatus`), guarda em `estado.statusDaMesa` e copia para
  * todos os tokens. Os VALORES das peças só são refeitos (relendo a ficha, mantendo o PV atual dos que continuam) quando a ESTRUTURA muda (status criado, excluído, reordenado ou
- * ligado a outra variável); mudar só o visual (nome, cor, "Exibir status", "Exibir números") não mexe nos valores. Devolve todos os tokens (todos mudaram de visual).
+ * ligado a outra variável); mudar só o visual (nome, cor, "Exibir em jogo", "Exibir números") não mexe nos valores. Devolve todos os tokens (todos mudaram de visual).
  */
 export function definirStatusDaMesa(bruto: unknown): Token[] {
     const maiorIdDaMesa = estado.statusDaMesa.reduce((m, s) => Math.max(m, s.id), 0);
@@ -1104,10 +1108,6 @@ export function aplicarAcao(token: Token, acaoId: number, texto: string, sortear
     if (!acao) return { ok: false, erro: "Essa ação não existe." };
     const status = statusDaAcao(token, acao);
     if (!status) return { ok: false, erro: `Este token não usa o status desta ação.` };
-    const valor = token.valores.find((v) => v.id === status.id);
-    // Ficha de JOGADOR: se o status lê uma variável que MUDA, a ação muda o valor DA FICHA (e a barra, que a espelha, acompanha), limitado ao mínimo e ao máximo dela.
-    const ligacao = ligacaoComVariavelQueMuda(token, status.variavel);
-    if (!valor && !ligacao) return { ok: false, erro: `"${rotuloDoStatus(status)}" não tem valor neste token: ele precisa de uma ficha com a variável ${status.variavel || "do status"}.` };
     const quantia = lerQuantia(texto);
     if (!quantia) return { ok: false, erro: "Escreva um número (ex.: 7) ou dados (ex.: 2d6+3)." };
     let total: number;
@@ -1120,17 +1120,62 @@ export function aplicarAcao(token: Token, acaoId: number, texto: string, sortear
         total = Math.min(Math.max(0, r.total), MAX_QUANTIA_ACAO); // (uma conta que dá negativo não "cura ao contrário": vale 0)
         detalhe = `${formulaDosDados(quantia.quantidade, quantia.lados, quantia.modificador)} [${r.resultados.join(", ")}]`;
     }
+    return aplicarTotal(token, status, acao.efeito, total, detalhe);
+}
+
+/**
+ * O miolo comum de uma ação e de um dano arrastado: soma ou tira `total` do valor do `status` do token, deixando o valor entre o mínimo e o máximo. Ficha de JOGADOR (o status lê uma
+ * variável que MUDA): muda o valor DA FICHA (a barra, que a espelha, acompanha). Senão, muda o valor da peça (`token.valores`). Sem valor (token sem ficha ou sem a variável): erro.
+ */
+function aplicarTotal(token: Token, status: StatusDoToken, efeito: "reduzir" | "aumentar", total: number, detalhe: string): ResultadoDeAcao {
+    const valor = token.valores.find((v) => v.id === status.id);
+    const ligacao = ligacaoComVariavelQueMuda(token, status.variavel);
+    if (!valor && !ligacao) return { ok: false, erro: `"${rotuloDoStatus(status)}" não tem valor neste token: ele precisa de uma ficha com a variável ${status.variavel || "do status"}.` };
     if (ligacao) {
-        const depois = limitar(acao.efeito === "reduzir" ? ligacao.atual - total : ligacao.atual + total, ligacao.min, ligacao.max);
+        const depois = limitar(efeito === "reduzir" ? ligacao.atual - total : ligacao.atual + total, ligacao.min, ligacao.max);
         definirValorAtualDaFicha(ligacao.ficha, ligacao.nome, depois);
         sincronizarValoresDaFicha(ligacao.ficha); // (a barra deste token, e a de qualquer outro dela, passa a mostrar o valor novo)
         return { ok: true, nomeStatus: rotuloDoStatus(status), antes: ligacao.atual, depois, max: ligacao.max, quantia: total, detalhe, fichaAlterada: ligacao.ficha };
     }
     if (!valor) return { ok: false, erro: "Valor do status indisponível." }; // (não acontece: conferido acima)
     const antes = valor.atual;
-    const depois = limitar(acao.efeito === "reduzir" ? antes - total : antes + total, 0, valor.max);
+    const depois = limitar(efeito === "reduzir" ? antes - total : antes + total, 0, valor.max);
     valor.atual = depois;
     return { ok: true, nomeStatus: rotuloDoStatus(status), antes, depois, max: valor.max, quantia: total, detalhe };
+}
+
+/**
+ * ARRASTAR O RESULTADO DE UM DADO PARA UM TOKEN = DAR DANO (pedido do dono; só dano, só o TOTAL). Qual status do token recebe: o primeiro status que vale para ele, está marcado com "Valor
+ * subtraído por números arrastados" (`recebeArrasto`) e tem valor (na peça, ou numa variável que muda da ficha). Nenhum: null.
+ */
+export function statusQueRecebeArrasto(token: Token): StatusDoToken | null {
+    for (const s of statusAplicaveis(token)) {
+        if (!s.recebeArrasto) continue;
+        if (token.valores.some((v) => v.id === s.id) || ligacaoComVariavelQueMuda(token, s.variavel)) return s;
+    }
+    return null;
+}
+
+/** Tira `total` do status do token que recebe os números arrastados. O servidor usa esta função (e o modo local também). Sem status marcado, ou sem valor: erro. */
+export function aplicarResultado(token: Token, total: number): ResultadoDeAcao {
+    const status = statusQueRecebeArrasto(token);
+    if (!status) {
+        return { ok: false, erro: `"${token.nome}" não tem nenhum status que receba números arrastados: marque "Subtraído por números arrastados" no status (bolsa em tela cheia, Status).` };
+    }
+    const quantia = Number.isSafeInteger(total) ? Math.min(Math.max(0, total), MAX_QUANTIA_ACAO) : 0;
+    return aplicarTotal(token, status, "reduzir", quantia, String(quantia));
+}
+
+/** O TOTAL de uma rolagem do chat (dados ou ficha), pelo id da mensagem; null se a mensagem não existe ou não é uma rolagem. O servidor lê o total AQUI: o navegador nunca manda o número. */
+export function totalDaRolagem(idDaMensagem: number): number | null {
+    const m = estado.mensagens.find((x) => x.id === idDaMensagem);
+    const total = m?.rolagem?.total ?? m?.rolagemFicha?.total;
+    return typeof total === "number" && Number.isFinite(total) ? total : null;
+}
+
+/** A frase curta do chat depois de um dano ARRASTADO (cabe nos 72 caracteres): "Orc: Dano 9 (HP 15→6)". */
+export function frasePraChatDeDano(token: Token, r: Extract<ResultadoDeAcao, { ok: true }>): string {
+    return `${token.nome}: Dano ${r.quantia} (${r.nomeStatus} ${r.antes}→${r.depois})`.slice(0, MAX_CARACTERES_MENSAGEM);
 }
 
 /**
@@ -1176,7 +1221,7 @@ export function rotuloDoStatus(status: { nome: string; variavel: string }): stri
 
 /** O status de fábrica: o HP, que lê a variável PV:: da ficha. */
 export function statusPadrao(): StatusDoToken[] {
-    return [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false }];
+    return [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false, recebeArrasto: true }];
 }
 
 /**
@@ -1197,7 +1242,7 @@ export function limparStatus(bruto: unknown, idJaUsado = 0): StatusDoToken[] | n
         if (/^\p{N}/u.test(variavel)) variavel = ""; // (uma variável não pode começar por número)
         const cor = typeof s.cor === "number" && Number.isFinite(s.cor) ? limitar(Math.round(s.cor), 0, 0xffffff) : COR_STATUS_HP;
         const grupos = Array.isArray(s.grupos) ? limparGrupos(s.grupos.filter((g): g is number => typeof g === "number")) : null; // (sem a lista = TODOS os tokens; lista vazia = NENHUM; ids de grupos que não existem são descartados)
-        return { id, nome, variavel, cor, mostrar: s.mostrar !== false, numeros: s.numeros !== false, grupos, semGrupo: grupos !== null && s.semGrupo === true }; // (sem o campo, os dois ficam ligados)
+        return { id, nome, variavel, cor, mostrar: s.mostrar !== false, numeros: s.numeros !== false, grupos, semGrupo: grupos !== null && s.semGrupo === true, recebeArrasto: s.recebeArrasto === true }; // (sem o campo, os dois ficam ligados)
     });
 }
 

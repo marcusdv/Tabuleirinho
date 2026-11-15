@@ -57,6 +57,10 @@ import {
     definirFichas,
     definirGrupos,
     aplicarAcao,
+    aplicarResultado,
+    frasePraChatDeDano,
+    totalDaRolagem,
+    type ResultadoDeAcao,
     ajustarValorDaFicha,
     aplicarStatusDaMesaAosTokens,
     definirTodosOsValoresDasFichas,
@@ -459,6 +463,23 @@ function agendarGravacaoDoToken(id: number): void {
     gravacaoAgendada ??= setTimeout(gravarTokensSujos, MS_ESPERA_GRAVACAO_TOKEN);
 }
 
+/**
+ * Depois de mudar o valor de um status de um token (uma ação do menu ou um dano arrastado): avisa todos (valores da peça; e, se mudou NA FICHA de um jogador, os valores da ficha), grava os arquivos
+ * (das peças e o mesa.json) e põe a frase no chat em nome de quem agiu.
+ */
+function publicarResultadoDeAcao(autor: string, alvo: Token, resultado: Extract<ResultadoDeAcao, { ok: true }>, frase: string): void {
+    avisarTodos({ tipo: "valores_atualizados", id: alvo.id, valores: alvo.valores });
+    if (resultado.fichaAlterada !== undefined) {
+        // Ficha de jogador: mudou o valor da FICHA (as barras de todos os tokens dela já foram refeitas): avisa, grava os arquivos das peças e o mesa.json.
+        avisarTodos({ tipo: "valores_ficha", id: resultado.fichaAlterada, valores: valoresDaFichaComoObjeto(resultado.fichaAlterada) });
+        for (const t of estado.tokens) if (t.ficha === resultado.fichaAlterada && !t.guardado) agendarGravacaoDoToken(t.id);
+        naFilaDeArquivos(() => gravarMesaAtual());
+    }
+    const mensagem = adicionarMensagem(autor, frase);
+    if (mensagem) avisarTodos({ tipo: "mensagem", mensagem });
+    agendarGravacaoDoToken(alvo.id);
+}
+
 function tratar(c: Conexao, pedido: PedidoDoCliente): void {
     // Antes de tudo a pessoa precisa se apresentar.
     if (pedido.tipo === "entrar") {
@@ -523,16 +544,20 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             if (!podeRolar(c)) return erro(c.ws, "Calma! Você está agindo rápido demais.");
             const resultado = aplicarAcao(alvo, pedido.acao, pedido.valor, sortear);
             if (!resultado.ok) return erro(c.ws, resultado.erro);
-            avisarTodos({ tipo: "valores_atualizados", id: alvo.id, valores: alvo.valores });
-            if (resultado.fichaAlterada !== undefined) {
-                // Ficha de jogador: a ação mudou o valor da FICHA (as barras de todos os tokens dela já foram refeitas): avisa, grava os arquivos das peças e o mesa.json.
-                avisarTodos({ tipo: "valores_ficha", id: resultado.fichaAlterada, valores: valoresDaFichaComoObjeto(resultado.fichaAlterada) });
-                for (const t of estado.tokens) if (t.ficha === resultado.fichaAlterada && !t.guardado) agendarGravacaoDoToken(t.id);
-                naFilaDeArquivos(() => gravarMesaAtual());
-            }
-            const mensagem = adicionarMensagem(autor, frasePraChatDaAcao(alvo, pedido.acao, resultado));
-            if (mensagem) avisarTodos({ tipo: "mensagem", mensagem });
-            agendarGravacaoDoToken(alvo.id);
+            publicarResultadoDeAcao(autor, alvo, resultado, frasePraChatDaAcao(alvo, pedido.acao, resultado));
+            return;
+        }
+        case "arrastar_resultado": {
+            // O TOTAL de uma rolagem do chat foi solto num token (só DANO): o cliente só diz QUAL token e QUAL mensagem; o servidor lê o total da mensagem, acha o status marcado com
+            // "Valor subtraído por números arrastados", tira o valor e avisa todos (as mesmas regras da ação "Dano").
+            const alvo = buscarToken(pedido.token);
+            if (!alvo || alvo.guardado) return erro(c.ws, "Esse token não está no tabuleiro.");
+            const total = totalDaRolagem(pedido.mensagem);
+            if (total === null) return erro(c.ws, "Essa mensagem não é uma rolagem.");
+            if (!podeRolar(c)) return erro(c.ws, "Calma! Você está agindo rápido demais.");
+            const resultado = aplicarResultado(alvo, total);
+            if (!resultado.ok) return erro(c.ws, resultado.erro);
+            publicarResultadoDeAcao(autor, alvo, resultado, frasePraChatDeDano(alvo, resultado));
             return;
         }
         case "definir_acoes": {
