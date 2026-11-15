@@ -1257,6 +1257,8 @@ async function iniciar(): Promise<void> {
             atrasoRolagemMs: ATRASO_ROLAGEM_MS, // (os testes zeram: tests/e2e/ajuda.mjs `abrirPagina`)
             // Só para os testes: adiciona à mesa os tokens que o TESTE mandar (o app não tem nenhum token pronto: eles vêm dos
             // arquivos de dados/tokens/ do servidor, ou nascem pela bolsa). Os dados dos tokens de teste ficam em tests/e2e/ajuda.mjs.
+            // Só para os testes: muda o tamanho do tabuleiro SEM passar pela rede (o app abre em 25 × 22; a maioria dos testes foi escrita para 18 × 10).
+            definirTamanho: (colunas: number, linhas: number) => mudarTamanho(colunas, linhas),
             semear: (lista: Omit<Token, "condicoes" | "favorito" | "grupos" | "ficha" | "status" | "valores" | "copiaDe">[]) => {
                 for (const dados of lista) tokens.adicionar(receberToken({ ...dados, condicoes: [], favorito: false, grupos: [], ficha: null, status: statusPadrao(), valores: [], copiaDe: null }));
                 bolsa.atualizar();

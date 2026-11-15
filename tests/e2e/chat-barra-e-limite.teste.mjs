@@ -10,15 +10,15 @@ const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FA
 const perto = (a, c, tol = 2) => Math.abs(a - c) <= tol;
 const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
 p.on("pageerror", (e) => erros.push(String(e)));
-await abrirPagina(p);
+await abrirPagina(p, "", { aba: "chat" });
 const enviar = (t) => p.evaluate((t) => { const c = document.getElementById("chat-texto"); c.value = t; document.getElementById("chat-form").requestSubmit(); }, t);
 const cartoes = () => p.locator(".chat-mensagem").count();
 const caixa = (s) => p.locator(s).boundingBox();
 
 // ================= tamanho da caixa
 const chat = await caixa("#chat");
-ok("T1) chat com 680 px em 1400 de largura (o máximo; 1400 - 384 sobra mais que isso)", perto(chat.width, 680, 1), `${chat.width.toFixed(0)} px`);
-ok("T2) altura ~148 px (faixa de 90 px)", chat.height >= 142 && chat.height <= 154, `${chat.height.toFixed(0)} px`);
+ok("T1) o chat é a coluna da direita, com 320 px de largura", perto(chat.width, 320, 1), `${chat.width.toFixed(0)} px`);
+ok("T2) altura: a da janela toda (coluna colada no topo e no fundo)", perto(chat.height, 800, 1), `${chat.height.toFixed(0)} px`);
 
 // ================= limite de 40 caracteres
 const campo = "#chat-texto";
@@ -42,7 +42,7 @@ await p.waitForTimeout(300);
 ok("L5) 73 caracteres definidos por código NÃO são enviados e o texto fica no campo", (await cartoes()) === n0 && (await p.inputValue(campo)).length === 73);
 // espaços nas pontas não contam para o envio (são cortados antes)
 await p.fill(campo, ""); await p.keyboard.type("   oi   "); await p.keyboard.press("Enter"); await p.waitForTimeout(300);
-ok("L6) espaços nas pontas são tirados (a mensagem é 'oi')", (await p.locator(".chat-mensagem p").first().textContent()) === "oi");
+ok("L6) espaços nas pontas são tirados (a mensagem é 'oi')", (await p.locator(".chat-mensagem p").last().textContent()) === "oi");
 // a caixa não cresce com mensagens de 40 letras largas
 await p.keyboard.type("W".repeat(72)); await p.keyboard.press("Enter"); await p.waitForTimeout(400);
 ok("L7) mensagem de 72 'W' (as mais largas) não faz o chat crescer", perto((await caixa("#chat")).height, chat.height, 1.5), `${(await caixa("#chat")).height.toFixed(0)} px`);

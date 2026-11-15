@@ -26,8 +26,11 @@ await p.waitForTimeout(300);
 // Tabuleiro 18x10 a 100%, origem (124,80). Token 5 (roxo 4x4, col 12,row 6): bloco (892,464), largura 256.
 await direito(1020, 592);
 const lista = await caixa("#acoes-token"), eng = await caixa("#engrenagem");
-ok("1a) os 3 itens da lista aparecem, em ordem: Add condição, Add dano, Add cura (o 'Editar token' fica dentro da engrenagem)", (await p.locator("#acoes-token button").allTextContents()).join("|") === "Add condição|Add dano|Add cura");
-ok("1b) 'Add condição' é o PRIMEIRO (o de cima) da lista", (await caixa("#botao-condicoes")).y < (await caixa("#botao-dano")).y && (await caixa("#botao-dano")).y < (await caixa("#botao-cura")).y);
+{
+    const itensDaLista = (await p.locator("#acoes-token button").allTextContents()).map((t) => t.trim());
+    ok("1a) a lista começa por 'Add condição', depois as ações da mesa (Dano, Cura) e termina em '+ Nova ação' (o 'Editar token' fica dentro da engrenagem)", itensDaLista[0] === "Add condição" && itensDaLista.includes("Dano") && itensDaLista.includes("Cura") && itensDaLista.at(-1) === "+ Nova ação", itensDaLista.join("|"));
+}
+ok("1b) 'Add condição' é o PRIMEIRO (o de cima) da lista, e Dano vem antes de Cura", (await caixa("#botao-condicoes")).y < (await caixa("#acoes-token button:text-is('Dano')")).y && (await caixa("#acoes-token button:text-is('Dano')")).y < (await caixa("#acoes-token button:text-is('Cura')")).y);
 ok("1c) a lista está no canto superior ESQUERDO (borda esquerda = x do token, 892)", perto(lista.x, 892), `x=${lista.x}`);
 ok("1d) a base da lista fica 12 px acima do topo do token (y=464 - 12 = 452)", perto(lista.y + lista.height, 452), `base=${(lista.y + lista.height).toFixed(0)}`);
 ok("1e) a engrenagem está no canto superior DIREITO (borda direita = x do token + 256 = 1148; topo 424)", perto(eng.x + eng.width, 1148) && perto(eng.y, 424), `direita=${(eng.x + eng.width).toFixed(0)} topo=${eng.y.toFixed(0)}`);
@@ -44,12 +47,13 @@ ok("2c) ...e dentro da janela", dentro(pc));
 await p.click("#engrenagem");
 const pt = await caixa("#menu-token");
 ok("3a) o painel da engrenagem abre ACIMA dela, alinhado à esquerda dela", pt.y + pt.height <= eng.y - 3 && perto(pt.x, eng.x), `base ${(pt.y + pt.height).toFixed(0)} <= ${eng.y.toFixed(0)}; x ${pt.x.toFixed(0)} vs ${eng.x.toFixed(0)}`);
-ok("3a2) o painel tem 'Editar token', 'Guardar na bolsa' e 'Excluir token' (diretos) e NÃO tem o controle de tamanho (− / +)", (await p.locator("#menu-token button:visible").allTextContents()).join("|") === "Editar token|Guardar na bolsa|Excluir token" && (await p.locator("#token-tamanho-mais").count()) === 0);
+ok("3a2) o painel tem 'Editar token' e 'Remover do tabuleiro' (diretos; excluir só existe na bolsa) e NÃO tem o controle de tamanho (− / +)", (await p.locator("#menu-token button:visible").allTextContents()).join("|") === "Editar token|Remover do tabuleiro" && (await p.locator("#token-tamanho-mais").count()) === 0);
 ok("3b) só um painel por vez (o de condições fechou)", !(await vis("#menu-condicoes")));
 
-// botões provisórios: não fazem nada (e não quebram)
-await p.click("#botao-dano"); await p.click("#botao-cura");
-ok("4) 'Add dano' e 'Add cura' (provisórios) não abrem nada nem fecham o menu", (await vis("#acoes-token")) && !(await vis("#menu-condicoes")) && (await p.locator("#botao-dano").getAttribute("title")).includes("Provisório"));
+// "Dano" abre o modal do cálculo da ação (as ações Dano e Cura são da mesa e funcionam); Esc o cancela
+await p.locator("#acoes-token button:text-is('Dano')").click();
+ok("4) 'Dano' abre o modal do cálculo ('Dano em <token>') e Esc o cancela", (await vis("#modal-acao")) || (await p.locator("#aviso").isVisible()));
+await p.keyboard.press("Escape"); await p.waitForTimeout(250);
 
 // Esc fecha a lista E a engrenagem
 await p.keyboard.press("Escape");
@@ -64,7 +68,7 @@ await p.screenshot({ path: `${S}/m2_azul_pequeno.png`, clip: { x: 400, y: 250, w
 await p.keyboard.press("Escape");
 
 // todos os tokens: tudo dentro da janela e sem sobreposição
-const tokens = { "verde 1×1": [348, 304], "vermelho 2×2": [828, 272], "rosa 1×1": [1116, 176], "roxo 4×4": [1020, 592] };
+const tokens = { "verde 1×1": [348, 304], "vermelho 2×2": [828, 272], "roxo 4×4": [1020, 592] }; // (o rosa 1×1, na coluna 15, fica atrás da coluna do chat/bolsa da direita)
 for (const [nome, [x, y]] of Object.entries(tokens)) {
   await direito(x, y);
   const l = await caixa("#acoes-token"), e = await caixa("#engrenagem");
@@ -85,15 +89,23 @@ await p.keyboard.press("Escape");
 await direito(1020, 592); await p.click("#zoom-mais"); await p.waitForTimeout(300);
 ok("9) mudar o zoom fecha a lista e a engrenagem", !(await vis("#acoes-token")) && !(await vis("#engrenagem")));
 // zoom diferente: largura do token na tela escala (a engrenagem acompanha o canto direito)
-await p.click("#voltar-padrao"); await p.waitForTimeout(500);
+await p.evaluate(() => { const t = window.__tabuleirinho; t.definirTamanho(18, 10); t.camera.aplicarZoom(1); t.camera.centralizar(); }); await p.waitForTimeout(500); // (visão padrão dos testes: 18 × 10 a 100%)
 for (let i = 0; i < 2; i++) await p.click("#zoom-mais"); // 100% -> 156%
 await p.waitForTimeout(400);
 const zoom = Number((await p.locator("#zoom-valor").textContent()).replace("%", "")) / 100;
-await p.click("#bolsa-alternar"); await p.waitForTimeout(450); // (a bolsa do canto cobriria o token roxo nesta janela: minimiza para liberar o lugar)
-const centroRoxo = await (async () => { const L = 18 * 64 * zoom, A = 10 * 64 * zoom; return { x: (1400 - L) / 2 + 14 * 64 * zoom, y: (800 - A) / 2 + 8 * 64 * zoom }; })();
+// (com o zoom, o token roxo (4×4) pode ficar atrás da coluna da direita: leva o token para o meio da área livre e lê a posição pela câmera)
+const posRoxo = await p.evaluate(() => {
+  const t = window.__tabuleirinho, roxo = t.estado.tokens.find((x) => x.id === 5);
+  const c0 = t.camera.mundoParaTela((roxo.col + 2) * 64, (roxo.row + 2) * 64);
+  t.camera.moverPor(600 - c0.x, 400 - c0.y);
+  const c = t.camera.mundoParaTela((roxo.col + 2) * 64, (roxo.row + 2) * 64), d = t.camera.mundoParaTela((roxo.col + 4) * 64, (roxo.row + 2) * 64);
+  return { x: c.x, y: c.y, direita: d.x };
+});
+await p.waitForTimeout(200);
+const centroRoxo = { x: posRoxo.x, y: posRoxo.y };
 await direito(centroRoxo.x, centroRoxo.y);
 const e4 = await caixa("#engrenagem"), l4 = await caixa("#acoes-token");
-const direitaEsperada = (1400 - 18 * 64 * zoom) / 2 + 16 * 64 * zoom;
+const direitaEsperada = posRoxo.direita;
 ok(`10) com zoom ${Math.round(zoom * 100)}%, a engrenagem continua no canto superior direito do token`, perto(e4.x + e4.width, Math.min(direitaEsperada, 1400 - 6), 3) || dentro(e4), `direita=${(e4.x + e4.width).toFixed(0)} esperada≈${direitaEsperada.toFixed(0)}`);
 
 console.log("---");

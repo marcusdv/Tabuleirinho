@@ -48,7 +48,7 @@ await p.click("#bolsa-gerenciar"); // daqui em diante, a TELA CHEIA
 await docs().nth(1).click(); // (a seleção foi limpa pelo Esc: seleciona o 1º item para o Ctrl+clique SOMAR o segundo)
 await docs().nth(2).click({ modifiers: ["Control"] });
 ok("3a) Ctrl+clique SOMA um item e aparece a barra com '2 selecionados'", (await marcados()) === 2 && (await barra()) && /2 selecionados/.test(await p.locator("#bolsa-selecao-contagem").textContent()));
-ok("3b) com a barra à vista (na linha das Instruções) o '+ Criar ficha' sai do caminho e a pesquisa continua onde está", (await p.locator("#bolsa-fichas-busca").isVisible()) && !(await p.locator("#bolsa-ficha-criar-botao").isVisible()));
+ok("3b) a barra de ações fica no alto, ao lado da pesquisa, e a pesquisa continua visível (nada é empurrado para baixo)", (await p.locator("#bolsa-fichas-busca").isVisible()) && (await barra()));
 await docs().nth(2).click({ modifiers: ["Control"] });
 ok("3c) Ctrl+clique num selecionado TIRA ele (volta a 1 e a barra some)", (await marcados()) === 1 && !(await barra()));
 await docs().nth(0).click();

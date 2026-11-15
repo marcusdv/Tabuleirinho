@@ -318,10 +318,14 @@ export function criarEditorFicha(opcoes: OpcoesEditorFicha): EditorFicha {
     }
     botaoMinimizar.addEventListener("click", () => definirMinimizada(!painel.classList.contains("minimizada")));
 
-    /** Ao abrir: volta ao último lugar; na primeira vez, centraliza na horizontal e encosta no topo (a faixa de baixo, do chat, fica livre). */
+    /** Ao abrir: volta ao último lugar; na primeira vez, centraliza na área livre à ESQUERDA da coluna do chat/bolsa e encosta no topo (a coluna da direita fica livre). */
     function colocarNaTela(): void {
         if (lugar) posicionar(lugar.x, lugar.y);
-        else posicionar((window.innerWidth - painel.offsetWidth) / 2, 16);
+        else {
+            const coluna = document.getElementById("chat");
+            const limiteDireito = coluna && coluna.offsetWidth > 0 ? coluna.getBoundingClientRect().left : window.innerWidth;
+            posicionar(Math.max(8, (limiteDireito - painel.offsetWidth) / 2), 16);
+        }
     }
 
     /**

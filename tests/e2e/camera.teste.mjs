@@ -42,13 +42,13 @@ const centroLivre = (area.esquerda + (1400 - area.direita)) / 2;
 ok("6) 'Ajustar à tela' centraliza de novo, na área livre (entre as barras e a coluna da direita)", perto(c.x + t.largura / 2, centroLivre, 2) && perto(c.y + t.altura / 2, 400, 2), `centro (${(c.x + t.largura / 2).toFixed(1)}, ${(c.y + t.altura / 2).toFixed(1)}) esperado (${centroLivre.toFixed(1)}, 400)`);
 
 // ---- 4) zoom mínimo: o tabuleiro fica pequeno, mas nunca some
-for (let i = 0; i < 8; i++) await p.click("#zoom-menos");
+await p.evaluate(() => window.__tabuleirinho.camera.aplicarZoom(0.2)); // zoom mínimo (ZOOM_MIN; o botão − fica desabilitado ao chegar lá)
 c = await camera(); t = await tabuleiro();
 await mover(-99999, 0); c = await camera();
 ok("7) zoom mínimo: arrastando tudo para a esquerda, o tabuleiro (pequeno) ainda aparece inteiro na ponta", c.x >= -0.5 && c.x + t.largura > 0, `zoom ${Math.round(c.zoom * 100)}%, x=${c.x.toFixed(1)}, largura ${t.largura.toFixed(0)}`);
 
 // ---- 5) o arrasto de verdade com o mouse (o caminho do evento até a câmera)
-await p.click("#voltar-padrao"); // "Voltar ao padrão": zoom 100% e centralizado
+await p.evaluate(() => { const t = window.__tabuleirinho; t.camera.aplicarZoom(1); t.camera.centralizar(); }); // zoom 100% e centralizado (o botão "Voltar ao padrão" fica na gaveta, fechada aqui)
 const antes = await camera();
 await p.mouse.move(700, 560); await p.mouse.down();
 for (let i = 1; i <= 8; i++) { await p.mouse.move(700 - 12 * i, 560); await p.waitForTimeout(20); }

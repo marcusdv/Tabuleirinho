@@ -9,7 +9,7 @@ const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
 const avisos = []; p.on("dialog", async (d) => { avisos.push(d.message()); await d.accept(); });
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
-await abrirPagina(p);
+await abrirPagina(p, "", { gaveta: "tabuleiro" });
 await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 
 // Cor média de uma região do tabuleiro (fora da barra e dos tokens)
@@ -27,7 +27,7 @@ const antes = await cor();
 // 2) escolher uma imagem pelo input (o botão abre o seletor; aqui entregamos o arquivo direto)
 const [seletor] = await Promise.all([p.waitForEvent("filechooser"), p.click("#mapa-escolher")]);
 ok("2) clicar no botão abre o seletor de arquivos", !!seletor);
-await seletor.setFiles(`${P}/ossos_de_dragao.png`);
+await seletor.setFiles(`${P}/acampamento.png`);
 await p.waitForTimeout(3500);
 const depois = await cor();
 ok("3) o mapa mudou na tela", dif(antes, depois) > 40, `antes ${antes} depois ${depois}`);
@@ -35,17 +35,18 @@ await p.screenshot({ path: `${S}/e1_mapa_novo.png` });
 ok("4) sem aviso de erro", avisos.length === 0, avisos.join(" | "));
 
 // 5) mapa esticado acompanha colunas/linhas (grade continua funcionando)
+const colunasAntes = Number(await p.locator("#colunas-valor").evaluate((e) => e.value ?? e.textContent)); // (o mapa escolhido já ajustou as colunas pela previsão)
 await p.click("#colunas-menos"); await p.waitForTimeout(300);
-ok("5) colunas continuam funcionando (17)", (await p.locator("#colunas-valor").evaluate((e) => e.value ?? e.textContent)) === "17");
+ok(`5) colunas continuam funcionando (${colunasAntes - 1})`, Number(await p.locator("#colunas-valor").evaluate((e) => e.value ?? e.textContent)) === colunasAntes - 1);
 
 // 6) escolher outro, e o MESMO de novo (input é limpo)
 const [s2] = await Promise.all([p.waitForEvent("filechooser"), p.click("#mapa-escolher")]);
-await s2.setFiles(`${P}/cachoeira.png`);
+await s2.setFiles(`${P}/lago_arruinado.png`);
 await p.waitForTimeout(4500);
 const c3 = await cor();
 ok("6) trocar de novo muda o mapa", dif(depois, c3) > 40, `${depois} -> ${c3}`);
 const [s3] = await Promise.all([p.waitForEvent("filechooser"), p.click("#mapa-escolher")]);
-await s3.setFiles(`${P}/cachoeira.png`);
+await s3.setFiles(`${P}/lago_arruinado.png`);
 await p.waitForTimeout(3500);
 ok("7) escolher o mesmo arquivo de novo não dá erro", avisos.length === 0, avisos.join(" | "));
 

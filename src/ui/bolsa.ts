@@ -1109,6 +1109,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
             avisarAoCriar = null;
             atualizar();
             opcoes.aoAvisar(`Token "${token.nome}" criado na bolsa (aba Tokens), com a ficha "${nomeDaFicha}".`);
+            opcoes.aoEditar(token); // vindo de "Gerar um token": abre o "Editar token" já com a ficha escolhida
             return;
         }
         if (abrirEditorAoCriar) {
@@ -1365,18 +1366,20 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     botaoCriarToken.addEventListener("click", criarTokenGenerico);
     /**
      * "Gerar um token" (clique direito numa ficha): cria um token com o NOME da ficha (cortado no limite de nome de token), as cores padrão, já guardado na bolsa
-     * e ATRIBUÍDO a ela. Uma ficha pode gerar quantos tokens quiser. Não abre nenhuma janela: só avisa onde o token ficou.
+     * e ATRIBUÍDO a ela. Uma ficha pode gerar quantos tokens quiser. Avisa onde o token ficou e ABRE o "Editar token" nele (com a ficha já
+     * escolhida), para a pessoa acertar nome, imagem, tamanho e cores na hora, sem trocar de aba.
      */
     function gerarTokenDaFicha(ficha: Ficha): void {
         if (aguardandoToken) return;
         if (quantosModelos() >= MAX_TOKENS) return opcoes.aoAvisar(`Não foi possível criar: a mesa tem o limite de ${MAX_TOKENS} tokens.`);
         const resultado = opcoes.aoCriarToken({ nome: ficha.nome, cor: COR_INICIAL_TOKEN, corBorda: COR_BORDA_INICIAL_TOKEN, tamanho: TAMANHO_INICIAL_TOKEN, imagem: null, ficha: ficha.id });
         if (resultado === "enviado") {
-            aguardandoToken = true; // online: o token chega pelo servidor (tokenCriado), e só então vem o aviso
+            aguardandoToken = true; // online: o token chega pelo servidor (tokenCriado), e só então vêm o aviso e o "Editar token"
             avisarAoCriar = ficha.nome;
         } else if (resultado !== null) {
             atualizar();
             opcoes.aoAvisar(`Token "${resultado.nome}" criado na bolsa (aba Tokens), com a ficha "${ficha.nome}".`);
+            opcoes.aoEditar(resultado);
         }
     }
 

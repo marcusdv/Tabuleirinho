@@ -51,7 +51,7 @@ process.env.SEM_LIMITE_SPAM ??= "1";
 // As fichas de EXEMPLO (Goblin e Thorin) que o servidor cria na primeira vez ficam desligadas nos testes: eles contam fichas e tokens e esperam a mesa vazia.
 process.env.SEM_EXEMPLOS ??= "1";
 
-export async function abrirPagina(p, consulta = "", { ordemPadrao = false, manterAtrasoDasRolagens = false, gaveta = null, aba = null, dados = false, visaoAjustada = false } = {}) {
+export async function abrirPagina(p, consulta = "", { ordemPadrao = false, manterAtrasoDasRolagens = false, gaveta = null, aba = null, dados = false, visaoAjustada = false, tamanhoDoApp = false } = {}) {
     // O app abre as listas da bolsa com os MAIS RECENTES primeiro. Quase todos os testes foram escritos para a ordem de criação (a mais antiga
     // primeiro), então por padrão fixamos essa ordem pela preferência guardada; `ordemPadrao: true` deixa a ordem de fábrica do app.
     if (!ordemPadrao) {
@@ -73,6 +73,9 @@ export async function abrirPagina(p, consulta = "", { ordemPadrao = false, mante
     // de tokens para mover, então "semeiam" estes 5 pelo gancho do `npm run dev`. No modo online os tokens vêm do servidor, e quem
     // testa prepara os arquivos.
     if (!consulta.includes("online")) await p.evaluate((lista) => window.__tabuleirinho.semear(lista), TOKENS_DE_TESTE);
+    // O app abre com o tabuleiro 25 × 22; a maioria dos testes foi escrita para 18 × 10 (e calcula as casas assim), então por padrão deixamos 18 × 10 (só no modo local; online o tamanho é do servidor).
+    // `tamanhoDoApp: true` deixa o tamanho de abertura do app.
+    if (!tamanhoDoApp && !consulta.includes("online")) await p.evaluate(() => window.__tabuleirinho.definirTamanho(18, 10));
     // O app abre com o mapa AJUSTADO à área livre (entre as barras e a coluna da direita), em zoom < 100%. Os testes calculam as casas supondo zoom 100% com o tabuleiro centralizado na
     // janela, então por padrão voltamos a essa visão; `visaoAjustada: true` deixa a visão de abertura do app (o teste `voltar-ao-padrao` e afins).
     if (!visaoAjustada) await p.evaluate(() => { window.__tabuleirinho.camera.aplicarZoom(1); window.__tabuleirinho.camera.centralizar(); });

@@ -6,10 +6,10 @@ const p = await b.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = []; p.on("pageerror", (e) => erros.push(String(e)));
 let falhas = 0;
 const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FAIL"}  ${n}${d ? "  -> " + d : ""}`); };
-await abrirPagina(p, "", { gaveta: "tabuleiro" });
+await abrirPagina(p, "", { gaveta: "tabuleiro", tamanhoDoApp: true, visaoAjustada: true });
 const t = (s) => p.locator(s).evaluate((e) => e.value ?? e.textContent);
-ok("1) abre com 18 colunas × 10 linhas", (await t("#colunas-valor")) === "18" && (await t("#linhas-valor")) === "10", `${await t("#colunas-valor")}×${await t("#linhas-valor")}`);
-ok("2) abre em zoom 100%", (await t("#zoom-valor")) === "100%", await t("#zoom-valor"));
+ok("1) abre com 25 colunas × 22 linhas", (await t("#colunas-valor")) === "25" && (await t("#linhas-valor")) === "22", `${await t("#colunas-valor")}×${await t("#linhas-valor")}`);
+ok("2) abre com o mapa AJUSTADO à área livre (zoom abaixo de 100%)", Number((await t("#zoom-valor")).replace("%", "")) < 100, await t("#zoom-valor"));
 await p.screenshot({ path: `${S}/d1_inicial.png` });
 ok("3) botão 'Voltar ao padrão' visível", await p.locator("#voltar-padrao").isVisible());
 
@@ -17,18 +17,18 @@ ok("3) botão 'Voltar ao padrão' visível", await p.locator("#voltar-padrao").i
 await p.click("#zoom-mais"); await p.click("#zoom-mais");
 for (let i = 0; i < 4; i++) await p.click("#colunas-mais");
 for (let i = 0; i < 3; i++) await p.click("#linhas-menos");
-ok("4) bagunçado: zoom ≠ 100%, 22×7", (await t("#zoom-valor")) !== "100%" && (await t("#colunas-valor")) === "22" && (await t("#linhas-valor")) === "7", `${await t("#zoom-valor")} ${await t("#colunas-valor")}×${await t("#linhas-valor")}`);
+ok("4) bagunçado: zoom ≠ 100%, 29×19", (await t("#zoom-valor")) !== "100%" && (await t("#colunas-valor")) === "29" && (await t("#linhas-valor")) === "19", `${await t("#zoom-valor")} ${await t("#colunas-valor")}×${await t("#linhas-valor")}`);
 await p.click("#voltar-padrao");
 await p.waitForTimeout(600);
 ok("5) voltou a zoom 100%", (await t("#zoom-valor")) === "100%", await t("#zoom-valor"));
-ok("6) voltou a 18 × 10", (await t("#colunas-valor")) === "18" && (await t("#linhas-valor")) === "10");
+ok("6) voltou a 25 × 22", (await t("#colunas-valor")) === "25" && (await t("#linhas-valor")) === "22");
 await p.screenshot({ path: `${S}/d2_voltou.png` });
 
 // funciona também com o zoom no mínimo e com a calibragem ligada
 await p.click("#calibrar-alternar");
 for (let i = 0; i < 3; i++) await p.click("#zoom-menos");
 await p.click("#voltar-padrao"); await p.waitForTimeout(500);
-ok("7) com calibragem ligada e zoom baixo, também volta (100%, 18×10)", (await t("#zoom-valor")) === "100%" && (await t("#colunas-valor")) === "18" && (await t("#linhas-valor")) === "10");
+ok("7) com calibragem ligada e zoom baixo, também volta (100%, 25×22)", (await t("#zoom-valor")) === "100%" && (await t("#colunas-valor")) === "25" && (await t("#linhas-valor")) === "22");
 await p.click("#calibragem-concluir");
 
 console.log("---");

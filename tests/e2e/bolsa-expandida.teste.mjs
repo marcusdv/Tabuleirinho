@@ -80,7 +80,8 @@ ok("5a) Esc fecha a bolsa", !(await expandida()));
 const f3 = await p.locator(".ficha", { hasText: "3×3" }).boundingBox();
 await arrastar(centro(f3), { x: 600, y: 300 });
 const colocado = (await tokens()).find((t) => t.size === 3);
-ok("5b) arrastar a ficha para o mapa coloca o token novo (já não está guardado)", colocado.guardado === false, JSON.stringify(colocado));
+const pecasDoNovo = await p.evaluate((id) => window.__tabuleirinho.estado.tokens.filter((t) => t.copiaDe === id && !t.guardado).length, colocado.id);
+ok("5b) arrastar a ficha para o mapa cria UMA PEÇA no tabuleiro; o token da bolsa continua guardado (é o modelo)", colocado.guardado === true && pecasDoNovo === 1, `${JSON.stringify(colocado)} peças=${pecasDoNovo}`);
 ok("5c) soltar no mapa não abriu a bolsa", !(await expandida()));
 
 // 6) guardar de volta soltando em cima da bolsa NÃO abre a bolsa
@@ -198,7 +199,7 @@ ok("10a) a prévia usa o preenchimento e a borda escolhidos, cada um na sua cor"
 const prevAntes = (await p.locator("#bolsa-previa .disco").boundingBox()).width;
 await p.click('button[data-tamanho="4"]');
 const prevDepois = (await p.locator("#bolsa-previa .disco").boundingBox()).width;
-ok("10b) a prévia é GRANDE (240 px) e tem tamanho FIXO: trocar o tamanho do token (aqui para 4×4) NÃO a aumenta, só muda o rótulo", prevAntes === 240 && prevDepois === 240 && (await p.locator("#bolsa-previa small").textContent()) === "4×4", `${prevAntes} -> ${prevDepois}`);
+ok("10b) a prévia é GRANDE (168 px) e tem tamanho FIXO: trocar o tamanho do token (aqui para 4×4) NÃO a aumenta, só muda o rótulo", prevAntes === 168 && prevDepois === 168 && (await p.locator("#bolsa-previa small").textContent()) === "4×4", `${prevAntes} -> ${prevDepois}`);
 await p.click("#bolsa-criar-botao");
 const duas = (await tokens()).find((t) => t.nome === "Duas cores");
 ok("10c) o token guarda as duas cores (sem imagem)", duas.cor === 0x112233 && duas.corBorda === 0xaabbcc && duas.imagem === null, JSON.stringify(duas));
@@ -208,9 +209,7 @@ ok("10d) os 5 tokens iniciais têm borda branca (como sempre foi)", (await token
 await p.click("#bolsa-fechar");
 const classe = async () => (await p.locator("#bolsa").getAttribute("class")) ?? "";
 const bCanto = await p.locator("#bolsa").boundingBox();
-ok("11a) a bolsa do canto tem 340 px, mostra a pesquisa e o botão 'Criar/editar' e NÃO tem o quadradinho de maximizar nem a classe 'media'", Math.round(bCanto.width) === 340 && (await p.locator("#bolsa-busca").isVisible()) && (await p.locator("#bolsa-gerenciar").isVisible()) && (await p.locator("#bolsa-maximizar").count()) === 0 && !(await classe()).includes("media"), `${bCanto.width} / ${await classe()}`);
-const barraBox = await p.locator("#barra").boundingBox();
-ok("11b) a bolsa do canto não passa por cima da barra de Ferramentas (fica abaixo dela)", bCanto.y >= barraBox.y + barraBox.height - 1, `topo da bolsa ${bCanto.y.toFixed(0)}, base da barra ${(barraBox.y + barraBox.height).toFixed(0)}`);
+ok("11a) a bolsa (na coluna da direita) tem ~318 px, mostra a pesquisa e o botão 'Criar/editar' e NÃO tem o quadradinho de maximizar nem a classe 'media'", Math.abs(bCanto.width - 318) <= 3 && (await p.locator("#bolsa-busca").isVisible()) && (await p.locator("#bolsa-gerenciar").isVisible()) && (await p.locator("#bolsa-maximizar").count()) === 0 && !(await classe()).includes("media"), `${bCanto.width} / ${await classe()}`);
 const fichas = () => p.locator(".ficha .ficha-nome").allTextContents();
 for (const [nome, tam] of [["Goblin Ágil", 1], ["Goblin Chefe", 3], ["Dragão Jovem", 4]]) {
     await p.click("#bolsa-gerenciar");
@@ -238,7 +237,8 @@ await p.mouse.down();
 await p.mouse.move(600, 330, { steps: 10 });
 await p.mouse.up();
 const agil = (await tokens()).find((t) => t.nome === "Goblin Ágil");
-ok("11h) na bolsa do canto dá para arrastar um token para o tabuleiro", agil.guardado === false && !(await expandida()), JSON.stringify(agil));
+const pecasAgil = await p.evaluate((id) => window.__tabuleirinho.estado.tokens.filter((t) => t.copiaDe === id && !t.guardado).length, agil.id);
+ok("11h) na bolsa do canto dá para arrastar um token para o tabuleiro (nasce uma peça; o token continua na bolsa)", agil.guardado === true && pecasAgil === 1 && !(await expandida()), JSON.stringify(agil));
 const cx = 124 + (agil.col + 0.5) * 64, cy = 80 + (agil.row + 0.5) * 64;
 const alvoM = await p.locator("#bolsa").boundingBox();
 await p.mouse.move(cx, cy);

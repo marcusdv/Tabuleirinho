@@ -43,7 +43,7 @@ ok("10) botão − atualiza o campo (9)", (await v("#linhas-valor")) === "9", aw
 
 // o tabuleiro de fato mudou de tamanho: 13 colunas × 9 linhas cabem como 832 x 576 a 100%? só confere via Voltar ao padrão
 await p.click("#voltar-padrao"); await p.waitForTimeout(500);
-ok("11) Voltar ao padrão atualiza os campos (18×10)", (await par()) === "18×10", await par());
+ok("11) Voltar ao padrão atualiza os campos (25×22, o tamanho inicial do app)", (await par()) === "25×22", await par());
 
 // enquanto digita, mudar o zoom não apaga o texto digitado
 await p.click("#colunas-valor", { clickCount: 3 }); await p.keyboard.type("2");
@@ -54,7 +54,7 @@ await p.waitForTimeout(300);
 ok("13) valor digitado (2) ao sair é limitado a 5", (await v("#colunas-valor")) === "5", await v("#colunas-valor"));
 
 // calibragem continua aplicando e atualizando o campo
-await p.click("#voltar-padrao"); await p.waitForTimeout(500);
+await p.evaluate(() => { const t = window.__tabuleirinho; t.definirTamanho(18, 10); t.camera.aplicarZoom(1); t.camera.centralizar(); }); await p.waitForTimeout(500); // (18 × 10 a 100%: as contas abaixo supõem isso)
 await p.click("#calibrar-alternar");
 const zoom = Number((await p.locator("#zoom-valor").textContent()).replace("%", "")) / 100;
 const L = 18 * 64 * zoom, A = 10 * 64 * zoom, x0 = (1400 - L) / 2, y0 = (800 - A) / 2;

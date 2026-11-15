@@ -3053,8 +3053,8 @@ body:not(.app-pronta) #dados {
     gap: 8px;
     /* Tamanho PADRÃO (maior que antes: 940 × 640). A pessoa pode redimensionar pela alça do canto inferior direito; o tamanho
        escolhido fica guardado no navegador (ui/editorFicha.ts) e passa a valer no lugar deste. */
-    width: min(1080px, calc(100vw - 24px));
-    height: min(720px, calc(100vh - 190px)); /* deixa livre a faixa de baixo (chat e dados) */
+    width: min(1080px, calc(100vw - var(--largura-chat) - 40px)); /* deixa livre a coluna da direita (chat/bolsa) */
+    height: min(720px, calc(100vh - 32px));
     min-width: 520px;
     min-height: 360px;
     padding: 16px 20px 14px;
