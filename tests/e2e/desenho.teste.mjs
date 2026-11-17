@@ -54,7 +54,9 @@ ok("B4) uma casa: '1 □ = 1,5 m' (vírgula decimal)", (await dist()) === "Dist�
 await arrastar(casa(4, 0), casa(11, 3)); // diagonal conta 1: max(7,3)=7 (as casas das colunas 0 a 3 ficam atrás da gaveta do Desenho)
 ok("B5) (4,0)->(11,3): 7 □ = 10,5 m (diagonal = 1 casa)", (await dist()) === "Distância: 7 □ = 10,5 m", await dist());
 await arrastar(casa(4, 4), casa(4, 4), "left", 2);
-ok("B6) mesma casa: 0 □ = 0 m", (await dist()) === "Distância: 0 □ = 0 m", await dist());
+ok("B6) um CLIQUE (sem arrastar) NÃO mostra a régua: ela só aparece ao arrastar (e a medida anterior some)", (await dist()) === null, String(await dist()));
+await arrastar({ x: casa(4, 4).x - 12, y: casa(4, 4).y }, { x: casa(4, 4).x + 12, y: casa(4, 4).y });
+ok("B6b) arrastando dentro da mesma casa a régua aparece: 0 □ = 0 m", (await dist()) === "Distância: 0 □ = 0 m", await dist());
 await arrastar(casa(4, 1), casa(8, 1));
 await p.click("#zoom-mais"); await p.waitForTimeout(300); // zoom com a régua visível: não quebra
 ok("B7) mudar o zoom com a régua na tela mantém a medida", (await dist()) === "Distância: 4 □ = 6 m");

@@ -63,7 +63,7 @@ await p.click("#bolsa-gerenciar"); // (os CHIPS e o "+ Grupo" só existem na tel
 await p.click("#bolsa-grupo-novo");
 await p.fill("#editor-grupo-nome", "Goblins");
 await p.click("#editor-grupo-salvar");
-ok("B2) '+ Grupo' abre a janela de nome e cor e cria o grupo (aparece como chip)", (await p.locator("#bolsa-grupos-chips .bolsa-chip").count()) === 1 && /Goblins/.test(await p.locator("#bolsa-grupos-chips").textContent()));
+ok("B2) '+ Grupo' abre a janela de nome e cor e cria o grupo (aparece como chip)", (await p.locator("#bolsa-grupos-chips .bolsa-chip:not(.sem-grupo):not(.chip-unica)").count()) === 1 && (await p.locator("#bolsa-grupos-chips .bolsa-chip.sem-grupo").count()) === 1 && /Goblins/.test(await p.locator("#bolsa-grupos-chips").textContent()));
 
 await p.locator("#bolsa-itens .ficha").nth(0).click();
 await p.locator("#bolsa-itens .ficha").nth(1).click({ modifiers: ["Control"] });
@@ -118,7 +118,7 @@ await p.locator("#bolsa-grupos-chips .bolsa-chip").first().click({ button: "righ
 await p.click("#editor-grupo-excluir");
 ok("B16) excluir o grupo pede confirmação, e os itens CONTINUAM (só perdem a marca)", await p.locator("#confirmar").isVisible());
 await p.click("#confirmar-ok");
-ok("B17) o chip some e a ficha não tem mais o pontinho", (await p.locator("#bolsa-grupos-chips .bolsa-chip").count()) === 0 && (await p.locator("#bolsa-fichas-lista .item-grupos").count()) === 0 && (await p.locator("#bolsa-fichas-lista .bolsa-doc").count()) === 1);
+ok("B17) o chip some e a ficha não tem mais o pontinho", (await p.locator("#bolsa-grupos-chips .bolsa-chip:not(.sem-grupo):not(.chip-unica)").count()) === 0 && (await p.locator("#bolsa-fichas-lista .item-grupos").count()) === 0 && (await p.locator("#bolsa-fichas-lista .bolsa-doc").count()) === 1);
 
 ok("B18) nenhum erro de JavaScript", erros.length === 0, erros.join(" | "));
 const codigo = terminar(erros);

@@ -16,11 +16,14 @@ export interface OpcoesDoAviso {
     acao?: AcaoDoAviso;
     /** Quanto tempo fica na tela (milissegundos). */
     duracaoMs: number;
+    /** Uma etiqueta do aviso, para `esconder(chave)` apagar SÓ este (e não outro aviso que tenha tomado o lugar). Ex.: "selecao". */
+    chave?: string;
 }
 
 export interface Aviso {
     mostrar(texto: string, opcoes: OpcoesDoAviso): void;
-    esconder(): void;
+    /** Esconde o aviso. Com `chave`, só se o aviso à vista for o desta chave. */
+    esconder(chave?: string): void;
 }
 
 export function criarAviso(): Aviso {
@@ -29,9 +32,12 @@ export function criarAviso(): Aviso {
     const botao = document.getElementById("aviso-acao") as HTMLButtonElement;
     let temporizador: number | undefined;
     let acaoAtual: (() => void) | null = null;
+    let chaveAtual: string | undefined;
 
-    function esconder(): void {
+    function esconder(chave?: string): void {
+        if (chave !== undefined && chave !== chaveAtual) return;
         window.clearTimeout(temporizador);
+        chaveAtual = undefined;
         acaoAtual = null;
         caixa.hidden = true;
     }
@@ -49,12 +55,13 @@ export function criarAviso(): Aviso {
     return {
         mostrar(mensagem, opcoes) {
             window.clearTimeout(temporizador);
+            chaveAtual = opcoes.chave;
             texto.textContent = mensagem;
             acaoAtual = opcoes.acao ? opcoes.acao.aoClicar : null;
             botao.hidden = !opcoes.acao;
             botao.textContent = opcoes.acao?.rotulo ?? "";
             caixa.hidden = false;
-            temporizador = window.setTimeout(esconder, opcoes.duracaoMs);
+            temporizador = window.setTimeout(() => esconder(), opcoes.duracaoMs);
         },
         esconder,
     };

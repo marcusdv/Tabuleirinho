@@ -37,14 +37,14 @@ const erros = [];
 async function abrir(nome) {
     const p = await (await nav.newContext({ viewport: { width: 1400, height: 800 } })).newPage();
     p.on("pageerror", (e) => erros.push(nome + ": " + String(e)));
-    await abrirPagina(p, `?online&nome=${nome}`);
+    await abrirPagina(p, `?online&nome=${nome}&papel=mestre`);
     await p.waitForFunction(() => window.__tabuleirinho.rede?.ativa === true, null, { timeout: 15000 });
     await p.click("#bolsa-aba-fichas");
     return p;
 }
 const aguardar = async (funcao, ms = 4000) => { const fim = Date.now() + ms; while (Date.now() < fim) { if (await funcao()) return true; await esperar(40); } return false; };
 const ficha = (p) => p.evaluate(() => { const f = window.__tabuleirinho.estado.fichas[0]; return f && { nome: f.nome, texto: f.abas[0].texto, versao: f.versao }; });
-const versaoNaTela = (p) => p.locator("#editor-ficha-versao").textContent();
+const versaoNaTela = (p) => p.getAttribute("#editor-ficha-painel", "data-versao").then((v) => "Versão " + v);
 const aberto = (p) => p.locator("#editor-ficha").isVisible();
 
 try {

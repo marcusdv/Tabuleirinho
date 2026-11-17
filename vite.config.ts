@@ -12,6 +12,7 @@ export default defineConfig({
     server: {
         proxy: {
             "/ws": { target: `ws://127.0.0.1:${portaDoServidor}`, ws: true },
+            "/mapas": { target: `http://127.0.0.1:${portaDoServidor}` }, // a biblioteca de mapas: o envio (POST) e o download das imagens (GET)
         },
     },
 });

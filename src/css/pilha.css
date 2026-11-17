@@ -1,0 +1,380 @@
+/* A PILHA DE BARRAS da esquerda: zoom rápido, gavetas, aviso do canto, setas de recolher, controles e a calibragem da grade. (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
+/* ===================================================================
+         A PILHA DE BARRAS (ui/pilha.ts), na borda ESQUERDA: "Desenho" e "Ferramentas". Todas as barras têm SEMPRE a mesma largura (--largura-barra), por isso
+         dá para empilhá-las. Clicar numa abre o CONTEÚDO dela (.conteudo) numa GAVETA ao lado, colada na parede DIREITA da barra e com a mesma largura.
+         Uma gaveta aberta por vez. A ordem das barras é o `order` de cada uma (o ui/pilha.ts o define; arrastar uma barra troca a ordem).
+         =================================================================== */
+:root {
+    --largura-barra: 156px;
+}
+#pilha {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 10; /* acima do canvas */
+    width: var(--largura-barra);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+/* O zoom rápido: uma mini-barra fixa no topo da pilha, com o visual das barras. */
+#zoom-rapido {
+    box-sizing: border-box;
+    height: 40px;
+    padding: 0 8px;
+    gap: 4px;
+    background: rgba(34, 34, 42, 0.94);
+    border: 1px solid #3a3a45;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    user-select: none;
+}
+#zoom-rapido button {
+    width: 26px;
+    height: 28px;
+    font-size: 16px;
+}
+#zoom-rapido span {
+    font-size: 13px;
+}
+/* O acesso rápido (régua, lápis, borracha): a mesma mini-barra do zoom, logo abaixo dele; a ferramenta LIGADA fica destacada. */
+#atalhos-rapidos {
+    box-sizing: border-box;
+    height: 40px;
+    padding: 0 8px;
+    gap: 4px;
+    justify-content: space-between;
+    background: rgba(34, 34, 42, 0.94);
+    border: 1px solid #3a3a45;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    user-select: none;
+}
+#atalhos-rapidos button {
+    flex: 1;
+    height: 28px;
+    font-size: 15px;
+    padding: 0;
+}
+#atalhos-rapidos button.ativo {
+    border-color: #f1c40f;
+    background: #4a4430;
+}
+.caixa-pilha {
+    position: relative; /* a gaveta (.conteudo) é posicionada em relação à barra */
+    width: 100%;
+    box-sizing: border-box;
+    padding: 0 10px;
+    background: rgba(34, 34, 42, 0.94);
+    border: 1px solid #3a3a45;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    user-select: none; /* evita selecionar texto ao clicar rápido */
+}
+.caixa-pilha > .cabecalho {
+    height: 40px;
+    flex: none;
+}
+/* A GAVETA: o conteúdo da barra, que abre PARA BAIXO dentro da própria caixa e EMPURRA as barras que estão embaixo (pedido do dono, 17/11/2026). Recolhida (`.recolhida`), ela some.
+   A altura é limitada pelo espaço da tela e o conteúdo rola por dentro. */
+.caixa-pilha > .conteudo {
+    box-sizing: border-box;
+    max-height: calc(100vh - 220px);
+    margin: 0;
+    padding: 0 0 10px;
+    overflow-y: auto;
+}
+.caixa-pilha.recolhida > .conteudo {
+    display: none;
+}
+/* ARRASTAR uma barra dentro da pilha troca a ordem: a que é arrastada fica por cima e acompanha o mouse; as outras se afastam
+   suavemente (a classe `na-pilha` só existe durante o arrasto: sem ela, trocar a ordem na hora não faz as barras "voltarem" deslizando). */
+.caixa-pilha.na-pilha {
+    transition: translate 150ms ease;
+}
+.caixa-pilha.arrastando-caixa {
+    z-index: 2;
+    transition: none;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
+}
+
+/* As ALÇAS de arrasto (o cabeçalho de cada barra da pilha, ui/pilha.ts) mostram a mãozinha, e durante o arrasto a caixa fica sem selecionar texto. */
+.alca-arrastar {
+    cursor: grab;
+    touch-action: none;
+}
+.alca-arrastar button,
+.alca-arrastar input {
+    cursor: pointer;
+}
+/* Durante o arrasto a caixa fica por cima das outras e sem selecionar texto. */
+.arrastando-caixa {
+    user-select: none;
+}
+.arrastando-caixa .alca-arrastar {
+    cursor: grabbing;
+}
+#bolsa.expandida {
+    translate: none !important;
+}
+/* Cabeçalho: título à esquerda e botão de recolher à direita. */
+.cabecalho {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+.cabecalho h1 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #c9c9d4;
+}
+/* O AVISO curto (ui/aviso.ts): um cartão no canto de baixo, à esquerda da coluna da direita, que some sozinho; pode ter um botão de ação ("Desfazer"). */
+#aviso {
+    position: fixed;
+    left: 12px;
+    bottom: 12px;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    max-width: min(420px, calc(100vw - 24px - var(--recuo-chat)));
+    padding: 10px 14px;
+    background: rgba(34, 34, 42, 0.97);
+    border: 1px solid #ffd54f;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    font-size: 13px;
+    line-height: 1.4;
+    cursor: pointer;
+}
+#aviso[hidden] {
+    display: none;
+}
+#aviso-acao {
+    flex: none;
+    padding: 4px 12px;
+    background: #5a4a1f;
+    border: 1px solid #ffd54f;
+    border-radius: 6px;
+    color: #ffd54f;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}
+#aviso-acao:hover {
+    background: #6f5b26;
+}
+/* A SETA dos botões de recolher: um CHEVRON fino de pontas arredondadas, desenhado só em CSS (o caractere do HTML fica escondido). Ele GIRA 90° (e não vira de cabeça para baixo) com a mesma duração (260 ms) e a
+   mesma curva de ui/animarPainel.ts. REGRA (pedido do dono): RECOLHIDA, a seta aponta para SI MESMA, para o elemento que continua à vista (a barra, com o título à ESQUERDA do botão: ‹);
+   EXPANDIDA, aponta para o elemento que ABRIU (a gaveta da pilha, à direita: ›; os Dados e a bolsa/chat, cujo conteúdo aparece EMBAIXO do cabeçalho: ▾). O ângulo vem da variável --giro (45° = ▾, -45° = ›, -135° = ▴, 135° = ‹: os ângulos vizinhos ficam a 90° um do outro, então o giro é curto).
+   O botão ganha a classe "recolhido" no instante do clique (a classe da caixa só muda no fim da animação ao recolher). */
+.seta {
+    --giro: 45deg; /* aberta, com a caixa embaixo: ▾ */
+    position: relative;
+    display: block; /* (bloco centrado no botão: um inline-block de fonte zero se alinharia pela linha de base e cairia para baixo) */
+    margin: 0 auto;
+    width: 14px;
+    height: 14px;
+    font-size: 0; /* (o ▴ escrito no HTML não aparece: o desenho é o ::before) */
+    line-height: 0;
+}
+.seta::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 7px;
+    height: 7px;
+    box-sizing: border-box;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    border-bottom-right-radius: 2px;
+    transform: translate(-50%, -60%) rotate(var(--giro));
+    transition: transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+/* Dados: o cabeçalho "DADOS" fica EM CIMA e o conteúdo aparece EMBAIXO dele (a coluna cresce para cima, mas o conteúdo abre para baixo do cabeçalho). Aberta ▾ (aponta para o conteúdo); recolhida ‹ (aponta para a própria barra). */
+#dados-alternar .seta {
+    --giro: 45deg;
+}
+#dados-alternar.recolhido .seta {
+    --giro: 135deg;
+}
+/* Os botões da pilha da esquerda: a gaveta abre para BAIXO. Aberta ▾ (aponta para o conteúdo); recolhida ‹ (aponta para a própria barra). */
+#desenho-alternar .seta,
+#iniciativa-alternar .seta {
+    --giro: 45deg;
+}
+#desenho-alternar.recolhido .seta,
+#iniciativa-alternar.recolhido .seta {
+    --giro: 135deg;
+}
+@media (prefers-reduced-motion: reduce) {
+    .seta::before {
+        transition: none;
+    }
+}
+#iniciativa-alternar {
+    width: 26px;
+    height: 26px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: inherit;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+#iniciativa-alternar:hover {
+    background: #3b3b49;
+}
+
+/* Conteúdo (grupos de botões), escondido quando a barra está recolhida. */
+.conteudo {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 12px;
+}
+
+.conteudo h2 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9a9aa8;
+}
+
+/* Uma linha: [ − ]  valor  [ + ]  (usada na barra e no menu do token) */
+.controle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.controle span {
+    flex: 1;
+    text-align: center;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+}
+/* Número que também pode ser DIGITADO (colunas e linhas). Sem as setinhas do navegador. */
+.controle input {
+    flex: 1;
+    width: 0;
+    min-width: 0;
+    height: 32px;
+    box-sizing: border-box;
+    padding: 0 2px;
+    text-align: center;
+    font: inherit;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    color: inherit;
+    background: #26262f;
+    border: 1px solid #3a3a45;
+    border-radius: 6px;
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+.controle input:focus {
+    outline: none;
+    border-color: #ffd54f;
+}
+.controle input::-webkit-inner-spin-button,
+.controle input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+.controle button {
+    width: 32px;
+    height: 32px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: inherit;
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+.controle button:hover:not(:disabled) {
+    background: #3b3b49;
+}
+.controle button:active:not(:disabled) {
+    background: #46465a;
+}
+/* A cor da grade: o seletor de cor do navegador, mais baixo que os campos de número; "Auto" é um botão de texto (o escolhido fica dourado). */
+.controle input[type="color"] {
+    appearance: auto;
+    -moz-appearance: auto;
+    padding: 2px;
+    height: 28px;
+    cursor: pointer;
+}
+#grade-cor-auto {
+    width: auto;
+    height: 28px;
+    padding: 0 10px;
+    font-size: 12px;
+}
+#grade-cor-auto.escolhido {
+    color: #ffd54f;
+    border-color: #6b5a2a;
+}
+.controle button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+/* Botão de largura total, abaixo de um controle (ex.: "Ajustar à tela"). */
+.botao-largo {
+    width: 100%;
+    height: 28px;
+    margin-top: 6px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.botao-largo:hover:not(:disabled) {
+    background: #3b3b49;
+}
+.botao-largo:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+/* Botão de ferramenta ligada (ex.: "Alinhar mapa" em uso). */
+.botao-largo.ativo {
+    background: #5a4a1f;
+    border-color: #ffd54f;
+}
+
+/* Painel da calibragem da grade: fixo no canto inferior direito, abaixo da barra de ferramentas. */
+#painel-calibragem {
+    width: 340px;
+    max-width: calc(100vw - 24px);
+    box-sizing: border-box;
+    padding: 12px 14px;
+    background: rgba(34, 34, 42, 0.96);
+    border: 1px solid #ffd54f;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    font-size: 13px;
+    line-height: 1.45;
+    user-select: none;
+}
+/* Janela baixa: o painel não cabe acima da bolsa sem cobrir a barra, então vai para baixo, ao lado do painel de desenho. */
+@media (max-height: 720px) {
+    #painel-calibragem {
+        position: fixed;
+        left: 180px;
+        bottom: 12px;
+        z-index: 10;
+    } /* 172 = acima do chat (148 de altura + 12 de margem + folga) */ /* 180 = ao lado do painel de desenho (12 + 156 + folga) */
+}
+

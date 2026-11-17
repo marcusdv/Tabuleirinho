@@ -5,7 +5,7 @@
 // bloqueia o mouse (só o painel recebe): dá para usar o chat com ela aberta, e o Esc com o foco no chat não a fecha. Arrasta-se pela barra do
 // título, respeitando os limites da tela (sempre sobra um pedaço para puxar de volta), lembra o lugar ao reabrir e volta para dentro se a
 // janela do navegador encolhe. Abrir uma ficha pela bolsa em tela cheia recolhe a bolsa, para o chat ficar visível.
-import { abrirPagina, escolherAba, lancar, cruza, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
+import { abrirPagina, escolherAba, escNaFicha, lancar, cruza, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
 
 const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 800 } });
@@ -65,7 +65,7 @@ ok("4e) a barra de dados continua visível e à mão", dado);
 await escolherAba(p, "bolsa"); // (daqui em diante o teste usa a lista de fichas da bolsa)
 
 // ================= arrastar pela barra do título
-const titulo = await caixa("#editor-ficha-titulo");
+const titulo = await caixa("#editor-ficha-nao-salvo");
 const antes = await caixa("#editor-ficha-painel");
 await p.mouse.move(titulo.x + 10, titulo.y + titulo.height / 2);
 await p.mouse.down();
@@ -81,21 +81,21 @@ await p.mouse.move(salvar.x + 5, salvar.y + 5); await p.mouse.down(); await p.mo
 const p1 = await caixa("#editor-ficha-painel");
 ok("5c) só a BARRA DO TÍTULO arrasta (puxar por um botão não move a janela)", Math.abs(p1.x - p0.x) < 1 && Math.abs(p1.y - p0.y) < 1);
 // limites
-const t2 = await caixa("#editor-ficha-titulo");
+const t2 = await caixa("#editor-ficha-nao-salvo");
 await p.mouse.move(t2.x + 10, t2.y + 8); await p.mouse.down(); await p.mouse.move(-3000, -3000, { steps: 6 }); await p.mouse.up();
 const cantoSE = await caixa("#editor-ficha-painel");
 ok("6a) arrastar para além do canto superior esquerdo: a janela para na borda (y >= 0) e sobra um pedaço (>= 80 px) para puxar de volta", cantoSE.y >= 0 && cantoSE.x + cantoSE.width >= 80 - 0.5, JSON.stringify(cantoSE));
-const t3 = await caixa("#editor-ficha-titulo");
+const t3 = await caixa("#editor-ficha-nao-salvo");
 await p.mouse.move(Math.max(t3.x + 10, 30), t3.y + 8); // (a janela pode estar quase toda fora da tela: agarra pela parte que sobrou) await p.mouse.down(); await p.mouse.move(9000, 9000, { steps: 6 }); await p.mouse.up();
 const fundo = await caixa("#editor-ficha-painel");
 ok("6b) arrastar para além do canto inferior direito: a barra do título continua à vista", fundo.x <= 1400 - 80 + 0.5 && fundo.y <= 800 - 44 + 0.5, JSON.stringify(fundo));
 // reposicionar bem e lembrar
-const t4 = await caixa("#editor-ficha-titulo");
+const t4 = await caixa("#editor-ficha-nao-salvo");
 const pegaX = Math.max(t4.x + 10, 30); await p.mouse.move(pegaX, t4.y + 8); await p.mouse.down(); await p.mouse.move(300 + (pegaX - t4.x), 60, { steps: 6 }); await p.mouse.up();
 const marcada = await caixa("#editor-ficha-painel");
 await p.focus("#editor-ficha-texto");
 await p.fill("#editor-ficha-texto", ""); // volta ao estado salvo (vazio): sem alterações
-await p.keyboard.press("Escape");
+await escNaFicha(p);
 ok("7a) Esc com o foco na ficha (sem alterações) fecha", await p.locator("#editor-ficha").isHidden());
 await p.locator(".bolsa-doc").first().dblclick();
 const reaberta = await caixa("#editor-ficha-painel");
@@ -105,7 +105,7 @@ await p.waitForTimeout(150);
 const pequena = await caixa("#editor-ficha-painel");
 ok("7c) se a janela do navegador encolhe, a ficha é puxada de volta para dentro da tela", pequena.x + pequena.width >= 80 && pequena.x <= 700 - 80 && pequena.y + 44 <= 500 + 0.5, JSON.stringify(pequena));
 await p.setViewportSize({ width: 1400, height: 800 });
-await p.keyboard.press("Escape");
+await escNaFicha(p);
 
 // ================= abrir a ficha a partir da bolsa em TELA CHEIA
 await p.click("#bolsa-gerenciar"); // tela cheia

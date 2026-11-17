@@ -1,8 +1,7 @@
 // =====================================================================
-// A PILHA DE BARRAS (HTML), na borda ESQUERDA da tela: "Desenho" e "Ferramentas". Cada uma é uma BARRA estreita, e todas têm SEMPRE a mesma largura,
-// por isso dá para empilhá-las. Clicar numa barra abre o CONTEÚDO dela numa "gaveta" ao lado, colada na parede DIREITA da barra e revelada da esquerda
-// para a direita (ver `alternarGaveta`, em animarPainel.ts). Só UMA gaveta fica aberta por vez (abrir uma fecha a outra: duas gavetas, cada uma ao
-// lado da sua barra, se sobreporiam).
+// A PILHA DE BARRAS (HTML), na borda ESQUERDA da tela: "Desenho" e "Iniciativa" (o Tabuleiro foi para a aba Mapas da bolsa). Cada uma é uma BARRA estreita, e todas têm SEMPRE a mesma largura,
+// por isso dá para empilhá-las. Clicar numa barra abre o CONTEÚDO dela PARA BAIXO, dentro da própria caixa, empurrando as barras de baixo
+// (pedido do dono, 17/11/2026; só UMA fica aberta por vez: abrir uma fecha a outra; a altura cresce com animação, ver `alternarRecolhida` em animarPainel.ts).
 //
 // ARRASTAR uma barra dentro da pilha TROCA a ordem delas (as outras se afastam para abrir o lugar, e a barra se encaixa onde foi solta). A ordem fica
 // guardada no navegador. Clicar (sem arrastar) abre/fecha. As barras NÃO saem da pilha: não há mais caixas soltas pela tela.
@@ -10,8 +9,8 @@
 // A marcação e o CSS ficam no index.html (um script no fim dele aplica a ordem e o que está aberto ANTES da primeira pintura: as regras são as mesmas).
 // =====================================================================
 
-import { CHAVE_BARRA_RECOLHIDA, CHAVE_DESENHO_RECOLHIDO, CHAVE_INICIATIVA_RECOLHIDA, CHAVE_ORDEM_PILHA } from "../config";
-import { alternarGaveta, gavetaRecolhida } from "./animarPainel";
+import { CHAVE_DESENHO_RECOLHIDO, CHAVE_INICIATIVA_RECOLHIDA, CHAVE_ORDEM_PILHA } from "../config";
+import { alternarRecolhida } from "./animarPainel";
 import { guardarPreferencia, lerPreferencia } from "./preferencias";
 
 interface Barra {
@@ -25,7 +24,7 @@ interface Barra {
 }
 
 const DISTANCIA_MINIMA = 4; // px que o mouse precisa andar para um clique virar arrasto
-const ORDEM_DE_FABRICA = ["ferramentas-desenho", "barra", "iniciativa"]; // de cima para baixo: Desenho, Tabuleiro e Iniciativa
+const ORDEM_DE_FABRICA = ["ferramentas-desenho", "iniciativa"]; // de cima para baixo: Desenho e Iniciativa
 
 let restaurarAtual: (() => void) | null = null;
 
@@ -38,7 +37,6 @@ export function criarPilha(): void {
     const pegar = (id: string): HTMLElement => document.getElementById(id) as HTMLElement;
     const barras: Barra[] = [
         { id: "ferramentas-desenho", nome: "Desenho", chave: CHAVE_DESENHO_RECOLHIDO, botao: "desenho-alternar" },
-        { id: "barra", nome: "Tabuleiro", chave: CHAVE_BARRA_RECOLHIDA, botao: "barra-alternar" },
         { id: "iniciativa", nome: "Iniciativa", chave: CHAVE_INICIATIVA_RECOLHIDA, botao: "iniciativa-alternar" },
     ].map((d) => {
         const caixa = pegar(d.id);
@@ -68,21 +66,20 @@ export function criarPilha(): void {
         barra.botao.title = recolhida ? `Abrir ${barra.nome}` : `Fechar ${barra.nome}`;
         barra.botao.setAttribute("aria-expanded", String(!recolhida));
     }
-    /** Leva UMA barra ao estado pedido, com animação, e guarda a escolha. */
-    function definir(barra: Barra, recolher: boolean): void {
-        if (gavetaRecolhida(barra.caixa, barra.gaveta, "recolhida") === recolher) return;
-        const recolhida = alternarGaveta(barra.caixa, barra.gaveta, "recolhida", (r) => aplicarEstado(barra, r));
+    /** INVERTE o estado de UMA barra, com animação (a altura cresce ou encolhe), e guarda a escolha. (`_recolher` só documenta o destino: quem chama já conferiu que ele é o oposto do atual.) */
+    function definir(barra: Barra, _recolher: boolean): void {
+        const recolhida = alternarRecolhida(barra.caixa, "recolhida", (r) => aplicarEstado(barra, r));
         barra.botao.classList.toggle("recolhido", recolhida); // a SETA gira junto com a gaveta (CSS: mesma duração e curva)
         guardarPreferencia(barra.chave, recolhida ? "1" : "0");
     }
-    /** Clicou numa barra: abre (e fecha as outras) ou fecha. */
+    /** Clicou numa barra: ela abre (ou fecha) PARA BAIXO; ao abrir, a OUTRA fecha (só uma aberta por vez; pedido do dono, 17/11/2026). */
     function alternar(barra: Barra): void {
-        const abrir = gavetaRecolhida(barra.caixa, barra.gaveta, "recolhida");
+        const abrir = barra.caixa.classList.contains("recolhida");
         definir(barra, !abrir);
-        if (abrir) for (const outra of barras) if (outra !== barra) definir(outra, true); // só UMA gaveta aberta por vez
+        if (abrir) for (const outra of barras) if (outra !== barra && !outra.caixa.classList.contains("recolhida")) definir(outra, true);
     }
 
-    // O que estava aberto da última vez (sem escolha guardada: tudo recolhido). Se por algum motivo duas estavam abertas, vale a de cima.
+    // O que estava aberto da última vez (sem escolha guardada: tudo recolhido). Só UMA fica aberta (se por engano duas estavam, vale a de cima).
     let jaAberta = false;
     for (const barra of barrasEmOrdem()) {
         let recolhida = lerPreferencia(barra.chave) !== "0";
@@ -118,11 +115,11 @@ export function criarPilha(): void {
         const antes = barrasEmOrdem();
         const posicaoInicial = antes.indexOf(barra);
         const retangulos = antes.map((b) => b.caixa.getBoundingClientRect());
-        const altura = retangulos[posicaoInicial].height;
         const vao = antes.length > 1 ? retangulos[1].top - retangulos[0].bottom : 0;
-        const passo = altura + vao; // quanto uma barra anda quando troca de lugar com outra
-        const topoMin = retangulos[0].top - retangulos[posicaoInicial].top; // até onde a barra pode subir e descer (as pontas da pilha)
-        const topoMax = retangulos[retangulos.length - 1].top - retangulos[posicaoInicial].top;
+        const meu = retangulos[posicaoInicial];
+        const passo = meu.height + vao; // quanto as outras andam quando a barra arrastada passa por elas (as gavetas têm alturas diferentes)
+        const topoMin = retangulos[0].top - meu.top; // até onde a barra pode subir e descer (as pontas da pilha)
+        const topoMax = retangulos[retangulos.length - 1].bottom - meu.bottom;
         const inicioY = e.clientY;
         let arrastando = false;
         let novaPosicao = posicaoInicial;
@@ -138,9 +135,9 @@ export function criarPilha(): void {
             const deslocamento = Math.min(Math.max(dy, topoMin), topoMax);
             barra.caixa.style.translate = `0 ${deslocamento}px`;
             // Onde a barra se encaixaria: conta quantas das outras têm o centro ACIMA do centro dela.
-            const centro = retangulos[posicaoInicial].top + deslocamento + altura / 2;
-            novaPosicao = antes.filter((_, i) => i !== posicaoInicial && retangulos[i].top + altura / 2 < centro).length;
-            // As outras se afastam para abrir o lugar: as que ficam entre a posição de origem e a nova andam um passo para o outro lado.
+            const centro = meu.top + deslocamento + meu.height / 2;
+            novaPosicao = antes.filter((_, i) => i !== posicaoInicial && retangulos[i].top + retangulos[i].height / 2 < centro).length;
+            // As outras se afastam para abrir o lugar: as que ficam entre a posição de origem e a nova andam o tamanho da barra arrastada.
             antes.forEach((b, i) => {
                 if (b === barra) return;
                 let anda = 0;

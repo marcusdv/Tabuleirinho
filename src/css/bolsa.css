@@ -1,0 +1,510 @@
+/* A BOLSA: cabeçalho, tamanhos, fichinhas dos tokens, o disco e a prévia. (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
+/* Bolsa: guarda tokens. Arraste um token do mapa para cá; arraste uma fichinha daqui para o mapa. */
+#bolsa {
+    /* A bolsa mora DENTRO da coluna do chat (aba "Bolsa"): ocupa o espaço que sobra embaixo das abas, sem fundo nem borda próprios. */
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    padding: 10px 14px 14px;
+    user-select: none;
+}
+#bolsa.alvo {
+    background: rgba(70, 60, 25, 0.6);
+    box-shadow: inset 0 0 0 2px #ffd54f;
+} /* "pode soltar aqui" */
+/* Cabeçalho da bolsa: o título e os botões do alto (e, expandida, o botão de fechar). */
+.bolsa-topo {
+    display: flex;
+    flex-wrap: wrap; /* na bolsa média a pesquisa desce para uma segunda linha */
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px 8px;
+    margin: 0 0 6px;
+}
+.bolsa-titulo {
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9a9aa8;
+}
+/* Botão de texto do cabeçalho ("⤢ Criar/editar": abre a tela cheia). */
+.bolsa-botao-pequeno {
+    flex: none;
+    height: 22px;
+    padding: 0 9px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: #c9c9d4;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+.bolsa-botao-pequeno:hover:not(:disabled) {
+    background: #3b3b49;
+    border-color: #ffd54f;
+    color: #ffd54f;
+}
+/* "Abrir bolsa" (abre a tela cheia): um botão de TEXTO (dourado, para se notar). Na bolsa do canto fica no PÉ dela, numa barra fina de largura total, fora da linha das abas e dos filtros. */
+#bolsa-gerenciar {
+    margin-left: auto;
+    height: 26px;
+    padding: 0 12px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #ffd54f;
+    border-color: #6b5a2a;
+    white-space: nowrap;
+}
+#bolsa:not(.expandida) #bolsa-gerenciar {
+    flex: none;
+    width: 100%;
+    height: 28px;
+    margin: 10px 0 0;
+}
+/* Com MUITOS itens, o fim das listas (tokens, fichas e mapas) tem uma FOLGA antes da barra "Abrir bolsa": o último item rola até parar acima dela, com respiro, e nunca encostado nem por baixo. */
+#bolsa:not(.expandida) #bolsa-itens,
+#bolsa:not(.expandida) #bolsa-fichas-lista,
+#bolsa:not(.expandida) #bolsa-mapas-lista {
+    padding-bottom: 14px;
+}
+#bolsa.expandida #bolsa-gerenciar {
+    display: none; /* a tela cheia tem o botão Fechar */
+}
+#bolsa:not(.expandida) .bolsa-titulo {
+    display: none; /* na coluna a aba "Bolsa" já diz o nome */
+}
+/* Na coluna: as abas Tokens/Fichas/Mapas ocupam a linha toda (o "Abrir bolsa" fica no PÉ da bolsa). */
+#bolsa:not(.expandida) #bolsa-abas {
+    flex: 1 1 0;
+    min-width: 0;
+}
+/* Pesquisa: numa linha só dela, abaixo do título e das abas (na tela cheia fica ao lado do título; ver abaixo). */
+/* A linha da pesquisa (bolsa do canto): a barra à ESQUERDA e, à direita, um botão pequeno: "⤢ Criar/editar" na aba Tokens e
+   "+ Criar ficha" na aba Fichas. */
+#bolsa-busca,
+#bolsa-fichas-busca {
+    order: 9;
+    flex: 1 1 0;
+    min-width: 0;
+}
+#bolsa-criar-token-botao,
+#bolsa-ficha-criar-botao {
+    order: 10;
+}
+.bolsa-botao-pequeno:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+/* Os dois botões da linha da pesquisa têm a MESMA largura nas duas abas: assim a barra de pesquisa também fica com o mesmo
+   tamanho (e no mesmo lugar) em Tokens e em Fichas. */
+#bolsa:not(.expandida) #bolsa-criar-token-botao,
+#bolsa:not(.expandida) #bolsa-ficha-criar-botao {
+    width: 112px;
+    box-sizing: border-box;
+    padding: 0 6px;
+    white-space: nowrap;
+}
+#bolsa:not(.aba-fichas) #bolsa-ficha-criar-botao,
+#bolsa.aba-fichas #bolsa-criar-token-botao {
+    display: none; /* cada botão é da SUA aba */
+}
+#bolsa.expandida #bolsa-criar-token-botao {
+    display: none; /* a tela cheia já é onde se cria */
+}
+#bolsa.expandida .bolsa-botao-pequeno {
+    order: 0;
+    height: 30px;
+    padding: 0 14px;
+    font-size: 13px;
+    margin-right: auto; /* na tela cheia: título, pesquisa e o botão, e o Fechar na ponta direita */
+}
+#bolsa.expandida #bolsa-fichas-busca {
+    margin-right: 8px;
+}
+#bolsa:not(.expandida) .bolsa-titulo {
+    margin-right: auto;
+}
+#bolsa-fechar {
+    height: 30px;
+    padding: 0 14px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+#bolsa-fechar:hover {
+    background: #3b3b49;
+}
+#bolsa:not(.expandida) #bolsa-criar {
+    display: none;
+}
+
+/* Bolsa EXPANDIDA: cobre quase a tela toda; só uma margem separa dela o fundo do site. */
+#chat.bolsa-aberta {
+    z-index: 35 !important; /* acima da barra e dos painéis (!important: as caixas arrastadas ganham um z-index próprio, de 11 a 16) */
+}
+/* Com a bolsa em TELA CHEIA, a barra "Dados" (que mora no pé da coluna da direita e sobe para o alto dela quando a bolsa sai da coluna) NÃO pode aparecer por cima da bolsa: era o botão solto no canto. */
+#chat.bolsa-aberta #dados {
+    visibility: hidden;
+}
+#chat.bolsa-aberta::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: rgba(8, 8, 12, 0.55); /* escurece o fundo e impede mexer no mapa por baixo */
+}
+#bolsa.expandida {
+    position: fixed;
+    inset: 16px;
+    width: auto;
+    padding: 16px 20px 20px;
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px 24px;
+    cursor: default;
+    border: 1px solid #3a3a45;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    background: #22222a; /* opaco: sem isto o chat e a barra apareceriam por baixo */
+}
+#bolsa.expandida .bolsa-topo {
+    grid-column: 1 / -1;
+    margin: 0;
+}
+#bolsa.expandida .bolsa-titulo {
+    font-size: 13px;
+}
+#bolsa.expandida #bolsa-busca,
+#bolsa.expandida #bolsa-fichas-busca {
+    display: block;
+    order: 0; /* (no canto a pesquisa vai para a última linha; aqui, fica ao lado do título) */
+    flex: 1;
+    min-width: 0;
+    max-width: 460px;
+    margin: 0 auto 0 12px;
+}
+#bolsa.expandida #bolsa-criar {
+    grid-column: 1;
+    grid-row: 2;
+    overflow-y: auto;
+}
+#bolsa.expandida #bolsa-conteudo {
+    grid-column: 2;
+    grid-row: 2;
+    overflow-y: auto;
+    min-height: 0;
+}
+/* A LISTA DE TOKENS ocupa TODA a altura que sobra (mesmo vazia): assim o retângulo de seleção pode começar em qualquer ponto vazio dela, e não só ao lado dos
+   itens que já existem (antes a lista só tinha a altura das linhas de itens). */
+#bolsa.expandida:not(.aba-fichas) #bolsa-conteudo {
+    display: flex;
+    flex-direction: column;
+}
+#bolsa.expandida:not(.aba-fichas) #bolsa-conteudo > * {
+    flex: none;
+}
+#bolsa.expandida:not(.aba-fichas) #bolsa-conteudo > #bolsa-itens {
+    flex: 1 0 auto;
+    min-height: 260px;
+}
+#bolsa.expandida #bolsa-itens {
+    max-height: none;
+    overflow: visible;
+    align-content: start;
+    gap: 12px;
+    /* Bolsa aberta: as fichas tomam a LARGURA TODA da caixa (quantas couberem por linha, esticadas até a borda).
+       A bolsa fechada continua com 4 por linha. */
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+}
+#bolsa.expandida #bolsa-vazia {
+    font-size: 14px;
+}
+/* Na bolsa expandida as fichas só mostram o token (arrastar para o mapa é com a bolsa fechada). */
+#bolsa.expandida .ficha {
+    padding: 34px 6px 10px;
+    cursor: default;
+}
+#bolsa.expandida .ficha .disco {
+    /* O MESMO tamanho para todo token (antes crescia com o tamanho do token). */
+    width: 84px;
+    height: 84px;
+    margin-bottom: 6px;
+    box-shadow: 0 0 0 8px #2f2f3a, 0 0 0 9px #4a4a58;
+}
+#bolsa.expandida .ficha:hover .disco {
+    box-shadow: 0 0 0 8px #3b3b49, 0 0 0 9px #5a5a6a;
+}
+#bolsa.expandida .ficha.selecionada .disco {
+    box-shadow: 0 0 0 8px #46425a, 0 0 0 10px #ffd54f;
+}
+#bolsa.expandida .ficha small {
+    font-size: 12px;
+}
+
+/* Criar token (só na bolsa expandida) */
+#bolsa-criar h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #e6e6ea;
+}
+.bolsa-rotulo {
+    margin: 12px 0 6px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9a9aa8;
+}
+#bolsa-nome,
+#bolsa-busca,
+#bolsa-fichas-busca,
+#editor-token-ficha-busca {
+    width: 100%;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+}
+/* A FICHA do "Editar token": um menu suspenso próprio (botão + painel com a PESQUISA dentro e a lista filtrada). O painel abre NO FLUXO (empurra o que vem abaixo), para não ser cortado pela rolagem da janela. */
+#editor-token-ficha {
+    display: block;
+    width: 100%;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 26px 0 8px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    cursor: pointer;
+    position: relative;
+}
+#editor-token-ficha-combo {
+    position: relative;
+}
+#editor-token-ficha-combo::after {
+    content: "▾";
+    position: absolute;
+    right: 9px;
+    top: 7px;
+    font-size: 12px;
+    color: #9a9aa8;
+    pointer-events: none;
+}
+#editor-token-ficha:focus-visible,
+#editor-token-ficha[aria-expanded="true"],
+#editor-token-ficha-busca:focus {
+    outline: none;
+    border-color: #ffd54f;
+}
+#editor-token-ficha-painel {
+    margin-top: 4px;
+    padding: 6px;
+    background: #26262f;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+}
+#editor-token-ficha-painel[hidden] {
+    display: none;
+}
+#editor-token-ficha-busca {
+    margin-bottom: 6px;
+}
+#editor-token-ficha-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 150px;
+    overflow-y: auto;
+}
+#editor-token-ficha-lista li {
+    padding: 5px 8px;
+    border-radius: 5px;
+    font-size: 13px;
+    cursor: pointer;
+}
+#editor-token-ficha-lista li:hover:not([aria-disabled]):not(.sem-resultado) {
+    background: #3b3b49;
+}
+#editor-token-ficha-lista li[aria-selected="true"] {
+    color: #ffd54f;
+    font-weight: 600;
+}
+/* Ficha única que já tem outro token: apagada (a dica diz o motivo). */
+#editor-token-ficha-lista li[aria-disabled] {
+    color: #7a7a88;
+    cursor: default; /* (sem o símbolo de proibido: só não dá para clicar; pedido do dono, 17/11/2026) */
+}
+#editor-token-ficha-lista li.sem-resultado {
+    color: #9a9aa8;
+    cursor: default;
+}
+#editor-token-ficha-criar {
+    margin-top: 6px;
+    width: 100%;
+}
+/* O selinho "tem ficha" no canto inferior esquerdo da fichinha do token (a estrela fica em cima e os grupos à direita). */
+/* A LINHA DE CIMA da fichinha (pedido do dono): tudo no mesmo nível, meio a cavalo na borda de cima. À ESQUERDA o marcador "tem ficha" (▤) do token ou "Ficha Token Único" (①) do documento; NO MEIO a
+   estrela de favorito; À DIREITA as bolinhas de grupo (no máximo 3). */
+.ficha .item-ficha-vinculo,
+.bolsa-doc .item-unica {
+    position: absolute;
+    left: 6px;
+    top: -5px;
+    font-size: 12px;
+    line-height: 12px;
+    color: #ffd54f;
+    pointer-events: none;
+}
+#bolsa.expandida .ficha .item-ficha-vinculo,
+#bolsa.expandida .bolsa-doc .item-unica {
+    left: 10px;
+    top: -7px;
+    font-size: 16px;
+    line-height: 16px;
+}
+#editor-token-nome {
+    width: 100%;
+    height: 30px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+}
+#bolsa-nome:focus,
+#bolsa-busca:focus,
+#bolsa-fichas-busca:focus,
+#editor-token-nome:focus {
+    outline: none;
+    border-color: #ffd54f;
+}
+#bolsa-imagem,
+.linha-imagem {
+    display: flex;
+    gap: 6px;
+}
+#bolsa-imagem .botao-tamanho,
+.linha-imagem .botao-tamanho {
+    flex: 1;
+    padding: 0 10px;
+}
+/* Disco com imagem: a foto vai por cima da cor de preenchimento (que aparece onde a imagem é transparente). */
+.disco.com-imagem {
+    background-size: cover;
+    background-position: center;
+}
+#bolsa-tamanhos {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+.botao-tamanho {
+    height: 32px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.botao-tamanho:hover {
+    background: #3b3b49;
+}
+.botao-tamanho.ativo {
+    background: #5a4a1f;
+    border-color: #ffd54f;
+}
+#bolsa-amostras,
+#bolsa-amostras-borda {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+}
+#bolsa-amostras .amostra,
+#bolsa-amostras-borda .amostra {
+    height: 18px;
+}
+#bolsa-cor,
+#bolsa-cor-borda {
+    width: 100%;
+    height: 20px;
+    margin-top: 6px;
+    padding: 0;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    cursor: pointer;
+}
+/* Prévia: o disco do token novo, no tamanho e na cor escolhidos. */
+#bolsa:not(.expandida) #bolsa-previa-area,
+#bolsa.buscando #bolsa-previa-area {
+    display: none; /* fechada, ou pesquisando: os resultados ficam no topo, sem a prévia grande na frente */
+}
+/* A área da prévia: a coluna do token (prévia do token + prévia das barras) à esquerda e o editor de status à direita. A ALTURA da área é a da coluna da esquerda: o editor de
+   status NÃO conta para ela (`contain: size`), só preenche essa altura e rola por dentro. Assim a lista de tokens que vem embaixo não desce, nem com 20 status. */
+#bolsa-previa-area {
+    margin-bottom: 18px;
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    align-items: stretch;
+    column-gap: 24px;
+}
+@media (max-width: 900px) {
+    /* Janela estreita: o editor desce para baixo da prévia (e então ocupa a própria altura, com um limite). */
+    #bolsa-previa-area {
+        grid-template-columns: minmax(0, 1fr);
+        row-gap: 14px;
+    }
+    #bolsa-previa-area #bolsa-status {
+        contain: none;
+        max-height: 320px;
+    }
+}
+#bolsa-previa-coluna {
+    flex: none;
+}
+#bolsa-previa-area #bolsa-status {
+    min-width: 0;
+    min-height: 0;
+    max-width: 860px;
+    margin-top: 0; /* alinhado ao topo da prévia (e não empurrado para baixo) */
+    contain: size; /* o tamanho do editor NÃO entra na conta da altura da área: ela é a da coluna da esquerda */
+    overflow: hidden;
+}
+#bolsa-previa-area #bolsa-status .bolsa-rotulo {
+    margin-top: 0;
+}
+#bolsa-backup {
+    align-self: flex-start;
+    width: auto;
+    padding: 3px 12px;
+}
+#bolsa-backup:disabled {
+    opacity: 0.6;
+    cursor: progress;
+}

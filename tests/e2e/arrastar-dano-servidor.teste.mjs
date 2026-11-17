@@ -20,7 +20,7 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const servidor = spawn(process.execPath, ["servidor/servidor.ts"], { cwd: RAIZ, env: { ...process.env, PORT: String(PORTA), DADOS: pasta, SEM_EXEMPLOS: "1", SEM_LIMITE_SPAM: "1" }, stdio: ["ignore", "pipe", "pipe"] });
 await new Promise((resolver) => servidor.stdout.on("data", (d) => /escutando/.test(String(d)) && resolver()));
 async function abrir(apelido) {
-    const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws`);
+    const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws?papel=mestre`);
     const eventos = [];
     ws.on("message", (d) => eventos.push(JSON.parse(String(d))));
     await new Promise((r) => ws.on("open", r));

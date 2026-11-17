@@ -1,0 +1,1331 @@
+/* A BOLSA, segunda parte: abas Tokens/Fichas, ordenar, grupos, seleção e os documentos das fichas. (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
+/* ABAS da bolsa ("Tokens" e "Fichas"). São o ÚLTIMO filho de .bolsa-topo; com `order: 5` e largura total vão para uma
+   linha só delas: abaixo do título e, no tamanho médio, ACIMA da pesquisa (que tem `order: 9`). */
+#bolsa-abas {
+    order: 5;
+    flex: 1 1 100%;
+    display: flex;
+    flex-wrap: wrap; /* bolsa estreita: as abas passam para uma SEGUNDA linha (pedido do dono, 17/11/2026) */
+    gap: 0 2px;
+    border-bottom: 1px solid #3a3a45;
+}
+.bolsa-aba {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    height: 24px;
+    padding: 0 12px;
+    margin-bottom: -1px; /* o traço da aba ativa cobre a linha de baixo */
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #9a9aa8;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.bolsa-aba:hover {
+    color: #ffd54f;
+}
+.bolsa-aba[aria-selected="true"] {
+    color: #ffd54f;
+    border-bottom-color: #ffd54f;
+}
+#bolsa.expandida .bolsa-aba {
+    height: 30px;
+    padding: 0 16px;
+    font-size: 14px;
+}
+/* Aba FICHAS: esconde o que é só dos tokens (fichinhas, criação e pesquisa) e mostra o painel. O botão "Criar/editar"
+   continua na média: é o caminho para a tela cheia, que tem mais espaço para a grade de fichas. */
+#bolsa-fichas {
+    display: none;
+}
+#bolsa.aba-fichas #bolsa-conteudo,
+#bolsa.aba-fichas #bolsa-criar,
+#bolsa.aba-fichas #bolsa-busca,
+#bolsa:not(.aba-fichas) #bolsa-fichas-busca {
+    display: none; /* cada aba mostra só a SUA pesquisa */
+}
+#bolsa.aba-fichas #bolsa-fichas {
+    display: block;
+}
+/* A barra do painel: o botão "Criar ficha" e, embaixo dele, o aviso quando algo é recusado. */
+#bolsa-fichas-barra {
+    margin-bottom: 8px;
+}
+#bolsa:not(.expandida) #bolsa-fichas-barra {
+    margin-bottom: 0; /* na bolsa do canto a barra só tem o aviso (a linha de cima está no cabeçalho) */
+}
+#bolsa-fichas-botoes {
+    display: flex;
+    gap: 6px;
+}
+#bolsa-ficha-instrucoes {
+    flex: none;
+    width: auto;
+    margin: 0;
+    padding: 0 10px;
+}
+/* O botão "Instruções" só aparece na tela EXPANDIDA das fichas (pedido do dono): na bolsa pequena e na média ele some e "+ Criar ficha" ocupa a linha. */
+#bolsa:not(.expandida) #bolsa-ficha-instrucoes {
+    display: none;
+}
+#bolsa-ficha-aviso {
+    margin: 6px 0 0;
+    font-size: 12px;
+    color: #9ad59a;
+}
+#bolsa-ficha-aviso:empty {
+    display: none;
+}
+#bolsa-ficha-aviso[data-erro] {
+    color: #e88a8a; /* mensagem de recusa */
+}
+#bolsa-fichas-vazia {
+    margin: 0;
+    font-size: 12px;
+    color: #7d7d8c;
+}
+/* ORDENAR, FILTRAR e GRUPOS (ui/bolsa.ts). A linha fica logo abaixo das abas, nos dois tamanhos da bolsa. */
+#bolsa-organizar {
+    order: 6;
+    flex: 1 1 100%;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+}
+#bolsa-ordem {
+    flex: none;
+    max-width: 130px;
+    height: 22px;
+    padding: 0 4px;
+    font: inherit;
+    font-size: 11px;
+    color: #c9c9d4;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+}
+/* Bolsa do canto: lista suspensa de grupos; tela cheia: os chips. */
+#bolsa:not(.expandida) #bolsa-grupos-chips,
+#bolsa:not(.expandida) #bolsa-grupo-novo,
+#bolsa.expandida #bolsa-filtro-grupos {
+    display: none;
+}
+#bolsa-filtro-grupos {
+    flex: 1;
+    min-width: 0;
+    justify-content: space-between;
+}
+#bolsa-grupos-chips {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+#bolsa-grupos-chips::-webkit-scrollbar {
+    display: none; /* (é uma fila curta que rola com a roda; a barra só atrapalharia a altura) */
+}
+.bolsa-chip {
+    flex: none;
+    height: 22px;
+    padding: 0 8px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font: inherit;
+    font-size: 11px;
+    color: #c9c9d4;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.bolsa-chip:hover {
+    border-color: #8a8a99;
+}
+.bolsa-chip[aria-pressed="true"] {
+    color: #fff;
+    border-color: var(--cor-grupo, #ffd54f);
+    background: color-mix(in srgb, var(--cor-grupo, #ffd54f) 35%, #2f2f3a);
+}
+#bolsa-filtro-favoritos[aria-pressed="true"] {
+    color: #ffd54f;
+}
+.bolsa-chip .ponto-grupo {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--cor-grupo, #888);
+}
+/* A ESTRELA de favorito e os PONTOS de grupo dentro de cada item (token ou ficha). */
+#bolsa .ficha,
+#bolsa .bolsa-doc {
+    position: relative;
+}
+.item-estrela {
+    position: absolute;
+    top: -6px; /* na linha de cima, no MEIO (entre o marcador de ficha e as bolinhas de grupo; na bolsa do canto, a caixa é estreita: um pouco à esquerda do centro, para não encostar nas 3 bolinhas) */
+    left: 22px;
+    font-size: 13px;
+    line-height: 1;
+    color: #c9c9d4;
+    opacity: 0;
+    cursor: pointer;
+}
+.ficha:hover .item-estrela,
+.bolsa-doc:hover .item-estrela {
+    opacity: 0.65;
+}
+/* Bolsa em TELA CHEIA (pedido do dono): estrela maior e com mais espaço em volta (a do canto está boa como está). */
+#bolsa.expandida .item-estrela {
+    top: -14px;
+    left: 50%;
+    transform: translateX(-50%); /* na tela cheia a caixa é larga: a estrela fica mesmo no centro */
+    padding: 4px 6px;
+    font-size: 22px;
+}
+.item-estrela.ligada {
+    opacity: 1;
+    color: #9a9aa8; /* favorito = estrela CINZA preenchida (pedido do dono, 17/11/2026), não mais amarela */
+}
+.item-estrela:hover {
+    opacity: 1;
+}
+/* Os GRUPOS: bolinhas coloridas a cavalo na borda de CIMA da fichinha, como o sinal de uma notificação. No máximo 3, bem coladas e levemente UMA SOBRE A OUTRA. */
+.item-grupos {
+    position: absolute;
+    top: -4px; /* (a bolinha de 11 px tem o centro na mesma linha do marcador de ficha e da estrela) */
+    right: 6px;
+    z-index: 2;
+    display: flex;
+    pointer-events: none;
+}
+.item-grupos i {
+    width: 11px;
+    height: 11px;
+    box-sizing: border-box;
+    border-radius: 50%;
+    background: var(--cor-grupo, #888);
+    border: 2px solid #22222a; /* o anel escuro separa as bolinhas quando uma fica sobre a outra */
+}
+.item-grupos i + i {
+    margin-left: -5px;
+}
+#bolsa.expandida .item-grupos {
+    top: -7px;
+    right: 9px;
+}
+#bolsa.expandida .item-grupos i {
+    width: 16px;
+    height: 16px;
+}
+#bolsa.expandida .item-grupos i + i {
+    margin-left: -7px;
+}
+#menu-grupos {
+    position: fixed;
+    z-index: 46;
+    min-width: 190px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 4px;
+    background: #2a2a33;
+    border: 1px solid #4a4a58;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+#menu-grupos button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 7px 10px;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+#menu-grupos button:hover {
+    background: #3b3b49;
+}
+#menu-grupos .marca {
+    width: 14px;
+    text-align: center;
+    color: #ffd54f;
+}
+#menu-grupos .ponto-grupo {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+    background: var(--cor-grupo, #888);
+}
+#menu-grupos hr {
+    margin: 4px 0;
+    border: none;
+    border-top: 1px solid #4a4a58;
+}
+/* Janela de nome e cor do grupo (acima da bolsa em tela cheia, abaixo da caixa de confirmar, que é 60). */
+#editor-grupo {
+    position: fixed;
+    inset: 0;
+    z-index: 58;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.45);
+}
+#editor-grupo[hidden] {
+    display: none;
+}
+#editor-grupo-painel {
+    width: 300px;
+    max-width: calc(100vw - 32px);
+    box-sizing: border-box;
+    padding: 16px;
+    background: #26262f;
+    border: 1px solid #4a4a58;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+#editor-grupo-painel h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+}
+#editor-grupo-nome {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    font: inherit;
+    color: inherit;
+    background: #1f1f27;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+}
+/* A paleta é uma GRADE de 6 colunas (como a da bolsa): num flex, o botão de cor sem largura encolhia a uma barrinha. */
+#editor-grupo-amostras {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+}
+#editor-grupo-amostras .amostra {
+    height: 18px;
+}
+#editor-grupo-cor {
+    display: block;
+    width: 100%;
+    height: 20px;
+    margin-top: 6px;
+    padding: 0;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    cursor: pointer;
+}
+#editor-grupo-botoes {
+    /* Duas fileiras que cabem no painel de 300 px: [Excluir grupo][Compartilhar…] em cima (só ao editar) e [Cancelar][Salvar] embaixo, cada botão com a mesma largura. */
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 14px;
+}
+#editor-grupo-botoes button {
+    flex: 1 1 calc(50% - 4px);
+    white-space: nowrap;
+}
+#editor-grupo-excluir,
+#editor-grupo-compartilhar {
+    order: 1;
+}
+#editor-grupo-cancelar,
+#editor-grupo-salvar {
+    order: 2;
+}
+#editor-grupo-botoes button {
+    padding: 6px 12px;
+    font: inherit;
+    font-size: 13px;
+    color: inherit;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#editor-grupo-botoes #editor-grupo-excluir {
+    color: #ff9a9a;
+}
+#editor-grupo-botoes #editor-grupo-salvar {
+    border-color: #ffd54f;
+}
+/* SELEÇÃO (ui/bolsa.ts): o item selecionado ganha o contorno dourado; o retângulo de seleção é só um desenho por cima de tudo. */
+#bolsa .bolsa-doc.selecionada {
+    background: #46425a;
+    outline: 2px solid #ffd54f;
+    outline-offset: -2px;
+}
+/* o token selecionado: a moldura REDONDA ganha o fundo de seleção e o aro dourado (a caixinha do token é um círculo) */
+#bolsa .ficha.selecionada .disco {
+    box-shadow: 0 0 0 6px #46425a, 0 0 0 8px #ffd54f;
+}
+#bolsa-retangulo {
+    position: fixed;
+    z-index: 70;
+    pointer-events: none;
+    background: rgba(255, 213, 79, 0.15);
+    border: 1px solid #ffd54f;
+}
+#bolsa-retangulo[hidden] {
+    display: none;
+}
+#bolsa-vazia,
+#bolsa-fichas-vazia {
+    pointer-events: none; /* a mensagem fica por cima da lista, mas deixa o mouse passar (o retângulo de seleção começa no vazio) */
+}
+/* A barra de AÇÕES da seleção (2 ou mais itens; só na tela cheia): fica NO ALTO, ao lado da pesquisa (a mesma linha e a mesma altura de 30 px), para NÃO empurrar o
+   resto da interface para baixo. Serve para Tokens e para Fichas. A pesquisa continua visível, e o "+ Criar ficha" também. */
+#bolsa-selecao-barra {
+    order: 9;
+    flex: 0 1 auto;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+#bolsa-selecao-barra[hidden] {
+    display: none;
+}
+#bolsa-selecao-contagem {
+    font-size: 12px;
+    color: #ffd54f;
+    white-space: nowrap;
+    margin-right: 4px;
+}
+#bolsa-selecao-excluir {
+    color: #ff9a9a;
+}
+#bolsa #bolsa-selecao-barra .bolsa-botao-pequeno {
+    order: 0;
+    margin-right: 0;
+}
+#bolsa.expandida #bolsa-selecao-barra {
+    order: 0;
+    margin-right: auto; /* (título, pesquisa, a barra de ações e o Fechar na ponta direita) */
+}
+#bolsa.com-selecao #bolsa-busca,
+#bolsa.com-selecao #bolsa-fichas-busca {
+    margin-right: 12px; /* a pesquisa fica à vista e a barra vem logo depois dela (e não empurrada para a direita) */
+}
+/* Tela cheia: o "+ Criar ficha" mora na linha do botão "Instruções" (ui/bolsa.ts o move para lá). */
+#bolsa.expandida #bolsa-fichas-botoes #bolsa-ficha-criar-botao {
+    order: 0;
+    height: auto;
+    margin: 0;
+    padding: 0 10px;
+    font-size: 12px;
+}
+/* A GRADE de documentos, organizada como a de tokens (#bolsa-itens): 4 por linha na bolsa pequena, e mais na média e na
+   tela cheia. Não confundir com a classe ".ficha" (a fichinha de um TOKEN). */
+#bolsa-fichas-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    max-height: 120px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+}
+/* Bolsa do CANTO: a lista tem, por padrão, a altura de exatamente 3 LINHAS de itens (mesmo com poucos ou nenhum) e só então rola.
+   A bolsa tem a MESMA ALTURA nas duas abas (Tokens e Fichas): o painel de cada uma tem altura fixa (3 linhas de 72 px + 2 espaços de
+   6 px), a lista ocupa tudo, e as mensagens ("Nenhuma ficha ainda...", "Arraste tokens para cá...") e o aviso de erro das fichas
+   ficam POR CIMA da lista, sem ocupar lugar. A tela cheia (#bolsa.expandida) tem as suas próprias regras. */
+#bolsa:not(.expandida) #bolsa-conteudo,
+#bolsa:not(.expandida) #bolsa-fichas {
+    position: relative;
+    flex: 1 1 auto; /* a lista ocupa TODA a altura que sobra na coluna (e rola depois disso) */
+    min-height: 0;
+}
+#bolsa:not(.expandida) #bolsa-itens,
+#bolsa:not(.expandida) #bolsa-fichas-lista {
+    grid-template-columns: repeat(4, minmax(0, 1fr)); /* a coluna tem 320 px: 4 por linha */
+    grid-auto-rows: 114px; /* mais alta (era 72): cabe a linha de marcadores, o ícone maior (54 px) e o nome */
+    padding-top: 7px; /* as bolinhas de grupo ficam a cavalo na borda de cima: sem este respiro a rolagem as cortaria na 1ª linha */
+    align-content: start;
+    height: 100%;
+    max-height: none;
+    box-sizing: border-box;
+}
+#bolsa:not(.expandida) #bolsa-vazia,
+#bolsa:not(.expandida) #bolsa-fichas-vazia {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 1;
+    pointer-events: none; /* (o clique e o "soltar aqui" passam para a bolsa) */
+}
+#bolsa:not(.expandida) #bolsa-fichas-barra {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 2;
+    margin: 0;
+}
+#bolsa:not(.expandida) #bolsa-ficha-aviso {
+    margin: 0;
+    padding: 4px 8px;
+    background: #22222a;
+    border: 1px solid #3a3a45;
+    border-radius: 6px;
+}
+/* Um documento da grade (pedido do dono, 17/11/2026): a cor é a dos tokens e o único sinal de "documento" é a DOBRINHA no canto de cima à direita. Dividido ao meio: em cima os TOKENS ligados
+   (50%), embaixo o NOME (50%), sempre grudado na base e crescendo PARA CIMA (a última linha fica embaixo). */
+.bolsa-doc {
+    display: grid;
+    grid-template-rows: 32px 1fr; /* tokens em cima (32 px) e o texto embaixo com a MESMA altura de antes (cerca de 50 px: cabem 4 linhas); o cartão encolheu só pela parte dos tokens (pedido do dono, 17/11/2026) */
+    justify-items: center;
+    gap: 2px;
+    height: 104px; /* (já foi 124 e 108 px) */
+    padding: 12px 6px 6px;
+    min-width: 0;
+    box-sizing: border-box;
+    background: #2f2f3a; /* a MESMA cor das fichinhas dos tokens (pedido do dono, 17/11/2026: o "papel" claro foi desfeito; só a dobrinha do canto lembra um documento) */
+    border: 1px solid #4a4a58;
+    color: inherit;
+    border-radius: 8px; /* (o mesmo canto dos tokens) */
+    font-size: 11px;
+    cursor: pointer; /* clicar abre a ficha para editar */
+    /* SEM overflow: hidden: a estrela e o selo "1" ficam a cavalo na borda de cima, e o recorte os cortava (o nome e os tokens já cuidam do próprio excesso) */
+}
+.bolsa-doc::before {
+    /* a pontinha DOBRADA do papel, no canto de cima à direita */
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 16px;
+    height: 16px;
+    background: linear-gradient(225deg, transparent 50%, #4a4a58 50%); /* (a cor da borda dos tokens) */
+    border-bottom-left-radius: 4px;
+    border-top-right-radius: 8px; /* acompanha o canto arredondado do cartão */
+}
+.bolsa-doc:hover {
+    background: #3b3b49; /* (o mesmo realce dos tokens) */
+}
+.bolsa-doc:focus-visible {
+    outline: 2px solid #ffd54f;
+}
+/* A ficha que está ABERTA na janela tem o nome em outra cor (dourado), para achá-la na bolsa. */
+.bolsa-doc.aberta .bolsa-doc-nome {
+    color: #ffd54f;
+    font-weight: 600;
+}
+.bolsa-doc-nome {
+    grid-row: 2; /* (mesmo sem tokens, o nome fica na METADE DE BAIXO) */
+    /* a metade de baixo do cartão (sempre 50%: os tokens ocupam a de cima): o texto COMEÇA NO TOPO dessa metade, sempre na mesma altura, e as linhas novas descem (pedido do dono, 17/11/2026; antes ficava encostado na base) */
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    align-self: stretch;
+    min-height: 0;
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-align: center;
+    line-height: 1.2;
+    font-size: 10px; /* (já foi 12 px: pedido do dono, 17/11/2026) */
+    font-weight: 600;
+    text-wrap: pretty; /* quebras de linha mais bonitas (sem palavra solta na última linha) */
+}
+/* a VERSÃO: só na tela cheia (na bolsa do canto continua na dica do mouse), num cantinho do alto, ao lado da pontinha dobrada */
+.bolsa-doc small {
+    position: absolute;
+    top: 3px;
+    right: 20px;
+    font-size: 10px;
+    color: #9a9aa8;
+}
+#bolsa:not(.expandida) .bolsa-doc small {
+    display: none;
+}
+/* Tela cheia: o painel ocupa a largura toda (por baixo do cabeçalho) e a grade se estica até a borda direita. */
+#bolsa.expandida #bolsa-fichas {
+    grid-column: 1 / -1;
+    grid-row: 2 / -1;
+    min-height: 0;
+    overflow-y: auto;
+}
+/* Idem na aba Fichas: a lista de documentos preenche a altura que sobra, mesmo vazia (o retângulo de seleção começa em qualquer ponto vazio). */
+#bolsa.expandida.aba-fichas #bolsa-fichas {
+    display: flex;
+    flex-direction: column;
+}
+#bolsa.expandida.aba-fichas #bolsa-fichas > * {
+    flex: none;
+}
+#bolsa.expandida.aba-fichas #bolsa-fichas > #bolsa-fichas-lista {
+    flex: 1 0 auto;
+    min-height: 260px;
+}
+#bolsa.expandida #bolsa-fichas-barra {
+    max-width: 360px;
+}
+#bolsa.expandida #bolsa-fichas-vazia {
+    font-size: 14px;
+}
+#bolsa.expandida #bolsa-fichas-lista {
+    max-height: none;
+    overflow: visible;
+    align-content: start;
+    padding-top: 9px; /* respiro para as bolinhas de grupo a cavalo na borda de cima */
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+}
+#bolsa.expandida .bolsa-doc {
+    height: 142px; /* (já foi 170 e 148 px) */
+    grid-template-rows: 42px 1fr;
+    padding: 18px 8px 10px;
+    font-size: 13px;
+}
+#bolsa.expandida .bolsa-doc-nome {
+    font-size: 12px; /* (já foi 14 px) */
+}
+#bolsa.expandida .bolsa-doc small {
+    font-size: 12px;
+}
+/* Janelas estreitas: a criação fica em cima e as fichas embaixo. */
+@media (max-width: 760px) {
+    #bolsa.expandida {
+        grid-template-columns: minmax(0, 1fr);
+        grid-template-rows: auto auto minmax(0, 1fr);
+        overflow-y: auto;
+    }
+    #bolsa.expandida #bolsa-criar,
+    #bolsa.expandida #bolsa-conteudo {
+        grid-column: 1;
+        overflow: visible;
+    }
+    #bolsa.expandida #bolsa-criar {
+        grid-row: 2;
+    }
+    #bolsa.expandida #bolsa-conteudo {
+        grid-row: 3;
+    }
+}
+#bolsa-vazia {
+    margin: 0;
+    font-size: 12px;
+    color: #7d7d8c;
+}
+#bolsa-itens {
+    /* 5 fichas por linha (colunas que se ajustam: não quebram quando a barra de rolagem aparece). */
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 6px;
+    max-height: 120px;
+    overflow-y: auto;
+    scrollbar-gutter: stable; /* reserva o lugar da barra: as colunas não mudam de largura ao rolar */
+}
+.ficha {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 22px 4px 6px; /* uma FAIXA em cima para as marcas (arquivo, estrela e grupos); a moldura redonda do token fica logo abaixo dela */
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    background: transparent; /* SEM caixa retangular (pedido do dono, 17/11/2026): a "caixinha" do token é um CÍRCULO, a moldura em volta dele (a sombra do `.disco`, abaixo) */
+    color: inherit;
+    font: inherit;
+    border: none;
+    border-radius: 0;
+    cursor: grab;
+    touch-action: none;
+}
+.ficha .disco {
+    width: 54px; /* o ícone tem o MESMO tamanho para todo token, 1×1 ou 4×4 (o tamanho fica na dica do mouse) */
+    height: 54px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-sizing: border-box;
+    margin-bottom: 4px;
+    /* a CAIXINHA redonda: um aro escuro em volta do token (a cor da antiga caixa), com um fio de borda por fora */
+    box-shadow: 0 0 0 6px #2f2f3a, 0 0 0 7px #4a4a58;
+}
+.ficha:hover .disco {
+    box-shadow: 0 0 0 6px #3b3b49, 0 0 0 7px #5a5a6a;
+}
+/* Nome do token na ficha (pedido do dono, 17/11/2026: igual em TODOS os tamanhos da bolsa, e igual ao do cartão da ficha): até DUAS linhas, centralizado, com quebra bonita (`text-wrap: pretty`) e "…"
+   só se passar de duas (o nome inteiro está na dica do mouse). Antes, na média e na tela cheia era uma linha só. */
+.ficha .ficha-nome {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+    text-align: center;
+    line-height: 1.2;
+    font-size: 11px;
+    font-weight: 600;
+    color: #e6e6ea;
+}
+.ficha small {
+    font-size: 11px;
+    color: #c9c9d4;
+}
+/* Bolsa PEQUENA (a do canto): sem o tamanho (continua na dica do mouse); o nome ganha esse espaço. Na média e na tela cheia o tamanho continua à vista. */
+#bolsa:not(.expandida) .ficha small {
+    display: none;
+}
+#painel-calibragem h2 {
+    margin: 0 0 6px;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ffd54f;
+}
+#painel-calibragem p {
+    margin: 0 0 8px;
+    color: #c9c9d4;
+}
+#painel-calibragem p.secundario {
+    color: #9a9aa8;
+}
+#painel-calibragem input {
+    width: 54px;
+    padding: 2px 4px;
+    box-sizing: border-box;
+    background: #2f2f3a;
+    color: inherit;
+    font: inherit;
+    text-align: center;
+    border: 1px solid #4a4a58;
+    border-radius: 4px;
+}
+#calibragem-resultado {
+    margin-bottom: 10px;
+    font-variant-numeric: tabular-nums;
+}
+#painel-calibragem .botao-largo {
+    width: auto;
+    margin: 0;
+    padding: 0 14px;
+}
+
+
+
+/* ===== A ABA MAPAS (a biblioteca de mapas; ui/bolsaMapas.ts) ===== */
+/* A aba é um MODO À PARTE da bolsa (só a classe `aba-mapas`): esconde o que é de tokens e de fichas (com !important, porque outras regras da bolsa, como as da tela cheia, definem o display delas) e mostra o painel. */
+#bolsa-mapas {
+    display: none;
+}
+#bolsa.aba-mapas #bolsa-conteudo,
+#bolsa.aba-mapas #bolsa-criar,
+#bolsa.aba-mapas #bolsa-busca,
+#bolsa.aba-mapas #bolsa-fichas,
+#bolsa.aba-mapas #bolsa-fichas-busca,
+#bolsa.aba-mapas #bolsa-organizar,
+#bolsa.aba-mapas #bolsa-criar-token-botao,
+#bolsa.aba-mapas #bolsa-ficha-criar-botao {
+    display: none !important;
+}
+#bolsa.aba-mapas #bolsa-mapas {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+    overflow-y: auto; /* o painel INTEIRO rola (a lista de mapas e, embaixo, as configurações do tabuleiro) */
+}
+#bolsa-mapas-barra {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+#bolsa-mapas-enviar {
+    width: auto;
+    align-self: flex-start;
+}
+#bolsa-mapas-aviso {
+    margin: 0;
+    font-size: 12px;
+    color: #9ad59a;
+}
+#bolsa-mapas-aviso:empty {
+    display: none;
+}
+#bolsa-mapas-aviso[data-erro] {
+    color: #ff9a9a;
+}
+#bolsa-mapas-explicacao {
+    flex: none;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #9a9aa8;
+}
+#bolsa-mapas-lista {
+    flex: none;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.bolsa-mapa {
+    /* Layout EMPILHADO (cabe na coluna estreita; pedido do dono, 17/11/2026): nome, tamanho (pequeno e apagado), "jogadores aqui" e, por último, o menu e os botões. */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 8px 10px;
+    background: #2f2f3a;
+    border: 1px solid #3a3a45;
+    border-radius: 8px;
+}
+.bolsa-mapa.atual {
+    border-color: #ffd54f; /* o mapa que está à vista agora */
+}
+.bolsa-mapa-nome {
+    overflow: hidden;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.bolsa-mapa-info {
+    font-size: 10px;
+    color: rgba(154, 154, 168, 0.55); /* bem pequeno e quase apagado */
+}
+.bolsa-mapa-aqui {
+    font-size: 11px;
+    color: #8fd18f;
+}
+.bolsa-mapa-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+.bolsa-mapa-selo {
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1d1d23;
+    background: #ffd54f;
+    border-radius: 5px;
+}
+.bolsa-mapa-usar,
+.bolsa-mapa-excluir {
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 12px;
+    color: inherit;
+    background: #3b3b49;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.bolsa-mapa-usar:hover {
+    border-color: #ffd54f;
+    color: #ffd54f;
+}
+.bolsa-mapa-excluir {
+    padding: 3px 8px;
+}
+.bolsa-mapa-excluir:hover {
+    border-color: #ff6b6b;
+    color: #ff9a9a;
+}
+
+/* Os TOKENS ligados à ficha: a metade de cima do cartão, no meio. Ficam numa FILEIRA ÚNICA, um pouco SOBREPOSTOS (como as fotos de perfil de um grupo), então 2, 3 ou 4 itens (3 tokens + "+N") ficam
+   sempre alinhados e cabem na largura do cartão (pedido do dono, 17/11/2026: com vários, a arrumação anterior ficava bagunçada). Sozinho, o token é maior. */
+.bolsa-doc-tokens {
+    grid-row: 1;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0 2px;
+}
+.bolsa-doc-tokens > * {
+    flex: none;
+    box-sizing: border-box;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+}
+.bolsa-doc-tokens > * + * {
+    margin-left: -9px; /* cada um cobre um pedacinho do anterior */
+}
+.bolsa-doc-tokens .disco.mini {
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.bolsa-doc-tokens[data-quantos="1"] > * {
+    width: 31px; /* (cabe na metade de cima, que ficou um pouco menor) */
+    height: 31px;
+}
+.bolsa-doc-tokens[data-quantos="2"] > * {
+    width: 26px;
+    height: 26px;
+}
+.bolsa-doc-tokens .mais {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #5a5a68;
+    color: #fff;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    font-size: 10px;
+    font-weight: 700;
+}
+#bolsa.expandida .bolsa-doc-tokens > * {
+    width: 30px;
+    height: 30px;
+}
+#bolsa.expandida .bolsa-doc-tokens > * + * {
+    margin-left: -12px;
+}
+#bolsa.expandida .bolsa-doc-tokens[data-quantos="1"] > * {
+    width: 43px;
+    height: 43px;
+}
+#bolsa.expandida .bolsa-doc-tokens[data-quantos="2"] > * {
+    width: 35px;
+    height: 35px;
+}
+/* AVISO EM VERMELHO: ficha única com vários tokens ligados. */
+.bolsa-doc.erro-unica {
+    box-shadow: inset 0 0 0 2px #d9372e;
+}
+.bolsa-doc-alerta {
+    position: absolute; /* o aviso vermelho: só o ⚠, ao lado do selo de ficha única (os detalhes ficam na dica do mouse) */
+    top: 3px;
+    left: 22px;
+    order: 4;
+    font-size: 12px;
+    line-height: 14px;
+    font-weight: 700;
+    color: #ff6b63;
+}
+
+/* O selo de ficha ÚNICA (pedido do dono, 17/11/2026): agora usa o ícone `public/images/svgs/unique.svg` (um selo com visto) no lugar do número "1". O SVG é um contorno preto, então entra como MÁSCARA
+   (a forma dele) pintada com a cor do tema. */
+.bolsa-doc .item-unica,
+#bolsa.expandida .bolsa-doc .item-unica {
+    width: 14px;
+    height: 14px;
+    top: 3px;
+    left: 5px;
+    font-size: 0;
+    line-height: 0;
+    background: #4aa3ff;
+    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
+}
+#bolsa.expandida .bolsa-doc .item-unica {
+    width: 20px;
+    height: 20px;
+    top: 5px;
+    left: 8px;
+}
+
+/* ===== O QUE É SÓ DO MESTRE (classe `so-mestre`): some para quem não é mestre (`body.jogador`, ligada pelo main.ts). O servidor também recusa; isto só esconde. ===== */
+body.jogador .so-mestre,
+body.jogador .acao-nova {
+    display: none !important;
+}
+
+/* ===== A ABA JOGADORES (ui/jogadores.ts): mesmo esquema da aba Mapas (um modo à parte da bolsa) ===== */
+#bolsa-jogadores {
+    display: none;
+}
+#bolsa.aba-jogadores #bolsa-conteudo,
+#bolsa.aba-jogadores #bolsa-criar,
+#bolsa.aba-jogadores #bolsa-busca,
+#bolsa.aba-jogadores #bolsa-fichas,
+#bolsa.aba-jogadores #bolsa-fichas-busca,
+#bolsa.aba-jogadores #bolsa-organizar,
+#bolsa.aba-jogadores #bolsa-criar-token-botao,
+#bolsa.aba-jogadores #bolsa-ficha-criar-botao,
+#bolsa.aba-jogadores #bolsa-mapas {
+    display: none !important;
+}
+#bolsa.aba-jogadores #bolsa-jogadores {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+    overflow-y: auto;
+}
+#bolsa-banidos-lista li {
+    padding: 3px 0;
+    font-size: 12px;
+    color: #c9c9d4;
+}
+#bolsa-banidos-botao {
+    align-self: flex-start;
+    width: auto;
+    padding: 3px 12px;
+}
+#bolsa-jogadores li button.banir {
+    color: #ff8a80;
+    border-color: #7a3a3a;
+}
+#bolsa-banidos-lista[hidden] {
+    display: none;
+}
+#bolsa-jogadores-lista,
+#compartilhar-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+#bolsa-jogadores-lista li,
+#compartilhar-lista li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+}
+.jogador-nome {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#bolsa-jogadores .ponto {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #5a5a68;
+}
+#bolsa-jogadores .ponto.online {
+    background: #4cd964;
+}
+.papel {
+    flex: none;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    background: #3a3a46;
+    color: #c9c9d4;
+}
+.papel.mestre {
+    background: #5b4a14;
+    color: #ffd54f;
+}
+#bolsa-jogadores li button,
+#compartilhar-fechar,
+#compartilhar-lista select {
+    padding: 3px 8px;
+    font: inherit;
+    font-size: 12px;
+    color: inherit;
+    background: #3a3a46;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#bolsa-limites {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+#bolsa-limites input {
+    width: 56px;
+    height: 26px;
+    box-sizing: border-box;
+    padding: 0 6px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+}
+#bolsa-limites .botao-largo {
+    width: auto;
+    padding: 3px 12px;
+}
+
+/* ===== AS MARCAS DA FICHINHA DO TOKEN, numa FAIXA no alto com posições FIXAS (pedido do dono, 17/11/2026): o símbolo da ficha (um ARQUIVO) à esquerda, a ESTRELA sempre no centro e os GRUPOS à
+   direita. A estrela não depende mais de quantos grupos há (antes ela ficava num lugar que mudava e encostava nas bolinhas). Só valem para a fichinha de TOKEN; o cartão das fichas tem as dele. ===== */
+.ficha .item-ficha-vinculo {
+    /* o ARQUIVO: o ícone `public/images/svgs/file.svg` (contorno preto) como máscara, pintado num cinza quase invisível (pedido do dono, 17/11/2026) */
+    left: 4px;
+    top: 3px;
+    width: 12px;
+    height: 12px;
+    font-size: 0;
+    line-height: 0;
+    background: rgba(201, 201, 212, 0.22); /* QUASE INVISÍVEL (pedido do dono, 17/11/2026): um cinza bem apagado, só para quem procura; antes dourado */
+    -webkit-mask: url("/images/svgs/file.svg") center / contain no-repeat;
+    mask: url("/images/svgs/file.svg") center / contain no-repeat;
+}
+/* O SELO de ficha única no token: o mesmo `unique.svg`, CINZA quase invisível como o arquivo, logo ao lado dele (pedido do dono, 17/11/2026). */
+.ficha .item-unica {
+    position: absolute;
+    left: 16px;
+    top: 3px;
+    width: 11px;
+    height: 11px;
+    background: rgba(201, 201, 212, 0.22);
+    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    pointer-events: none;
+}
+#bolsa.expandida .ficha .item-unica {
+    left: 36px;
+    top: 6px;
+    width: 20px;
+    height: 20px;
+}
+.ficha .item-estrela {
+    top: 2px;
+    left: 50%;
+    transform: translateX(-50%); /* SEMPRE no centro da faixa */
+    padding: 0 1px;
+    font-size: 14px;
+}
+.ficha .item-grupos {
+    /* As bolinhas de GRUPO ocupam só o que precisam (uma, duas ou três: cada uma a mais acrescenta um pedaço, em vez de uma área fixa para três): assim o arquivo, o selo e a estrela
+       ficam sempre no mesmo lugar e não se espremem, com 0, 1 ou 3 grupos. */
+    top: 5px;
+    right: 4px;
+}
+.ficha .item-grupos i {
+    width: 10px;
+    height: 10px;
+}
+.ficha .item-grupos i + i {
+    margin-left: -4px;
+}
+#bolsa.expandida .ficha .item-ficha-vinculo {
+    left: 10px;
+    top: 5px;
+    width: 22px;
+    height: 22px;
+}
+#bolsa.expandida .ficha .item-estrela {
+    top: 4px;
+    left: 50%;
+    padding: 0 4px;
+    font-size: 22px;
+}
+#bolsa.expandida .ficha .item-grupos {
+    top: 8px;
+    right: 12px;
+}
+
+/* O botão "Quem vê" de cada mapa (abre o menu de caixas, igual ao dos status). */
+.bolsa-mapa-quem {
+    padding: 2px 8px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.bolsa-mapa-quem:hover,
+.bolsa-mapa-quem[aria-expanded="true"] {
+    border-color: #ffd54f;
+}
+
+/* ===== AS MARCAS DO TOPO DO CARTÃO DA FICHA, em posições FIXAS (pedido do dono, 17/11/2026): o selo de ficha única e o ⚠ à esquerda, a ESTRELA sempre no centro e os GRUPOS à direita. ===== */
+.bolsa-doc .item-estrela {
+    top: 1px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0 2px;
+    font-size: 13px;
+}
+.bolsa-doc .item-grupos {
+    top: 4px;
+    right: 6px;
+}
+#bolsa.expandida .bolsa-doc .item-estrela {
+    top: 3px;
+    font-size: 20px;
+    padding: 0 4px;
+}
+#bolsa.expandida .bolsa-doc .item-grupos {
+    top: 6px;
+    right: 10px;
+}
+#bolsa.expandida .bolsa-doc-alerta {
+    top: 6px;
+    left: 32px;
+    font-size: 16px;
+    line-height: 18px;
+}
+
+/* O chip de FICHAS ÚNICAS (filtro): azul, com o selo `unique.svg` (o mesmo do cartão da ficha única). */
+.bolsa-chip.chip-unica {
+    --cor-grupo: #4aa3ff;
+}
+.bolsa-chip .icone-unica {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    background: #4aa3ff;
+    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+}
+
+/* O selo de ficha única no MENU de filtros da bolsa (no lugar da bolinha azul). */
+#menu-grupos .icone-unica {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    background: #4aa3ff;
+    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+}
+
+/* A JANELA DO TABULEIRO (colunas, linhas, mapa de fundo, grade), FORA da caixa do chat; abre pelo ⚙ de cada mapa (ui/bolsaMapas.ts). */
+#mapas-tabuleiro {
+    position: fixed;
+    top: 64px;
+    right: calc(var(--largura-chat, 320px) + 28px);
+    z-index: 40;
+    width: 300px;
+    max-height: calc(100vh - 90px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 12px 14px 14px;
+    background: rgba(34, 34, 42, 0.98);
+    border: 1px solid #3a3a45;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    font-size: 13px;
+}
+#mapas-tabuleiro[hidden] {
+    display: none;
+}
+.mapas-tabuleiro-topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+.mapas-tabuleiro-topo h1 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #c9c9d4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#mapas-tabuleiro-fechar {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    cursor: pointer;
+}
+#mapas-tabuleiro-nota {
+    margin: 0 0 10px;
+    color: #ffb74d;
+    font-size: 12px;
+    line-height: 1.4;
+}
+#mapas-tabuleiro-grade.travada {
+    opacity: 0.4;
+}
+#mapas-tabuleiro-grade {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+/* O botão ⚙ de cada mapa na lista. */
+.bolsa-mapa-config {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    cursor: pointer;
+}
+.bolsa-mapa-config:hover {
+    background: #3b3b49;
+    color: #ffd54f;
+}
+#mapas-tabuleiro-grade h2 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9a9aa8;
+}
+
+/* Na bolsa em TELA CHEIA os tokens NÃO se arrastam para o mapa (só na bolsa do canto): sem a mãozinha de arrastar, que enganava (pedido do dono, 17/11/2026). */
+#bolsa.expandida .ficha {
+    cursor: pointer;
+}
+#bolsa-limites-salvo {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4cd964;
+}
+#bolsa-limites-salvo[hidden] {
+    display: none;
+}
+/* O botão "Mover jogadores para este mapa" é VERDE (pedido do dono, 17/11/2026). */
+#bolsa-mapas-mover {
+    background: #2e7d4f;
+    border-color: #3fae6d;
+    color: #fff;
+    font-weight: 600;
+}
+#bolsa-mapas-mover:hover:not(:disabled) {
+    background: #38985f;
+}
+#bolsa-mapas-mover[hidden] {
+    display: none;
+}
+.bolsa-mapa-aqui.com-problema {
+    color: #ffb74d;
+}

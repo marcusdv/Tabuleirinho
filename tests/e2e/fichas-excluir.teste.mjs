@@ -29,7 +29,7 @@ ok("0) 3 fichas criadas", (await nomes()).join() === "Ficha 1,Ficha 2,Ficha 3");
 // ---------- excluir: menu do clique direito
 await p.locator(".bolsa-doc").nth(1).click({ button: "right" });
 const itens = await p.locator("#menu-doc button").allTextContents();
-ok("1a) o clique direito num documento abre o MENU do jogo (e não o do navegador) com 'Abrir e editar', 'Gerar um token', 'Favoritar', 'Grupos…' e 'Excluir ficha'", (await p.locator("#menu-doc").isVisible()) && itens.join("|") === "Abrir e editar|Gerar um token|Favoritar|Grupos…|Excluir ficha", itens.join("|"));
+ok("1a) o clique direito num documento abre o MENU do jogo (e não o do navegador) com 'Abrir e editar', 'Gerar um token', 'Adicionar a um token', 'Tokens da ficha', 'Favoritar', 'Grupos…', 'Compartilhar…' e 'Excluir ficha'", (await p.locator("#menu-doc").isVisible()) && itens.join("|").replace(/Tokens da ficha \(\d+\)/, "Tokens da ficha") === "Abrir e editar|Gerar um token|Adicionar a um token|Tokens da ficha|Favoritar|Grupos…|Compartilhar…|Excluir ficha", itens.join("|"));
 await p.click("#menu-doc-excluir");
 ok("1b) 'Excluir ficha' abre a caixa de confirmar (a do jogo), com o nome e o aviso", (await caixaAberta()) && (await p.locator("#confirmar-titulo").textContent()) === "Excluir ficha" && /"Ficha 2"/.test(await p.locator("#confirmar-mensagem").textContent()) && /não pode ser desfeito/.test(await p.locator("#confirmar-mensagem").textContent()) && nativos.length === 0);
 await p.click("#confirmar-cancelar");

@@ -12,7 +12,7 @@
 // =====================================================================
 
 import { Container, Graphics, Text, type PointData } from "pixi.js";
-import { MAX_PONTOS_REGUA, TAMANHO_CASA } from "../config";
+import { MAX_PONTOS_REGUA, TAMANHO_CASA, PX_MIN_ARRASTO_REGUA } from "../config";
 import { limitar } from "../coordenadas";
 import { distanciaEmCasas, textoDaDistancia } from "../desenhos";
 import { estado } from "../estado";
@@ -59,6 +59,7 @@ export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
     // fixadas com o botão direito) e `fim` é a ponta que acompanha o mouse. Vazio = sem medida.
     let pontos: Casa[] = [];
     let fim: Casa | null = null;
+    let origemTela: PointData | null = null; // onde o mouse apertou (em pixels da tela): a régua só aparece depois de o mouse andar daqui
 
     /** A casa (coluna, linha) sob um ponto da TELA, limitada ao tabuleiro. */
     function casaEm(ponto: PointData): Casa {
@@ -140,18 +141,23 @@ export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
             arrastando = true;
             const comeco = casaEm(ponto);
             pontos = [comeco]; // uma medida nova apaga a anterior (e suas curvas)
-            fim = { ...comeco };
+            fim = null; // NADA aparece ao clicar: a régua só surge quando o mouse é ARRASTADO (pedido do dono, 17/11/2026)
+            origemTela = { x: ponto.x, y: ponto.y };
             desenhar();
         },
 
         arrastar(ponto) {
             if (!arrastando) return;
+            // Enquanto a régua ainda não apareceu, o mouse precisa andar um pouco (um tremor do clique não conta).
+            if (fim === null && (!origemTela || Math.hypot(ponto.x - origemTela.x, ponto.y - origemTela.y) < PX_MIN_ARRASTO_REGUA)) return;
             fim = casaEm(ponto);
             desenhar();
         },
 
         soltar() {
-            arrastando = false; // a medida continua na tela
+            arrastando = false; // a medida continua na tela (se nunca foi arrastada, não há medida)
+            origemTela = null;
+            if (fim === null) pontos = [];
         },
 
         // Botão direito no meio da medida: fixa um ponto onde a ponta está e a medida segue dali.

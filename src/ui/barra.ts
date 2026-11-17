@@ -19,6 +19,7 @@ import { guardarPreferencia, lerPreferencia } from "./preferencias";
 import { restaurarPilha } from "./pilha";
 import { estado } from "../estado";
 import type { Camera } from "../tabuleiro/camera";
+import type { GradeDaMesa } from "../estado";
 import type { AjustesDaGrade } from "../tabuleiro/grade";
 
 export interface OpcoesBarra {
@@ -30,8 +31,15 @@ export interface OpcoesBarra {
     aoEscolherMapa(arquivo: File): void;
     /** Clicou em "Voltar ao padrão" (zoom 100% e tamanho inicial do tabuleiro). */
     aoVoltarAoPadrao(): void;
-    /** A pessoa mudou os ajustes da grade (mostrar, espessura ou cor). */
+    /** Os ajustes da grade mudaram e devem ser APLICADOS no desenho (mostrar, espessura ou cor). */
     aoMudarGrade(ajustes: AjustesDaGrade): void;
+    /**
+     * A pessoa quer mudar a espessura ou a cor da grade, que são da MESA. Online o pedido vai ao servidor e devolve true (a mudança só vale quando o servidor avisar todos); sem servidor
+     * devolve false e a barra aplica na hora, guardando no navegador.
+     */
+    aoPedirGradeDaMesa(grade: GradeDaMesa): boolean;
+    /** Esta pessoa pode mudar a espessura e a cor da grade? (Online, só o mestre; sem servidor, sempre.) */
+    podeMudarGrade(): boolean;
 }
 
 export interface Barra {
@@ -41,6 +49,10 @@ export interface Barra {
     marcarCalibragem(ligada: boolean): void;
     /** Os ajustes da grade guardados no navegador (a camada da grade os aplica ao ser criada). */
     ajustesDaGrade(): AjustesDaGrade;
+    /** O servidor disse qual é a espessura e a cor da grade da mesa: aplica (sem guardar no navegador) e refaz os controles. */
+    aplicarGradeDaMesa(grade: GradeDaMesa): void;
+    /** Refaz os controles da grade (por exemplo, quando se descobre se esta pessoa é o mestre). */
+    atualizarGrade(): void;
 }
 
 /** Atalho para buscar um elemento da página pelo id. */
@@ -121,7 +133,7 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
         campoArquivo.value = "";
     });
 
-    // --- Ajustes da GRADE: mostrar/esconder, espessura da linha e cor. Ficam guardados no navegador. ---
+    // --- Ajustes da GRADE: mostrar/esconder (de cada pessoa, guardado no navegador) e espessura e cor (da MESA: online vêm do servidor). ---
     const botaoMostrarGrade = pegar<HTMLButtonElement>("grade-mostrar");
     const valorEspessura = pegar("grade-espessura-valor");
     const campoCorGrade = pegar<HTMLInputElement>("grade-cor");
@@ -134,8 +146,23 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
         pegar<HTMLButtonElement>("grade-espessura-mais").disabled = ajustesGrade.espessura >= ESPESSURA_GRADE_MAX;
         campoCorGrade.value = ajustesGrade.cor ?? "#000000";
         pegar("grade-cor-auto").classList.toggle("escolhido", ajustesGrade.cor === null);
+        // A espessura e a cor são da MESA: online só o mestre as muda (os outros veem o que o mestre escolheu). "Esconder grade" é de cada pessoa e fica sempre livre.
+        const pode = opcoes.podeMudarGrade();
+        const dicaDoMestre = pode ? "" : "Só o mestre muda a espessura e a cor da grade";
+        for (const id of ["grade-espessura-menos", "grade-espessura-mais", "grade-cor-auto"]) {
+            const botao = pegar<HTMLButtonElement>(id);
+            botao.dataset.dica ??= botao.title; // (guarda a dica de fábrica para devolvê-la quando a pessoa puder mexer)
+            if (!pode) botao.disabled = true;
+            else if (id === "grade-cor-auto") botao.disabled = false; // (os de espessura já foram calculados acima, pelos limites)
+            botao.title = dicaDoMestre || botao.dataset.dica;
+        }
+        campoCorGrade.disabled = !pode;
+        campoCorGrade.title = dicaDoMestre;
     }
     function mudarGrade(mudancas: Partial<AjustesDaGrade>): void {
+        const daMesa = "espessura" in mudancas || "cor" in mudancas;
+        // Espessura e cor, online: pede ao servidor e espera ele avisar todos (nada muda aqui antes disso).
+        if (daMesa && opcoes.aoPedirGradeDaMesa({ espessura: mudancas.espessura ?? ajustesGrade.espessura, cor: "cor" in mudancas ? (mudancas.cor ?? null) : ajustesGrade.cor })) return;
         ajustesGrade = { ...ajustesGrade, ...mudancas };
         mostrarAjustesDaGrade();
         guardarPreferencia(CHAVE_GRADE, JSON.stringify(ajustesGrade));
@@ -151,7 +178,17 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
     // (Abrir e fechar a barra é da PILHA de barras: ver ui/pilha.ts.)
 
     atualizar();
-    return { atualizar, marcarCalibragem, ajustesDaGrade: () => ajustesGrade };
+    return {
+        atualizar,
+        marcarCalibragem,
+        ajustesDaGrade: () => ajustesGrade,
+        aplicarGradeDaMesa(grade) {
+            ajustesGrade = { ...ajustesGrade, espessura: grade.espessura, cor: grade.cor }; // (vale só nesta sessão: não vai para o armazenamento do navegador)
+            mostrarAjustesDaGrade();
+            opcoes.aoMudarGrade(ajustesGrade);
+        },
+        atualizarGrade: mostrarAjustesDaGrade,
+    };
 }
 
 /** Lê os ajustes da grade guardados; qualquer coisa estranha (ou nada guardado) volta ao padrão. */

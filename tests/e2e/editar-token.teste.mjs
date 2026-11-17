@@ -18,7 +18,7 @@ const centroToken1 = { x: 348, y: 304 };
 
 // 1) pelo token NO MAPA
 await p.mouse.click(centroToken1.x, centroToken1.y, { button: "right" });
-ok("1a) a lista de ações da esquerda NÃO tem 'Editar token' (ele fica na engrenagem)", !(await p.locator("#acoes-token").innerText()).includes("Editar token"));
+ok("1a) o painel de ações (embaixo do token) NÃO tem 'Editar token' (ele fica na engrenagem)", !(await p.locator("#menu-grupo-mapa").innerText()).includes("Editar token"));
 await p.click("#engrenagem");
 ok("1a2) o painel da engrenagem tem 'Editar token'", await p.locator("#botao-editar-token").isVisible());
 await p.click("#botao-editar-token");

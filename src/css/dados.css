@@ -1,0 +1,270 @@
+/* O painel de DADOS (no pé da coluna) e o comportamento da coluna em janelas estreitas e no celular. (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
+/* ===================================================================
+         PAINEL DE DADOS: uma BARRA no PÉ da coluna da direita ("Dados" + uma setinha), embaixo do chat (ou da bolsa). Clicar em qualquer ponto da barra
+         expande a caixa de dados ali mesmo, empurrando o chat para cima; clicar de novo recolhe. Não é mais uma caixa flutuante nem arrastável.
+         =================================================================== */
+#dados {
+    flex: none;
+    box-sizing: border-box;
+    padding: 0 14px;
+    border-top: 1px solid #3a3a45;
+    user-select: none;
+}
+#dados > .cabecalho {
+    height: 40px;
+    cursor: pointer; /* a barra inteira é o botão */
+}
+#dados > .cabecalho:hover h1 {
+    color: #ffd54f;
+}
+#dados-alternar {
+    width: 26px;
+    height: 26px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: inherit;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+#dados-alternar:hover {
+    background: #3b3b49;
+}
+#dados.recolhida #dados-conteudo {
+    display: none; /* recolhido sobram só o nome e o botão (a largura não muda) */
+}
+/* HORIZONTAL: à esquerda os dados (em 2 linhas de 4) com quantidade e modificador EMBAIXO deles; à direita o Rolar, na altura toda. */
+#dados-conteudo {
+    display: flex;
+    gap: 10px;
+    padding-bottom: 14px; /* (a barra do alto tem 40 px de altura: o conteúdo começa logo embaixo dela) */
+}
+#dados-coluna-dados {
+    flex: 0 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+#dados-lados {
+    display: grid;
+    grid-template-columns: repeat(4, 44px);
+    grid-auto-rows: 38px;
+    gap: 4px;
+}
+/* MINIMIZAR a coluna do chat/bolsa (pedido do dono, em TODAS as telas): um botão no fim da linha das abas, no alto da coluna. Minimizada, sobra só a linha das
+   abas (o chat, a bolsa e a barra de Dados somem; o contador de mensagens não lidas continua na aba "Chat"). Em janela larga a barra fica no ALTO (a coluna
+   cresce para baixo ao reabrir); em janela estreita ela fica no PÉ da tela (cresce para cima: ver o @media abaixo). */
+#lateral-minimizar {
+    flex: none;
+    align-self: center;
+    width: 26px;
+    height: 26px;
+    margin: 0 0 1px 4px;
+    padding: 0;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: inherit;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+#lateral-minimizar:hover {
+    background: #3b3b49;
+}
+#lateral-minimizar .seta {
+    --giro: 45deg; /* aberta: ▾ (a coluna fica embaixo da barra das abas) */
+}
+#lateral-minimizar.recolhido .seta {
+    --giro: 135deg; /* minimizada: ‹ (aponta para a própria barra das abas, que continua à vista) */
+}
+#chat.minimizada {
+    bottom: auto; /* janela larga: a barra fica no alto e a altura é só a das abas */
+    height: auto;
+    max-height: none;
+    border-bottom: 1px solid #3a3a45;
+    border-radius: 0 0 10px 10px;
+}
+#chat.minimizada > :not(#lateral-abas) {
+    display: none;
+}
+#chat.minimizada #lateral-abas {
+    padding-bottom: 8px;
+    border-bottom: 0;
+}
+/* JANELA ESTREITA (pedido do dono): a coluna do chat/bolsa fica MENOR para sobrar mais mapa. Mais estreita (a variável --largura-chat leva junto tudo o que se mede
+   por ela: o recuo das outras caixas, a janela da ficha, o aviso) e MAIS BAIXA: deixa de ir de cima a baixo e fica encostada no pé da tela, com uma altura limitada
+   (o mapa aparece acima dela). Os dados e as fichinhas da bolsa encolhem para caber (a grade de 4 dados de 44 px não cabe em 272 px). */
+@media (max-width: 900px) {
+    :root {
+        --largura-chat: 272px;
+    }
+    #chat {
+        top: auto; /* solta do alto: a altura vem de baixo para cima */
+        height: max(320px, 60vh);
+        max-height: calc(100vh - 12px);
+        border-top: 1px solid #3a3a45;
+        border-top-left-radius: 10px;
+        border-top-right-radius: 10px;
+    }
+    #chat.minimizada {
+        bottom: 0; /* janela estreita: a barra minimizada continua encostada no pé da tela */
+        border-radius: 10px 10px 0 0;
+        border-top: 1px solid #3a3a45;
+        border-bottom: 0;
+    }
+    #dados-lados {
+        grid-template-columns: repeat(4, 36px);
+        grid-auto-rows: 34px;
+        gap: 3px;
+    }
+}
+/* CELULAR (pedido do dono): o chat/bolsa se EXPANDE POR TODA A LARGURA da tela e fica MAIS BAIXO (40% da altura, e não 60%): o mapa aparece acima dele. Encostado no pé da tela, com os cantos de cima
+   arredondados. A barra minimizada também ocupa a largura toda. */
+@media (max-width: 700px) {
+    #chat {
+        left: 0;
+        right: 0;
+        width: auto;
+        height: max(260px, 40vh);
+        border-left: 0;
+        border-right: 0;
+        border-top-left-radius: 14px;
+        border-top-right-radius: 14px;
+    }
+    #chat.minimizada {
+        left: 0;
+        right: 0;
+        width: auto;
+        border-radius: 14px 14px 0 0;
+    }
+}
+.dado {
+    padding: 0;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: inherit;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.dado:hover {
+    background: #3b3b49;
+}
+.dado.escolhido {
+    background: #5a4a1f;
+    border-color: #ffd54f;
+}
+/* Coluna do Rolar: o texto ROLAR em cima e, embaixo, um quadrado grande com SÓ a fórmula. */
+#dados-coluna-rolar {
+    flex: 1 1 110px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+#dados-rolar-rotulo {
+    display: block;
+    padding: 4px 0; /* respiro em cima e embaixo do texto */
+    font-size: 13px;
+    font-weight: 700;
+    line-height: 13px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+    color: #ffd54f;
+    cursor: pointer; /* clicar no texto também rola (é o rótulo do botão) */
+}
+/* A fórmula: o tamanho da letra é ajustado pelo painelDados.ts para ela caber inteira no quadrado. */
+#dados-rolar .rolar-formula {
+    display: inline-block;
+    flex-shrink: 0;
+    white-space: nowrap;
+    font-weight: 700;
+    line-height: 1;
+    color: #fff;
+}
+#dados-rolar {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    margin: 0;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    border-color: #6b5a2a;
+    overflow: hidden;
+}
+#dados-coluna-valores {
+    display: flex;
+    gap: 8px;
+}
+.dados-campo {
+    flex: 1 1 0;
+    min-width: 0;
+}
+.dados-campo label {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 10px;
+    line-height: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #9a9aa8;
+}
+.dados-linha {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+.dados-linha button {
+    width: 24px;
+    height: 32px;
+    padding: 0;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: #e6e6ea;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+.dados-linha button:hover:not(:disabled) {
+    background: #3b3b49;
+}
+.dados-linha button:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+.dados-linha input {
+    flex: 1;
+    width: 0;
+    min-width: 0;
+    height: 32px;
+    box-sizing: border-box;
+    padding: 0 2px;
+    text-align: center;
+    font: inherit;
+    font-size: 14px;
+    color: #e6e6ea;
+    background: #26262f;
+    border: 1px solid #3a3a45;
+    border-radius: 6px;
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+.dados-linha input:focus {
+    outline: none;
+    border-color: #ffd54f;
+}
+.dados-linha input::-webkit-inner-spin-button,
+.dados-linha input::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}

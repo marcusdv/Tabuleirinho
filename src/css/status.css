@@ -1,0 +1,422 @@
+/* O EDITOR DE STATUS (as barras do token) e a prévia das barras. (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
+/* O EDITOR DE STATUS (as barras do token): na área da prévia (bolsa em tela cheia) e dentro de "Editar token". */
+.editor-status {
+    margin-top: 14px;
+    max-width: 360px;
+}
+/* O título com o "?" ao lado: o "?" é só texto (sem estilo de botão) e mostra/oculta as instruções. */
+.editor-status .status-cabecalho {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+.editor-status .status-cabecalho .bolsa-rotulo {
+    margin: 0;
+}
+.editor-status .status-novo {
+    margin-left: 4px;
+    height: 26px;
+    padding: 0 10px;
+}
+.editor-status .status-ajuda-botao {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+}
+.editor-status .status-ajuda[hidden] {
+    display: none;
+}
+/* A PRÉVIA DAS BARRAS (como no tabuleiro: o nome fora da caixa, a barra e o "atual/máx" dentro). Fica na coluna da prévia do token, EMBAIXO dela, com ALTURA FIXA
+   (só as 3 primeiras barras): assim não empurra a lista de tokens que vem depois. */
+#bolsa-previa-barras-rotulo {
+    margin: 8px 0 4px;
+    white-space: nowrap;
+}
+#bolsa-previa-barras {
+    box-sizing: border-box;
+    width: 100%;
+    height: 52px; /* 3 barras de 12 px + 2 vãos de 2 px + folgas: a mesma altura com 0, 1, 2 ou 3 barras */
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px 8px;
+    background: #2b3641;
+    border: 1px solid #3a3a45;
+    border-radius: 6px;
+}
+#bolsa-previa-barras .status-vazio {
+    margin: auto 0; /* centralizada na altura fixa da caixa */
+    font-size: 11px;
+    line-height: 1.3;
+    text-align: center;
+    white-space: nowrap; /* uma linha só: nunca empurra nem quebra o layout */
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#bolsa-previa-barras .status-previa-linha {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 12px;
+    flex: none;
+}
+#bolsa-previa-barras .status-previa-nome {
+    flex: none;
+    width: 50px;
+    text-align: right;
+    font-size: 10px;
+    line-height: 12px;
+    font-weight: 700;
+    text-shadow:
+        0 0 3px #000,
+        0 0 3px #000;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#bolsa-previa-barras .status-previa-barra {
+    position: relative;
+    flex: 1;
+    height: 12px;
+    box-sizing: border-box;
+    padding: 1px;
+    background: rgba(21, 21, 27, 0.92);
+    border: 1px solid #000;
+    border-radius: 3px;
+}
+#bolsa-previa-barras .status-previa-enchimento {
+    height: 100%;
+    border-radius: 2px;
+}
+#bolsa-previa-barras .status-previa-numeros {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    text-shadow:
+        0 0 3px #000,
+        0 0 3px #000;
+}
+/* O editor de status: com muitos status (até 20), a LISTA rola por dentro e o editor nunca passa da altura da área da prévia (a lista de tokens não desce). */
+#bolsa-previa-area #bolsa-status {
+    display: flex;
+    flex-direction: column;
+}
+#bolsa-previa-area #bolsa-status > * {
+    flex: none;
+}
+#bolsa-previa-area #bolsa-status > .status-lista {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    padding-right: 10px; /* um respiro entre os botões ✕ e a barra de rolagem (ela não fica grudada neles) */
+}
+.editor-status .status-ajuda {
+    margin: 0 0 8px;
+    font-size: 11px;
+    line-height: 1.45;
+    color: #9a9aab;
+}
+.editor-status .status-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 8px;
+    overflow-x: auto; /* (a linha de cada status nunca quebra: se faltar largura, a lista rola de lado) */
+}
+.editor-status .status-vazio {
+    margin: 0;
+    font-size: 12px;
+    color: #7d7d8d;
+}
+/* Cada status numa LINHA SÓ, SEMPRE (pedido do dono): cor, nome (curto), variável (curta), grupos, os três checkboxes ("Exibir em jogo", "Exibir números" e "Subtraído por números arrastados") e o ✕ no
+   fim. Nunca quebra: se a janela for estreita demais, a LISTA ganha rolagem na horizontal. */
+.editor-status .status-linha {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: 6px 8px;
+    width: max-content; /* a linha tem a largura do que cabe nela; a lista rola de lado se passar do espaço */
+}
+.editor-status .status-linha-principal {
+    display: contents; /* os campos entram direto na linha; os checkboxes vêm depois deles (order) */
+}
+/* Os três checkboxes de cada status: "Exibir em jogo", "Exibir números" e "Subtraído por números arrastados". */
+.editor-status .status-opcoes {
+    order: 5;
+    flex: none;
+    display: flex;
+    gap: 12px;
+    white-space: nowrap;
+    font-size: 11px;
+    color: #b8b8c6;
+}
+.editor-status .status-excluir {
+    order: 6;
+}
+.editor-status .status-opcoes label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    cursor: pointer;
+}
+.editor-status .status-opcoes input {
+    margin: 0;
+    accent-color: #ffd54f;
+    cursor: pointer;
+}
+.editor-status .status-cor {
+    flex: none;
+    width: 30px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    cursor: pointer;
+}
+/* O suspenso de GRUPOS de cada status, e o menu com as caixas de marcar (aberto por cima da bolsa em tela cheia). */
+.editor-status .status-grupos {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    box-sizing: border-box;
+    width: 132px; /* largura FIXA: as colunas (e o ✕ do fim) ficam alinhadas em todos os status, qualquer que seja o texto */
+    justify-content: space-between;
+    padding: 0 8px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.editor-status .status-grupos span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.editor-status .status-grupos:hover,
+.editor-status .status-grupos[aria-expanded="true"] {
+    border-color: #ffd54f;
+}
+.status-menu-grupos {
+    position: fixed;
+    z-index: 70;
+    min-width: 230px;
+    max-width: 320px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 6px;
+    background: #26262f;
+    border: 1px solid #4a4a58;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+    font-size: 13px;
+    color: #e6e6ea;
+}
+.status-menu-grupos label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.status-menu-grupos label:hover {
+    background: #33333f;
+}
+.status-menu-grupos label:first-child {
+    border-bottom: 1px solid #3a3a45;
+    border-radius: 5px 5px 0 0;
+    margin-bottom: 4px;
+}
+.status-menu-grupos input {
+    margin: 0;
+    accent-color: #ffd54f;
+}
+.status-menu-grupos i {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--cor-grupo, #888);
+}
+.status-menu-grupos span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.status-menu-vazio {
+    margin: 4px 8px 6px;
+    font-size: 11px;
+    color: #9a9aab;
+}
+.editor-status .status-nome,
+.editor-status .status-variavel {
+    min-width: 0;
+    height: 28px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+}
+.editor-status .status-nome {
+    flex: none;
+    width: 56px; /* pequena de propósito: cabem umas 4 letras (o nome é só um rótulo curto, como "HP") */
+}
+.editor-status .status-variavel {
+    flex: none;
+    width: 82px; /* cabe o texto "Variável" do placeholder */
+}
+.editor-status .status-nome:focus,
+.editor-status .status-variavel:focus {
+    outline: none;
+    border-color: #ffd54f;
+}
+.editor-status .status-excluir {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: #d46a6a;
+    cursor: pointer;
+}
+.editor-status .status-excluir:hover {
+    background: #3b2a2a;
+}
+#bolsa-previa-area .bolsa-rotulo {
+    margin-top: 0;
+}
+#bolsa-previa {
+    /* A caixa se ajusta ao disco, com uma folga pequena em volta. O disco tem tamanho FIXO: escolher outro tamanho (1×1 a 4×4) só
+       muda o rótulo embaixo, a prévia não cresce nem encolhe. */
+    width: fit-content;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #26262e;
+    border: 1px dashed #4a4a58;
+    border-radius: 8px;
+}
+#bolsa-previa .disco {
+    width: var(
+        --disco-previa,
+        168px
+    ); /* (menor que antes: a prévia das barras entrou embaixo, e a lista de tokens não pode descer) */
+    height: var(--disco-previa, 168px);
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-sizing: border-box;
+}
+#bolsa-previa small {
+    font-size: 12px;
+    color: #c9c9d4;
+}
+#bolsa-criar-botao {
+    height: 34px;
+    margin-top: 14px;
+    font-size: 14px;
+}
+#bolsa-aviso {
+    margin: 8px 0 0;
+    min-height: 1.3em;
+    font-size: 12px;
+    color: #9ad59a;
+}
+
+/* ===== A PLANILHA DE STATUS (pedido do dono, 17/11/2026): uma tabela com linha de títulos, uma linha por status e colunas alinhadas; os checkboxes ficam sob o título da coluna (sem repetir o texto
+   em cada linha), então ocupa bem menos espaço que os campos soltos. As regras acima de `.status-linha` (de quando cada status era uma fila de campos) são desfeitas para a linha da tabela. ===== */
+.editor-status .status-tabela {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    font-size: 12px;
+}
+.editor-status .status-tabela th {
+    padding: 3px 4px 4px;
+    text-align: left;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: #9a9aab;
+    border-bottom: 1px solid #3a3a45;
+    cursor: help; /* a explicação de cada coluna está na dica do mouse */
+}
+.editor-status .status-tabela th.c-caixa {
+    text-align: center;
+}
+.editor-status .status-tabela tr.status-linha {
+    display: table-row;
+    width: auto;
+}
+.editor-status .status-tabela td {
+    padding: 2px 3px;
+    vertical-align: middle;
+}
+.editor-status .status-tabela tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.03);
+}
+.editor-status .status-tabela tbody tr:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+.editor-status .status-tabela .c-cor {
+    width: 38px;
+}
+.editor-status .status-tabela .c-nome {
+    width: 11%; /* a caixa de nome é curta (o nome é um rótulo como "HP"; já foi 17%) */
+}
+.editor-status .status-tabela .c-variavel {
+    width: 12%; /* idem para a variável (PV, MANA...) */
+}
+.editor-status .status-tabela .c-grupos,
+.editor-status .status-tabela .c-quem {
+    width: 21%;
+}
+.editor-status .status-tabela .c-caixa {
+    width: 46px;
+}
+.editor-status .status-tabela .c-excluir {
+    width: 34px;
+}
+.editor-status .status-tabela .status-nome,
+.editor-status .status-tabela .status-variavel,
+.editor-status .status-tabela .status-grupos {
+    width: 100%; /* a célula manda na largura (as larguras fixas de antes valiam para a fila de campos) */
+}
+.editor-status .status-tabela .status-cor {
+    width: 30px;
+}
+.editor-status .status-celula-caixa {
+    text-align: center;
+}
+.editor-status .status-celula-caixa input {
+    margin: 0;
+    accent-color: #ffd54f;
+    cursor: pointer;
+}

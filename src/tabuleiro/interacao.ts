@@ -1,6 +1,7 @@
 // =====================================================================
 // INTERAÇÃO: os eventos do mouse no "palco" inteiro (stage) do PixiJS.
 //   - PAN: arrastar um espaço vazio move a visão sobre o tabuleiro.
+//   - SELEÇÃO: Ctrl + esquerdo no vazio desenha o retângulo que seleciona tokens; o esquerdo comum no vazio tira a seleção.
 //   - Repassa o movimento do mouse e o soltar para os tokens (arrasto).
 //   - Com uma FERRAMENTA ligada (calibrar grade, régua, lápis, borracha, formas):
 //     o botão esquerdo é dela, e o direito ou o do meio faz o pan.
@@ -64,6 +65,15 @@ export function ativarInteracao(
     app.stage.on("pointerdown", (evento: FederatedPointerEvent) => {
         // evento.target é quem recebeu o clique. Se for o próprio stage, o clique
         // foi num espaço vazio (e não num token).
+        // SELEÇÃO: Ctrl + botão esquerdo no vazio começa o retângulo de seleção (em vez do pan); o clique esquerdo comum no vazio tira a seleção.
+        if (evento.target === app.stage && evento.button === 0 && !ferramentaLigada()) {
+            if (evento.ctrlKey || evento.metaKey) {
+                opcoes.aoClicarNoFundo();
+                tokens.iniciarRetangulo(evento.global);
+                return;
+            }
+            tokens.limparSelecao();
+        }
         if (evento.target === app.stage) opcoes.aoClicarNoFundo();
 
         const ferramenta = ferramentaLigada();
@@ -103,6 +113,10 @@ export function ativarInteracao(
                 direitoApertado = false;
             }
         }
+        if (tokens.selecionando) {
+            tokens.arrastarRetangulo(evento.global);
+            return;
+        }
         if (panning) {
             // Move a câmera pela DIFERENÇA entre a posição atual do mouse e a
             // anterior. Usamos coordenadas da tela (global), não do mundo,
@@ -121,6 +135,10 @@ export function ativarInteracao(
 
     function soltar(evento?: FederatedPointerEvent): void {
         if (evento?.button === 2) direitoApertado = false;
+        if (tokens.selecionando) {
+            tokens.soltarRetangulo();
+            return;
+        }
         if (panning) {
             // Era um pan: apenas encerra, não há token para encaixar.
             panning = null;

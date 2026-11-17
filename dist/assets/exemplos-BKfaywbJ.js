@@ -53,13 +53,16 @@ Anão, Guerreiro nível 5
 FOR:: 16
 DES:: 12
 CON:: 15
+NIVEL:: 5
 PROF:: 3
 MOD_FOR:: (FOR - 10) / 2
 MOD_DES:: (DES - 10) / 2
+MOD_CON:: (CON - 10) / 2
 CA:: 18
+PV_MAX:: (10 + MOD_CON) + (NIVEL - 1) * (6 + MOD_CON)
 
-Recursos (mín:inicial:máx)
-PV::0:44:44
+Recursos (mín:inicial:máx; uma conta vai ENTRE PARÊNTESES e não leva dados)
+PV::0:(PV_MAX):(PV_MAX)
 FLECHAS::0:20:20
 OURO::0:150:999999999
 EXAUSTAO::0:0:6
@@ -88,4 +91,13 @@ Seus passos não fazem barulho: **vantagem** em testes de Furtividade.
 
 ## Capa da Sorte
 Uma vez por descanso longo, role de novo um d20: (Re-rolagem da capa)[1d20].
+
+## Pergaminho de Bola de Fogo
+Um CARTÃO: clique no nome para mandar o texto ao chat. Os [ ] de dentro são calculados ou rolados na hora (a CD e o dano).
+(Bola de Fogo)"""
+# Bola de Fogo
+Evocação de 3º nível, alcance 45 m.
+Cada criatura na esfera de 6 m faz uma salvaguarda de Destreza, CD [8 + PROF + MOD_DES].
+Dano: [8d6] de fogo, ou metade se passar.
+"""
 `}];export{i as ABAS_THORIN,n as IMAGEM_GOBLIN,e as NOME_GOBLIN,r as NOME_THORIN,t as TEXTO_GOBLIN};

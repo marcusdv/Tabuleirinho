@@ -22,7 +22,10 @@
 
 import {
     DADOS_DISPONIVEIS,
+    MAX_CARACTERES_CARTAO,
     MAX_CARACTERES_FORMULA,
+    MAX_CARTOES_POR_FICHA,
+    MAX_EXPRESSOES_POR_CARTAO,
     MAX_CARACTERES_NOME_ROLAGEM,
     MAX_CARACTERES_NOME_VARIAVEL,
     MAX_PROFUNDIDADE_FORMULA,
@@ -336,13 +339,49 @@ export interface RolagemFicha {
     posFormula: PosicaoNoTexto;
 }
 
+/** Um [cálculo ou rolagem] escrito DENTRO de um cartão (ex.: o "[2d6 + 3]" de "Dano: [2d6 + 3]"). */
+export interface ExpressaoDoCartao {
+    /** O que está entre os colchetes, como foi escrito. */
+    formula: string;
+    /** A mesma conta com as variáveis trocadas pelos valores; null se deu erro. */
+    resolvida: string | null;
+    erro: string | null;
+    /** Tem um dado (1d20, 2d6, d8...)? Com dado é ROLADO; sem dado é CALCULADO. */
+    temDado: boolean;
+    /** Onde está no texto da aba, COM os colchetes. */
+    pos: PosicaoNoTexto;
+}
+
+/**
+ * Um CARTÃO: `(Nome)"""texto"""`. O nome vira um botão (como o de uma rolagem) e, ao clicar, o texto de dentro vai para o chat, com cada [expressão] já calculada ou rolada.
+ * Serve para magias, itens, qualquer coisa que se queira "jogar" no chat de uma vez.
+ */
+export interface CartaoFicha {
+    /** O NOME, entre parênteses. */
+    nome: string;
+    /** O texto de dentro das aspas triplas, como foi escrito (com as [expressões] ainda nele). */
+    texto: string;
+    /** O primeiro problema do cartão (texto comprido demais, expressão inválida...); null se está tudo certo. Com erro, o cartão não vai ao chat. */
+    erro: string | null;
+    /** Onde está o nome no texto, COM os parênteses. */
+    posNome: PosicaoNoTexto;
+    /** Onde está o texto de dentro (sem as aspas triplas). */
+    posTexto: PosicaoNoTexto;
+    /** O cartão inteiro: do "(" até as aspas triplas do fim. */
+    posTotal: PosicaoNoTexto;
+    /** As [expressões] de dentro, na ordem em que aparecem. */
+    expressoes: ExpressaoDoCartao[];
+}
+
 export interface AnaliseDaFicha {
-    /** De qual aba é esta análise: as `rolagens` (e as posições delas) são só desta aba. */
+    /** De qual aba é esta análise: as `rolagens` e os `cartoes` (e as posições deles) são só desta aba. */
     aba: number;
     /** TODAS as variáveis da ficha (de qualquer aba; `aba` diz de onde cada uma vem). Numa ficha de uma aba só, são as dela. */
     variaveis: VariavelFicha[];
-    /** As rolagens DESTA aba (cada aba tem as suas). */
+    /** As rolagens DESTA aba (cada aba tem as suas). As [expressões] de dentro de um cartão NÃO entram aqui: são do cartão. */
     rolagens: RolagemFicha[];
+    /** Os cartões DESTA aba. */
+    cartoes: CartaoFicha[];
 }
 
 // A bandeira "d" faz o resultado trazer, de cada grupo, onde ele começa e termina (`indices`): é como achamos as POSIÇÕES no texto.
@@ -353,16 +392,74 @@ const LINHA_DE_VARIAVEL = /^\s*([\p{L}_][\p{L}\p{N}_]*)\s*::\s*(.*?)\s*$/du;
 // pode ter parênteses: eles só não podem estar no NOME).
 const ROLAGEM = /(?:\(([^()[\]\n]{1,200})\)[ \t]*)?\[([^[\]\n]{1,400})\]/dgu;
 const TEM_DADO = /(?:^|[^\p{L}\p{N}_])\d*[dD]\d+(?![\p{L}\p{N}_])/u;
+// CARTÃO: "(Nome)" colado a três aspas, o texto (pode ter várias linhas) e três aspas de novo. O texto tem um limite de tamanho (um caractere a mais que o máximo: assim um cartão comprido demais
+// é reconhecido e DÁ ERRO, em vez de virar texto comum sem ninguém perceber; além disso nem é procurado, o que também limita o trabalho do analisador).
+const CARTAO = new RegExp(`\\(([^()[\\]\\n]{1,200})\\)[ \\t]*"""([\\s\\S]{0,${MAX_CARACTERES_CARTAO + 1}}?)"""`, "dgu");
+// As [expressões] de dentro de um cartão (nada de colchetes dentro, nem quebra de linha).
+const EXPRESSAO_DO_CARTAO = /\[([^[\]\n]{1,400})\]/gu;
 
-// VARIÁVEL QUE MUDA: depois dos "::" vêm três números inteiros separados por ":" (mín:inicial:máx). Nada de contas nem de outras variáveis aqui (por enquanto).
-const NUMEROS_DA_VARIAVEL_QUE_MUDA = /^(-?\d{1,12})\s*:\s*(-?\d{1,12})\s*:\s*(-?\d{1,12})$/;
+// VARIÁVEL QUE MUDA (RECURSO): depois dos "::" vêm TRÊS valores separados por ":" (mín:inicial:máx). Cada um é um número inteiro ("12") OU uma CONTA ENTRE PARÊNTESES, com variáveis fixas da
+// ficha ("((10 + MOD_CON + 2) * NIVEL)"). Regras do dono: a conta vai entre parênteses (os de fora a delimitam) e NÃO pode ter dados (o número precisa ser conhecido de antemão, para saber se o
+// intervalo é válido). Um recurso também não usa outro recurso na conta (o valor dele muda no jogo).
+const NUMERO_INTEIRO = /^-?\d{1,12}$/;
 
-/** Lê o que vem depois dos "::" quando é uma variável que MUDA. Devolve null se não é (não tem ":"), ou o resultado conferido (ou a mensagem de erro). */
-export function lerVariavelQueMuda(conta: string): Resultado<LimitesDaVariavel> | null {
+/** Divide o texto nos ":" que estão FORA de parênteses (dentro deles os ":" não separam nada). */
+function dividirNosDoisPontos(texto: string): string[] {
+    const partes: string[] = [];
+    let profundidade = 0;
+    let inicio = 0;
+    for (let i = 0; i < texto.length; i++) {
+        const c = texto[i];
+        if (c === "(") profundidade++;
+        else if (c === ")") profundidade = Math.max(0, profundidade - 1);
+        else if (c === ":" && profundidade === 0) {
+            partes.push(texto.slice(inicio, i).trim());
+            inicio = i + 1;
+        }
+    }
+    partes.push(texto.slice(inicio).trim());
+    return partes;
+}
+
+/** O texto é UMA conta inteira entre parênteses (o "(" do começo fecha no ")" do fim)? "(1 + 2) * 3" não é: os parênteses de fora não a envolvem toda. */
+function estaEntreParenteses(texto: string): boolean {
+    if (!texto.startsWith("(") || !texto.endsWith(")")) return false;
+    let profundidade = 0;
+    for (let i = 0; i < texto.length; i++) {
+        if (texto[i] === "(") profundidade++;
+        else if (texto[i] === ")") {
+            profundidade--;
+            if (profundidade === 0) return i === texto.length - 1;
+        }
+    }
+    return false;
+}
+
+/** O valor de UM dos três campos de um recurso: um número, ou uma conta entre parênteses calculada com as variáveis fixas (`valorFixo`). */
+function valorDoLimite(parte: string, valorFixo: (chave: string) => Resultado<number>): Resultado<number> {
+    if (NUMERO_INTEIRO.test(parte)) return { ok: true, valor: Number(parte) + 0 }; // (o "+ 0" troca um "-0" por 0)
+    if (!estaEntreParenteses(parte)) return falha("Escreva um número inteiro ou uma conta ENTRE PARÊNTESES, ex.: ((10 + MOD_CON) * NIVEL).");
+    if (TEM_DADO.test(parte)) return falha("Dados não valem aqui: o valor do recurso precisa ser conhecido de antemão.");
+    const arvore = analisarConta(parte);
+    if (!arvore.ok) return arvore;
+    return calcular(arvore.valor, valorFixo);
+}
+
+/**
+ * Lê o que vem depois dos "::" quando é um recurso. Devolve null se não é (não tem ":"), ou o resultado conferido (ou a mensagem de erro). `valorFixo` dá o valor de uma variável FIXA da ficha
+ * (para as contas); ela recusa um recurso.
+ */
+export function lerVariavelQueMuda(conta: string, valorFixo: (chave: string) => Resultado<number>): Resultado<LimitesDaVariavel> | null {
     if (!conta.includes(":")) return null;
-    const achou = NUMEROS_DA_VARIAVEL_QUE_MUDA.exec(conta);
-    if (!achou) return falha("Recurso: escreva NOME::mín:inicial:máx (só números inteiros).");
-    const [min, inicial, max] = [achou[1], achou[2], achou[3]].map((n) => Number(n) + 0); // (o "+ 0" troca um "-0" por 0)
+    const partes = dividirNosDoisPontos(conta);
+    if (partes.length !== 3) return falha("Recurso: escreva NOME::mín:inicial:máx (números inteiros ou contas entre parênteses).");
+    const numeros: number[] = [];
+    for (const parte of partes) {
+        const lido = valorDoLimite(parte, valorFixo);
+        if (!lido.ok) return lido;
+        numeros.push(lido.valor);
+    }
+    const [min, inicial, max] = numeros;
     const limite = MAX_VALOR_VARIAVEL_QUE_MUDA;
     if (Math.abs(min) > limite || Math.abs(inicial) > limite || Math.abs(max) > limite) {
         return falha(`Os números vão de -${limite.toLocaleString("pt-BR")} a ${limite.toLocaleString("pt-BR")}.`);
@@ -379,7 +476,7 @@ export function lerVariavelQueMuda(conta: string): Resultado<LimitesDaVariavel> 
  */
 export function analisarFicha(texto: string, atuais?: ReadonlyMap<string, number>): AnaliseDaFicha {
     // --- 1) as linhas "NOME:: valor" (as repetidas e as passadas do limite são ignoradas, com aviso)
-    const definicoes = new Map<string, { nome: string; conta: string; muda: Resultado<LimitesDaVariavel> | null }>();
+    const definicoes = new Map<string, { nome: string; conta: string; recurso: boolean }>();
     const variaveis: VariavelFicha[] = [];
     let deslocamento = 0; // onde a linha atual começa no texto inteiro
     for (const linha of texto.split("\n")) {
@@ -399,24 +496,45 @@ export function analisarFicha(texto: string, atuais?: ReadonlyMap<string, number
         } else if (definicoes.has(chave)) {
             variaveis.push({ aba: 0, nome, conta, muda: null, valor: null, erro: "Variável repetida (vale a primeira).", posNome, posConta });
         } else {
-            const muda = lerVariavelQueMuda(conta);
-            definicoes.set(chave, { nome, conta, muda });
-            variaveis.push({ aba: 0, nome, conta, muda: muda?.ok ? muda.valor : null, valor: null, erro: null, posNome, posConta }); // o valor é calculado abaixo
+            definicoes.set(chave, { nome, conta, recurso: conta.includes(":") });
+            variaveis.push({ aba: 0, nome, conta, muda: null, valor: null, erro: null, posNome, posConta }); // os limites (de um recurso) e o valor são calculados abaixo
         }
     }
 
     // --- 2) calcula cada variável (com memória e detecção de ciclo: A:: B e B:: A não travam, dão erro)
     const calculadas = new Map<string, Resultado<number>>();
     const emAndamento = new Set<string>();
+    // Os LIMITES de um recurso (mín, inicial, máx), com memória e proteção contra ciclo (um recurso cuja conta chega nele mesmo, por uma variável fixa no meio).
+    const limitesProntos = new Map<string, Resultado<LimitesDaVariavel>>();
+    const limitesEmAndamento = new Set<string>();
+    function limitesDe(chave: string): Resultado<LimitesDaVariavel> {
+        const pronto = limitesProntos.get(chave);
+        if (pronto) return pronto;
+        const definicao = definicoes.get(chave);
+        if (!definicao) return falha(`Variável não definida: ${chave}.`);
+        if (limitesEmAndamento.has(chave)) return falha(`O recurso ${definicao.nome} depende de si mesmo (ciclo).`);
+        limitesEmAndamento.add(chave);
+        const lido = lerVariavelQueMuda(definicao.conta, valorFixo) ?? falha("Recurso inválido.");
+        limitesEmAndamento.delete(chave);
+        limitesProntos.set(chave, lido);
+        return lido;
+    }
+    /** O valor de uma variável FIXA, para as contas dos limites de um recurso: um recurso não vale aqui (o valor dele muda no jogo). */
+    function valorFixo(chave: string): Resultado<number> {
+        const definicao = definicoes.get(chave);
+        if (definicao?.recurso) return falha(`${definicao.nome} é um recurso (muda no jogo): não vale na conta de outro recurso.`);
+        return valorDe(chave);
+    }
     function valorDe(chave: string): Resultado<number> {
         const pronta = calculadas.get(chave);
         if (pronta) return pronta;
         const definicao = definicoes.get(chave);
         if (!definicao) return falha(`Variável não definida: ${chave}.`);
-        if (definicao.muda) {
-            // Variável que MUDA: vale o valor atual (se alguém passou um), sempre dentro do intervalo; senão, o inicial. Não depende de nenhuma outra variável.
-            if (!definicao.muda.ok) return falha(definicao.muda.erro);
-            const { min, inicial, max } = definicao.muda.valor;
+        if (definicao.recurso) {
+            // RECURSO: vale o valor atual (se alguém passou um), sempre dentro do intervalo; senão, o inicial. O intervalo pode ser uma conta com variáveis FIXAS (calculada a cada análise).
+            const limites = limitesDe(chave);
+            if (!limites.ok) return limites;
+            const { min, inicial, max } = limites.valor;
             const atual = atuais?.get(chave);
             const valor = atual === undefined || !Number.isFinite(atual) ? inicial : Math.min(max, Math.max(min, Math.trunc(atual)));
             return { ok: true, valor };
@@ -431,15 +549,25 @@ export function analisarFicha(texto: string, atuais?: ReadonlyMap<string, number
     }
     for (const v of variaveis) {
         if (v.erro) continue;
-        const resultado = valorDe(v.nome.toUpperCase());
+        const chave = v.nome.toUpperCase();
+        const resultado = valorDe(chave);
         if (resultado.ok) v.valor = resultado.valor;
         else v.erro = resultado.erro;
+        if (definicoes.get(chave)?.recurso) {
+            const limites = limitesDe(chave);
+            if (limites.ok) v.muda = limites.valor; // (os limites já calculados, para o painel, as barras e o servidor)
+        }
     }
+
+    // --- 3a) os CARTÕES `(Nome)"""texto"""`: só marca onde estão (as [expressões] de dentro são do cartão, e não entram na lista de rolagens abaixo); a avaliação vem no fim
+    const achadosDosCartoes = Array.from(texto.matchAll(CARTAO)).slice(0, MAX_CARTOES_POR_FICHA);
+    const dentroDeUmCartao = (posicao: number): boolean => achadosDosCartoes.some((c) => posicao >= (c.index ?? 0) && posicao < (c.index ?? 0) + c[0].length);
 
     // --- 3) as rolagens "(Nome)[fórmula]" (só as que têm um dado dentro)
     const rolagens: RolagemFicha[] = [];
     for (const achou of texto.matchAll(ROLAGEM)) {
         if (rolagens.length >= MAX_ROLAGENS_POR_FICHA) break;
+        if (dentroDeUmCartao(achou.index ?? 0)) continue; // (é uma expressão de um cartão)
         const formula = achou[2].trim();
         const lugarDoNome = achou.indices?.[1];
         const lugarDaFormula = achou.indices?.[2];
@@ -462,7 +590,55 @@ export function analisarFicha(texto: string, atuais?: ReadonlyMap<string, number
         }
         rolagens.push({ nome, formula, resolvida, erro, posNome, posFormula });
     }
-    return { aba: 0, variaveis, rolagens };
+
+    // --- 4) avalia cada CARTÃO: confere as [expressões] de dentro (as contas, as variáveis e os dados), sem rolar nada ainda
+    const cartoes: CartaoFicha[] = [];
+    for (const achou of achadosDosCartoes) {
+        const lugarDoNome = achou.indices?.[1];
+        const lugarDoTexto = achou.indices?.[2];
+        if (!lugarDoNome || !lugarDoTexto) continue;
+        const conteudo = achou[2];
+        let erro: string | null = null;
+        const expressoes: ExpressaoDoCartao[] = [];
+        if (conteudo.length > MAX_CARACTERES_CARTAO) erro = `O cartão passa de ${MAX_CARACTERES_CARTAO} caracteres.`;
+        else {
+            for (const e of conteudo.matchAll(EXPRESSAO_DO_CARTAO)) {
+                const formula = e[1].trim();
+                if (formula === "") continue; // "[ ]": nada a calcular
+                if (expressoes.length >= MAX_EXPRESSOES_POR_CARTAO) {
+                    erro ??= `O cartão tem expressões [ ] demais (no máximo ${MAX_EXPRESSOES_POR_CARTAO}).`;
+                    break;
+                }
+                const inicio = lugarDoTexto[0] + (e.index ?? 0);
+                const pos = { inicio, fim: inicio + e[0].length };
+                const arvore = analisarConta(formula);
+                let resolvida: string | null = null;
+                let erroDaExpressao: string | null = null;
+                if (!arvore.ok) erroDaExpressao = arvore.erro;
+                else {
+                    erroDaExpressao = problemaNosDados(arvore.valor);
+                    if (erroDaExpressao === null) {
+                        const escrita = mostrar(arvore.valor, valorDe);
+                        if (escrita.ok) resolvida = escrita.valor;
+                        else erroDaExpressao = escrita.erro;
+                    }
+                }
+                if (erroDaExpressao !== null) erro ??= `Em [${formula}]: ${erroDaExpressao}`;
+                expressoes.push({ formula, resolvida, erro: erroDaExpressao, temDado: TEM_DADO.test(formula), pos });
+            }
+        }
+        const nome = achou[1].replace(/\*/g, "").trim().slice(0, MAX_CARACTERES_NOME_ROLAGEM) || "Cartão"; // (sem os "*" de negrito/itálico)
+        cartoes.push({
+            nome,
+            texto: conteudo,
+            erro,
+            posNome: { inicio: lugarDoNome[0] - 1, fim: lugarDoNome[1] + 1 },
+            posTexto: { inicio: lugarDoTexto[0], fim: lugarDoTexto[1] },
+            posTotal: { inicio: achou.index ?? 0, fim: (achou.index ?? 0) + achou[0].length },
+            expressoes,
+        });
+    }
+    return { aba: 0, variaveis, rolagens, cartoes };
 }
 
 /**
@@ -496,6 +672,18 @@ export function analisarAbas(textos: readonly string[], atuais?: ReadonlyMap<str
         rolagens: juntada.rolagens
             .filter((r) => abaDe(r.posFormula.inicio) === aba)
             .map((r): RolagemFicha => ({ ...r, posNome: r.posNome && deslocar(r.posNome, inicios[aba]), posFormula: deslocar(r.posFormula, inicios[aba]) })),
+        // (um cartão que começa numa aba e termina em outra não vale: o texto de cada aba é separado dos outros)
+        cartoes: juntada.cartoes
+            .filter((c) => abaDe(c.posTotal.inicio) === aba && abaDe(Math.max(c.posTotal.inicio, c.posTotal.fim - 1)) === aba)
+            .map(
+                (c): CartaoFicha => ({
+                    ...c,
+                    posNome: deslocar(c.posNome, inicios[aba]),
+                    posTexto: deslocar(c.posTexto, inicios[aba]),
+                    posTotal: deslocar(c.posTotal, inicios[aba]),
+                    expressoes: c.expressoes.map((e): ExpressaoDoCartao => ({ ...e, pos: deslocar(e.pos, inicios[aba]) })),
+                }),
+            ),
     }));
 }
 
@@ -504,7 +692,7 @@ export function analisarAbas(textos: readonly string[], atuais?: ReadonlyMap<str
 // ---------------------------------------------------------------------
 
 /** As categorias de cor do editor: o nome e o valor de uma variável; o NOME de uma rolagem (a "palavra" com função) e a sua fórmula. */
-export type TipoDeTrecho = "variavel-nome" | "variavel-valor" | "variavel-muda" | "rolagem-nome" | "rolagem-formula";
+export type TipoDeTrecho = "variavel-nome" | "variavel-valor" | "variavel-muda" | "rolagem-nome" | "rolagem-formula" | "cartao-nome" | "cartao-formula";
 
 export interface TrechoDoTexto extends PosicaoNoTexto {
     tipo: TipoDeTrecho;
@@ -514,6 +702,8 @@ export interface TrechoDoTexto extends PosicaoNoTexto {
     dica: string;
     /** Se é parte de uma rolagem: a posição dela em `analise.rolagens` (o painel lateral usa para destacar a certa). Senão, null. */
     rolagem: number | null;
+    /** Se é parte de um cartão (o nome dele, ou uma [expressão] de dentro): a posição dele em `analise.cartoes`. Senão, null. */
+    cartao: number | null;
 }
 
 /** Os pedaços do texto que merecem cor, em ordem, a partir da análise (que já sabe onde cada coisa está). */
@@ -522,15 +712,22 @@ export function trechosDoTexto(analise: AnaliseDaFicha): TrechoDoTexto[] {
     for (const v of analise.variaveis) {
         if (v.aba !== analise.aba) continue; // (as variáveis de OUTRAS abas valem aqui, mas não estão neste texto: nada a colorir)
         const dica = v.erro ?? (v.muda ? `${v.nome}: mín ${v.muda.min}, inicial ${v.muda.inicial}, máx ${v.muda.max}` : `${v.nome} = ${v.valor}`);
-        trechos.push({ tipo: "variavel-nome", ...v.posNome, erro: v.erro, dica, rolagem: null });
+        trechos.push({ tipo: "variavel-nome", ...v.posNome, erro: v.erro, dica, rolagem: null, cartao: null });
         // Os três números de uma variável que MUDA têm cor própria (e não ganham o "= resultado" das contas).
         const tipoDoValor: TipoDeTrecho = v.conta.includes(":") ? "variavel-muda" : "variavel-valor";
-        if (v.posConta.fim > v.posConta.inicio) trechos.push({ tipo: tipoDoValor, ...v.posConta, erro: v.erro, dica, rolagem: null });
+        if (v.posConta.fim > v.posConta.inicio) trechos.push({ tipo: tipoDoValor, ...v.posConta, erro: v.erro, dica, rolagem: null, cartao: null });
     }
     analise.rolagens.forEach((r, indice) => {
         const dica = r.erro ?? `${r.nome}: ${r.resolvida}`;
-        if (r.posNome) trechos.push({ tipo: "rolagem-nome", ...r.posNome, erro: r.erro, dica, rolagem: indice });
-        trechos.push({ tipo: "rolagem-formula", ...r.posFormula, erro: r.erro, dica, rolagem: indice });
+        if (r.posNome) trechos.push({ tipo: "rolagem-nome", ...r.posNome, erro: r.erro, dica, rolagem: indice, cartao: null });
+        trechos.push({ tipo: "rolagem-formula", ...r.posFormula, erro: r.erro, dica, rolagem: indice, cartao: null });
+    });
+    // Os CARTÕES: o nome (um botão, como o de uma rolagem) e cada [expressão] de dentro (cálculo ou rolagem, que só acontece quando o cartão vai ao chat).
+    analise.cartoes.forEach((c, indice) => {
+        trechos.push({ tipo: "cartao-nome", ...c.posNome, erro: c.erro, dica: c.erro ?? `${c.nome}: clique para mandar o cartão ao chat`, rolagem: null, cartao: indice });
+        for (const e of c.expressoes) {
+            trechos.push({ tipo: "cartao-formula", ...e.pos, erro: e.erro, dica: e.erro ?? `${e.temDado ? "rolada" : "calculada"} no chat: ${e.resolvida}`, rolagem: null, cartao: indice });
+        }
     });
     return trechos.sort((a, b) => a.inicio - b.inicio);
 }
@@ -601,7 +798,108 @@ export function rolarDaAnalise(analise: AnaliseDaFicha, indice: number, nomeDaFi
     return { ok: true, valor: { nome: rolagem.nome, ficha: nomeDaFicha, formula: rolagem.resolvida, detalhe, dados, total: total.valor } };
 }
 
+/**
+ * O comando "/r" do chat: rola uma CONTA digitada na hora, com dados, números, + - * / e parênteses (ex.: "2d6+3", "(1d20+5)*2", "10/3"). SEM variáveis (não há ficha aqui).
+ * Mesma gramática segura das fichas (sem `eval`) e os mesmos limites. O resultado tem o formato das rolagens de ficha (o chat mostra o mesmo cartão), com o nome "Rolagem" e sem ficha.
+ * `sortear` é como em `rolarDaAnalise`. Nunca lança erro: o problema volta como mensagem.
+ */
+export function rolarConta(texto: string, sortear: () => number): Resultado<RolagemDeFicha> {
+    const arvore = analisarConta(texto);
+    if (!arvore.ok) return arvore;
+    const erroDosDados = problemaNosDados(arvore.valor);
+    if (erroDosDados !== null) return falha(erroDosDados);
+    const semVariavel = (nome: string): Resultado<number> => falha(`Variáveis não valem no /r: ${nome}.`);
+    const escrita = mostrar(arvore.valor, semVariavel);
+    if (!escrita.ok) return escrita;
+    const dados: DadosRolados[] = [];
+    const rolar = (quantidade: number, lados: number): number => {
+        const resultados: number[] = [];
+        for (let i = 0; i < quantidade; i++) resultados.push(Math.min(lados, Math.floor(sortear() * lados) + 1));
+        dados.push({ quantidade, lados, resultados });
+        return resultados.reduce((soma, r) => soma + r, 0);
+    };
+    const total = calcular(arvore.valor, semVariavel, rolar);
+    if (!total.ok) return total;
+    let proximo = 0;
+    const detalhe = escrita.valor.replace(/\d+d\d+/g, (termo) => `${termo} [${(dados[proximo++]?.resultados ?? []).join(", ")}]`);
+    return { ok: true, valor: { nome: "Rolagem", ficha: "", formula: escrita.valor, detalhe, dados, total: total.valor } };
+}
+
 /** Atalho: analisa o texto e rola (o modo local, que não guarda a análise). */
 export function rolarDaFicha(texto: string, indice: number, nomeDaFicha: string, sortear: () => number): Resultado<RolagemDeFicha> {
     return rolarDaAnalise(analisarFicha(texto), indice, nomeDaFicha, sortear);
+}
+
+// ---------------------------------------------------------------------
+// 8) USAR um CARTÃO (mandar para o chat)
+// ---------------------------------------------------------------------
+
+/** Um pedaço do cartão já pronto para o chat: texto comum, ou o resultado de uma [expressão] (uma CONTA, sem dado, ou uma ROLAGEM, com dado). */
+export type PedacoDoCartao =
+    | { tipo: "texto"; texto: string }
+    | { tipo: "conta"; formula: string; total: number }
+    | { tipo: "rolagem"; formula: string; detalhe: string; total: number; dados: DadosRolados[] };
+
+/** O que vai para o chat quando um cartão é usado. Só dados simples (vai pela rede). */
+export interface CartaoRolado {
+    /** O NOME do cartão. */
+    nome: string;
+    /** O nome da ficha (a criatura). */
+    ficha: string;
+    /** O texto do cartão, em ordem, cortado nas [expressões]: o texto fica como foi escrito e cada expressão vira o seu resultado. */
+    pedacos: PedacoDoCartao[];
+}
+
+/**
+ * Usa o cartão de posição `indice` de uma ficha JÁ ANALISADA: cada [expressão] de dentro é CALCULADA (sem dado) ou ROLADA (com dado), na ordem em que aparece, e o resto do texto fica como está.
+ * `sortear` é como em `rolarDaAnalise` (no servidor, o sorteio seguro). Nunca lança erro: um cartão que não existe, ou que tem erro, volta como mensagem.
+ */
+export function rolarCartaoDaAnalise(analise: AnaliseDaFicha, indice: number, nomeDaFicha: string, sortear: () => number): Resultado<CartaoRolado> {
+    const cartao = Number.isSafeInteger(indice) ? analise.cartoes[indice] : undefined;
+    if (!cartao) return falha("Esse cartão não existe.");
+    if (cartao.erro !== null) return falha(cartao.erro);
+
+    // Os valores das variáveis, que a análise já calculou (as repetidas e as com erro não entram: dão erro na expressão que as usa).
+    const valores = new Map<string, number>();
+    for (const v of analise.variaveis) if (v.erro === null && v.valor !== null) valores.set(v.nome.toUpperCase(), v.valor);
+    const valorDe = (chave: string): Resultado<number> => {
+        const valor = valores.get(chave);
+        return valor === undefined ? falha(`Variável não definida: ${chave}.`) : { ok: true, valor };
+    };
+
+    const pedacos: PedacoDoCartao[] = [];
+    let cursor = 0; // onde o texto comum ainda não foi usado, DENTRO do texto do cartão
+    const base = cartao.posTexto.inicio;
+    for (const expressao of cartao.expressoes) {
+        const inicio = expressao.pos.inicio - base;
+        const fim = expressao.pos.fim - base;
+        if (inicio > cursor) pedacos.push({ tipo: "texto", texto: cartao.texto.slice(cursor, inicio) });
+        cursor = fim;
+        const arvore = analisarConta(expressao.formula);
+        if (!arvore.ok || expressao.resolvida === null) return falha(`Em [${expressao.formula}]: ${arvore.ok ? "expressão inválida." : arvore.erro}`);
+        const dados: DadosRolados[] = [];
+        const rolar = (quantidade: number, lados: number): number => {
+            const resultados: number[] = [];
+            for (let i = 0; i < quantidade; i++) resultados.push(Math.min(lados, Math.floor(sortear() * lados) + 1));
+            dados.push({ quantidade, lados, resultados });
+            return resultados.reduce((soma, r) => soma + r, 0);
+        };
+        const total = calcular(arvore.valor, valorDe, rolar);
+        if (!total.ok) return falha(`Em [${expressao.formula}]: ${total.erro}`);
+        if (expressao.temDado) {
+            let proximo = 0;
+            const detalhe = expressao.resolvida.replace(/\d+d\d+/g, (termo) => `${termo} [${(dados[proximo++]?.resultados ?? []).join(", ")}]`);
+            pedacos.push({ tipo: "rolagem", formula: expressao.resolvida, detalhe, total: total.valor, dados });
+        } else {
+            pedacos.push({ tipo: "conta", formula: expressao.resolvida, total: total.valor });
+        }
+    }
+    if (cursor < cartao.texto.length) pedacos.push({ tipo: "texto", texto: cartao.texto.slice(cursor) });
+
+    // As quebras de linha e os espaços do começo e do fim do cartão não valem (o texto de um cartão costuma começar e terminar numa linha à parte).
+    const primeiro = pedacos[0];
+    if (primeiro?.tipo === "texto") primeiro.texto = primeiro.texto.replace(/^\s+/, "");
+    const ultimo = pedacos[pedacos.length - 1];
+    if (ultimo?.tipo === "texto") ultimo.texto = ultimo.texto.replace(/\s+$/, "");
+    return { ok: true, valor: { nome: cartao.nome, ficha: nomeDaFicha, pedacos: pedacos.filter((p) => p.tipo !== "texto" || p.texto !== "") } };
 }

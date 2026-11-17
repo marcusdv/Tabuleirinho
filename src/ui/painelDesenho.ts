@@ -46,6 +46,15 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
 
     let atual: NomeFerramenta = "mover";
 
+    // --- Acesso rápido (abaixo do zoom): régua, lápis e borracha. Clicar na que já está ligada volta para "Mover". ---
+    const atalhos = Array.from(document.querySelectorAll<HTMLButtonElement>("#atalhos-rapidos button[data-atalho]"));
+    for (const atalho of atalhos) {
+        atalho.addEventListener("click", () => {
+            const ferramenta = atalho.dataset.atalho as NomeFerramenta;
+            opcoes.aoEscolher(ferramenta === atual ? "mover" : ferramenta);
+        });
+    }
+
     // --- Ferramentas ---
     for (const botao of botoes) {
         botao.addEventListener("click", () => opcoes.aoEscolher(botao.dataset.ferramenta as NomeFerramenta));
@@ -123,6 +132,11 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
                 const ligado = botao.dataset.ferramenta === ferramenta;
                 botao.classList.toggle("ativo", ligado);
                 botao.setAttribute("aria-pressed", String(ligado));
+            }
+            for (const atalho of atalhos) {
+                const ligado = atalho.dataset.atalho === ferramenta;
+                atalho.classList.toggle("ativo", ligado);
+                atalho.setAttribute("aria-pressed", String(ligado));
             }
         },
         atualizar,

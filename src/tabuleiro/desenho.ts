@@ -25,7 +25,7 @@ import {
     TAMANHO_MIN_FORMA,
 } from "../config";
 import { desenhoAtingido, verticesDoTriangulo } from "../desenhos";
-import { adicionarDesenho, estado, removerDesenhos, type NovoDesenho, type Ponto } from "../estado";
+import { estado, type Desenho, type NovoDesenho, type Ponto } from "../estado";
 import type { Camera } from "./camera";
 import type { FerramentaDeArrasto } from "./ferramenta";
 
@@ -36,6 +36,14 @@ export interface OpcoesDesenho {
     aoMudar(): void;
     /** Uma pintura nova foi criada com esta cor (a interface guarda a cor entre as recentes). */
     aoCriar(cor: number): void;
+    /** O gesto produziu um desenho novo: quem trata guarda no estado, avisa o servidor (online) e registra no histórico do Ctrl+Z. */
+    aoAdicionar(novo: NovoDesenho): void;
+    /** A borracha apagou estes desenhos (durante o gesto): quem trata tira do estado, avisa o servidor e registra no histórico. */
+    aoRemover(desenhos: Desenho[]): void;
+    /** A borracha acabou o gesto (soltou o mouse): tudo o que ela apagou até aqui vira UMA ação no histórico do Ctrl+Z. */
+    aoSoltarBorracha(): void;
+    /** Esta pessoa pode apagar este desenho? (O mestre apaga todos; os outros, só os que eles mesmos fizeram.) */
+    podeApagar(desenho: Desenho): boolean;
 }
 
 export interface CamadaDesenho extends FerramentaDeArrasto {
@@ -137,9 +145,9 @@ export function criarDesenho(camera: Camera, opcoes: OpcoesDesenho): CamadaDesen
     function apagarEm(p: Ponto): void {
         // O alcance é fixo NA TELA (RAIO_BORRACHA px): em casas, depende do zoom.
         const folga = RAIO_BORRACHA / camera.zoom / TAMANHO_CASA;
-        const ids = estado.desenhos.filter((d) => desenhoAtingido(d, p, folga)).map((d) => d.id);
-        if (ids.length === 0) return;
-        removerDesenhos(ids);
+        const atingidos = estado.desenhos.filter((d) => desenhoAtingido(d, p, folga) && opcoes.podeApagar(d)); // (só os que esta pessoa pode apagar)
+        if (atingidos.length === 0) return;
+        opcoes.aoRemover(atingidos); // (quem trata tira do estado e avisa o servidor)
         redesenhar();
         opcoes.aoMudar();
     }
@@ -204,10 +212,12 @@ export function criarDesenho(camera: Camera, opcoes: OpcoesDesenho): CamadaDesen
         },
 
         soltar() {
-            const forma = ferramenta === "borracha" ? null : formaAtual();
+            const eraBorracha = ferramenta === "borracha";
+            const forma = eraBorracha ? null : formaAtual();
             cancelarGesto();
+            if (eraBorracha) opcoes.aoSoltarBorracha();
             if (!forma) return;
-            adicionarDesenho(forma); // 1) estado
+            opcoes.aoAdicionar(forma); // 1) estado (e a rede, e o histórico)
             redesenhar(); // 2) desenho
             opcoes.aoMudar();
             opcoes.aoCriar(forma.cor);

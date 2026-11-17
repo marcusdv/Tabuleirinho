@@ -28,7 +28,7 @@ const erros = [];
 async function abrir(nome) {
     const p = await (await nav.newContext({ viewport: { width: 1400, height: 800 } })).newPage();
     p.on("pageerror", (e) => erros.push(nome + ": " + String(e)));
-    await abrirPagina(p, `?online&nome=${nome}`);
+    await abrirPagina(p, `?online&nome=${nome}&papel=mestre`);
     await p.waitForFunction(() => window.__tabuleirinho.rede?.ativa === true, null, { timeout: 15000 });
     await p.click("#bolsa-aba-fichas");
     return p;

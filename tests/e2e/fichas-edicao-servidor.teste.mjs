@@ -33,7 +33,7 @@ function subir() {
 const desligar = (s) => { s.proc.kill("SIGINT"); return new Promise((r) => s.proc.once("exit", r)); };
 function cliente(apelido) {
     return new Promise((resolver) => {
-        const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws`);
+        const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws?papel=mestre`);
         const recebidos = [];
         let fechou = null;
         ws.onmessage = (e) => recebidos.push(JSON.parse(e.data));

@@ -116,7 +116,7 @@ await colocarNoMapa("Thorin", 500, 400);
 const pos = await posToken("Thorin");
 await p.mouse.click(pos.x, pos.y, { button: "right" });
 await p.waitForTimeout(300);
-await p.locator("#acoes-token button", { hasText: "Adicionar à iniciativa" }).click();
+await p.locator("#menu-grupo-mapa button", { hasText: "Adicionar à iniciativa" }).click();
 await p.waitForTimeout(300);
 const entradaThorin = (await itens()).find((i) => /^Thorin/.test(i.nome));
 const totalNoChat = await p.evaluate(() => { const m = window.__tabuleirinho.estado.mensagens.filter((x) => x.rolagemFicha && x.rolagemFicha.nome.toLowerCase() === "iniciativa").at(-1); return m ? m.rolagemFicha.total : null; });
@@ -134,7 +134,7 @@ ok("5b) o valor do Thorin é o da rolagem 'Iniciativa' da ficha dele (que foi pa
 }
 await p.mouse.click(pos.x, pos.y, { button: "right" });
 await p.waitForTimeout(250);
-await p.locator("#acoes-token button", { hasText: "Adicionar à iniciativa" }).click();
+await p.locator("#menu-grupo-mapa button", { hasText: "Adicionar à iniciativa" }).click();
 await p.waitForTimeout(300);
 ok("5c) adicionar o MESMO token de novo é recusado com um aviso (não duplica)", (await itens()).length === 3 && /já está na iniciativa/.test(await p.locator("#aviso").innerText()));
 await p.click("#iniciativa-editar"); // confirma de novo

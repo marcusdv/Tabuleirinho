@@ -15,6 +15,8 @@ export interface AbrirEditorGrupo {
     aoSalvar(nome: string, cor: number): void;
     /** "Excluir grupo" (só ao editar): quem trata pede a confirmação. */
     aoExcluir?(): void;
+    /** "Compartilhar…" (só ao editar): libera o grupo inteiro a um jogador. */
+    aoCompartilhar?(): void;
 }
 
 export interface EditorGrupo {
@@ -33,6 +35,7 @@ export function criarEditorGrupo(): EditorGrupo {
     const botaoSalvar = pegar<HTMLButtonElement>("editor-grupo-salvar");
     const botaoCancelar = pegar<HTMLButtonElement>("editor-grupo-cancelar");
     const botaoExcluir = pegar<HTMLButtonElement>("editor-grupo-excluir");
+    const botaoCompartilhar = pegar<HTMLButtonElement>("editor-grupo-compartilhar");
 
     campoNome.maxLength = MAX_CARACTERES_NOME_GRUPO;
     let cor = COR_INICIAL_GRUPO;
@@ -64,6 +67,11 @@ export function criarEditorGrupo(): EditorGrupo {
         fechar();
         opcoes?.aoExcluir?.();
     });
+    botaoCompartilhar.addEventListener("click", () => {
+        const opcoes = atual;
+        fechar();
+        opcoes?.aoCompartilhar?.();
+    });
     janela.addEventListener("pointerdown", (e) => {
         if (e.target === janela) fechar(); // o fundo escurecido
     });
@@ -87,6 +95,7 @@ export function criarEditorGrupo(): EditorGrupo {
             campoNome.value = opcoes.grupo?.nome ?? "";
             escolher(opcoes.grupo?.cor ?? COR_INICIAL_GRUPO);
             botaoExcluir.hidden = !opcoes.grupo;
+            botaoCompartilhar.hidden = !opcoes.grupo || !opcoes.aoCompartilhar;
             janela.hidden = false;
             campoNome.focus();
             campoNome.select();

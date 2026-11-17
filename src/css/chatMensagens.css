@@ -1,0 +1,404 @@
+/* As MENSAGENS do chat: cartões de rolagem (dados e ficha), peças em forma de dado, lista e campo de enviar. (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
+/* Cartão de rolagem no chat (coluna vertical): em cima o autor e a fórmula (ou o nome do golpe e a criatura), no meio a BANDEJA com
+   cada dado (e o modificador) e, embaixo, a conta em cinza e o TOTAL grande à direita, separados por uma linha. */
+.chat-mensagem.chat-rolagem {
+    position: relative; /* o ícone (.chat-avatar) fica solto no canto superior direito */
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px 12px 10px;
+    border-color: #5a4f2e;
+}
+/* O ÍCONE de quem rolou (jogador ou monstro), no canto superior ESQUERDO: por enquanto o ícone PADRÃO (silhueta cinza). Quando houver imagem,
+   ela entra dentro deste círculo. O nome, a hora e a fórmula ficam à direita dele. */
+.chat-avatar {
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    width: 38px;
+    height: 38px;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    background: #22222a;
+    border: 1px solid #4a4a58;
+    border-radius: 50%;
+}
+/* O ícone de um TOKEN no lugar da silhueta: o disco do token (preenchimento, borda e imagem), como no tabuleiro. */
+.chat-avatar.com-token {
+    border-width: 2px;
+    background-size: cover;
+    background-position: center;
+}
+.chat-avatar svg {
+    width: 26px;
+    height: 26px;
+    fill: #6f6f7e;
+}
+.chat-rolagem .chat-cabecalho {
+    padding-left: 48px; /* o ícone ocupa o canto */
+}
+.chat-rolagem p.chat-formula,
+.chat-rolagem p.chat-criatura {
+    padding-left: 48px;
+}
+/* A linha principal: a bandeja de dados à esquerda e o TOTAL grande à direita. */
+.chat-linha {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.chat-linha .chat-dados {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+.chat-dados {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 0 2px;
+}
+/* Uma peça = um dado: o valor grande e o tipo ("d20") pequeno embaixo. Verde = o máximo do dado; vermelho = o 1. */
+.chat-dado {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-width: 30px;
+    height: 36px;
+    box-sizing: border-box;
+    padding: 0 4px;
+    background: #22222a;
+    border: 1px solid #4a4a58;
+    border-radius: 8px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+}
+.chat-dado b {
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+}
+.chat-dado small {
+    margin-top: 3px;
+    font-size: 9px;
+    color: #8a8a99;
+}
+.chat-dado.maximo {
+    border-color: #66bb6a;
+    background: #20301f;
+}
+.chat-dado.maximo b {
+    color: #a5d6a7;
+}
+.chat-dado.minimo {
+    border-color: #e57373;
+    background: #331f21;
+}
+.chat-dado.minimo b {
+    color: #ef9a9a;
+}
+.chat-dado-resto {
+    font-size: 12px;
+    color: #9a9aa8;
+}
+/* PEÇA COM FORMA: o fundo é um polígono em SVG (o formato do dado, visto de frente: d4 triângulo, d6 quadrado... d1000 círculo; ver `formaDoDado` em ui/chat.ts). A caixa
+   fica quadrada e sem fundo nem borda próprios; as cores do polígono vêm das variáveis abaixo (o máximo, o 1 e o crítico só trocam as variáveis). */
+.chat-dado.forma {
+    --dado-fundo: #22222a;
+    --dado-borda: #4a4a58;
+    position: relative;
+    width: 40px;
+    height: 40px;
+    min-width: 0;
+    padding: 0;
+    background: none !important;
+    border: 0 !important;
+}
+.chat-dado.forma.maximo {
+    --dado-fundo: #20301f;
+    --dado-borda: #66bb6a;
+}
+.chat-dado.forma.minimo {
+    --dado-fundo: #331f21;
+    --dado-borda: #e57373;
+}
+.chat-critico .chat-dado.forma.maximo {
+    --dado-fundo: #3d3417;
+    --dado-borda: #ffd54f;
+}
+.chat-dado-forma-svg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+.chat-dado-forma-svg polygon,
+.chat-dado-forma-svg circle {
+    fill: var(--dado-fundo);
+    stroke: var(--dado-borda);
+    stroke-width: 3;
+    stroke-linejoin: round;
+}
+.chat-dado.forma b,
+.chat-dado.forma small {
+    position: relative; /* (acima do SVG, que é posicionado e vem antes no HTML) */
+}
+.chat-dado.forma b {
+    font-size: 15px;
+}
+.chat-dado.forma small {
+    margin-top: 2px;
+    font-size: 8px;
+}
+.chat-dado.forma[data-lados="4"] {
+    padding-top: 9px; /* o triângulo é mais largo embaixo: o número desce um pouco */
+}
+/* O modificador: só o texto ("+2"), sem fundo e em cinza neutro (a etiqueta colorida parecia um botão ou o resultado). */
+.chat-modificador {
+    padding: 0 2px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #b4b4c0;
+}
+/* Crítico (um único d20 deu 20): cartão dourado com um brilho que pulsa. Falha crítica (deu 1): vermelho. */
+.chat-mensagem.chat-critico {
+    border-color: #ffd54f;
+    background: #3a3420;
+    box-shadow: 0 0 12px rgba(255, 213, 79, 0.4);
+}
+.chat-mensagem.chat-falha-critica {
+    border-color: #e57373;
+    background: #3a2326;
+    box-shadow: 0 0 10px rgba(229, 115, 115, 0.3);
+}
+.chat-critico .chat-dado.maximo {
+    border-color: #ffd54f;
+    background: #3d3417;
+}
+.chat-critico .chat-dado.maximo b {
+    color: #ffd54f;
+}
+/* Sem mensagem escrita: o crítico e a falha crítica só mudam a COR do número total (verde e vermelho, como as peças dos dados). */
+.chat-critico .chat-total {
+    color: #81c784;
+}
+.chat-falha-critica .chat-total {
+    color: #ef9a9a;
+}
+@media (prefers-reduced-motion: no-preference) {
+    .chat-mensagem.chat-critico {
+        animation: chat-brilho 1.4s ease-in-out 3;
+    }
+}
+@keyframes chat-brilho {
+    50% {
+        box-shadow: 0 0 22px rgba(255, 213, 79, 0.8);
+    }
+}
+.chat-formula {
+    font-size: 13px;
+}
+.chat-formula strong {
+    color: #fff;
+}
+/* O cartão de uma rolagem de FICHA: o nome da rolagem (cor do nome na ficha), embaixo o nome da ficha (a criatura) e embaixo o cálculo. Nomes compridos CONTINUAM na linha de baixo (pedido do dono),
+   inclusive no meio de uma palavra se ela não couber (`overflow-wrap: anywhere`, herdado de `.chat-mensagem p`). */
+.chat-mensagem p.chat-titulo-ficha {
+    white-space: normal;
+}
+.chat-titulo-ficha strong {
+    color: #ffcc80;
+}
+/* A criatura (nome da ficha), embaixo do nome do golpe. */
+.chat-mensagem p.chat-criatura {
+    color: #9a9aa8;
+    font-size: 12px;
+    white-space: normal;
+}
+.chat-total {
+    flex: 0 0 auto;
+    padding: 2px 6px; /* mais área para segurar e arrastar */
+    font-size: 36px; /* (já foi 32 e 42; pedido do dono: um pouco menor que 42) */
+    font-weight: 700;
+    line-height: 1;
+    color: #ffd54f;
+    font-variant-numeric: tabular-nums;
+}
+.chat-total.arrastavel {
+    cursor: grab; /* o TOTAL se arrasta até um token para dar dano a ele */
+    user-select: none;
+    touch-action: none;
+}
+.chat-total.arrastavel:hover {
+    text-shadow: 0 0 8px currentColor;
+}
+/* Cada DADO do chat também se arrasta (só o número que saiu nele). */
+.chat-dado.arrastavel {
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+}
+.chat-dado.arrastavel:hover {
+    filter: brightness(1.3);
+}
+/* A "sombra" do número que segue o mouse durante o arrasto (fica acima de tudo, sem pegar o mouse). */
+.chat-sombra-dano {
+    position: fixed;
+    z-index: 70;
+    transform: translate(-50%, -50%);
+    padding: 4px 12px;
+    font:
+        700 22px/1 system-ui,
+        sans-serif;
+    color: #fff;
+    background: rgba(229, 115, 115, 0.92);
+    border: 2px solid #ffd54f;
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+    user-select: none;
+}
+.chat-mensagem p.chat-detalhe {
+    color: #9a9aa8;
+    font-size: 12.5px;
+    white-space: normal; /* a conta comprida continua na linha de baixo (a lista completa também fica na dica do mouse) */
+}
+
+/* Aviso de mensagem nova: um botão embaixo da lista, aparece quando chega mensagem com a lista ROLADA para cima (a pessoa está lendo as antigas). */
+#chat-novas {
+    position: absolute;
+    z-index: 3; /* acima dos cartões */
+    left: 50%;
+    translate: -50% 0;
+    bottom: 68px; /* logo acima do rodapé do campo de digitar (relativo ao #chat-painel) */
+    padding: 4px 12px;
+    background: rgba(34, 34, 42, 0.96);
+    border: 1px solid #ffd54f;
+    border-radius: 14px;
+    color: #ffd54f;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+#chat-novas:hover {
+    background: #5a4a1f;
+}
+@media (prefers-reduced-motion: no-preference) {
+    #chat-novas {
+        animation: chat-novas-entra 220ms ease-out;
+    }
+}
+@keyframes chat-novas-entra {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+}
+
+/* A lista: ocupa toda a altura que sobra entre o topo e o campo de digitar e rola na VERTICAL (a barra é a do site, igual às outras). */
+#chat-faixa {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* mensagens uma embaixo da outra */
+    flex: 1 1 auto;
+    min-height: 0; /* sem isto a lista não encolhe e empurra o campo para fora */
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 14px 14px 10px; /* respiro entre os cartões e a parede do chat (a barra de rolagem fica na parede, fora deste padding) */
+}
+/* Poucas mensagens: elas ficam COLADAS EMBAIXO (junto do campo de digitar) e a pilha cresce para cima. A margem automática da primeira
+   empurra todas para o fundo; quando a lista enche, a margem vira 0 e ela rola normalmente. (Não se usa justify-content: flex-end,
+   que em alguns navegadores impede de rolar até as primeiras mensagens.) */
+#chat-faixa > :first-child {
+    margin-top: auto;
+}
+.chat-mensagem {
+    flex: 0 0 auto;
+    box-sizing: border-box;
+    padding: 5px 9px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 8px;
+    font-size: 12.5px;
+    line-height: 1.35;
+}
+.chat-cabecalho {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 2px;
+    font-size: 11px;
+}
+.chat-cabecalho strong {
+    color: #ffd54f;
+    font-weight: 600;
+}
+.chat-cabecalho time {
+    color: #8a8a99;
+    font-variant-numeric: tabular-nums;
+}
+.chat-mensagem p {
+    margin: 0;
+    overflow-wrap: anywhere; /* uma palavra que não cabe na linha quebra no meio, em vez de estourar a caixa */
+    text-wrap: pretty; /* quebra mais natural: evita deixar uma palavra sozinha no fim do parágrafo */
+}
+/* O campo de enviar é o RODAPÉ do chat: uma linha de separação em cima, um fundo um pouco mais escuro e espaço próprio em volta,
+   para não parecer solto no meio das mensagens. */
+#chat-form {
+    flex: none;
+    display: flex;
+    gap: 6px;
+    margin: 0;
+    padding: 12px 14px;
+    background: rgba(0, 0, 0, 0.22);
+    border-top: 1px solid #45454f;
+}
+#chat-texto {
+    flex: 1;
+    min-width: 0;
+    height: 32px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    background: #26262f;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    border: 1px solid #3a3a45;
+    border-radius: 6px;
+}
+#chat-texto:focus {
+    outline: none;
+    border-color: #ffd54f;
+}
+#chat-contador {
+    align-self: center;
+    font-size: 12px;
+    color: #8a8a99;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+#chat-contador.no-limite {
+    color: #ffd54f;
+    font-weight: 600;
+} /* chegou ao limite de caracteres */
+#chat-enviar {
+    height: 32px;
+    padding: 0 14px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+#chat-enviar:hover {
+    background: #3b3b49;
+}
+

@@ -1,0 +1,1378 @@
+/* NOTA: no meio deste arquivo há uma regra que NÃO é da ficha, `#dados-rolar.limite` (o botão Rolar dos Dados piscando em vermelho no limite anti-spam). Ficou aqui para não mudar a ordem do CSS; pode ir para o arquivo dos dados quando o base.css for dividido. */
+/* Editor de FICHA: uma janela FLUTUANTE e ARRASTÁVEL (pela barra do título), por cima da bolsa expandida. NÃO é "modal": não escurece
+   o fundo nem bloqueia o resto da tela (a camada `#editor-ficha` deixa o mouse passar; só o painel o recebe), para a pessoa ver e usar o
+   chat, os dados e o tabuleiro enquanto edita (ver a rolagem). A posição (left/top) é definida pelo ui/editorFicha.ts. */
+#editor-ficha {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    pointer-events: none;
+}
+#editor-ficha-painel {
+    position: absolute;
+    pointer-events: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    /* Tamanho PADRÃO (maior que antes: 940 × 640). A pessoa pode redimensionar pela alça do canto inferior direito; o tamanho
+       escolhido fica guardado no navegador (ui/editorFicha.ts) e passa a valer no lugar deste. */
+    width: min(1080px, calc(100vw - var(--largura-chat) - 40px)); /* deixa livre a coluna da direita (chat/bolsa) */
+    height: min(720px, calc(100vh - 32px));
+    min-width: 520px;
+    min-height: 360px;
+    padding: 16px 20px 14px;
+    background: #22222a;
+    border: 1px solid #3a3a45;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+#editor-ficha-topo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: grab; /* a barra do título arrasta a janela */
+    user-select: none;
+    touch-action: none;
+}
+/* FICHA MINIMIZADA: só a barra do topo (o nome, o botão de restaurar e o ✕), pequena e arrastável pela tela. O tamanho guardado da janela é inline: por isso o !important. */
+#editor-ficha-mini-nome {
+    display: none;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 600;
+}
+#editor-ficha-painel.minimizada {
+    width: min(340px, calc(100vw - 24px)) !important;
+    height: auto !important;
+    min-width: 0;
+    min-height: 0;
+    padding: 8px 10px;
+    gap: 0;
+}
+#editor-ficha-painel.minimizada > :not(#editor-ficha-topo) {
+    display: none !important;
+}
+#editor-ficha-painel.minimizada #editor-ficha-mini-nome {
+    display: block;
+}
+#editor-ficha-painel.minimizada #editor-ficha-nao-salvo,
+#editor-ficha-painel.minimizada #editor-ficha-tipo,
+#editor-ficha-painel.minimizada #editor-ficha-fonte-menos,
+#editor-ficha-painel.minimizada #editor-ficha-fonte-mais {
+    display: none !important;
+}
+#editor-ficha-painel.arrastando #editor-ficha-topo {
+    cursor: grabbing;
+}
+/* TODA a parte neutra da janela arrasta (ver ehParteNeutra no ui/editorFicha.ts): a mãozinha, e nada de selecionar texto ao arrastar.
+   O texto que se quer copiar (parágrafos e exemplos das dicas) e os campos continuam selecionáveis, com o cursor de texto. */
+#editor-ficha-painel {
+    cursor: grab;
+    user-select: none;
+}
+#editor-ficha-painel textarea,
+#editor-ficha-painel input,
+#editor-ficha-painel p,
+#editor-ficha-painel pre,
+#editor-ficha-painel code {
+    user-select: text;
+}
+#editor-ficha-painel p,
+#editor-ficha-painel pre,
+#editor-ficha-painel code {
+    cursor: text;
+}
+#editor-ficha-painel.arrastando,
+#editor-ficha-painel.arrastando * {
+    cursor: grabbing !important;
+}
+/* "alterações não salvas": só tem texto quando há mudança pendente. Ocupa TODO o espaço livre do meio da barra (empurra os botões para a direita), que também é uma parte neutra: dá para agarrar e arrastar a janela por ali. */
+#editor-ficha-nao-salvo {
+    flex: 1;
+    min-width: 0;
+    text-align: right;
+    font-size: 12px;
+    color: #ffd54f;
+}
+/* Os botões do alto da janela: o tamanho da letra, minimizar e fechar. */
+#editor-ficha-ferramentas {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+#editor-ficha-ferramentas button {
+    height: 24px;
+    padding: 0 10px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: #c9c9d4;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+#editor-ficha-ferramentas button:hover {
+    border-color: #ffd54f;
+    color: #ffd54f;
+}
+#editor-ficha-fonte-menos,
+#editor-ficha-fonte-mais {
+    width: 30px;
+    padding: 0 !important;
+    font-size: 12px !important;
+}
+#editor-ficha-ferramentas button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+/* A alça de redimensionar: o canto inferior direito da janela (duas riscas na diagonal). */
+#editor-ficha-redimensionar {
+    position: absolute;
+    right: 2px;
+    bottom: 2px;
+    width: 18px;
+    height: 18px;
+    cursor: nwse-resize;
+    touch-action: none;
+    background: linear-gradient(
+        135deg,
+        transparent 0 55%,
+        #6a6a7a 55% 62%,
+        transparent 62% 72%,
+        #6a6a7a 72% 79%,
+        transparent 79%
+    );
+    border-bottom-right-radius: 10px;
+}
+#editor-ficha-redimensionar:hover {
+    background: linear-gradient(
+        135deg,
+        transparent 0 55%,
+        #ffd54f 55% 62%,
+        transparent 62% 72%,
+        #ffd54f 72% 79%,
+        transparent 79%
+    );
+}
+#editor-ficha-x {
+    width: 28px;
+    padding: 0 !important;
+    font-size: 13px !important;
+}
+#editor-ficha-x:hover {
+    border-color: #e88a8a !important;
+    color: #e88a8a !important;
+}
+#editor-ficha-nome,
+#editor-ficha-texto {
+    width: 100%;
+    box-sizing: border-box;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+}
+#editor-ficha-nome {
+    flex: none;
+    height: 32px;
+    padding: 0 10px;
+    font-weight: 600;
+}
+/* Menu do clique direito numa aba da ficha (acima do editor, que tem z-index 50). */
+#menu-aba {
+    position: fixed;
+    z-index: 59; /* acima de TODAS as janelas de ficha (z-index de 50 a 55: há até 5 fixadas + 1 solta), das instruções (56) e da telinha do tipo (57); abaixo da caixa de confirmar (60) */
+    min-width: 170px;
+    padding: 4px;
+    background: #2a2a33;
+    border: 1px solid #4a4a58;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+#menu-aba button {
+    display: block;
+    width: 100%;
+    padding: 7px 10px;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+#menu-aba button:hover:not(:disabled) {
+    background: #3b3b49;
+}
+#menu-aba button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+#menu-aba #menu-aba-excluir:not(:disabled) {
+    color: #ff9a9a;
+}
+/* A visualização formatada ocupa o lugar do campo de texto (a área tem position: relative). */
+/* LIMITE anti-spam: o botão Rolar pisca em vermelho quando a pessoa rola rápido demais. */
+#dados-rolar.limite {
+    outline: 2px solid #ff6b6b;
+    animation: tremer-limite 0.25s;
+}
+@keyframes tremer-limite {
+    25% {
+        translate: -3px 0;
+    }
+    75% {
+        translate: 3px 0;
+    }
+}
+#editor-ficha-previa {
+    cursor: text; /* a leitura NÃO arrasta a janela (e dá para selecionar e copiar o texto); as rolagens têm a mãozinha de clicar */
+    position: absolute;
+    inset: 0 12px 0 0; /* (a faixa da barra própria fica livre, à direita) */
+    z-index: 3; /* POR CIMA da camada de cores (z-index 2) e do campo (1): sem isto a leitura ficava escondida por baixo do texto cru */
+    overflow: auto;
+    padding: 10px;
+    font-size: var(--fonte-ficha, 15px);
+    background: #1f1f27;
+    border-radius: 6px;
+    line-height: 1.4;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+#editor-ficha-previa[hidden] {
+    display: none;
+}
+#editor-ficha-previa .titulo {
+    font-weight: 700;
+    line-height: 1.2;
+}
+/* Três títulos bem espaçados em relação à letra normal (1em): 2, 1,5 e 1,2. */
+#editor-ficha-previa .t1 {
+    font-size: 2em;
+}
+#editor-ficha-previa .t2 {
+    font-size: 1.5em;
+}
+#editor-ficha-previa .t3 {
+    font-size: 1.2em;
+}
+/* ROLAGENS clicáveis na leitura: o nome (laranja, como no campo) e a fórmula (roxa, mais discreta). */
+#editor-ficha-previa .rolagem-previa {
+    cursor: pointer;
+    border-radius: 4px;
+}
+#editor-ficha-previa .rolagem-previa-nome {
+    color: #ffb86b;
+    background: rgba(255, 184, 107, 0.14);
+    border-radius: 4px;
+}
+#editor-ficha-previa .rolagem-previa-formula {
+    color: #b39ddb;
+}
+#editor-ficha-previa .rolagem-previa:hover .rolagem-previa-nome {
+    background: rgba(255, 184, 107, 0.3);
+}
+#editor-ficha-previa .rolagem-previa.com-erro .rolagem-previa-nome {
+    text-decoration: underline wavy #ff6b6b;
+}
+/* CORES DOS DADOS NAS FICHAS (só aqui: o chat não tem cor por tipo).
+   - Os BOTÕES da lista lateral de rolagens usam a cor de CADA tipo de dado (o botão, no texto e no fundo, pelo PRIMEIRO dado da fórmula; e o ícone de cada dado).
+   - No TEXTO da ficha (a leitura) só o d20 tem cor (azul); todos os outros dados ficam com as cores de sempre (pedido do dono: cores demais confundiam a leitura). */
+#editor-ficha-lateral li.rolagem[data-lados="4"],
+#editor-ficha-lateral .rolagem-dado[data-lados="4"] {
+    --cor-dado: #ffb74d;
+}
+#editor-ficha-lateral li.rolagem[data-lados="6"],
+#editor-ficha-lateral .rolagem-dado[data-lados="6"] {
+    --cor-dado: #4db6ac;
+}
+#editor-ficha-lateral li.rolagem[data-lados="8"],
+#editor-ficha-lateral .rolagem-dado[data-lados="8"] {
+    --cor-dado: #ba68c8;
+}
+#editor-ficha-lateral li.rolagem[data-lados="10"],
+#editor-ficha-lateral .rolagem-dado[data-lados="10"] {
+    --cor-dado: #f06292;
+}
+#editor-ficha-lateral li.rolagem[data-lados="12"],
+#editor-ficha-lateral .rolagem-dado[data-lados="12"] {
+    --cor-dado: #dce775;
+}
+#editor-ficha-lateral li.rolagem[data-lados="20"],
+#editor-ficha-lateral .rolagem-dado[data-lados="20"] {
+    --cor-dado: #6aa7ff;
+}
+#editor-ficha-lateral li.rolagem[data-lados="100"],
+#editor-ficha-lateral .rolagem-dado[data-lados="100"] {
+    --cor-dado: #ff8a65;
+}
+#editor-ficha-lateral li.rolagem[data-lados="1000"],
+#editor-ficha-lateral .rolagem-dado[data-lados="1000"] {
+    --cor-dado: #9fa8da;
+}
+#editor-ficha-lateral #editor-ficha-rolagens li.rolagem[data-lados] {
+    background: color-mix(in srgb, var(--cor-dado) 24%, #2f2f3a);
+}
+#editor-ficha-lateral #editor-ficha-rolagens li.rolagem[data-lados]:hover,
+#editor-ficha-lateral #editor-ficha-rolagens li.rolagem[data-lados]:focus-visible {
+    background: color-mix(in srgb, var(--cor-dado) 38%, #2f2f3a);
+}
+#editor-ficha-lateral li.rolagem[data-lados] .nome {
+    color: var(--cor-dado);
+}
+/* No texto: SÓ o d20 é azul (o botão da rolagem com d20, o termo "1d20" e o ícone dele). */
+#editor-ficha-previa .rolagem-previa[data-lados="20"],
+#editor-ficha-previa .termo-dado[data-lados="20"],
+#editor-ficha-previa .rolagem-dado[data-lados="20"] {
+    --cor-dado: #6aa7ff;
+}
+#editor-ficha-previa .termo-dado:not([data-lados="20"]),
+#editor-ficha-previa .rolagem-dado:not([data-lados="20"]) {
+    --cor-dado: initial; /* (não herda o azul do botão: um "1d6" ao lado de um "1d20" fica sem cor) */
+}
+#editor-ficha-previa .rolagem-previa[data-lados="20"] .rolagem-previa-nome {
+    color: var(--cor-dado);
+    background: color-mix(in srgb, var(--cor-dado) 18%, transparent);
+}
+#editor-ficha-previa .rolagem-previa[data-lados="20"]:hover .rolagem-previa-nome {
+    background: color-mix(in srgb, var(--cor-dado) 34%, transparent);
+}
+/* ROLAGENS: cada DADO ("1d4", "1d6"...) tem o seu ícone (o formato do dado do chat, desenhado por ui/formaDado.ts). Sem cor própria (nenhuma `--cor-dado`) o ícone e o termo ficam neutros. */
+.rolagem-dado {
+    --dado-fundo: color-mix(in srgb, var(--cor-dado, #4a4a58) 22%, #22222a);
+    --dado-borda: var(--cor-dado, #4a4a58);
+    position: relative;
+    display: inline-block;
+    width: 1.25em;
+    height: 1.25em;
+    margin-right: 3px;
+    vertical-align: -0.25em;
+    flex: none;
+}
+.termo-dado {
+    color: var(--cor-dado, inherit);
+    white-space: nowrap;
+}
+#editor-ficha-previa .negrito {
+    font-weight: 700;
+}
+#editor-ficha-previa .italico {
+    font-style: italic;
+}
+/* A linha de ABAS (páginas) da ficha, embaixo do nome. */
+#editor-ficha-abas {
+    flex: none;
+    display: flex;
+    align-items: flex-end;
+    gap: 6px;
+    border-bottom: 1px solid #4a4a58;
+}
+#editor-ficha-abas-lista::-webkit-scrollbar {
+    display: none; /* sem barra de rolagem na linha das abas (pedido do dono); a roda do mouse ainda rola se houver muitas */
+}
+#editor-ficha-abas-lista {
+    flex: 0 1 auto; /* só do tamanho das abas: o "+" fica logo depois da última e anda com elas (com abas demais, a lista encolhe e rola) */
+    min-width: 0;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+}
+.aba-ficha {
+    flex: none;
+    display: flex;
+    align-items: center;
+    margin-bottom: -1px; /* a aba ativa "afunda" na linha de baixo e se junta ao texto */
+    background: #25252e;
+    border: 1px solid #3c3c4a;
+    border-bottom-color: #4a4a58;
+    border-radius: 8px 8px 0 0;
+}
+.aba-ficha:hover {
+    background: #2f2f3a;
+}
+.aba-ficha.ativa {
+    background: #3d3d4c;
+    border-color: #4a4a58;
+    border-top: 2px solid #ffd54f;
+    border-bottom-color: #3d3d4c;
+}
+.aba-ficha button,
+.aba-ficha-campo,
+#editor-ficha-aba-nova {
+    font: inherit;
+    font-size: 12px;
+    color: inherit;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+}
+.aba-ficha-nome {
+    max-width: 150px;
+    padding: 5px 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.aba-ficha.ativa .aba-ficha-nome {
+    color: #ffd54f;
+}
+.aba-ficha-campo {
+    width: 120px;
+    padding: 4px 8px;
+    cursor: text;
+    outline: none;
+    box-shadow: inset 0 -2px 0 #ffd54f;
+}
+#editor-ficha-aba-nova {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    margin-bottom: 2px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    font-size: 15px;
+    line-height: 1;
+}
+#editor-ficha-aba-nova:hover:not(:disabled) {
+    border-color: #ffd54f;
+}
+#editor-ficha-aba-nova:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+/* Variável escrita em OUTRA página: vale aqui também, mas aparece esmaecida. */
+#editor-ficha-lateral li.variavel.de-outra-aba {
+    opacity: 0.6;
+}
+#editor-ficha-corpo {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    gap: 0; /* o espaço entre o texto e o painel é a própria DIVISÓRIA (#editor-ficha-divisoria, 10 px) */
+}
+#editor-ficha-texto {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    padding: 10px;
+    line-height: 1.5;
+    resize: none;
+}
+/* O painel lateral (só leitura): variáveis e rolagens que o texto define. */
+#editor-ficha-lateral {
+    flex: none;
+    width: 270px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    padding: 10px 12px;
+    background: #26262f;
+    border: 1px solid #3a3a45;
+    border-radius: 6px;
+    font-size: 12px;
+}
+#editor-ficha-lateral h4 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9a9aa8;
+}
+#editor-ficha-lateral h4:not(:first-child) {
+    margin-top: 16px;
+}
+#editor-ficha-lateral ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+#editor-ficha-lateral li.variavel {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+}
+/* Uma rolagem da lista é CLICÁVEL (rola): a caixa inteira, com o nome em cima e a fórmula calculada embaixo. Sem rótulo: o cursor de
+   mãozinha e o destaque ao passar o mouse bastam. */
+#editor-ficha-lateral li.rolagem {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 5px 8px;
+    background: #2f2f3a;
+    border-radius: 5px;
+    cursor: pointer;
+}
+#editor-ficha-lateral li.rolagem:hover,
+#editor-ficha-lateral li.rolagem:focus-visible {
+    background: #3b3b49;
+    outline: none;
+}
+#editor-ficha-lateral li.rolagem:focus-visible {
+    box-shadow: 0 0 0 2px #ffd54f;
+}
+#editor-ficha-lateral li.rolagem.com-erro {
+    cursor: help; /* clicar numa rolagem com erro só mostra o motivo */
+}
+#editor-ficha-lateral .nome {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-weight: 600;
+    color: #e6e6ea;
+}
+#editor-ficha-lateral .valor {
+    overflow-wrap: anywhere;
+    color: #ffd54f;
+    font-variant-numeric: tabular-nums;
+}
+#editor-ficha-lateral li.rolagem .valor {
+    color: #c9c9d4;
+}
+#editor-ficha-lateral li.com-erro .valor {
+    color: #e88a8a; /* a mensagem de erro no lugar do valor */
+    font-weight: 400;
+}
+#editor-ficha-lateral p {
+    margin: 0;
+    line-height: 1.45;
+    color: #7d7d8c;
+}
+#editor-ficha-lateral code {
+    color: #c9c9d4;
+}
+@media (max-width: 700px) {
+    #editor-ficha-corpo {
+        flex-direction: column;
+    }
+    #editor-ficha-lateral {
+        width: auto;
+        max-height: 34%;
+    }
+}
+#editor-ficha-nome:focus,
+#editor-ficha-texto:focus {
+    outline: none;
+    border-color: #ffd54f;
+}
+#editor-ficha-conflito {
+    flex: none;
+    padding: 8px 10px;
+    background: #4a3a1f;
+    border: 1px solid #ffb74d;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.45;
+}
+#editor-ficha-conflito p {
+    margin: 0 0 6px;
+}
+#editor-ficha-recarregar {
+    height: 28px;
+    padding: 0 12px;
+    background: #5a4a1f;
+    border: 1px solid #ffd54f;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+#editor-ficha-rodape {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+#editor-ficha-rodape .editor-imagem-botoes {
+    margin: 0 0 0 auto;
+}
+#editor-ficha-contagem {
+    font-size: 11px;
+    color: #9a9aa8;
+    font-variant-numeric: tabular-nums;
+}
+#editor-ficha-aviso {
+    font-size: 12px;
+    color: #9ad59a;
+}
+/* A ETIQUETA do tipo da ficha, no alto (Token Único × Multi Tokens): passar o mouse mostra o resumo, clicar abre a telinha (#info-tipo-ficha). */
+#editor-ficha-tipo {
+    flex: none;
+    padding: 2px 9px;
+    border: 0;
+    border-radius: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #c9c9d4;
+    background: #3a3a45;
+    cursor: help;
+}
+#editor-ficha-tipo:hover {
+    background: #4a4a5a;
+}
+#editor-ficha-tipo:focus-visible {
+    outline: 2px solid #ffd54f;
+    outline-offset: 2px;
+}
+/* A telinha que explica o tipo da ficha: acima da janela de instruções (55) e abaixo da caixa de confirmar (60). */
+#info-tipo-ficha {
+    position: fixed;
+    inset: 0;
+    z-index: 57;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(8, 8, 12, 0.72);
+}
+#info-tipo-ficha[hidden] {
+    display: none;
+}
+#info-tipo-ficha-painel {
+    box-sizing: border-box;
+    width: min(500px, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+    overflow-y: auto;
+    padding: 16px 20px 14px;
+    background: #22222a;
+    border: 1px solid #3a3a45;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+#info-tipo-ficha-painel h3 {
+    margin: 0 0 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #ffd54f;
+}
+#info-tipo-ficha-corpo p {
+    margin: 0 0 8px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #d5d5dd;
+}
+#info-tipo-ficha-botoes {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+#editor-ficha-aviso[data-erro] {
+    color: #e88a8a;
+}
+#editor-ficha-salvar:not(:disabled) {
+    background: #5a4a1f;
+    border-color: #ffd54f;
+}
+
+/* O campo de texto da ficha + a CAMADA DE CORES por cima dele. O texto do campo fica transparente (só o cursor aparece) e a camada, que
+   tem EXATAMENTE a mesma fonte, margens e quebra de linha, mostra o mesmo texto com as cores. Por isso as cores só mudam COR, FUNDO e
+   SUBLINHADO: nunca negrito, margem ou borda, que deslocariam o texto e desalinhariam as duas camadas. */
+#editor-ficha-area {
+    position: relative;
+    flex: 1;
+    min-width: 220px; /* o texto nunca fica mais estreito que isto (senão as letras se empilham, uma por linha) */
+    min-height: 0;
+    display: flex;
+    padding-right: 12px; /* a faixa da barra de rolagem própria (#editor-ficha-barra), FORA do texto */
+}
+#editor-ficha-texto,
+#editor-ficha-cores {
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    padding: 10px;
+    border: 1px solid transparent;
+    font: inherit;
+    font-size: var(
+        --fonte-ficha,
+        15px
+    ); /* a pessoa escolhe com os botões A− e A+ (o campo e a camada de cores SEMPRE com a mesma fonte) */
+    line-height: 1.5;
+    letter-spacing: normal;
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    word-break: normal;
+    tab-size: 4;
+    overflow-x: hidden;
+    overflow-y: scroll; /* nos dois a barra NATIVA fica escondida (abaixo): a rolagem é mostrada pela barra própria, fora do texto */
+}
+/* Sem barra nativa dentro do texto: ela herdava o cursor de TEXTO do campo. Os três têm o mesmo tamanho útil, então a quebra de linha continua igual. */
+#editor-ficha-texto::-webkit-scrollbar,
+#editor-ficha-cores::-webkit-scrollbar,
+#editor-ficha-previa::-webkit-scrollbar {
+    display: none;
+}
+@supports not selector(::-webkit-scrollbar) {
+    #editor-ficha-texto,
+    #editor-ficha-cores,
+    #editor-ficha-previa {
+        scrollbar-width: none;
+    }
+}
+#editor-ficha-texto {
+    position: relative;
+    z-index: 1;
+    border-color: #4a4a58;
+    background: #2f2f3a;
+}
+#editor-ficha-texto.colorido {
+    color: transparent;
+    caret-color: #e6e6ea;
+}
+#editor-ficha-texto.colorido::selection {
+    background: rgba(255, 213, 79, 0.35);
+    color: transparent;
+}
+#editor-ficha-cores {
+    position: absolute;
+    inset: 0 12px 0 0; /* (a faixa da barra própria fica livre, à direita) */
+    width: auto; /* (o `width: 100%` da regra compartilhada anularia o recuo e a camada ficaria mais larga que o campo: a quebra de linha desalinharia) */
+    z-index: 2;
+    pointer-events: none; /* o mouse passa direto para o campo (exceto nos nomes das rolagens, abaixo) */
+    border-radius: 6px;
+    background: transparent;
+    color: #e6e6ea;
+}
+/* A BARRA DE ROLAGEM PRÓPRIA: uma faixa fina à direita do texto, com ponteiro de SETA (o do campo é de texto). O cursor dourado acompanha a rolagem; dá para arrastá-lo e clicar na trilha. */
+#editor-ficha-painel:focus {
+    outline: none; /* (a janela recebe o foco ao abrir por um token: sem contorno) */
+}
+#editor-ficha-barra {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    width: 8px;
+    box-sizing: border-box;
+    z-index: 4;
+    background: #26262f;
+    border: 1px solid #3a3a45;
+    border-radius: 5px;
+    cursor: default;
+}
+#editor-ficha-barra[hidden] {
+    display: none;
+}
+#editor-ficha-barra-polegar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    min-height: 24px;
+    background: rgba(255, 213, 79, 0.55);
+    border-radius: 5px;
+    cursor: default;
+}
+#editor-ficha-barra-polegar:hover {
+    background: rgba(255, 213, 79, 0.95);
+}
+.trecho {
+    border-radius: 3px;
+}
+.trecho.variavel-nome {
+    color: #7fe0cb;
+}
+.trecho.variavel-valor {
+    color: #a7d8cf;
+}
+/* Os três números "mín:inicial:máx" de uma variável que MUDA durante o jogo: dourado (só cor, como todas as cores do texto). */
+.trecho.variavel-muda {
+    color: #ffd54f;
+}
+/* O RESULTADO da conta de uma variável, ao lado dela (não faz parte do texto): mais apagado. É um pseudo-elemento de LARGURA ZERO
+   (o texto sai para fora da caixa), então não muda a quebra de linha: a camada continua alinhada com o campo. */
+.trecho.variavel-valor[data-resultado]::after {
+    content: "  = " attr(data-resultado);
+    display: inline-block;
+    width: 0;
+    overflow: visible;
+    white-space: pre;
+    color: #6f8a85;
+}
+.trecho.rolagem-nome {
+    color: #ffcc80;
+    background: rgba(255, 183, 77, 0.2);
+    box-shadow: 0 0 0 1px rgba(255, 183, 77, 0.45);
+}
+.trecho.rolagem-formula {
+    color: #c8b0ff;
+    background: rgba(160, 130, 255, 0.12);
+}
+.trecho.com-erro {
+    text-decoration: underline wavy #e88a8a;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+}
+/* O NOME de uma rolagem é a "palavra" com função: aceita o mouse (dica com a fórmula calculada; o clique destaca a rolagem na lista). */
+#editor-ficha-cores .trecho.rolagem-nome {
+    pointer-events: auto;
+    cursor: pointer;
+}
+#editor-ficha-cores .trecho.rolagem-nome:hover {
+    background: rgba(255, 183, 77, 0.38);
+}
+/* O painel lateral: só a tela de rolagens (as instruções ficam na janela "Instruções" da aba Fichas da bolsa, não aqui). */
+#editor-ficha-lateral {
+    width: var(--largura-lateral, 470px); /* duas colunas: as variáveis fixas e as que mudam (a largura vem da divisória arrastável; ver ui/editorFicha.ts) */
+    flex: 0 1 auto; /* pode encolher quando a janela fica menor que a largura escolhida... */
+    min-width: 0;
+    max-width: calc(100% - 230px); /* ...e nunca passa disto: sobra sempre espaço para o texto (220 px) e a divisória (10 px) */
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    padding: 0;
+}
+/* As variáveis da ficha e as de recursos ficam EMPILHADAS (uma embaixo da outra, na largura toda do painel), sem coluna nem linha divisória: cada lista se reorganiza em grade conforme a largura. */
+#editor-ficha-colunas {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-bottom: 4px;
+}
+#editor-ficha-colunas h4 {
+    margin-top: 0 !important;
+}
+/* A caixa das rolagens (o título agora é o primeiro filho dela, então a folga de cima vem daqui). */
+#editor-ficha-secao-rolagens {
+    margin-top: 16px;
+}
+/* O título de cada caixa é um BOTÃO que a recolhe: herda o visual do título (maiúsculas pequenas) e ganha uma setinha que gira. */
+.secao-botao {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 0;
+    background: none;
+    border: none;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.secao-botao::before {
+    /* o MESMO chevron das outras caixas retráteis: aberta ▾ (a caixa fica embaixo), recolhida › (gira 90°) */
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 6px;
+    margin: 0 4px 3px 2px;
+    box-sizing: border-box;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    border-bottom-right-radius: 2px;
+    transform: rotate(45deg);
+    transition: transform 260ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.secao-botao:hover {
+    color: #ffd54f;
+}
+[data-secao].recolhida .secao-botao::before {
+    transform: rotate(-45deg);
+}
+/* Caixa recolhida: só o título fica (peso maior que `#editor-ficha-lateral #editor-ficha-rolagens`, que força o display da lista). */
+#editor-ficha-lateral [data-secao].recolhida > :not(h4) {
+    display: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    .secao-botao::before {
+        transition: none;
+    }
+}
+#editor-ficha-mudam {
+    gap: 8px !important;
+}
+/* As variáveis fixas e os recursos correm em COLUNAS, como as rolagens: a ordem vai de CIMA PARA BAIXO e, quando a coluna acaba, PULA PARA A PRÓXIMA COLUNA (e não da esquerda para a direita, pulando de linha).
+   O número de colunas se ajusta à largura do painel (`column-width`): as variáveis cabem 2 ou mais quando há espaço, os recursos (cartões maiores) 2 quando cabem e 1 quando o painel fica estreito. */
+#editor-ficha-lateral #editor-ficha-variaveis {
+    display: block;
+    column-width: 150px;
+    column-gap: 18px;
+    column-fill: balance;
+}
+#editor-ficha-lateral #editor-ficha-variaveis li {
+    break-inside: avoid;
+    margin-bottom: 4px;
+}
+#editor-ficha-lateral #editor-ficha-mudam {
+    display: block;
+    column-width: 200px;
+    column-gap: 8px;
+    column-fill: balance;
+}
+#editor-ficha-lateral #editor-ficha-mudam li {
+    break-inside: avoid;
+    margin-bottom: 8px;
+}
+/* Nome de variável e de recurso: UMA linha só, com reticências se não couber (as palavras nunca quebram no meio). */
+#editor-ficha-lateral li.variavel .nome,
+#editor-ficha-lateral li.muda .nome {
+    overflow: hidden;
+    overflow-wrap: normal;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+/* As ROLAGENS da página: DUAS por linha (cada uma é uma caixa clicável com o nome e a fórmula calculada). Seletor com mais peso que `#editor-ficha-lateral ul` (coluna única). */
+#editor-ficha-lateral #editor-ficha-rolagens {
+    display: block;
+    columns: 2;
+    column-gap: 5px;
+    column-fill: balance;
+}
+
+#editor-ficha-lateral #editor-ficha-rolagens li.rolagem {
+    break-inside: avoid;
+    margin-bottom: 5px;
+    min-width: 0;
+    height: 40px;
+    box-sizing: border-box;
+
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+#editor-ficha-lateral #editor-ficha-rolagens li.rolagem {
+    min-width: 0; /* o texto comprido quebra dentro da caixa em vez de alargar a coluna */
+}
+/* Uma variável que MUDA: nome, − campo +, a barra (só quando o intervalo é pequeno) e os limites. */
+#editor-ficha-lateral li.muda {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 6px 8px 7px;
+    background: #2f2f3a;
+    border-radius: 6px;
+}
+#editor-ficha-lateral li.muda .muda-linha {
+    display: flex;
+    flex-wrap: wrap; /* o nome ocupa a linha de cima; "−  valor  +" fica na de baixo */
+    align-items: center;
+    gap: 6px;
+}
+#editor-ficha-lateral li.muda .nome {
+    flex: 1 0 100%;
+}
+#editor-ficha-lateral li.muda .passo {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1;
+    color: #e6e6ea;
+    background: #3b3b49;
+    border: 1px solid #3a3a45;
+    border-radius: 5px;
+    cursor: pointer;
+}
+#editor-ficha-lateral li.muda .passo:hover {
+    background: #4a4a5a;
+}
+#editor-ficha-lateral li.muda .passo:focus-visible,
+#editor-ficha-lateral li.muda .campo-muda:focus-visible {
+    outline: 2px solid #ffd54f;
+    outline-offset: 1px;
+}
+#editor-ficha-lateral li.muda .campo-muda.invalido {
+    border-color: #e88a8a;
+    box-shadow: 0 0 0 1px #e88a8a; /* a conta digitada não valeu: o campo pisca em vermelho e volta ao valor de antes */
+}
+#editor-ficha-lateral li.muda .campo-muda {
+    flex: 1 1 0; /* o campo toma o espaço que sobra entre o − e o + */
+    min-width: 0;
+    box-sizing: border-box;
+    height: 26px;
+    padding: 0 6px;
+    text-align: center;
+    color: #ffd54f;
+    background: #1b1b22;
+    border: 1px solid #3a3a45;
+    border-radius: 5px;
+    font: inherit;
+    font-variant-numeric: tabular-nums;
+}
+#editor-ficha-lateral li.muda .barra-muda {
+    height: 5px;
+    background: #1b1b22;
+    border-radius: 3px;
+    overflow: hidden;
+}
+#editor-ficha-lateral li.muda .barra-muda > i {
+    display: block;
+    height: 100%;
+    background: #6fcf8e;
+    border-radius: 3px;
+}
+#editor-ficha-lateral li.muda .barra-muda.baixa > i {
+    background: #e8a04a;
+}
+#editor-ficha-lateral li.muda .barra-muda.critica > i {
+    background: #e88a8a;
+}
+#editor-ficha-lateral li.muda .limites-muda {
+    font-size: 11px;
+    color: #7d7d8c;
+    font-variant-numeric: tabular-nums;
+}
+#editor-ficha-lateral li.muda.com-erro .limites-muda {
+    color: #e88a8a;
+}
+#editor-ficha-assistente {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 10px 12px;
+}
+/* Os blocos de exemplo da janela de INSTRUÇÕES da bolsa (a que abre pelo botão "Instruções" da aba Fichas). */
+#ajuda-fichas pre {
+    margin: 0 0 4px;
+    padding: 6px 8px;
+    background: #2f2f3a;
+    border-radius: 5px;
+    font: inherit;
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: #e6e6ea;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+#editor-ficha-lateral li {
+    transition: box-shadow 0.2s;
+}
+#editor-ficha-lateral li.destaque {
+    box-shadow: 0 0 0 2px #ffb74d; /* a rolagem em que o usuário clicou no texto */
+}
+/* Janela de INSTRUÇÕES: acima do editor de ficha (50) e abaixo da caixa de confirmar (60). */
+#ajuda-fichas {
+    position: fixed;
+    inset: 0;
+    z-index: 56;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(8, 8, 12, 0.72);
+}
+#ajuda-fichas-painel {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    width: min(660px, calc(100vw - 24px));
+    max-height: calc(100vh - 24px);
+    padding: 16px 20px 14px;
+    background: #22222a;
+    border: 1px solid #3a3a45;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+#ajuda-fichas-cabecalho {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+#ajuda-fichas-painel h3 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 600;
+}
+/* O botão de COPIAR todo o texto das instruções (pedido do dono). */
+#ajuda-fichas-copiar {
+    margin-left: auto;
+    min-width: 30px;
+    height: 28px;
+    padding: 0 8px;
+    font-size: 15px;
+    line-height: 1;
+}
+#ajuda-fichas-copiar.copiado {
+    color: #b9f6ca;
+    border-color: #66bb6a;
+}
+#ajuda-fichas-corpo ul {
+    margin: 0 0 8px;
+    padding-left: 18px;
+}
+#ajuda-fichas-corpo li {
+    margin: 0 0 3px;
+}
+#ajuda-fichas-corpo {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 6px;
+    font-size: 13px;
+    line-height: 1.55;
+    color: #c9c9d4;
+}
+#ajuda-fichas-corpo h4 {
+    margin: 14px 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9a9aa8;
+}
+#ajuda-fichas-corpo h4:first-child {
+    margin-top: 0;
+}
+#ajuda-fichas-corpo p {
+    margin: 0 0 8px;
+}
+/* O RODAPÉ: a frase (em minúsculo, como o dono pediu) e o botão Fechar. */
+#ajuda-fichas-rodape {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid #3a3a45;
+}
+#ajuda-fichas-rodape p {
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #9a9aa8;
+}
+#ajuda-fichas-rodape .editor-imagem-botoes {
+    flex: none;
+    margin: 0 0 0 auto;
+}
+
+
+/* ===== FIXAR (várias janelas de ficha) ===== */
+/* O botão "Fixar" é DOURADO e o primeiro da barra de cima, para ser bem óbvio. Fixado, vira cheio (dourado com letra escura) e a janela ganha uma borda dourada. */
+#editor-ficha-ferramentas #editor-ficha-fixar {
+    padding: 0 12px;
+    border-color: #ffd54f;
+    color: #ffd54f;
+    font-weight: 600;
+}
+#editor-ficha-ferramentas #editor-ficha-fixar:hover {
+    background: #3a3520;
+}
+#editor-ficha-ferramentas #editor-ficha-fixar[aria-pressed="true"] {
+    background: #ffd54f;
+    color: #1d1d23;
+}
+
+/* ===== A DIVISÓRIA entre o texto e o painel de variáveis e rolagens ===== */
+/* Aberta: uma faixa fina (10 px, o espaço de antes) com um "puxador" no meio que fica dourado ao passar o mouse; arrastar muda a largura do painel. */
+#editor-ficha-divisoria {
+    flex: none;
+    position: relative;
+    width: 10px;
+    cursor: col-resize;
+    touch-action: none;
+}
+#editor-ficha-divisoria::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    width: 2px;
+    height: 48px;
+    transform: translateY(-50%);
+    border-radius: 2px;
+    background: #4a4a58;
+    transition: background 0.15s, height 0.15s;
+}
+#editor-ficha-divisoria:hover::before {
+    height: 80px;
+    background: #ffd54f;
+}
+.divisoria-rotulo {
+    display: none;
+}
+/* Painel ESCONDIDO: some, e a divisória vira uma ABA dourada no canto direito ("◂ Variáveis e rolagens") que dá para clicar ou arrastar para a esquerda e trazer o painel de volta. */
+#editor-ficha-painel.lateral-oculta #editor-ficha-lateral {
+    display: none;
+}
+#editor-ficha-painel.lateral-oculta #editor-ficha-divisoria {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    margin-left: 10px;
+    background: #2f2f3a;
+    border: 1px solid #ffd54f;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#editor-ficha-painel.lateral-oculta #editor-ficha-divisoria:hover {
+    background: #3a3520;
+}
+#editor-ficha-painel.lateral-oculta #editor-ficha-divisoria::before {
+    display: none;
+}
+#editor-ficha-painel.lateral-oculta .divisoria-rotulo {
+    display: block;
+    writing-mode: vertical-rl;
+    white-space: nowrap;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #ffd54f;
+}
+/* Janela estreita: o painel vai para baixo do texto (coluna) e não há divisória para arrastar. */
+@media (max-width: 700px) {
+    #editor-ficha-corpo {
+        gap: 10px;
+    }
+    #editor-ficha-divisoria {
+        display: none !important;
+    }
+}
+
+/* ===== CARTÕES `(Nome)"""texto"""` ===== */
+/* No campo de texto: o NOME do cartão é um botão (verde-água, para se distinguir das rolagens laranja) e as [expressões] de dentro têm a cor das fórmulas, em verde-água claro. */
+.trecho.cartao-nome {
+    color: #8cf0dc;
+    background: rgba(77, 208, 180, 0.2);
+    box-shadow: 0 0 0 1px rgba(77, 208, 180, 0.5);
+}
+.trecho.cartao-formula {
+    color: #9ee8d8;
+    background: rgba(77, 208, 180, 0.1);
+}
+#editor-ficha-cores .trecho.cartao-nome {
+    pointer-events: auto;
+    cursor: pointer;
+}
+#editor-ficha-cores .trecho.cartao-nome:hover {
+    background: rgba(77, 208, 180, 0.38);
+}
+/* Na LEITURA: o cartão é uma caixa com o nome (botão) em cima e o texto embaixo. */
+#editor-ficha-previa .cartao-previa {
+    margin: 6px 0;
+    padding: 8px 12px 10px;
+    background: rgba(77, 208, 180, 0.07);
+    border: 1px solid rgba(77, 208, 180, 0.4);
+    border-radius: 8px;
+}
+#editor-ficha-previa .cartao-previa.com-erro {
+    border-color: rgba(255, 107, 107, 0.6);
+}
+#editor-ficha-previa .cartao-previa-nome {
+    display: inline-block;
+    margin-bottom: 4px;
+    padding: 1px 8px;
+    color: #8cf0dc;
+    font-weight: 600;
+    background: rgba(77, 208, 180, 0.18);
+    border-radius: 5px;
+    cursor: pointer;
+}
+#editor-ficha-previa .cartao-previa-nome:hover {
+    background: rgba(77, 208, 180, 0.34);
+}
+#editor-ficha-previa .cartao-previa.com-erro .cartao-previa-nome {
+    text-decoration: underline wavy #ff6b6b;
+}
+
+/* ===== CELULAR: abaixo de 700 px de largura a ficha ocupa a TELA TODA ===== */
+/* Sem arrastar, sem redimensionar, sem minimizar e sem fixar (o ✕ fecha de verdade). O texto fica em cima e o painel de variáveis, recursos e rolagens EMBAIXO dele, com rolagem própria. Os
+   `!important` vencem o lugar e o tamanho que o ui/editorFicha.ts guarda em estilo (inline) para o desktop. */
+@media (max-width: 700px) {
+    #editor-ficha-painel {
+        left: 0 !important;
+        top: 0 !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        height: 100dvh !important; /* (a barra do navegador do celular encolhe e cresce: dvh acompanha) */
+        min-width: 0;
+        min-height: 0;
+        padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+        gap: 8px;
+        border: 0;
+        border-radius: 0;
+        box-shadow: none;
+        cursor: auto;
+    }
+    #editor-ficha-fixar,
+    #editor-ficha-minimizar,
+    #editor-ficha-redimensionar {
+        display: none !important;
+    }
+    /* Botões de TOQUE: maiores que os do desktop. */
+    #editor-ficha-ferramentas button {
+        height: 36px;
+        min-width: 36px;
+    }
+    #editor-ficha-rodape {
+        flex-wrap: wrap;
+        row-gap: 6px;
+    }
+    #editor-ficha-rodape .editor-imagem-botoes button {
+        min-height: 42px;
+    }
+    /* O texto em cima, o painel embaixo. */
+    #editor-ficha-corpo {
+        flex-direction: column;
+        gap: 10px;
+    }
+    #editor-ficha-area {
+        flex: 1 1 56%;
+        min-width: 0;
+        min-height: 150px;
+    }
+    #editor-ficha-lateral {
+        width: auto;
+        max-width: none;
+        flex: 0 1 40%;
+        min-height: 0;
+    }
+    /* A divisória não existe aqui: o painel escondido no desktop (guardado no navegador) volta a aparecer, senão não haveria como trazê-lo de volta. */
+    #editor-ficha-painel.lateral-oculta #editor-ficha-lateral {
+        display: flex;
+    }
+    .aba-ficha-nome {
+        padding: 9px 14px;
+    }
+    #editor-ficha-aba-nova {
+        width: 36px;
+        height: 36px;
+    }
+}
+
+/* AVISO EM VERMELHO (pedido do dono, 17/11/2026): a ficha é única (tem recursos) mas há vários tokens ligados a ela. A etiqueta do tipo e a linha embaixo do nome ficam vermelhas. */
+#editor-ficha-tipo.com-erro {
+    color: #fff;
+    background: #b3261e;
+}
+#editor-ficha-aviso-unica {
+    margin: 4px 0 0;
+    padding: 4px 8px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: #ff6b63;
+    background: rgba(179, 38, 30, 0.16);
+    border: 1px solid rgba(255, 107, 99, 0.55);
+    border-radius: 6px;
+}
+#editor-ficha-aviso-unica[hidden] {
+    display: none;
+}
+
+/* LEITOR (só lê e rola a ficha): sem os botões de + e − dos recursos (o servidor também recusa). */
+.somente-leitura #editor-ficha-mudam button {
+    display: none;
+}

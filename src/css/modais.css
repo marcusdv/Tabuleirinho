@@ -1,0 +1,205 @@
+/* Caixa de CONFIRMAR: no estilo das outras janelas (reaproveita .editor-imagem-painel e .editor-imagem-botoes), mas por cima de
+   TUDO, inclusive da janela "Editar token" (z-index 50). */
+/* Os modais das AÇÕES (cálculo e gerenciador): o mesmo visual da caixa de confirmar. */
+.modal-simples {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(8, 8, 12, 0.72);
+}
+.modal-simples[hidden] {
+    display: none;
+}
+.modal-simples .editor-imagem-painel {
+    width: min(460px, calc(100vw - 32px));
+}
+#modal-acao-titulo,
+#modal-acoes-titulo {
+    margin: 0 0 8px;
+}
+#modal-acao-status {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: #c9c9d4;
+}
+#modal-iniciativa-nome,
+#modal-iniciativa-valor,
+#modal-acao-valor,
+#modal-acoes-nome {
+    width: 100%;
+    height: 32px;
+    box-sizing: border-box;
+    padding: 0 10px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 14px;
+}
+#modal-iniciativa-nome:focus,
+#modal-iniciativa-valor:focus,
+#modal-acao-valor:focus,
+#modal-acoes-nome:focus {
+    outline: none;
+    border-color: #ffd54f;
+}
+#modal-acao-calculo {
+    min-height: 20px;
+    margin: 10px 0 14px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffd54f;
+}
+#modal-acao-calculo.erro {
+    color: #ff9a9a;
+    font-weight: 400;
+    font-size: 12px;
+}
+#modal-acao-aplicar.principal {
+    background: #ffd54f;
+    border-color: #ffd54f;
+    color: #1b1b22;
+    font-weight: 600;
+}
+#modal-acao-aplicar:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+.modal-acoes-ajuda {
+    margin: 0 0 10px;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #9a9aab;
+}
+#modal-acoes-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 220px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+.modal-acoes-linha {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    background: #2b2b35;
+    border-radius: 6px;
+    font-size: 13px;
+}
+.modal-acoes-linha strong {
+    flex: none;
+}
+.modal-acoes-linha span {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #b8b8c6;
+}
+.modal-acoes-linha button {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: #d46a6a;
+    cursor: pointer;
+}
+#modal-acoes-nova {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+#modal-acoes-nova input {
+    flex: 1 1 140px;
+    width: auto;
+}
+#modal-acoes-nova select {
+    height: 32px;
+    padding: 0 6px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+}
+.acao-token.acao-nova {
+    color: #ffd54f;
+}
+#confirmar {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(8, 8, 12, 0.72);
+}
+#confirmar .editor-imagem-painel {
+    width: min(440px, calc(100vw - 32px)); /* cabe os 3 botões (Cancelar · Fechar sem salvar · Salvar e fechar) */
+}
+#confirmar .editor-imagem-botoes {
+    flex-wrap: wrap; /* (só as caixas de 2 botões: em janela estreita eles descem de linha em vez de cortar o texto) */
+}
+/* Com 3 botões, a caixa CRESCE até caber todos NA MESMA LINHA, qualquer que seja a fonte (a do sistema do dono é monoespaçada e mais larga). */
+#confirmar.com-alternativa .editor-imagem-painel {
+    width: max-content;
+    min-width: 440px;
+    max-width: calc(100vw - 32px);
+}
+#confirmar.com-alternativa .editor-imagem-botoes {
+    flex-wrap: nowrap;
+    gap: 12px;
+}
+#confirmar.com-alternativa #confirmar-mensagem {
+    max-width: 60ch; /* (a frase não estica a caixa além do necessário) */
+}
+#confirmar .editor-imagem-botoes button {
+    white-space: nowrap;
+}
+/* Com o terceiro botão: Cancelar no canto ESQUERDO, "Fechar sem salvar" no MEIO e "Salvar e fechar" no canto DIREITO. */
+#confirmar.com-alternativa .editor-imagem-botoes {
+    justify-content: space-between;
+}
+#confirmar-mensagem {
+    margin: 10px 0 16px;
+    font-size: 13px;
+    line-height: 1.5;
+    color: #c9c9d4;
+    white-space: pre-line; /* o \n das mensagens vira quebra de linha */
+    overflow-wrap: anywhere; /* um nome de token comprido não estoura a caixa */
+}
+#confirmar .editor-imagem-botoes {
+    margin-top: 0;
+    padding-top: 14px;
+    border-top: 1px solid #3a3a45; /* a linha que separa o texto dos botões */
+}
+/* O terceiro botão opcional (ex.: "Salvar e fechar"): dourado, à direita de todos. */
+#confirmar-alternativa.principal {
+    background: #ffd54f;
+    border-color: #ffd54f;
+    color: #1b1b22;
+    font-weight: 600;
+}
+#confirmar-alternativa[hidden] {
+    display: none;
+}
+#confirmar-ok.perigo {
+    background: #5a2323;
+    border-color: #d46a6a;
+}
+#confirmar .editor-imagem-botoes button:focus-visible {
+    outline: 2px solid #ffd54f; /* o foco (que começa em Cancelar) precisa ser visível */
+    outline-offset: 2px;
+}
+

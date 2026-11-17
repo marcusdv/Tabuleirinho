@@ -1,0 +1,78 @@
+/* O painel de DESENHO (esquerda). (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
+/* ===================================================================
+         PAINEL DE DESENHO: flutuante, fixo na esquerda, retrátil (como a barra da direita)
+         =================================================================== */
+#desenho-alternar {
+    width: 26px;
+    height: 26px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: inherit;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+#desenho-alternar:hover {
+    background: #3b3b49;
+}
+#ferramentas-desenho .cabecalho {
+    flex: none; /* o título e o botão de recolher ficam sempre à vista */
+}
+#ferramentas-desenho .conteudo {
+    gap: 12px;
+    flex: 1 1 auto;
+    min-height: 0; /* sem isto o conteúdo não encolhe para caber: é ele que rola */
+    overflow-y: auto;
+}
+#lista-ferramentas {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+#lista-ferramentas .botao-largo {
+    margin: 0;
+    height: 28px;
+    text-align: left;
+    padding: 0 10px;
+}
+#desenho-amostras {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+.amostra {
+    height: 16px; /* (era 22: um pouco grande demais) */
+    border-radius: 5px;
+    padding: 0;
+    cursor: pointer;
+    border: 1px solid #5a5a68;
+}
+.amostra.escolhida {
+    outline: 2px solid #ffd54f;
+    outline-offset: 1px;
+}
+#desenho-cor {
+    width: 100%;
+    height: 20px;
+    margin-top: 6px;
+    padding: 0;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    cursor: pointer;
+}
+#regua-resultado {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #ffd54f;
+}
+#desenho-apagar-tudo {
+    margin-top: 0;
+    border-color: #7a3a3a;
+    color: #ff9a9a;
+}
+#desenho-apagar-tudo:hover:not(:disabled) {
+    background: #4a2a2a;
+}
+

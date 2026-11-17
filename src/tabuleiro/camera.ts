@@ -18,6 +18,13 @@ export interface Camera {
     readonly zoom: number;
     /** Chamada sempre que o zoom muda (a grade redesenha, a barra atualiza...). */
     aoMudarZoom: (() => void) | null;
+    /** Chamada sempre que a VISÃO muda (pan, zoom, ajustar, centralizar, restaurar): quem guarda "onde a câmera estava" em cada mapa escuta isto. */
+    aoMudarVisao: (() => void) | null;
+    /** Posição do mundo na tela (o pan), em pixels. */
+    readonly x: number;
+    readonly y: number;
+    /** Volta a uma visão guardada (zoom e posição), respeitando os limites atuais. */
+    restaurar(zoom: number, x: number, y: number): void;
     /**
      * Quanto da janela está COBERTO pelos painéis de cada lado (em pixels de tela): a pilha de barras à esquerda e a coluna do chat/bolsa à direita.
      * Só o "Ajustar o mapa à tela" usa: o mapa é encaixado na área LIVRE entre os dois, e não na janela inteira (senão ficaria parte atrás dos painéis).
@@ -60,7 +67,23 @@ export function criarCamera(app: Application): Camera {
             return zoom;
         },
         aoMudarZoom: null,
+        aoMudarVisao: null,
         areaCoberta: null,
+        get x() {
+            return mundo.x;
+        },
+        get y() {
+            return mundo.y;
+        },
+
+        restaurar(z, x, y) {
+            zoom = limitar(z, ZOOM_MIN, ZOOM_MAX);
+            mundo.scale.set(zoom);
+            mundo.position.set(x, y);
+            camera.limitar();
+            camera.aoMudarZoom?.();
+            camera.aoMudarVisao?.();
+        },
 
         limitar() {
             mundo.x = limitarEixo(mundo.x, app.screen.width, larguraNaTela());
@@ -70,6 +93,7 @@ export function criarCamera(app: Application): Camera {
         centralizar() {
             mundo.position.set((app.screen.width - larguraNaTela()) / 2, (app.screen.height - alturaNaTela()) / 2);
             camera.limitar();
+            camera.aoMudarVisao?.();
         },
 
         ajustar() {
@@ -94,12 +118,14 @@ export function criarCamera(app: Application): Camera {
             mundo.position.set(esquerda + (largura - larguraNaTela()) / 2, (app.screen.height - alturaNaTela()) / 2);
             camera.limitar();
             camera.aoMudarZoom?.(); // a grade refaz a espessura da linha e a barra atualiza o número
+            camera.aoMudarVisao?.();
         },
 
         moverPor(dx, dy) {
             mundo.x += dx;
             mundo.y += dy;
             camera.limitar(); // impede de arrastar além dos limites
+            camera.aoMudarVisao?.();
         },
 
         aplicarZoom(novoZoom, pontoFixo) {
@@ -122,6 +148,7 @@ export function criarCamera(app: Application): Camera {
 
             camera.limitar();
             camera.aoMudarZoom?.();
+            camera.aoMudarVisao?.();
         },
 
         // tela = mundo.position + ponto * zoom   =>   ponto = (tela - position) / zoom

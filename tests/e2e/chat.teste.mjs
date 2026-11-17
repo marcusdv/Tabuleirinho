@@ -28,7 +28,7 @@ const caixa = (s) => p.locator(s).boundingBox();
 const chat = await caixa("#chat");
 ok("1a) chat é uma COLUNA fixa na borda direita, da altura toda (320 px de largura, colada no topo e no fundo)", perto(chat.y, 0, 1.5) && perto(chat.y + chat.height, 800, 1.5) && perto(chat.x + chat.width, 1400 - 12, 1.5) && perto(chat.width, 320, 2), `base ${(chat.y + chat.height).toFixed(0)}, centro x ${(chat.x + chat.width / 2).toFixed(0)}, largura ${chat.width.toFixed(0)}`);
 ok("1b) sem mensagens: nenhum cartão, NENHUM texto de dica na faixa, e o campo só tem o placeholder 'Escreva uma mensagem'", (await cartoes.count()) === 0 && (await p.locator("#chat-faixa").textContent()).trim() === "" && (await p.locator("#chat-vazio").count()) === 0 && (await p.getAttribute("#chat-texto", "placeholder")) === "Escreva uma mensagem");
-for (const [nome, sel] of [["painel de desenho", "#ferramentas-desenho"], ["barra de ferramentas", "#barra"]]) {
+for (const [nome, sel] of [["painel de desenho", "#ferramentas-desenho"], ["caixa da iniciativa", "#iniciativa"]]) {
     ok(`1c) o chat não se sobrepõe à ${nome}`, !cruza(chat, await caixa(sel)));
 }
 
@@ -89,13 +89,13 @@ for (const [w, h] of [[1280, 800], [1024, 640]]) {
     await p.setViewportSize({ width: w, height: h });
     await p.waitForTimeout(200);
     const ch = await caixa("#chat");
-    const outros = { barra: await caixa("#barra"), desenho: await caixa("#ferramentas-desenho") };
+    const outros = { iniciativa: await caixa("#iniciativa"), desenho: await caixa("#ferramentas-desenho") };
     const conflitos = Object.entries(outros).filter(([, c]) => cruza(ch, c)).map(([n]) => n);
     ok(`7a) ${w}×${h}: o chat (coluna da direita) não se sobrepõe à barra nem ao painel de desenho`, conflitos.length === 0, `chat x ${ch.x.toFixed(0)}..${(ch.x + ch.width).toFixed(0)}, y ${ch.y.toFixed(0)}..${(ch.y + ch.height).toFixed(0)}${conflitos.length ? " | conflito: " + conflitos : ""}`);
     if (!(await p.locator("#painel-calibragem").isVisible())) { await abrirGaveta(p, "tabuleiro"); await p.click("#calibrar-alternar"); } // liga a calibragem (uma vez; o botão fica na gaveta do Tabuleiro)
     await p.waitForTimeout(200);
     const cal = await caixa("#painel-calibragem");
-    ok(`7b) ${w}×${h}: com a calibragem ligada, o painel dela não cobre o chat, a bolsa, a barra nem o painel de desenho`, !cruza(cal, ch) && !cruza(cal, outros.desenho) && !cruza(cal, await caixa("#barra")), `calibragem y ${cal.y.toFixed(0)}..${(cal.y + cal.height).toFixed(0)}, x ${cal.x.toFixed(0)}..${(cal.x + cal.width).toFixed(0)}`);
+    ok(`7b) ${w}×${h}: com a calibragem ligada, o painel dela não cobre o chat, a bolsa, a barra nem o painel de desenho`, !cruza(cal, ch) && !cruza(cal, outros.desenho) && !cruza(cal, outros.iniciativa), `calibragem y ${cal.y.toFixed(0)}..${(cal.y + cal.height).toFixed(0)}, x ${cal.x.toFixed(0)}..${(cal.x + cal.width).toFixed(0)}`);
 }
 
 console.log("---");

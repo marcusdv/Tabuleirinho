@@ -34,7 +34,7 @@ async function desligar(s) { s.proc.kill("SIGINT"); await new Promise((r) => s.p
 
 function cliente(apelido = "Teste") {
     return new Promise((resolver) => {
-        const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws`);
+        const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws?papel=mestre`);
         const recebidos = [];
         let fechou = null;
         ws.onmessage = (e) => recebidos.push(JSON.parse(e.data));

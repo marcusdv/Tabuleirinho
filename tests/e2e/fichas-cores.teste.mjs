@@ -83,12 +83,12 @@ await p.waitForTimeout(80);
 const scrolls = await p.evaluate(() => ({ campo: document.getElementById("editor-ficha-texto").scrollTop, camada: document.getElementById("editor-ficha-cores").scrollTop }));
 ok("5b) ao rolar o campo, a camada de cores ACOMPANHA (mesmo scrollTop)", scrolls.campo > 0 && scrolls.campo === scrolls.camada, JSON.stringify(scrolls));
 
-// ================= o painel lateral: variáveis (esquerda) e recursos (direita) em cima, rolagens embaixo
+// ================= o painel lateral: variáveis, recursos e rolagens EMPILHADAS (uma embaixo da outra)
 await p.fill("#editor-ficha-texto", "FOR:: 16\nPV::0:10:10\n(Ataque)[1d20 + FOR]\n(Dano)[1d8 + FOR]\n(Iniciativa)[1d20]");
 const colVar = await p.locator("#editor-ficha-variaveis").boundingBox();
 const colRec = await p.locator("#editor-ficha-mudam").boundingBox();
 const rolag = await p.locator("#editor-ficha-rolagens").boundingBox();
-ok("6a) as variáveis ficam à ESQUERDA, os recursos à DIREITA e as rolagens EMBAIXO das duas colunas", colVar.x < colRec.x && rolag.y > colVar.y + colVar.height - 1 && rolag.y > colRec.y + colRec.height - 1, JSON.stringify({ colVar, colRec, rolag }));
+ok("6a) as variáveis ficam EM CIMA, os recursos no MEIO e as rolagens EMBAIXO (uma lista abaixo da outra, na largura do painel, sem divisão lateral)", colRec.y > colVar.y + colVar.height - 1 && rolag.y > colRec.y + colRec.height - 1 && Math.abs(colVar.x - colRec.x) < 2 && Math.abs(colRec.x - rolag.x) < 2, JSON.stringify({ colVar, colRec, rolag }));
 ok("6b) com variáveis, recursos e rolagens, os avisos de 'nenhum' somem", (await p.locator("#editor-ficha-sem-variaveis").isHidden()) && (await p.locator("#editor-ficha-sem-mudam").isHidden()) && (await p.locator("#editor-ficha-sem-rolagens").isHidden()));
 ok("6c) a lista ao vivo mostra 1 variável (FOR), 1 recurso (PV) e 3 rolagens (nome + fórmula calculada)", (await textos("#editor-ficha-variaveis li")).length === 1 && (await p.locator("#editor-ficha-mudam li.muda").count()) === 1 && (await p.locator("#editor-ficha-rolagens li").count()) === 3);
 ok("6d) as rolagens com d20 ganham a classe 'd20' (azuladas) e a de d8 não", (await p.locator("#editor-ficha-rolagens li.d20").count()) === 2 && (await p.locator("#editor-ficha-rolagens li:not(.d20)").count()) === 1);

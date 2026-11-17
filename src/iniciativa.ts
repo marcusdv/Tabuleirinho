@@ -41,6 +41,8 @@ export type AcaoDaIniciativa =
     | { acao: "ordenar"; ordenacao: OrdenacaoIniciativa }
     | { acao: "resetar" }
     | { acao: "proxima" }
+    | { acao: "anterior" } // "Retornar": devolve a vez a quem veio antes (do primeiro da rodada 2 em diante, volta ao último da rodada anterior)
+    | { acao: "rodada"; rodada: number } // a pessoa digitou o número da rodada (no modo de edição): de 0 a RODADA_MAX
     | { acao: "editar" }
     | { acao: "confirmar" };
 
@@ -53,6 +55,7 @@ export function novaIniciativa(): Iniciativa {
 /** O estado da iniciativa da mesa (um objeto só: quem o lê vê sempre o valor atual). */
 export const iniciativa: Iniciativa = novaIniciativa();
 
+const RODADA_MAX = 9999;
 const limitar = (n: number, minimo: number, maximo: number): number => Math.min(maximo, Math.max(minimo, n));
 const eInteiro = (v: unknown): v is number => typeof v === "number" && Number.isSafeInteger(v);
 
@@ -147,6 +150,21 @@ export function aplicarAcaoDaIniciativa(pedido: AcaoDaIniciativa): ResultadoDaIn
             } else iniciativa.vez = entradas[i + 1].id;
             return { ok: true };
         }
+        case "anterior": {
+            if (iniciativa.editando) return { ok: false, erro: "Confirme a ordem (botão Confirmar) antes de voltar a vez." };
+            const i = iniciativa.vez === null ? -1 : posicaoDe(iniciativa.vez);
+            if (i < 0) return { ok: false, erro: "O combate ainda não começou." };
+            if (i > 0) iniciativa.vez = entradas[i - 1].id;
+            else if (iniciativa.rodada > 1) {
+                iniciativa.vez = entradas[entradas.length - 1].id; // (voltou para o fim da rodada anterior)
+                iniciativa.rodada -= 1;
+            } else return { ok: false, erro: "Já é o primeiro turno do combate." };
+            return { ok: true };
+        }
+        case "rodada":
+            if (!eInteiro(pedido.rodada)) return { ok: false, erro: "A rodada precisa ser um número inteiro." };
+            iniciativa.rodada = limitar(pedido.rodada, 0, RODADA_MAX);
+            return { ok: true };
         case "editar":
             iniciativa.editando = true;
             return { ok: true };
@@ -175,8 +193,11 @@ export function lerAcaoDaIniciativa(bruto: unknown): AcaoDaIniciativa | null {
             return eInteiro(a.id) && texto(a.nome) ? { acao: "nome", id: a.id, nome: a.nome } : null;
         case "ordenar":
             return a.ordenacao === "maior" || a.ordenacao === "menor" || a.ordenacao === "livre" ? { acao: "ordenar", ordenacao: a.ordenacao } : null;
+        case "rodada":
+            return eInteiro(a.rodada) ? { acao: "rodada", rodada: a.rodada } : null;
         case "resetar":
         case "proxima":
+        case "anterior":
         case "editar":
         case "confirmar":
             return { acao: a.acao };
@@ -203,7 +224,7 @@ export function lerIniciativa(bruto: unknown): Iniciativa | null {
     return {
         entradas,
         vez: eInteiro(b.vez) && usados.has(b.vez) ? b.vez : null,
-        rodada: eInteiro(b.rodada) ? limitar(b.rodada, 0, 9999) : 0,
+        rodada: eInteiro(b.rodada) ? limitar(b.rodada, 0, RODADA_MAX) : 0,
         ordenacao: b.ordenacao === "menor" || b.ordenacao === "livre" ? b.ordenacao : "maior",
         editando: b.editando !== false, // (sem o campo, ou com qualquer valor que não seja false: em edição)
         proximoId: Math.max(eInteiro(b.proximoId) ? b.proximoId : 1, maior + 1),

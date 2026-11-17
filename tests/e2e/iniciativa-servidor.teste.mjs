@@ -26,7 +26,7 @@ async function desligar() {
     await esperar(700);
 }
 async function abrir(apelido) {
-    const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws`);
+    const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws?papel=mestre`);
     const eventos = [];
     ws.on("message", (d) => eventos.push(JSON.parse(String(d))));
     await new Promise((r) => ws.on("open", r));

@@ -36,11 +36,17 @@ import {
     guardarToken,
     receberMensagem,
     buscarToken,
-    apagarTodosDesenhos,
+    adicionarDesenho,
+    removerDesenhos,
+    receberDesenho,
+    definirDesenhos,
+    podeApagarDesenho,
     criarToken,
     criarPeca,
     carregarStatusDaMesa,
     aplicarAcao,
+    aplicarAcaoEmVarios,
+    definirCondicao,
     carregarAcoesDaMesa,
     definirAcoesDaMesa,
     frasePraChatDaAcao,
@@ -50,6 +56,8 @@ import {
     excluirTokenComPecas,
     montarPeca,
     pecasDoModelo,
+    motivoFichaOcupada,
+    podeUsarToken,
     restaurarEstadoDaPeca,
     montarGrupo,
     receberGrupo,
@@ -63,6 +71,7 @@ import {
     type AcaoNova,
     type StatusNovo,
     type Token,
+    adicionarCartaoDeFicha,
     adicionarRolagemDeFicha,
     tokenDaRolagem,
     rolarIniciativaDoToken,
@@ -100,8 +109,13 @@ import { criarRegua } from "./tabuleiro/regua";
 import { criarTokens } from "./tabuleiro/tokens";
 import { criarBalaoToken } from "./ui/balaoToken";
 import { criarBolsa } from "./ui/bolsa";
+import { criarBolsaMapas } from "./ui/bolsaMapas";
+import { definirBiblioteca, definirGradeDaMesa, definirMapaAtual } from "./estado";
+import type { Desenho, NovoDesenho } from "./estado";
+import { CHAVE_VISOES, MAX_BYTES_MAPA, MAX_HISTORICO_DESENHO, MAX_TOKENS_ACAO_EM_GRUPO } from "./config";
+import { guardarPreferencia, lerPreferencia } from "./ui/preferencias";
 import { criarEditorImagem } from "./ui/editorImagem";
-import { analisarAbas, rolarDaAnalise } from "./formulas";
+import { analisarAbas, rolarCartaoDaAnalise, rolarConta, rolarDaAnalise } from "./formulas";
 import { criarAjudaFichas } from "./ui/ajudaFichas";
 import { aplicarAcaoDaIniciativa, definirIniciativa, iniciativa as estadoIniciativa, type AcaoDaIniciativa } from "./iniciativa";
 import { criarIniciativa } from "./ui/iniciativa";
@@ -110,18 +124,22 @@ import { criarConfirmacao } from "./ui/confirmar";
 import { criarEditorFicha } from "./ui/editorFicha";
 import { criarEditorToken } from "./ui/editorToken";
 import { rolarDados } from "./dados";
-import type { EventoDoServidor } from "./protocolo";
+import type { EventoDoServidor, Jogador, RegistroDeMapa } from "./protocolo";
 import { criarRede, type Rede } from "./rede";
 import { criarChat } from "./ui/chat";
 import { criarLateral } from "./ui/lateral";
 import { criarAviso } from "./ui/aviso";
 import { criarModalAcao } from "./ui/modalAcao";
 import { criarModalAcoes } from "./ui/modalAcoes";
+import { criarJogadores } from "./ui/jogadores";
+import { criarRedimensionadorDaColuna } from "./ui/redimensionarColuna";
+import { criarMenuGrupoMapa, type ExtraDoPainel } from "./ui/menuGrupoMapa";
 import { criarBarra } from "./ui/barra";
 import { criarDicaCondicao } from "./ui/dicaCondicao";
 import { criarMenuToken } from "./ui/menuToken";
 import { criarPainelCalibragem } from "./ui/painelCalibragem";
 import { criarPilha } from "./ui/pilha";
+import { organizarAbasEmLinhas } from "./ui/abasEmLinhas";
 import { criarPainelDados } from "./ui/painelDados";
 import { criarPainelDesenho, type NomeFerramenta } from "./ui/painelDesenho";
 import { criarStatusRede } from "./ui/statusRede";
@@ -172,18 +190,160 @@ async function iniciar(): Promise<void> {
     };
     const mapa = criarMapa(camera); // antes da grade: a imagem fica por baixo de tudo
     const grade = criarGrade(camera);
+    // ---------------------------------------------------------------
+    // DESENHOS COMPARTILHADOS e CTRL+Z (pedido do dono, 17/11/2026). Online, os desenhos são DO MAPA e de todos: cada traço ou forma vai ao servidor (que dá o id e o autor e avisa todos), e a borracha também.
+    // O desenho de quem desenha aparece NA HORA (com um id temporário, negativo) e troca pelo id de verdade quando o servidor responde (a `ref` volta junto). Quem desenha só apaga os desenhos DELE; o
+    // mestre apaga todos. Cada pessoa tem o PRÓPRIO histórico: Ctrl+Z desfaz a última ação de desenho (criar ou apagar) e Ctrl+Y (ou Ctrl+Shift+Z) refaz. Sem servidor (modo local) vale igual.
+    // ---------------------------------------------------------------
+    // (`ids` guarda os ids que os desenhos TINHAM: quando um desenho volta, ele ganha um id novo, e `trocarId` atualiza o histórico para as ações mais antigas continuarem valendo)
+    type AcaoDeDesfazer = { tipo: "criou"; id: number } | { tipo: "apagou"; desenhos: NovoDesenho[]; ids: number[] };
+    type AcaoDeRefazer = { tipo: "recriar"; desenhos: NovoDesenho[]; ids: number[] } | { tipo: "apagarDe"; ids: number[] };
+    const historicoDesfazer: AcaoDeDesfazer[] = [];
+    const historicoRefazer: AcaoDeRefazer[] = [];
+    let idTemporarioDeDesenho = -1;
+    const desenhosPendentes = new Map<string, number>(); // ref -> id temporário (esperando o servidor)
+    const refsDescartados = new Set<string>(); // desenhos apagados ANTES de o servidor responder: quando ele responder, o desenho de verdade também é apagado
+    let apagandoAgora: Extract<AcaoDeDesfazer, { tipo: "apagou" }> | null = null; // a borracha em gesto: tudo o que ela apaga até soltar o mouse é UMA ação no histórico
+
+    function semIdentidade(d: Desenho): NovoDesenho {
+        const copia: Record<string, unknown> = { ...d };
+        delete copia.id;
+        delete copia.autor;
+        return copia as unknown as NovoDesenho;
+    }
+    const podeApagarAqui = (d: Desenho): boolean => podeApagarDesenho(d, meuUsuario, estado.mestre);
+    function limparHistoricoDeDesenho(): void {
+        historicoDesfazer.length = 0;
+        historicoRefazer.length = 0;
+        desenhosPendentes.clear();
+        refsDescartados.clear();
+        apagandoAgora = null;
+    }
+    function aposMudarDesenhos(): void {
+        desenho.redesenhar();
+        painelDesenho.atualizar();
+    }
+
+    /** Guarda um desenho novo no estado (online: com id temporário) e o envia ao servidor. `atrasoMs` espaça o envio quando vários são criados de uma vez (desfazer um "apagar tudo"). */
+    function guardarDesenho(novo: NovoDesenho, atrasoMs = 0): Desenho {
+        if (!rede?.ativa) return adicionarDesenho(novo);
+        const temporario = { ...novo, id: idTemporarioDeDesenho--, ...(meuUsuario && { autor: meuUsuario }) } as Desenho;
+        receberDesenho(temporario);
+        const ref = String(temporario.id);
+        desenhosPendentes.set(ref, temporario.id);
+        const enviar = (): void => rede?.enviar({ tipo: "desenhar", desenho: novo, ref });
+        if (atrasoMs > 0) setTimeout(enviar, atrasoMs);
+        else enviar();
+        return temporario;
+    }
+    /** Tira os desenhos do estado e avisa o servidor (os que ainda esperam o servidor ficam marcados para sumir assim que ele responder). */
+    function apagarDesenhosSemHistorico(lista: Desenho[]): void {
+        for (const d of lista) if (d.id < 0) refsDescartados.add(String(d.id));
+        removerDesenhos(lista.map((d) => d.id));
+        const reais = lista.filter((d) => d.id > 0).map((d) => d.id);
+        if (rede?.ativa && reais.length > 0) rede.enviar({ tipo: "apagar_desenhos", ids: reais });
+    }
+    function empilharDesfazer(acao: AcaoDeDesfazer): void {
+        historicoDesfazer.push(acao);
+        if (historicoDesfazer.length > MAX_HISTORICO_DESENHO) historicoDesfazer.shift();
+        historicoRefazer.length = 0; // (uma ação nova joga fora o que dava para refazer)
+    }
+    function apagarComHistorico(lista: Desenho[]): void {
+        if (lista.length === 0) return;
+        apagarDesenhosSemHistorico(lista);
+        if (!apagandoAgora) {
+            apagandoAgora = { tipo: "apagou", desenhos: [], ids: [] };
+            empilharDesfazer(apagandoAgora);
+        }
+        apagandoAgora.desenhos.push(...lista.map(semIdentidade));
+        apagandoAgora.ids.push(...lista.map((d) => d.id));
+    }
+    /** Um desenho ganhou um id novo (o servidor deu o de verdade, ou ele voltou depois de apagado): o histórico inteiro passa a usar o id novo. */
+    function trocarIdTemporario(antigo: number, novo: number): void {
+        const troca = (i: number): number => (i === antigo ? novo : i);
+        for (const a of historicoDesfazer) {
+            if (a.tipo === "criou") a.id = troca(a.id);
+            else a.ids = a.ids.map(troca);
+        }
+        for (const a of historicoRefazer) a.ids = a.ids.map(troca);
+    }
+
+    /** Ctrl+Z: desfaz a última ação de desenho desta pessoa (pula o que já não dá para desfazer: o desenho já foi apagado por outro, ou não é dela). */
+    function desfazerDesenho(): void {
+        while (historicoDesfazer.length > 0) {
+            const acao = historicoDesfazer.pop() as AcaoDeDesfazer;
+            if (acao.tipo === "criou") {
+                const d = estado.desenhos.find((x) => x.id === acao.id);
+                if (!d || !podeApagarAqui(d)) continue;
+                apagarDesenhosSemHistorico([d]);
+                historicoRefazer.push({ tipo: "recriar", desenhos: [semIdentidade(d)], ids: [d.id] });
+            } else {
+                const novos = acao.desenhos.map((n, i) => guardarDesenho(n, i * 25));
+                novos.forEach((d, i) => trocarIdTemporario(acao.ids[i], d.id)); // (as ações mais antigas que citavam os desenhos de antes passam a citar os novos)
+                historicoRefazer.push({ tipo: "apagarDe", ids: novos.map((d) => d.id) });
+            }
+            apagandoAgora = null;
+            aposMudarDesenhos();
+            return;
+        }
+    }
+    /** Ctrl+Y (ou Ctrl+Shift+Z): refaz o que o Ctrl+Z desfez. */
+    function refazerDesenho(): void {
+        while (historicoRefazer.length > 0) {
+            const acao = historicoRefazer.pop() as AcaoDeRefazer;
+            if (acao.tipo === "recriar") {
+                const novos = acao.desenhos.map((n, i) => guardarDesenho(n, i * 25));
+                novos.forEach((d, i) => trocarIdTemporario(acao.ids[i], d.id));
+                historicoDesfazer.push({ tipo: "criou", id: novos[0].id });
+            } else {
+                const existentes = estado.desenhos.filter((d) => acao.ids.includes(d.id) && podeApagarAqui(d));
+                if (existentes.length === 0) continue;
+                apagarDesenhosSemHistorico(existentes);
+                historicoDesfazer.push({ tipo: "apagou", desenhos: existentes.map(semIdentidade), ids: existentes.map((d) => d.id) });
+            }
+            apagandoAgora = null;
+            aposMudarDesenhos();
+            return;
+        }
+    }
+    /** "Apagar tudo": o mestre apaga todos os desenhos do mapa; os outros, só os deles. Dá para desfazer com Ctrl+Z. */
+    function apagarTodosOsDesenhos(): void {
+        apagandoAgora = null;
+        apagarComHistorico(estado.desenhos.filter(podeApagarAqui));
+        apagandoAgora = null;
+        aposMudarDesenhos();
+    }
+
     // As pinturas ficam por cima do mapa e da grade e por baixo dos tokens (criadas antes deles).
     const desenho = criarDesenho(camera, {
         aoMudar: () => painelDesenho.atualizar(),
         aoCriar: (cor) => painelDesenho.usarCor(cor), // a cor entra na pilha das recentes
+        aoAdicionar: (novo) => {
+            const criado = guardarDesenho(novo);
+            empilharDesfazer({ tipo: "criou", id: criado.id });
+        },
+        aoRemover: (lista) => apagarComHistorico(lista),
+        aoSoltarBorracha: () => {
+            apagandoAgora = null;
+        },
+        podeApagar: podeApagarAqui,
     });
 
-    const barra = criarBarra(camera, { aoMudarGrade: (ajustes) => grade.definirAjustes(ajustes), aoMudarTamanhoTabuleiro, aoAlternarCalibragem: alternarCalibragem, aoEscolherMapa: escolherMapa, aoVoltarAoPadrao: voltarAoPadrao });
+    // (declarada ANTES da barra: ela pergunta se pode mudar a grade já ao ser criada)
+    let rede: Rede | null = null;
+    const barra = criarBarra(camera, {
+        aoMudarGrade: (ajustes) => grade.definirAjustes(ajustes),
+        aoPedirGradeDaMesa: (g) => {
+            if (!rede?.ativa) return false; // sem servidor: a barra aplica sozinha
+            rede.enviar({ tipo: "definir_grade", espessura: g.espessura, cor: g.cor });
+            return true;
+        },
+        podeMudarGrade: () => !rede?.ativa || estado.mestre,
+        aoMudarTamanhoTabuleiro, aoAlternarCalibragem: alternarCalibragem, aoEscolherMapa: escolherMapa, aoVoltarAoPadrao: voltarAoPadrao });
     grade.definirAjustes(barra.ajustesDaGrade()); // os ajustes da grade que a pessoa deixou guardados (mostrar, espessura e cor)
 
     // O modo ONLINE (protótipo, só com ?online no endereço): enquanto `rede.ativa`, as ações abaixo vão para o SERVIDOR, que
     // valida, aplica e avisa todos; sem isso (ou sem conexão) tudo vale só localmente, como sempre foi.
-    let rede: Rede | null = null;
 
     // A COLUNA da direita tem duas abas, "Chat" e "Bolsa" (ver ui/lateral.ts). O chat e a lateral dependem um do outro: cada um recebe uma função que só
     // roda depois de os dois existirem.
@@ -198,17 +358,35 @@ async function iniciar(): Promise<void> {
             painelIniciativa.destacarSoltar(naIniciativa !== null); // (por cima da caixa da iniciativa: ela se destaca)
             tokens.destacarAlvo(ponto && !naIniciativa ? tokenSobOPonto(ponto) : null);
         },
-        aoSoltarResultado: (idDaMensagem, ponto) => {
+        aoSoltarResultado: (idDaMensagem, ponto, indice, dado) => {
             tokens.destacarAlvo(null);
             painelIniciativa.destacarSoltar(false);
             if (painelIniciativa.sobre(ponto)) {
-                soltarNaIniciativa(idDaMensagem);
+                soltarNaIniciativa(idDaMensagem, indice, dado);
                 return;
             }
             const alvo = tokenSobOPonto(ponto);
-            if (alvo) darDanoArrastado(alvo, idDaMensagem);
+            if (alvo) darDanoArrastado(alvo, idDaMensagem, indice, dado);
         },
         aoEnviar: (texto) => {
+            // O COMANDO "/r conta": rola uma conta com dados e números (ex.: "/r 2d6+3", "/r (1d20+5)*2"), sem variáveis. Online o servidor confere e sorteia.
+            const comandoR = /^\/r(?:\s+(.*))?$/i.exec(texto);
+            if (comandoR) {
+                const conta = (comandoR[1] ?? "").trim();
+                if (conta === "") return void aviso.mostrar("Use /r e uma conta com dados e números. Ex.: /r 2d6+3 ou /r (1d20+5)*2", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+                if (!podeRolarAgora()) return void aviso.mostrar("Calma! Você está rolando rápido demais.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+                comAtrasoDeRolagem(() => {
+                    if (rede?.ativa) {
+                        rede.enviar({ tipo: "rolar_conta", texto: conta });
+                        return;
+                    }
+                    const feito = rolarConta(conta, Math.random);
+                    if (!feito.ok) return void aviso.mostrar(feito.erro, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+                    adicionarRolagemDeFicha(AUTOR_PROVISORIO, feito.valor);
+                    chat.atualizar();
+                });
+                return;
+            }
             if (rede?.ativa) {
                 rede.enviar({ tipo: "enviar_mensagem", texto });
                 return;
@@ -270,6 +448,9 @@ async function iniciar(): Promise<void> {
     // A PILHA de barras da esquerda ("Desenho" e "Ferramentas"): clicar abre a gaveta ao lado; arrastar troca a ordem (ver ui/pilha.ts). As caixas do chat,
     // da bolsa e dos dados moram na coluna da direita e não se mexem.
     criarPilha();
+    // As abas da coluna da direita e da bolsa: se não cabem numa linha, passam para a de baixo em linhas IGUAIS (4 abas viram 2 + 2).
+    organizarAbasEmLinhas(document.getElementById("lateral-abas") as HTMLElement, ".lateral-aba", 34, 4);
+    organizarAbasEmLinhas(document.getElementById("bolsa-abas") as HTMLElement, ".bolsa-aba", 0, 2);
     const painelIniciativa = criarIniciativa({
         aoAcao: (acao) => aplicarAcaoIniciativa(acao),
         confirmarLimpar: () => confirmacao.perguntar({ titulo: "Limpar a iniciativa?", mensagem: "A lista, a vez e a rodada serão apagadas para todos.", confirmar: "Limpar" }),
@@ -280,11 +461,7 @@ async function iniciar(): Promise<void> {
     const painelDesenho = criarPainelDesenho({
         aoEscolher: escolherFerramenta,
         aoMudarCor: (cor) => desenho.definirCor(cor),
-        aoApagarTudo: () => {
-            apagarTodosDesenhos(); // 1) estado
-            desenho.redesenhar(); // 2) desenho
-            painelDesenho.atualizar();
-        },
+        aoApagarTudo: () => apagarTodosOsDesenhos(), // (o mestre apaga todos; os outros, só os deles; Ctrl+Z desfaz)
     });
 
     // Balão com a descrição de uma condição: compartilhado pelo menu "Add condição"
@@ -307,7 +484,7 @@ async function iniciar(): Promise<void> {
 
     // O editor de FICHA (nome e texto): abre ao clicar num documento da aba Fichas da bolsa.
     const editorFicha = criarEditorFicha({
-        aoMudarAberta: (id) => bolsa.marcarFichaAberta(id), // (a bolsa é criada logo abaixo; isto só roda quando a janela abre ou fecha)
+        aoMudarAbertas: (ids) => bolsa.marcarFichaAberta(ids), // (a bolsa é criada logo abaixo; isto só roda quando uma janela abre, troca de ficha ou fecha)
         aoSalvar: (id, versao, mudancas) => {
             if (rede?.ativa) {
                 rede.enviar({ tipo: "editar_ficha", id, versao, nome: mudancas.nome, abas: mudancas.abas }); // o servidor confere a VERSÃO e grava o arquivo
@@ -345,25 +522,57 @@ async function iniciar(): Promise<void> {
             });
             return null;
         },
+        aoUsarCartao: (id, versao, aba, indice, token) => {
+            if (!podeRolarAgora()) return mensagemDeLimite; // (o limite anti-spam é o mesmo das rolagens)
+            if (rede?.ativa) {
+                comAtrasoDeRolagem(() => rede?.enviar({ tipo: "usar_cartao", id, versao, aba, indice, token })); // o SERVIDOR calcula, rola e o cartão chega pelo chat (evento "mensagem")
+                return null;
+            }
+            const ficha = estado.fichas.find((f) => f.id === id);
+            if (!ficha) return "Essa ficha não existe.";
+            const analise = analisarAbas(ficha.abas.map((a) => a.texto), valoresAtuaisDaFicha(id))[aba];
+            if (!analise) return "Essa página não existe.";
+            const resultado = rolarCartaoDaAnalise(analise, indice, ficha.nome, Math.random); // modo local: calcula e rola aqui mesmo
+            if (!resultado.ok) return resultado.erro;
+            comAtrasoDeRolagem(() => {
+                adicionarCartaoDeFicha(AUTOR_PROVISORIO, resultado.valor, tokenDaRolagem(id, token));
+                chat.atualizar();
+            });
+            return null;
+        },
         confirmarExcluirAba: (nome) =>
             confirmacao.perguntar({
                 titulo: "Excluir página?",
                 mensagem: `A página "${nome}" e tudo o que está escrito nela serão removidos desta ficha (só valem depois de salvar).`,
                 confirmar: "Excluir página",
             }),
-        confirmarDescarte: async (podeSalvar) => {
-            const resposta = await confirmacao.escolher({
-                titulo: "Fechar sem salvar?",
-                mensagem: "Esta ficha tem alterações que ainda não foram salvas.\nSe você fechar sem salvar, elas serão perdidas.",
-                confirmar: "Fechar sem salvar",
-                ...(podeSalvar && { alternativa: "Salvar e fechar" }),
-            });
+        confirmarDescarte: async (podeSalvar, paraTrocar) => {
+            const resposta = await confirmacao.escolher(
+                paraTrocar
+                    ? {
+                          titulo: "Trocar de ficha sem salvar?",
+                          mensagem: "Esta ficha tem alterações que ainda não foram salvas.\nSe você abrir a outra ficha nesta janela sem salvar, elas serão perdidas. (Para ficar com as duas à vista, fixe esta ficha antes.)",
+                          confirmar: "Descartar e abrir a outra",
+                          ...(podeSalvar && { alternativa: "Salvar e abrir a outra" }),
+                      }
+                    : {
+                          titulo: "Fechar sem salvar?",
+                          mensagem: "Esta ficha tem alterações que ainda não foram salvas.\nSe você fechar sem salvar, elas serão perdidas.",
+                          confirmar: "Fechar sem salvar",
+                          ...(podeSalvar && { alternativa: "Salvar e fechar" }),
+                      },
+            );
             return resposta === "confirmar" ? "descartar" : resposta === "alternativa" ? "salvar" : "cancelar";
         },
     });
 
     // O editor de recorte da imagem do token (arrastar, zoom, confirmar).
     const editorImagem = criarEditorImagem();
+
+    /** As LIGAÇÕES token × ficha mudaram: as janelas de ficha abertas refazem o aviso vermelho (ficha única com vários tokens). (Só as abertas agem.) */
+    function ligacoesMudaram(): void {
+        for (const ficha of estado.fichas) editorFicha.valoresMudaram(ficha.id);
+    }
 
     // A janela de edição do token (nome, tamanho e cores): abre pelo menu do token (mapa) e pelo da ficha (bolsa).
     const editorToken = criarEditorToken({
@@ -378,8 +587,11 @@ async function iniciar(): Promise<void> {
             for (const peca of pecasDoModelo(token.id)) tokens.redesenhar(peca);
             menu.atualizar(); // 3) os botões do token acompanham o novo tamanho
             bolsa.atualizar(); // 4) a ficha da bolsa
+            ligacoesMudaram(); // 5) o aviso das janelas de ficha
         },
         editarImagem: (arquivo, corFundo) => editorImagem.editar(arquivo, corFundo),
+        // "Criar ficha" dentro do "Editar token": a ficha nasce com o nome do token e já ligada a ele (um peça age pelo modelo dela).
+        aoCriarFicha: (token) => bolsa.criarFichaDoToken(estado.tokens.find((t) => t.id === token.copiaDe) ?? token),
     });
 
     /**
@@ -508,13 +720,13 @@ async function iniciar(): Promise<void> {
      * O TOTAL de uma rolagem do chat foi solto na caixa da iniciativa: entra um personagem NOVO com esse valor (quem já estava na lista fica; a pessoa tira o antigo à mão, com o botão direito).
      * Se a rolagem veio de uma ficha aberta por um TOKEN, o novo personagem é esse token (com o ícone e o nome dele); senão, leva o nome da ficha, ou "Criatura" (rolagem do painel de dados).
      */
-    function soltarNaIniciativa(idDaMensagem: number): void {
-        const total = totalDaRolagem(idDaMensagem);
+    function soltarNaIniciativa(idDaMensagem: number, indice?: number, dado?: number): void {
+        const total = totalDaRolagem(idDaMensagem, indice, dado);
         if (total === null) return;
         const mensagem = estado.mensagens.find((m) => m.id === idDaMensagem);
         const token = mensagem?.token !== undefined ? buscarToken(mensagem.token) : undefined;
         painelIniciativa.abrir();
-        aplicarAcaoIniciativa({ acao: "adicionar", nome: token?.nome ?? mensagem?.rolagemFicha?.ficha ?? "Criatura", valor: Math.round(total), token: token?.id ?? null });
+        aplicarAcaoIniciativa({ acao: "adicionar", nome: token?.nome ?? mensagem?.rolagemFicha?.ficha ?? mensagem?.cartaoFicha?.ficha ?? "Criatura", valor: Math.round(total), token: token?.id ?? null });
     }
 
     /** Qual token está sob este ponto da tela? Só vale com o ponteiro sobre o TABULEIRO (o chat, a bolsa e as barras ficam por cima do canvas e não contam). */
@@ -527,19 +739,19 @@ async function iniciar(): Promise<void> {
      * O TOTAL de uma rolagem do chat foi solto num token: ele perde essa quantidade do status marcado com "Subtraído por números arrastados". Online o pedido vai ao servidor (que lê o total
      * da mensagem e avisa todos); no modo local, tudo aqui.
      */
-    function darDanoArrastado(token: Token, idDaMensagem: number): void {
+    function darDanoArrastado(token: Token, idDaMensagem: number, indice?: number, dado?: number): void {
         if (rede?.ativa) {
-            rede.enviar({ tipo: "arrastar_resultado", token: token.id, mensagem: idDaMensagem });
+            rede.enviar({ tipo: "arrastar_resultado", token: token.id, mensagem: idDaMensagem, ...(indice !== undefined && { indice }), ...(dado !== undefined && { dado }) });
             return;
         }
-        const total = totalDaRolagem(idDaMensagem);
+        const total = totalDaRolagem(idDaMensagem, indice, dado);
         if (total === null) return;
         const resultado = aplicarResultado(token, total);
         if (!resultado.ok) {
             aviso.mostrar(resultado.erro, { duracaoMs: TEMPO_AVISO_MAPA_MS });
             return;
         }
-        tokens.redesenhar(token); // a barra muda na hora
+        tokens.redesenhar(token, "dano"); // a barra muda na hora (e a peça pisca: dano, sempre)
         if (resultado.fichaAlterada !== undefined) aplicarValoresDaFicha(resultado.fichaAlterada); // (ficha Token Único: as barras e o painel da ficha acompanham)
         adicionarMensagem(AUTOR_PROVISORIO, frasePraChatDeDano(token, resultado));
         chat.atualizar();
@@ -558,7 +770,7 @@ async function iniciar(): Promise<void> {
             aviso.mostrar(resultado.erro, { duracaoMs: TEMPO_AVISO_MAPA_MS });
             return;
         }
-        tokens.redesenhar(token); // a barra muda na hora
+        tokens.redesenhar(token, resultado.efeito === "reduzir" ? "dano" : "cura"); // a barra muda na hora (e a peça pisca: dano ou cura, sempre)
         adicionarMensagem(AUTOR_PROVISORIO, frasePraChatDaAcao(token, acaoId, resultado));
         chat.atualizar();
     }
@@ -580,13 +792,13 @@ async function iniciar(): Promise<void> {
      * ficha, ao vivo) e o painel da ficha, se ela está aberta. O estado já foi atualizado por quem chama.
      */
     function aplicarValoresDaFicha(idFicha: number): void {
-        for (const token of sincronizarValoresDaFicha(idFicha)) tokens.redesenhar(token);
+        for (const token of sincronizarValoresDaFicha(idFicha)) tokens.redesenhar(token, true);
         editorFicha.valoresMudaram(idFicha);
     }
 
     /** Arrastou um token da BOLSA para o tabuleiro: nasce uma PEÇA (cópia temporária) na casa escolhida. O token da bolsa continua lá, e dá para arrastá-lo de novo. */
     function colocarModeloNoTabuleiro(modelo: Token, col: number, row: number): void {
-        // Ficha de JOGADOR (variáveis que mudam): só um token por tela. Confere antes de tudo (o servidor confere de novo) e explica.
+        // Ficha de JOGADOR (variáveis que mudam): só um token por CENA (em outra cena pode ter o seu, com os mesmos valores). Confere antes de tudo (o servidor confere de novo) e explica.
         const motivo = motivoParaNaoColocar(modelo);
         if (motivo) {
             aviso.mostrar(motivo, { duracaoMs: TEMPO_AVISO_MAPA_MS });
@@ -602,18 +814,74 @@ async function iniciar(): Promise<void> {
             return;
         }
         tokens.adicionar(peca); // 2) desenho no mapa
-        bolsa.atualizar(); // 3) o "no mapa: N" da fichinha
     }
 
     /**
      * "Remover do tabuleiro" numa PEÇA (pelo botão ou soltando-a na bolsa): a peça é APAGADA (ela é temporária: o token da bolsa continua lá). Os status que ela
      * tinha se perdem, mas o aviso oferece "Desfazer", que cria uma peça nova com o mesmo lugar, o PV atual e as condições de antes.
      */
+    /** O aviso de quem tentou tirar do mapa uma peça que não pode. */
+    function avisarSemPermissaoParaTirar(nome: string): void {
+        aviso.mostrar(`Você não tem permissão para tirar "${nome}" do mapa: só quem tem acesso a ele (dono, leitor ou editor) e o mestre.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+    }
+
     function removerPeca(peca: Token): void {
-        const foto = { modelo: peca.copiaDe as number, col: peca.col, row: peca.row, valores: peca.valores.map((v) => ({ id: v.id, atual: v.atual })), condicoes: [...peca.condicoes] };
+        if (!podeUsarToken(peca)) return avisarSemPermissaoParaTirar(peca.nome); // (confere ANTES: o servidor também recusaria)
+        avisarRemocao(peca.nome, removerPecaSemAviso(peca));
+    }
+
+    /** Apaga a peça (sem avisar) e devolve a função que a recria do jeito que estava (o "Desfazer"). */
+    function removerPecaSemAviso(peca: Token): () => void {
+        const foto = { modelo: peca.copiaDe as number, col: peca.col, row: peca.row, valores: peca.valores.filter((v) => !v.oculto).map((v) => ({ id: v.id, atual: v.atual })), condicoes: [...peca.condicoes] };
         if (rede?.ativa) rede.enviar({ tipo: "excluir_token", id: peca.id }); // o servidor apaga o arquivo e avisa todos
         else removerTokenDoJogo(peca.id);
-        avisarRemocao(peca.nome, () => desfazerPeca(foto));
+        return () => desfazerPeca(foto);
+    }
+
+    /**
+     * O cartão "N tokens selecionados" (canto de baixo, com "Remover do tabuleiro"): aparece NA HORA em que 2 ou mais tokens são selecionados e some assim que sobram
+     * menos de 2 (pedido do dono, 17/11/2026). Fica à vista (sem sumir sozinho) enquanto a seleção durar; o `chave` evita apagar outro aviso que tenha tomado o lugar.
+     */
+    function mostrarAvisoDaSelecao(escolhidos: Token[]): void {
+        if (escolhidos.length < 2) {
+            aviso.esconder("selecao");
+            return;
+        }
+        aviso.mostrar(`${escolhidos.length} tokens selecionados.`, {
+            chave: "selecao",
+            duracaoMs: 24 * 60 * 60 * 1000,
+            acao: { rotulo: "Remover do tabuleiro", aoClicar: () => { removerVarios(escolhidos); tokens.limparSelecao(); } },
+        });
+    }
+
+    /**
+     * Remove VÁRIOS tokens do tabuleiro de uma vez (Delete, ou o botão direito com vários selecionados, ou soltá-los na bolsa), SEM confirmar: as peças são apagadas e os modelos
+     * guardados, e um único aviso oferece "Desfazer" para todos juntos.
+     */
+    function removerVarios(lista: Token[]): void {
+        const desfazeres: (() => void)[] = [];
+        for (const token of lista) {
+            if (!buscarToken(token.id) || token.guardado) continue;
+            if (token.copiaDe !== null && !podeUsarToken(token)) {
+                avisarSemPermissaoParaTirar(token.nome);
+                continue;
+            }
+            if (token.copiaDe !== null) {
+                desfazeres.push(removerPecaSemAviso(token));
+                continue;
+            }
+            const { col, row, id } = token;
+            if (rede?.ativa) rede.enviar({ tipo: "guardar_token", id });
+            else {
+                guardarToken(id);
+                tokens.aplicarPosicao(token);
+            }
+            desfazeres.push(() => desfazerRemocao(id, col, row));
+        }
+        if (desfazeres.length === 0) return;
+        bolsa.atualizar();
+        const texto = desfazeres.length === 1 ? "1 token foi removido do tabuleiro." : `${desfazeres.length} tokens foram removidos do tabuleiro.`;
+        aviso.mostrar(texto, { duracaoMs: TEMPO_DESFAZER_MS, acao: { rotulo: "Desfazer", aoClicar: () => desfazeres.forEach((d) => d()) } });
     }
 
     function desfazerPeca(foto: { modelo: number; col: number; row: number; valores: { id: number; atual: number }[]; condicoes: string[] }): void {
@@ -717,7 +985,7 @@ async function iniciar(): Promise<void> {
      * DUPLO CLIQUE num token (no tabuleiro ou na bolsa): abre a FICHA atribuída a ele. Sem ficha, um aviso explica e oferece o "Editar token", onde se atribui uma.
      */
     function abrirFichaDoToken(token: Token): void {
-        menu.fechar(); // (o menu e o balão do token ficariam soltos por baixo da janela da ficha)
+        fecharMenusDoToken(); // (o menu e o balão do token ficariam soltos por baixo da janela da ficha)
         balao.esconder();
         const ficha = token.ficha === null ? undefined : estado.fichas.find((f) => f.id === token.ficha);
         if (!ficha) {
@@ -735,9 +1003,17 @@ async function iniciar(): Promise<void> {
         const removidos = excluirTokenComPecas(id); // 1) estado (excluir um token da bolsa leva as peças dele junto; vazio = já não existia: nada a fazer)
         if (removidos.length === 0) return;
         for (const removido of removidos) tokens.remover(removido); // 2) desenho no mapa (cancela o arrasto, se alguém o segurava)
-        menu.fechar(); // 3) menus e balão que estavam abertos sobre ele
+        fecharMenusDoToken(); // 3) menus e balão que estavam abertos sobre ele
         balao.esconder();
         bolsa.atualizar(); // 4) a ficha da bolsa
+        ligacoesMudaram(); // 5) o aviso das janelas de ficha (ficha única com vários tokens)
+    }
+
+    // Os menus do token no mapa: a engrenagem (menuToken) e o PAINEL de ações (menuGrupoMapa) abrem e fecham juntos. (`fecharPainelDeAcoes` é ligado quando o painel é criado, logo abaixo.)
+    let fecharPainelDeAcoes: () => void = () => undefined;
+    function fecharMenusDoToken(): void {
+        menu.fechar();
+        fecharPainelDeAcoes();
     }
 
     const menu = criarMenuToken({
@@ -755,6 +1031,50 @@ async function iniciar(): Promise<void> {
         aoAlternarCondicao: alternarCondicaoDoToken,
         dica,
     });
+
+    // O PAINEL DE AÇÕES dos tokens no mapa (pedido do dono, 17/11/2026): UM token (clique direito) ou VÁRIOS selecionados. Só oferece o que todos podem receber, e o valor se digita num CAMPO
+    // dentro do próprio painel (sem janela). Ver ui/menuGrupoMapa.ts.
+    const menuGrupo = criarMenuGrupoMapa({
+        aoAplicar: (acaoId, texto, lista) => (lista.length === 1 ? aplicarAcaoDoJogo(lista[0].id, acaoId, texto) : aplicarAcaoEmVariosDoJogo(lista.map((t) => t.id), acaoId, texto)),
+        aoCondicao: (condicaoId, ligar, lista) => condicaoEmVarios(lista.map((t) => t.id), condicaoId, ligar),
+    });
+    fecharPainelDeAcoes = () => menuGrupo.fechar();
+
+    /** O que um token só ganha no fim do painel de ações (só o mestre: a iniciativa e a criação de ações são dele). */
+    function extrasDoPainel(token: Token): ExtraDoPainel[] {
+        if (!estado.mestre) return [];
+        return [
+            { texto: "Adicionar à iniciativa", dica: "Põe este token na ordem de combate (a caixa Iniciativa, na pilha da esquerda)", aoClicar: () => adicionarTokenNaIniciativa(token.id) },
+            { texto: "+ Nova ação", dica: "Criar ou excluir ações (valem para todos os tokens)", aoClicar: () => modalAcoes.abrir() },
+        ];
+    }
+    /** Dano ou cura em vários tokens: online o SERVIDOR rola os dados UMA vez e aplica a todos; no modo local, aqui. */
+    function aplicarAcaoEmVariosDoJogo(ids: number[], acaoId: number, texto: string): void {
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "aplicar_acao_varios", tokens: ids, acao: acaoId, valor: texto });
+            return;
+        }
+        const feito = aplicarAcaoEmVarios(ids.flatMap((id) => buscarToken(id) ?? []), acaoId, texto, Math.random);
+        if (!feito.ok) {
+            aviso.mostrar(feito.erro, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            return;
+        }
+        for (const { token, resultado } of feito.itens) tokens.redesenhar(token, resultado.efeito === "reduzir" ? "dano" : "cura"); // as barras mudam na hora (e as peças piscam: dano ou cura, sempre)
+        const acao = estado.acoesDaMesa.find((a) => a.id === acaoId);
+        adicionarMensagem(AUTOR_PROVISORIO, `${acao?.nome ?? "Ação"} ${feito.quantia} em ${feito.itens.length} tokens`);
+        chat.atualizar();
+    }
+    /** Liga (ou desliga) uma condição em vários tokens de uma vez. */
+    function condicaoEmVarios(ids: number[], condicaoId: string, ligar: boolean): void {
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "condicao_varios", tokens: ids, condicao: condicaoId, ligar });
+            return;
+        }
+        for (const id of ids) {
+            const token = definirCondicao(id, condicaoId, ligar);
+            if (token) tokens.redesenhar(token);
+        }
+    }
 
     const balao = criarBalaoToken({
         ancora: (id) => tokens.ancoraBalao(id),
@@ -781,24 +1101,43 @@ async function iniciar(): Promise<void> {
             return token; // a bolsa refaz a própria lista
         },
         aoAbrir: () => {
-            menu.fechar(); // menus e balões ficariam soltos por baixo da bolsa expandida
+            fecharMenusDoToken(); // menus e balões ficariam soltos por baixo da bolsa expandida
             balao.esconder();
         },
         aoEditar: (token) => editorToken.editar(token),
         aoAbrirFichaDoToken: (token) => abrirFichaDoToken(token),
+        aoCompartilhar: (item, id, nome) => jogadores.compartilhar(item, id, nome, item === "tokens" ? buscarToken(id)?.grupos : item === "fichas" ? estado.fichas.find((f) => f.id === id)?.grupos : undefined),
+        // "Tirar"/"Botar" da caixa "Tokens da ficha": online o servidor confere a regra da ficha única; no modo local vale na hora.
+        aoLigarFicha: (token, idFicha) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "editar_token", id: token.id, mudancas: { ficha: idFicha } });
+                return;
+            }
+            const motivo = idFicha === null ? null : motivoFichaOcupada(idFicha, token.id);
+            if (motivo) return void aviso.mostrar(motivo, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            editarToken(token.id, { ficha: idFicha });
+            for (const peca of pecasDoModelo(token.id)) tokens.redesenhar(peca);
+            bolsa.atualizar();
+            ligacoesMudaram();
+        },
         // Os status (barras) editados na bolsa em tela cheia são UMA regra para a MESA INTEIRA e valem AO VIVO: todos os tokens e peças mudam na hora.
         aoMudarStatus: (status) => mudarStatusDaMesa(status),
-        aoAdicionarFicha: (token) => editorToken.editar(token, { focarFicha: true }),
         aoAvisar: (texto) => aviso.mostrar(texto, { duracaoMs: TEMPO_AVISO_MAPA_MS }),
         editarImagem: (arquivo, corFundo) => editorImagem.editar(arquivo, corFundo),
         // Ficha nova (VAZIA). Online, quem a cria é o SERVIDOR, que cria o arquivo na máquina do mestre NA HORA, e ela chega
         // pelo evento "ficha_criada"; no modo local ela só existe na memória desta aba.
-        aoCriarFicha: () => {
+        // Com `token` (da bolsa, sem ficha): a ficha nasce com o NOME dele e já fica LIGADA a ele (online, quem liga é o servidor).
+        aoCriarFicha: (token) => {
             if (rede?.ativa) {
-                rede.enviar({ tipo: "criar_ficha" });
+                rede.enviar({ tipo: "criar_ficha", ...(token && { token: token.id }) });
                 return "enviada";
             }
-            return criarFicha();
+            const ficha = criarFicha(token?.nome ?? "");
+            if (ficha && token) {
+                editarToken(token.id, { ficha: ficha.id });
+                for (const peca of pecasDoModelo(token.id)) tokens.redesenhar(peca); // (as barras de status das peças dele vêm da ficha)
+            }
+            return ficha;
         },
         aoExcluir: (token) => void excluirComConfirmacao(token),
         // Estrela e grupos: online cada alteração é um pedido (em fila de 50 ms, por causa do limite de mensagens por segundo); no modo local vale na hora.
@@ -850,6 +1189,198 @@ async function iniciar(): Promise<void> {
         aoExcluirFicha: (ficha) => void excluirFichaComConfirmacao(ficha),
     });
 
+    // DUPLO CLIQUE na aba "Bolsa" da coluna da direita ABRE a bolsa em tela cheia (o primeiro clique já trocou para a aba; o segundo abre).
+    document.getElementById("lateral-aba-bolsa")?.addEventListener("dblclick", () => bolsa.abrir());
+
+    // A aba MAPAS da bolsa (a biblioteca de mapas do servidor; só o MESTRE envia, troca e apaga). Sem servidor (modo local) ela só explica. Quem barra de verdade é o servidor: aqui só se decide o que mostrar.
+    // A aba "Jogadores" e a janela "Compartilhar" (só do mestre): os pedidos vão ao servidor, que confere o papel de novo e devolve o documento de permissões.
+    let meuUsuario: string | null = null; // o id de usuário desta pessoa (o servidor o manda ao entrar)
+    const jogadores = criarJogadores({
+        aoDefinirMestre: (usuario, mestre) => rede?.enviar({ tipo: "definir_mestre", usuario, mestre }),
+        aoDefinirLimites: (tokens, fichas) => rede?.enviar({ tipo: "definir_limites", tokens, fichas }),
+        aoBanir: (usuario, nome, banir) => rede?.enviar({ tipo: "banir", usuario, banir, nome }),
+        confirmar: (pergunta) => confirmacao.perguntar(pergunta),
+        aoLiberar: (item, id, usuario, nivel) => rede?.enviar({ tipo: "liberar", item, id, usuario, nivel }),
+    });
+    /** O papel mudou (entrou, foi promovido ou rebaixado): a interface esconde ou mostra o que é só do mestre. */
+    function aplicarPapel(): void {
+        document.body.classList.toggle("jogador", !estado.mestre);
+        fecharMenusDoToken();
+        balao.esconder();
+        bolsa.atualizar();
+        barra.aplicarGradeDaMesa(estado.grade);
+        bolsaMapas.atualizar(!!rede?.ativa);
+        if (!estado.mestre && bolsaEstaNaAbaDoMestre()) bolsa.escolherAba("tokens"); // (se estava numa aba que só o mestre tem, volta para Tokens)
+    }
+    function bolsaEstaNaAbaDoMestre(): boolean {
+        const ligada = document.querySelector<HTMLElement>("#bolsa .bolsa-aba[aria-selected=true]");
+        return ligada?.classList.contains("so-mestre") === true;
+    }
+
+    let listaDeJogadores: Jogador[] = []; // (a última lista que o servidor mandou: o mestre sabe o mapa de cada um)
+    const bolsaMapas = criarBolsaMapas({
+        aoEnviar: (arquivo) => void enviarMapaAoServidor(arquivo),
+        aoUsar: (m) => usarMapaDaBiblioteca(m),
+        aoMoverJogadores: () => rede?.enviar({ tipo: "mover_jogadores" }),
+        aoExcluir: (m) =>
+            void confirmacao
+                .perguntar({ titulo: "Excluir mapa?", mensagem: `O mapa "${m.nome}" será apagado do servidor, para todos.`, confirmar: "Excluir mapa" })
+                .then((sim) => {
+                    if (sim && rede?.ativa) rede.enviar({ tipo: "excluir_mapa", id: m.id });
+                }),
+        aoMudarQuemVe: (m, todos, usuarios) => rede?.enviar({ tipo: "definir_quem_ve_mapa", id: m.id, todos, usuarios }),
+        jogadoresConhecidos: () => jogadores.jogadoresConhecidos(),
+        jogadoresNoMapa: (id) => listaDeJogadores.filter((j) => j.mapa === id && j.mestre !== true).map((j) => ({ nome: j.apelido, semPermissao: j.semPermissao === true })),
+    });
+
+    // A VISÃO (zoom e posição da câmera) é lembrada POR MAPA, neste navegador (localStorage): ao trocar de mapa e voltar, ou ao reabrir o site, a câmera volta onde estava.
+    // Só some se o mapa nunca teve visão guardada (aí vale o "ajustar à tela" de sempre).
+    type Visao = { z: number; x: number; y: number };
+    const chaveDoMapa = (id: string | null): string => id ?? "sem-mapa";
+    function lerVisoes(): Record<string, Visao> {
+        try {
+            const obj = JSON.parse(lerPreferencia(CHAVE_VISOES) ?? "{}");
+            return obj && typeof obj === "object" ? obj : {};
+        } catch {
+            return {};
+        }
+    }
+    function lerVisao(id: string | null): Visao | null {
+        const v = lerVisoes()[chaveDoMapa(id)];
+        return v && [v.z, v.x, v.y].every((n) => typeof n === "number" && Number.isFinite(n)) ? v : null; // (o que vem do localStorage não é confiável)
+    }
+    let guardarVisaoLigado = false; // (desligado até a visão da abertura ser restaurada: senão o "ajustar" inicial apagaria a guardada)
+    let esperaVisao: number | undefined;
+    camera.aoMudarVisao = () => {
+        if (!guardarVisaoLigado) return;
+        window.clearTimeout(esperaVisao); // (espera o arrasto/zoom acalmar para gravar uma vez só)
+        esperaVisao = window.setTimeout(() => {
+            const todas = lerVisoes();
+            todas[chaveDoMapa(estado.mapaId)] = { z: camera.zoom, x: camera.x, y: camera.y };
+            guardarPreferencia(CHAVE_VISOES, JSON.stringify(todas));
+        }, 250);
+    };
+    let visaoRestaurada = false; // (a última troca de mapa achou uma visão guardada? Então o "ajustar" de quem pediu a troca não a desfaz)
+    function restaurarVisaoDoMapa(id: string | null): boolean {
+        const v = lerVisao(id);
+        if (v) camera.restaurar(v.z, v.x, v.y);
+        return v !== null;
+    }
+
+    // A TROCA DE MAPA (online): cada navegador BAIXA a imagem primeiro ("Carregando o mapa…") e só quando ela chegou troca, de uma vez, o mapa, o tamanho do tabuleiro e a grade. Até lá a imagem antiga continua
+    // à vista e nada muda. Se chegar outra troca no meio, só a mais nova vale (`versaoDoMapa`); se a imagem falhar, nada muda e aparece um aviso.
+    let versaoDoMapa = 0;
+    let depoisDoMapa: (() => void) | null = null; // (só quem pediu a troca tem algo a fazer depois: ajustar a visão e dizer a previsão de colunas e linhas)
+    async function trocarMapa(id: string | null, colunas?: number, linhas?: number, depois?: (() => void) | null): Promise<void> {
+        const minha = ++versaoDoMapa;
+        if (id !== null) {
+            aviso.mostrar("Carregando o mapa…", { duracaoMs: 180000 }); // (fica até a imagem chegar: é escondido logo abaixo)
+            bolsaMapas.mostrarAviso("Carregando o mapa…");
+        }
+        const chegou = await mapa.carregarDe(id === null ? null : `/mapas/${id}`, () => minha === versaoDoMapa);
+        if (minha !== versaoDoMapa) return; // (outra troca chegou enquanto esta baixava: ela cuida de tudo)
+        aviso.esconder();
+        bolsaMapas.mostrarAviso("");
+        if (!chegou) {
+            mostrarAvisoDoMapa("Não foi possível carregar o mapa. O anterior continua à vista.");
+            return;
+        }
+        if (guardarVisaoLigado) {
+            // grava JÁ a visão do mapa que está saindo (a gravação com espera ainda poderia cair no mapa novo)
+            window.clearTimeout(esperaVisao);
+            const todas = lerVisoes();
+            todas[chaveDoMapa(estado.mapaId)] = { z: camera.zoom, x: camera.x, y: camera.y };
+            guardarPreferencia(CHAVE_VISOES, JSON.stringify(todas));
+        }
+        definirMapaAtual(id);
+        fecharMenusDoToken();
+        balao.esconder();
+        tokens.reconstruir(); // (cada mapa guarda os seus tokens: saem os do mapa antigo e entram os deste)
+        if (colunas !== undefined && linhas !== undefined) aplicarTamanho(definirTamanhoTabuleiro(colunas, linhas)); // (o mesmo cálculo do servidor: os tokens que ficaram fora são puxados para dentro)
+        else mapa.ajustar();
+        grade.desenhar(); // (o fundo e a cor das linhas da grade dependem de haver mapa)
+        barra.atualizar();
+        bolsaMapas.atualizar(rede?.ativa === true); // (o selo "Atual" só passa para o mapa novo quando ele já está na tela)
+        visaoRestaurada = guardarVisaoLigado && restaurarVisaoDoMapa(id); // (a câmera volta onde estava neste mapa, se já esteve nele)
+        depois?.();
+    }
+
+    /** O MESTRE escolheu um mapa da biblioteca: o pedido leva o tamanho previsto pela imagem (colunas × linhas, como ao escolher um arquivo); o servidor avisa todos com o mapa e o tamanho JUNTOS, e cada navegador troca quando a imagem chegar. */
+    function usarMapaDaBiblioteca(m: RegistroDeMapa): void {
+        if (!rede?.ativa) return;
+        if (!estado.mestre) return mostrarAvisoDoMapa("Só o mestre pode trocar o mapa.");
+        const previsao = m.colunas !== undefined ? null : preverGrade(m.largura, m.altura); // (um mapa que já tem tamanho guardado volta com ele; só o mapa NOVO usa a previsão da imagem)
+        depoisDoMapa = () => {
+            if (!visaoRestaurada) camera.ajustar(); // (a visão acompanha o tabuleiro novo, a não ser que o mapa já tenha uma visão guardada; só para quem pediu a troca)
+            if (!previsao) return;
+            mostrarAvisoDoMapa(
+                previsao.exata
+                    ? `Mapa (${m.largura}×${m.altura} px): ${previsao.colunas} colunas × ${previsao.linhas} linhas (casas de ${previsao.pxPorCasa} px).`
+                    : `Mapa: estimativa de ${previsao.colunas} colunas × ${previsao.linhas} linhas pelo tamanho da imagem. Ajuste pelos botões ou use "Alinhar mapa".`,
+            );
+        };
+        rede.enviar({ tipo: "definir_mapa", id: m.id, ...(previsao && { colunas: previsao.colunas, linhas: previsao.linhas }) });
+    }
+
+    /** O MESTRE enviou uma imagem (pelo botão "+ Enviar mapa" ou por "Escolher mapa", online): vai ao servidor por HTTP (a imagem NUNCA vai pelo WebSocket), que confere tipo, pixels e tamanho; se der certo, vira o mapa de todos. */
+    async function enviarMapaAoServidor(arquivo: File): Promise<void> {
+        const dizer = (texto: string, erro = false): void => {
+            bolsaMapas.mostrarAviso(texto, erro);
+            if (erro) mostrarAvisoDoMapa(texto);
+        };
+        if (!estado.mestre) return dizer("Só o mestre pode enviar mapas.", true);
+        if (arquivo.size > MAX_BYTES_MAPA) return dizer(`Imagem grande demais (${(arquivo.size / 1048576).toFixed(1)} MB): o máximo é ${MAX_BYTES_MAPA / 1048576} MB.`, true);
+        dizer("Enviando…");
+        try {
+            const nome = arquivo.name.replace(/\.[^.]*$/, "").replace(/[_-]+/g, " ").trim();
+            const resposta = await fetch(`/mapas?nome=${encodeURIComponent(nome)}${new URLSearchParams(location.search).has("papel") ? "&papel=" + encodeURIComponent(new URLSearchParams(location.search).get("papel") ?? "") : ""}`, { method: "POST", body: arquivo }); // (o servidor lê o TIPO pelos bytes, não pelo que se diz aqui)
+            const corpo = (await resposta.json().catch(() => null)) as (RegistroDeMapa & { erro?: string }) | null;
+            if (!resposta.ok || !corpo || typeof corpo.id !== "string") return dizer(corpo?.erro ?? `O servidor recusou a imagem (erro ${resposta.status}).`, true);
+            dizer(`"${corpo.nome}" enviado.`);
+            usarMapaDaBiblioteca(corpo);
+        } catch {
+            dizer("Não foi possível enviar: sem conexão com o servidor.", true);
+        }
+    }
+
+    /**
+     * O BACKUP DA CAMPANHA (botão "⬇ Backup" da bolsa em tela cheia, só do mestre): baixa do servidor um .zip com a pasta de dados (fichas, tokens, mapas, grupos, permissões...).
+     * O servidor confere que quem pede é o mestre. Sem servidor (modo local) não há o que baixar: tudo vive só nesta aba.
+     */
+    const botaoBackup = document.getElementById("bolsa-backup") as HTMLButtonElement;
+    botaoBackup.addEventListener("click", async () => {
+        if (!rede?.ativa) return mostrarAvisoDoMapa("O backup só existe no modo online: os dados da campanha ficam no servidor.");
+        const sim = await confirmacao.perguntar({ titulo: "Baixar o backup da campanha?", mensagem: "Será baixado um arquivo .zip com TODOS os dados da campanha: fichas, tokens, grupos, mapas (com as imagens), desenhos e permissões. Pode ser grande.", confirmar: "Baixar backup" });
+        if (!sim) return;
+        botaoBackup.disabled = true;
+        const textoAntes = botaoBackup.textContent;
+        botaoBackup.textContent = "Preparando…";
+        try {
+            const papel = new URLSearchParams(location.search).get("papel");
+            const resposta = await fetch(`/backup${papel ? "?papel=" + encodeURIComponent(papel) : ""}`);
+            if (!resposta.ok) {
+                const corpo = (await resposta.json().catch(() => null)) as { erro?: string } | null;
+                return mostrarAvisoDoMapa(corpo?.erro ?? `O servidor recusou o backup (erro ${resposta.status}).`);
+            }
+            const arquivo = await resposta.blob();
+            const nome = /filename="([^"]+)"/.exec(resposta.headers.get("content-disposition") ?? "")?.[1] ?? "tabuleirinho-backup.zip";
+            const endereco = URL.createObjectURL(arquivo);
+            const link = document.createElement("a");
+            link.href = endereco;
+            link.download = nome;
+            document.body.append(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(endereco), 10000);
+            mostrarAvisoDoMapa(`Backup baixado: ${nome} (${(arquivo.size / 1048576).toFixed(1).replace(".", ",")} MB). Para restaurar, descompacte na pasta "dados" com o servidor desligado.`);
+        } catch {
+            mostrarAvisoDoMapa("Não foi possível baixar o backup: sem conexão com o servidor.");
+        } finally {
+            botaoBackup.disabled = false;
+            botaoBackup.textContent = textoAntes;
+        }
+    });
+
     const tokens = criarTokens(camera, grade, texturas, {
         sobreBolsa: (ponto) => {
             // Arrastando um token até a COLUNA da direita com a aba "Chat" à vista: a coluna troca sozinha para a "Bolsa" (que estava escondida), e então
@@ -868,7 +1399,10 @@ async function iniciar(): Promise<void> {
         aoMudarBolsa: () => bolsa.atualizar(),
         aoRemoverArrastando: (token, col, row) => avisarRemocao(token.nome, () => desfazerRemocao(token.id, col, row)), // (soltar o token na bolsa também permite "Desfazer")
         aoSoltarModelo: (token, col, row) => colocarModeloNoTabuleiro(token, col, row),
+        aoSemPermissao: (nome) => avisarSemPermissaoParaTirar(nome),
+        aoMudarSelecao: (selecionados) => mostrarAvisoDaSelecao(selecionados),
         aoRemoverPeca: (token) => removerPeca(token),
+        aoRemoverVarios: (lista) => removerVarios(lista),
         aoMostrarSobreBolsa: (token, centro, diametro, borda) => bolsa.mostrarFantasma(token, centro, diametro, borda),
         aoEsconderSobreBolsa: () => bolsa.esconderFantasma(),
         // Online: o token já mudou aqui (para o arrasto ficar fluido) e o servidor é avisado; ele confere e avisa todos.
@@ -877,13 +1411,25 @@ async function iniciar(): Promise<void> {
             rede.enviar(token.guardado ? { tipo: "guardar_token", id: token.id } : { tipo: "colocar_token", id: token.id, col: token.col, row: token.row });
         },
         aoIniciarArrasto: () => {
-            menu.fechar();
+            fecharMenusDoToken();
             balao.esconder();
         },
         aoDuploClique: (token) => abrirFichaDoToken(token),
         aoClicarDireito: (token) => {
             balao.esconder(); // os botões do token ocupam o lugar do balão
-            menu.abrir(token.id);
+            // Com VÁRIOS selecionados (e este entre eles) o botão direito age em massa, e só para REMOVER do tabuleiro.
+            const escolhidos = tokens.selecionados;
+            if (escolhidos.length > 1 && escolhidos.some((t) => t.id === token.id)) {
+                fecharMenusDoToken();
+                // O cartão de baixo continua como sempre ("Remover do tabuleiro" = a confirmação); o MENU ao lado do token oferece o que todos podem receber: dano, cura e condição em área.
+                mostrarAvisoDaSelecao(escolhidos); // (o cartão já está lá desde a seleção; se a pessoa o fechou com um clique, volta)
+                const ancora = tokens.ancoraNaTela(token.id);
+                if (ancora && escolhidos.length <= MAX_TOKENS_ACAO_EM_GRUPO) menuGrupo.abrir(ancora.x + ancora.largura + 8, ancora.y, escolhidos);
+                return;
+            }
+            menu.abrir(token.id); // (a engrenagem de configuração, em cima do token)
+            const ancora = tokens.ancoraNaTela(token.id);
+            if (ancora) menuGrupo.abrir(ancora.x, ancora.y + ancora.largura + 12, [token], extrasDoPainel(token)); // o PAINEL de ações, embaixo do token
         },
         aoPassarMouse: (token) => balao.mostrar(token.id),
         // Ao sair do token o balão NÃO some na hora: dá tempo de o mouse chegar até ele.
@@ -904,9 +1450,9 @@ async function iniciar(): Promise<void> {
     const regua = criarRegua(camera, { aoMedir: (texto) => painelDesenho.mostrarDistancia(texto) });
 
     ativarInteracao(app, camera, tokens, [calibragem, desenho, regua], {
-        aoClicarNoFundo: () => menu.fechar(),
+        aoClicarNoFundo: () => fecharMenusDoToken(),
         aoIniciarPan: () => {
-            menu.fechar();
+            fecharMenusDoToken();
             balao.esconder();
         },
     });
@@ -918,7 +1464,7 @@ async function iniciar(): Promise<void> {
     camera.aoMudarZoom = () => {
         grade.desenhar();
         regua.redesenhar(); // o tamanho do texto e da linha, na tela, depende do zoom
-        menu.fechar();
+        fecharMenusDoToken();
         balao.esconder();
         barra.atualizar();
     };
@@ -927,7 +1473,7 @@ async function iniciar(): Promise<void> {
     // não desfazer o pan do usuário).
     app.renderer.on("resize", () => {
         camera.limitar();
-        menu.fechar();
+        fecharMenusDoToken();
         balao.esconder();
     });
 
@@ -958,7 +1504,7 @@ async function iniciar(): Promise<void> {
         grade.desenhar();
         tokens.reposicionar(movidos);
         camera.limitar(); // o tabuleiro mudou de tamanho: reajusta a câmera
-        menu.fechar();
+        fecharMenusDoToken();
         balao.esconder();
         barra.atualizar();
     }
@@ -976,6 +1522,7 @@ async function iniciar(): Promise<void> {
      * se ajusta, e um aviso diz o que foi previsto (exato, ou só uma estimativa para a pessoa refinar pelos botões ou por "Alinhar mapa").
      */
     async function escolherMapa(arquivo: File): Promise<void> {
+        if (rede?.ativa) return enviarMapaAoServidor(arquivo); // online o mapa é de TODOS: a imagem vai para a biblioteca do servidor (só o mestre envia)
         const problema = await mapa.carregarArquivo(arquivo); // 1) estado + imagem
         if (problema) {
             alert(problema); // o mapa anterior continua
@@ -1011,7 +1558,7 @@ async function iniciar(): Promise<void> {
     function escolherFerramenta(nome: NomeFerramenta): void {
         if (calibragem.ativa) ligarCalibragem(false); // a calibragem também é uma ferramenta
         ferramentaAtual = nome;
-        menu.fechar();
+        fecharMenusDoToken();
         balao.esconder();
         desenho.definirFerramenta(DE_DESENHO.includes(nome) ? (nome as FerramentaDesenho) : null);
         regua.definirAtiva(nome === "regua");
@@ -1023,7 +1570,7 @@ async function iniciar(): Promise<void> {
     /** Liga/desliga a calibragem: o painel, o botão, o cursor e o mouse dos tokens acompanham. */
     function ligarCalibragem(ligada: boolean): void {
         if (ligada && ferramentaAtual !== "mover") escolherFerramenta("mover"); // uma ferramenta de cada vez
-        menu.fechar();
+        fecharMenusDoToken();
         balao.esconder();
         calibragem.definirAtiva(ligada);
         grade.definirVisivel(!ligada); // calibrando, só a grade do MAPA aparece: fica fácil de comparar
@@ -1035,6 +1582,10 @@ async function iniciar(): Promise<void> {
 
     /** Clique numa condição do menu: liga/desliga no ESTADO e redesenha os ícones do token. */
     function alternarCondicaoDoToken(id: number, condicaoId: string): void {
+        if (rede?.ativa) {
+            rede.enviar({ tipo: "alternar_condicao", id, condicao: condicaoId }); // online o SERVIDOR muda, grava e avisa todos ("condicoes_atualizadas")
+            return;
+        }
         const token = alternarCondicao(id, condicaoId); // 1) estado (null = token/condição inexistente)
         if (!token) return;
         tokens.redesenhar(token); // 2) desenho: o anel de ícones é refeito
@@ -1045,22 +1596,63 @@ async function iniciar(): Promise<void> {
     // grandes continua em 100%). Sem isso, em janelas menores os tokens das pontas
     // ficavam fora da tela e pareciam ter sumido.
     camera.ajustar();
+    // Reabrindo o site: a visão guardada do mapa atual volta (online, o mapa só é conhecido depois: quem restaura é a troca de mapa).
+    restaurarVisaoDoMapa(estado.mapaId);
+    guardarVisaoLigado = true;
 
     // O mapa carrega por último: o tabuleiro já aparece e a imagem entra quando chegar.
     await mapa.carregar();
 
+    criarRedimensionadorDaColuna(); // a alça de tamanho da coluna da direita (chat e bolsa)
+
+    // CTRL+Z e CTRL+Y (ou Ctrl+Shift+Z): desfazem e refazem as ações de DESENHO desta pessoa. Não valem dentro de um campo de texto (lá o Ctrl+Z é do texto).
+    document.addEventListener("keydown", (e) => {
+        if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+        const tecla = e.key.toLowerCase();
+        if (tecla !== "z" && tecla !== "y") return;
+        const alvo = e.target as HTMLElement | null;
+        if (alvo?.closest("input, textarea, select, [contenteditable=true]")) return;
+        e.preventDefault();
+        if (tecla === "y" || e.shiftKey) refazerDesenho();
+        else desfazerDesenho();
+    });
+
+    // SELEÇÃO por teclado: Delete remove os tokens selecionados (sem confirmar; o aviso oferece "Desfazer") e Esc tira a seleção. Só vale com o foco no tabuleiro (não digitando num campo,
+    // nem dentro de uma janela de ficha, da bolsa...).
+    document.addEventListener("keydown", (e) => {
+        if (e.key !== "Delete" && e.key !== "Escape") return;
+        const foco = document.activeElement;
+        if (foco && foco !== document.body && foco !== app.canvas) return;
+        const escolhidos = tokens.selecionados;
+        if (escolhidos.length === 0) return;
+        if (e.key === "Delete") removerVarios(escolhidos);
+        tokens.limparSelecao();
+    });
+
     // --- Modo online (protótipo): só liga com ?online no endereço, ex.: /?online&nome=Ana ---
     const parametros = new URLSearchParams(location.search);
+    // O PAPEL: online, vem do servidor (começa como jogador até ele dizer); sem servidor (modo local), `?papel=jogador` SIMULA o jogador (esconde o que é só do mestre); sem o parâmetro vale o mestre.
+    estado.mestre = !parametros.has("online") && parametros.get("papel") !== "jogador";
+    document.body.classList.toggle("jogador", !estado.mestre);
     if (parametros.has("online")) {
         const status = criarStatusRede();
         /** Um evento do servidor: aplica no ESTADO (as mesmas funções de estado.ts) e atualiza o desenho. */
         const aplicarEventoDoServidor = (evento: EventoDoServidor): void => {
             switch (evento.tipo) {
+                case "condicoes_atualizadas": {
+                    const alvo = buscarToken(evento.id);
+                    if (alvo) {
+                        alvo.condicoes = [...evento.condicoes];
+                        tokens.redesenhar(alvo); // os ícones (e o X do Morto) são refeitos
+                        menu.atualizar();
+                    }
+                    return;
+                }
                 case "valores_atualizados": {
                     const alvo = buscarToken(evento.id);
                     if (alvo) {
                         alvo.valores = evento.valores.map((v) => ({ ...v })); // o valor novo (uma ação foi aplicada)
-                        tokens.redesenhar(alvo);
+                        tokens.redesenhar(alvo, evento.efeito ?? true); // (pisca: dano ou cura; com `efeito` o servidor diz qual, mesmo se esta pessoa não vê o valor)
                     }
                     return;
                 }
@@ -1098,7 +1690,7 @@ async function iniciar(): Promise<void> {
                         aplicarTamanho([]); // (a grade, a imagem do mapa e a câmera acompanham o tamanho do servidor)
                         camera.ajustar();
                     }
-                    menu.fechar();
+                    fecharMenusDoToken();
                     balao.esconder();
                     definirMensagens(evento.mensagens);
                     definirGrupos(evento.grupos); // os grupos (de tokens e fichas) gravados no servidor
@@ -1108,17 +1700,44 @@ async function iniciar(): Promise<void> {
                     definirIniciativa(evento.iniciativa); // a ordem de combate gravada no servidor
                     iniciativaMudou();
                     definirTodosOsValoresDasFichas(evento.valores); // os valores atuais das variáveis que mudam (depois das fichas: só valem para as que existem)
-                    // (se uma ficha está aberta no editor, ele confere se ela mudou enquanto a conexão estava fora)
-                    {
-                        const aberta = estado.fichas.find((f) => f.id === editorFicha.idAberto);
+                    // (se há fichas abertas no editor, ele confere se elas mudaram enquanto a conexão estava fora)
+                    for (const id of editorFicha.idsAbertos) {
+                        const aberta = estado.fichas.find((f) => f.id === id);
                         if (aberta) editorFicha.fichaMudou(aberta);
                     }
+                    editorFicha.restaurarFixadas((id) => estado.fichas.find((f) => f.id === id)); // (reabre as fichas que estavam FIXADAS da última vez; só age na primeira vez)
                     chat.atualizar();
                     bolsa.statusMudaram(); // (o editor de status da bolsa mostra os da mesa)
                     bolsa.atualizarGrupos(); // (refaz os chips e as duas listas)
                     status.mostrarEntrada(evento.voce.apelido);
+                    // O MAPA também é do servidor: a biblioteca, qual é o atual e se esta conexão é a do mestre.
+                    estado.mestre = evento.mestre;
+                    meuUsuario = evento.voce.usuario ?? null;
+                    definirDesenhos(evento.desenhos); // os desenhos do mapa atual, do servidor
+                    limparHistoricoDeDesenho();
+                    aposMudarDesenhos();
+                    jogadores.definirPermissoes(evento.permissoes);
+                    aplicarPapel();
+                    barra.aplicarGradeDaMesa(definirGradeDaMesa(evento.grade)); // a espessura e a cor da grade também são da mesa (depois do `mestre`: os controles dependem dele)
+                    definirBiblioteca(evento.mapas);
+                    void trocarMapa(evento.mapa); // (baixa a imagem e só então a põe; até lá o mapa de antes continua à vista)
                     return;
                 }
+                case "mapa_definido": {
+                    const depois = depoisDoMapa; // (só quem pediu a troca)
+                    depoisDoMapa = null;
+                    if (evento.grade) barra.aplicarGradeDaMesa(definirGradeDaMesa(evento.grade)); // (cada mapa tem a sua grade: espessura e cor)
+                    void trocarMapa(evento.mapa, evento.colunas, evento.linhas, depois);
+                    return;
+                }
+                case "mapas_definidos": {
+                    definirBiblioteca(evento.mapas);
+                    bolsaMapas.atualizar(true);
+                    return;
+                }
+                case "grade_definida":
+                    barra.aplicarGradeDaMesa(definirGradeDaMesa(evento.grade));
+                    return;
                 case "tamanho_definido": {
                     aplicarTamanho(definirTamanhoTabuleiro(evento.colunas, evento.linhas)); // (o mesmo cálculo do servidor: os tokens que ficaram fora são puxados para dentro)
                     const depois = depoisDoTamanho; // (só quem pediu a mudança tem algo a fazer depois: ajustar a visão, por exemplo)
@@ -1138,8 +1757,49 @@ async function iniciar(): Promise<void> {
                     excluirGrupo(evento.id); // tira o grupo e a marca dele de todos os tokens, fichas e status (o servidor faz o mesmo nos arquivos e manda "status_definidos" se algum status o citava)
                     bolsa.atualizarGrupos();
                     return;
+                case "desenho_criado": {
+                    // Um desenho novo: o MEU (a `ref` bate com um pendente) troca o id temporário pelo de verdade; o dos outros entra como está.
+                    const ref = evento.ref;
+                    const temporario = ref !== undefined ? desenhosPendentes.get(ref) : undefined;
+                    if (ref !== undefined && temporario !== undefined) {
+                        desenhosPendentes.delete(ref);
+                        if (refsDescartados.delete(ref)) {
+                            rede?.enviar({ tipo: "apagar_desenhos", ids: [evento.desenho.id] }); // (eu o apaguei antes de o servidor responder)
+                            return;
+                        }
+                        const i = estado.desenhos.findIndex((d) => d.id === temporario);
+                        if (i >= 0) estado.desenhos[i] = evento.desenho;
+                        else receberDesenho(evento.desenho);
+                        trocarIdTemporario(temporario, evento.desenho.id);
+                    } else {
+                        receberDesenho(evento.desenho);
+                    }
+                    aposMudarDesenhos();
+                    return;
+                }
+                case "desenhos_apagados":
+                    removerDesenhos(evento.ids);
+                    aposMudarDesenhos();
+                    return;
+                case "desenhos_definidos":
+                    // O mestre trocou de mapa: aparecem os desenhos do mapa novo (e o histórico de desfazer de antes não vale mais).
+                    definirDesenhos(evento.desenhos);
+                    limparHistoricoDeDesenho();
+                    aposMudarDesenhos();
+                    return;
                 case "jogadores":
+                    listaDeJogadores = evento.lista;
+                    if (estado.mestre) bolsaMapas.atualizar(true); // ("jogadores aqui" em cada mapa)
                     status.mostrarJogadores(evento.lista);
+                    jogadores.definirConectados(evento.lista, meuUsuario);
+                    return;
+                case "permissoes":
+                    jogadores.definirPermissoes(evento.permissoes); // (só os mestres a recebem)
+                    return;
+                case "papel":
+                    estado.mestre = evento.mestre; // foi promovido ou rebaixado
+                    aplicarPapel();
+                    aviso.mostrar(evento.mestre ? "Você agora é mestre." : "Você deixou de ser mestre.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
                     return;
                 case "token_colocado": {
                     const token = buscarToken(evento.id);
@@ -1161,7 +1821,6 @@ async function iniciar(): Promise<void> {
                 case "peca_criada": {
                     const peca = receberToken(evento.token); // (uma PEÇA nova no tabuleiro, já gravada no servidor)
                     tokens.adicionar(peca);
-                    bolsa.atualizar(); // (o "no mapa: N" da fichinha)
                     return;
                 }
                 case "token_criado": {
@@ -1176,6 +1835,7 @@ async function iniciar(): Promise<void> {
                     tokens.redesenhar(token);
                     menu.atualizar();
                     bolsa.atualizar();
+                    ligacoesMudaram();
                     return;
                 }
                 case "token_excluido":
@@ -1246,6 +1906,7 @@ async function iniciar(): Promise<void> {
             }
             bolsa.atualizarFichas();
             bolsa.atualizar();
+            editorFicha.restaurarFixadas((id) => estado.fichas.find((f) => f.id === id)); // (modo local: as fichas de exemplo nascem sempre com os mesmos números, então as fixadas voltam também)
         });
     }
 
@@ -1264,11 +1925,13 @@ async function iniciar(): Promise<void> {
             // Só para os testes: muda o tamanho do tabuleiro SEM passar pela rede (o app abre em 25 × 22; a maioria dos testes foi escrita para 18 × 10).
             definirTamanho: (colunas: number, linhas: number) => mudarTamanho(colunas, linhas),
             semear: (lista: Omit<Token, "condicoes" | "favorito" | "grupos" | "ficha" | "status" | "valores" | "copiaDe">[]) => {
-                for (const dados of lista) tokens.adicionar(receberToken({ ...dados, condicoes: [], favorito: false, grupos: [], ficha: null, status: statusPadrao(), valores: [], copiaDe: null }));
+                for (const dados of lista) tokens.adicionar(receberToken({ ...dados, condicoes: [], favorito: false, grupos: [], ficha: null, status: statusPadrao(), valores: [], copiaDe: null, mapa: null }));
                 bolsa.atualizar();
             },
             estado,
             camera,
+            tokens, // (a camada de desenho dos tokens: os testes provocam as animações de vida por ela)
+            selecionados: () => tokens.selecionados.map((t) => t.id), // (os ids dos tokens selecionados no tabuleiro)
             get rede() {
                 return rede;
             },

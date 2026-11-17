@@ -1,0 +1,59 @@
+/* O CARTÃO DE FICHA no chat (os cartões `(Nome)"""texto"""`). (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
+/* ===== O CARTÃO DE FICHA no chat (`(Nome)"""texto"""` usado na ficha): o nome em cima, a criatura embaixo e o texto, com os resultados das [expressões] no meio das linhas ===== */
+.chat-cartao-ficha {
+    border-left: 3px solid #4dd0b4;
+}
+.chat-cartao-corpo {
+    padding: 4px 0 2px 48px; /* o ícone ocupa o canto (como no resto do cartão) */
+    font-size: 12.5px; /* (já foi 11 px; pedido do dono: a letra um pouco maior) */
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+    text-wrap: pretty;
+}
+.chat-cartao-corpo .negrito {
+    font-weight: 700;
+}
+.chat-cartao-corpo .italico {
+    font-style: italic;
+}
+.chat-cartao-titulo.t1 {
+    font-size: 1.35em;
+    font-weight: 700;
+}
+.chat-cartao-titulo.t2 {
+    font-size: 1.2em;
+    font-weight: 700;
+}
+.chat-cartao-titulo.t3 {
+    font-size: 1.08em;
+    font-weight: 700;
+}
+/* O RESULTADO de uma [expressão]: só o TOTAL em destaque (a fórmula e o que saiu em cada dado aparecem ao passar o mouse). Rolagem (com dado) em dourado; conta (sem dado) em verde-água. */
+.chat-cartao-resultado {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 5px;
+    margin: 0 1px; /* sem margem em cima e embaixo: a caixinha não aumenta a altura da linha */
+    padding: 0 8px; /* (já foi 2px 11px) */
+    line-height: inherit;
+    border-radius: 6px;
+    background: rgba(77, 208, 180, 0.16);
+    border: 1px solid rgba(77, 208, 180, 0.45);
+    cursor: grab; /* cada número se ARRASTA como o total de uma rolagem (até um token, para dar dano; ou até a iniciativa) */
+    user-select: none;
+    touch-action: none;
+}
+.chat-cartao-resultado:hover {
+    filter: brightness(1.25);
+}
+.chat-cartao-resultado.rolagem {
+    background: rgba(255, 213, 79, 0.14);
+    border-color: rgba(255, 213, 79, 0.55);
+}
+.chat-cartao-resultado b {
+    font-size: 1em; /* o MESMO tamanho das palavras do cartão (pedido do dono: o número grande atrapalhava a leitura; já foi 11,5, 20 e 17 px) */
+    line-height: inherit;
+}
+.chat-cartao-resultado.rolagem b {
+    color: #ffd54f;
+}

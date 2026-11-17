@@ -1,0 +1,281 @@
+/* Status do modo online: uma pílula no topo, no meio. */
+#rede-status {
+    position: fixed;
+    top: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 12;
+    max-width: min(560px, calc(100vw - 420px));
+    padding: 5px 14px;
+    background: rgba(34, 34, 42, 0.94);
+    border: 1px solid #3a6b45;
+    border-radius: 16px;
+    color: #9ad59a;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+}
+#rede-status > span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+#rede-status .rede-status-cena {
+    margin-top: 1px;
+    font-size: 11px;
+    color: #8fb98f;
+}
+#rede-status.offline {
+    border-color: #6b5a2a;
+    color: #ffb74d;
+}
+#rede-status.com-aviso {
+    border-color: #7a3a3a;
+    color: #ff9a9a;
+}
+
+/* Cópia do token arrastado sobre a bolsa: por cima de tudo (menos das dicas), sem pegar o mouse. */
+#token-fantasma {
+    position: fixed;
+    z-index: 36;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    border-style: solid;
+    border-color: #fff;
+    box-sizing: border-box;
+    background-size: cover;
+    background-position: center;
+    pointer-events: none;
+}
+
+/* Menu do clique direito numa ficha da bolsa. */
+#menu-ficha,
+#menu-selecao,
+#menu-doc {
+    position: fixed;
+    z-index: 45;
+    min-width: 170px;
+    padding: 4px;
+    background: #2a2a33;
+    border: 1px solid #4a4a58;
+    border-radius: 8px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+}
+#menu-ficha button,
+#menu-selecao button,
+#menu-doc button {
+    display: block;
+    width: 100%;
+    padding: 7px 10px;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+#menu-ficha button:hover,
+#menu-selecao button:hover,
+#menu-doc button:hover:not(:disabled) {
+    background: #3b3b49;
+}
+/* Apagado (ex.: "Adicionar a um token" numa ficha única que já tem token): a dica (title) diz o motivo. */
+#menu-doc button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+
+/* Editor de recorte da imagem do token. */
+#editor-imagem,
+#editor-token,
+#tokens-ficha,
+#compartilhar {
+    position: fixed;
+    inset: 0;
+    z-index: 50; /* acima da bolsa expandida */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(8, 8, 12, 0.72);
+}
+.editor-imagem-painel {
+    box-sizing: border-box;
+    width: 368px;
+    max-width: calc(100vw - 16px);
+    max-height: calc(100vh - 16px);
+    overflow: auto;
+    padding: 16px 20px 18px;
+    background: #22222a;
+    border: 1px solid #3a3a45;
+    border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+}
+.editor-imagem-painel h3 {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 600;
+}
+.editor-imagem-ajuda {
+    margin: 0 0 10px;
+    font-size: 12px;
+    color: #9a9aa8;
+}
+#editor-imagem-tela {
+    display: block;
+    margin: 0 auto;
+    border-radius: 8px;
+    background: #1a1a1f;
+    touch-action: none;
+}
+.editor-imagem-zoom {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    font-size: 12px;
+    color: #c9c9d4;
+}
+.editor-imagem-zoom input {
+    flex: 1;
+}
+#editor-imagem-aviso {
+    min-height: 1.3em;
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: #ffb74d;
+}
+.editor-imagem-botoes {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 10px;
+}
+.editor-imagem-botoes button {
+    height: 32px;
+    padding: 0 16px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.editor-imagem-botoes button:hover:not(:disabled) {
+    background: #3b3b49;
+}
+#editor-imagem-usar,
+#editor-token-salvar {
+    background: #5a4a1f;
+    border-color: #ffd54f;
+}
+#menu-ficha #menu-ficha-excluir,
+#menu-selecao #menu-selecao-excluir,
+#menu-doc #menu-doc-excluir {
+    color: #ff9a9a;
+}
+.editor-imagem-botoes button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+
+/* TOKENS DA FICHA: duas listas (ligados e para botar), cada linha com o disco, o nome e um botão. O aviso vermelho aparece só com uma ficha única de vários tokens. */
+#tokens-ficha[hidden] {
+    display: none;
+}
+#tokens-ficha ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 150px;
+    overflow-y: auto;
+}
+#tokens-ficha li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+}
+#tokens-ficha li .disco {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%; /* CÍRCULO, como todo token (antes saía um quadrado: pedido do dono, 17/11/2026) */
+    border: 2px solid #fff;
+    box-sizing: border-box;
+    background-size: cover;
+    background-position: center;
+}
+.tokens-ficha-nome {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+}
+#tokens-ficha li button,
+#tokens-ficha-fechar {
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 12px;
+    color: inherit;
+    background: #3a3a46;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#tokens-ficha li button:disabled {
+    opacity: 0.45;
+    cursor: default;
+}
+.tokens-ficha-vazio {
+    margin: 2px 0;
+    font-size: 12px;
+    color: #9a9aa8;
+}
+#tokens-ficha-busca {
+    width: 100%;
+    height: 28px;
+    box-sizing: border-box;
+    margin-bottom: 4px;
+    padding: 0 8px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+}
+#tokens-ficha-aviso {
+    margin: 0 0 6px;
+    padding: 4px 8px;
+    font-size: 12px;
+    line-height: 1.35;
+    color: #ff6b63;
+    background: rgba(179, 38, 30, 0.16);
+    border: 1px solid rgba(255, 107, 99, 0.55);
+    border-radius: 6px;
+}
+#tokens-ficha-aviso[hidden] {
+    display: none;
+}
+#tokens-ficha .editor-imagem-botoes {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+#compartilhar[hidden] {
+    display: none;
+}
+#compartilhar .editor-imagem-botoes {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}

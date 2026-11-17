@@ -39,7 +39,7 @@ export interface BalaoToken {
 }
 
 const MARGEM_JANELA = 6; // px mínimos entre o balão e a borda da janela
-const DISTANCIA = 10; // px entre o balão e o token
+const DISTANCIA = 4; // px entre o balão e o token (curto: o mouse chega rápido ao balão; a setinha de 5 px cabe aqui)
 const ATRASO_ESCONDER_MS = 400; // tempo para o mouse sair do token e chegar ao balão
 
 export function criarBalaoToken(opcoes: OpcoesBalao): BalaoToken {
@@ -48,6 +48,10 @@ export function criarBalaoToken(opcoes: OpcoesBalao): BalaoToken {
 
     // Temporizador do atraso para esconder (undefined = nenhum agendado).
     let temporizador: number | undefined;
+    // De quem é o balão aberto agora, e qual outro token o mouse tocou NO CAMINHO até o balão (null = nenhum).
+    // Sem isso, atravessar um token que está entre o token e o balão trocava (ou apagava) o balão antes de o mouse chegar.
+    let idAberto: number | null = null;
+    let idNoCaminho: number | null = null;
 
     function cancelarAgendamento(): void {
         window.clearTimeout(temporizador);
@@ -57,12 +61,19 @@ export function criarBalaoToken(opcoes: OpcoesBalao): BalaoToken {
     function esconder(): void {
         cancelarAgendamento();
         balao.hidden = true;
+        idAberto = null;
         opcoes.dica.esconder(balao); // some junto, mas só se a descrição for DESTE balão
     }
 
     function agendarEsconder(): void {
         cancelarAgendamento();
-        temporizador = window.setTimeout(esconder, ATRASO_ESCONDER_MS);
+        idNoCaminho = null; // (saiu do token do caminho, ou do balão: já não é "de passagem")
+        temporizador = window.setTimeout(() => {
+            const parado = idNoCaminho; // o mouse ficou PARADO sobre outro token durante a espera? Então o balão passa a ser o dele
+            esconder();
+            idNoCaminho = null;
+            if (parado !== null) mostrar(parado);
+        }, ATRASO_ESCONDER_MS);
     }
 
     // O mouse entrou no balão: cancela o atraso e mantém o balão aberto.
@@ -78,6 +89,13 @@ export function criarBalaoToken(opcoes: OpcoesBalao): BalaoToken {
     lista.addEventListener("scroll", () => opcoes.dica.esconder(balao));
 
     function mostrar(id: number): void {
+        // O balão de OUTRO token está aberto e o mouse só saiu dele há pouco (a espera para esconder está rodando): o mouse deve estar
+        // a caminho do balão e passou por cima deste token. Não troca o balão; guarda este para o caso de o mouse parar aqui.
+        if (temporizador !== undefined && !balao.hidden && idAberto !== null && idAberto !== id) {
+            idNoCaminho = id;
+            return;
+        }
+        idNoCaminho = null;
         cancelarAgendamento(); // voltou ao token (ou a outro): não esconder mais
         const token = buscarToken(id);
         const ancora = opcoes.ancora(id);
@@ -106,6 +124,7 @@ export function criarBalaoToken(opcoes: OpcoesBalao): BalaoToken {
         lista.scrollTop = 0; // sempre começa do topo da lista
 
         // --- Tamanho: mede a altura NATURAL (sem limite) para decidir onde e quão alto fica ---
+        idAberto = id;
         balao.hidden = false; // precisa estar visível para medir
         balao.classList.remove("abaixo");
         balao.style.maxHeight = "none";

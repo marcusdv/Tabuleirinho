@@ -31,7 +31,16 @@ export function criarStatusRede(): StatusRede {
         pilula.classList.toggle("com-aviso", aviso !== "");
         if (aviso !== "") pilula.textContent = `⚠ ${aviso}`;
         else if (!conectada) pilula.textContent = "○ Conectando ao servidor…";
-        else pilula.textContent = `● Online: ${voce} · Na mesa: ${jogadores.map((j) => j.apelido).join(", ")}`;
+        else {
+            // Duas linhas (pedido do dono, 17/11/2026): em cima quem está online; EMBAIXO quem está na MESMA CENA (o mesmo mapa) que você.
+            const linha1 = document.createElement("span");
+            linha1.textContent = `● Online: ${voce} · Na mesa: ${jogadores.map((j) => j.apelido).join(", ")}`;
+            const linha2 = document.createElement("span");
+            linha2.className = "rede-status-cena";
+            const nestaCena = jogadores.filter((j) => j.naMinhaCena !== false).map((j) => j.apelido);
+            linha2.textContent = `Na cena: ${nestaCena.length > 0 ? nestaCena.join(", ") : "—"}`;
+            pilula.replaceChildren(linha1, linha2);
+        }
     }
     desenhar();
 

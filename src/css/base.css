@@ -1,0 +1,30 @@
+/* =====================================================================
+   BASE (o primeiro trecho do CSS): reset, pilha da esquerda, chat, dados, bolsa e editor de status.
+   Os arquivos ficam em src/css/ e são importados por src/estilos.css NA ORDEM de lá: regras de
+   mesma força dependem da ordem, então NÃO reordene nem separe sem conferir a tela.
+   ===================================================================== */
+/* Remove a margem padrão e esconde barras de rolagem. */
+html,
+body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #1a1a1f;
+}
+body {
+    font-family: system-ui, sans-serif;
+    color: #e6e6ea;
+}
+
+/* O atributo "hidden" precisa vencer o display definido por outras regras. */
+[hidden] {
+    display: none !important;
+}
+
+/* O PixiJS cria o <canvas> dentro desta div, que ocupa a janela inteira.
+         A barra de ferramentas e os menus flutuam POR CIMA dele (position: fixed). */
+#app {
+    width: 100%;
+    height: 100%;
+}
+

@@ -4,7 +4,7 @@
 // Clicar (ou Enter) num documento da grade da aba Fichas abre o editor (nome e texto). Salvar (botão ou Ctrl+S) sobe a versão; o botão só
 // vale quando algo mudou (um espaço a mais no nome não conta). Fechar com alterações não salvas pergunta na caixa de confirmar (Esc na
 // caixa cancela só ela); sem alterações fecha direto. O contador e os limites (nome 40, texto 25000) aparecem na tela.
-import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada, escNaFicha, versaoDaFicha } from "./ajuda.mjs";
 
 const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 800 } });
@@ -15,7 +15,8 @@ await abrirPagina(p);
 const ficha = () => p.evaluate(() => { const f = window.__tabuleirinho.estado.fichas[0]; return f && { nome: f.nome, texto: f.abas[0].texto, versao: f.versao }; });
 const aberto = () => p.locator("#editor-ficha").isVisible();
 const confirmarAberta = () => p.locator("#confirmar").isVisible();
-const versao = () => p.locator("#editor-ficha-versao").textContent();
+const versao = () => versaoDaFicha(p); // (a tela não mostra mais a versão: vem do atributo data-versao)
+const naoSalvo = () => p.locator("#editor-ficha-nao-salvo").textContent();
 
 await p.click("#bolsa-aba-fichas");
 await criarFichaFechada(p);
@@ -29,7 +30,7 @@ ok("1e) limites do navegador: nome 40 e texto 25000", (await p.getAttribute("#ed
 
 // editar e salvar com Ctrl+S
 await p.fill("#editor-ficha-texto", "FOR:: 16\nDEX:: 14\n\nAtaque (Espada)[1d20 + FOR]");
-ok("2a) ao digitar: Salvar habilita, a versão avisa 'alterações não salvas' e o contador conta", !(await p.isDisabled("#editor-ficha-salvar")) && /alterações não salvas/.test(await versao()) && (await p.locator("#editor-ficha-contagem").textContent()) === "46/25000", `${await versao()} / ${await p.locator("#editor-ficha-contagem").textContent()}`);
+ok("2a) ao digitar: Salvar habilita, a versão avisa 'alterações não salvas' e o contador conta", !(await p.isDisabled("#editor-ficha-salvar")) && /alterações não salvas/.test(await naoSalvo()) && (await p.locator("#editor-ficha-contagem").textContent()) === "46/25000", `${await versao()} / ${await p.locator("#editor-ficha-contagem").textContent()}`);
 await p.keyboard.press("Control+s");
 let f = await ficha();
 ok("2b) Ctrl+S salva: versão 2, texto guardado, aviso e Salvar desabilitado de novo", f.versao === 2 && f.texto.startsWith("FOR:: 16") && (await versao()) === "Versão 2" && /Salva na versão 2/.test(await p.locator("#editor-ficha-aviso").textContent()) && (await p.isDisabled("#editor-ficha-salvar")), JSON.stringify({ f, v: await versao() }));
@@ -46,7 +47,7 @@ await p.fill("#editor-ficha-nome", "Goblin Arqueiro");
 
 // fechar com alterações: pergunta
 await p.fill("#editor-ficha-texto", "texto novo que NÃO vou salvar");
-await p.keyboard.press("Escape");
+await escNaFicha(p); // (editando, o 1º Esc só vai para a visualização; o 2º abre a pergunta)
 ok("4a) Esc com alterações não fecha: abre a caixa 'Fechar sem salvar?'", (await confirmarAberta()) && (await aberto()) && (await p.locator("#confirmar-titulo").textContent()) === "Fechar sem salvar?", await p.locator("#confirmar-titulo").textContent());
 await p.keyboard.press("Escape");
 ok("4b) Esc na caixa só cancela ELA: o editor continua aberto com o texto", !(await confirmarAberta()) && (await aberto()) && (await p.inputValue("#editor-ficha-texto")) === "texto novo que NÃO vou salvar");
@@ -62,7 +63,7 @@ ok("4d) Fechar + 'Fechar sem salvar': a janela fecha e a ficha continua na vers�
 await p.focus(".bolsa-doc");
 await p.keyboard.press("Enter");
 ok("5a) Enter no documento (teclado) abre o editor, com o conteúdo salvo", (await aberto()) && (await p.inputValue("#editor-ficha-texto")).startsWith("FOR:: 16") && (await versao()) === "Versão 3");
-await p.keyboard.press("Escape");
+await escNaFicha(p);
 ok("5b) sem alterações, Esc fecha direto (sem perguntar)", !(await aberto()) && !(await confirmarAberta()));
 ok("5c) a grade mostra o nome novo e 'v3'", (await p.locator(".bolsa-doc-nome").textContent()) === "Goblin Arqueiro" && (await p.locator(".bolsa-doc small").textContent()) === "v3");
 

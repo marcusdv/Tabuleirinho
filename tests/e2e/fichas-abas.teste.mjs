@@ -76,7 +76,7 @@ await p.locator("#editor-ficha-abas-lista .aba-ficha-nome").nth(1).dblclick();
 await p.fill(".aba-ficha-campo", "Ações");
 await p.keyboard.press("Enter");
 ok("B8) Enter confirma o novo nome ('Ações') e a ficha continua aberta", (await nomesAbas()).join() === "Página 1,Ações" && (await p.locator("#editor-ficha").isVisible()));
-ok("B9) renomear conta como alteração não salva", /alterações não salvas/.test(await p.locator("#editor-ficha-versao").textContent()) && !(await p.isDisabled("#editor-ficha-salvar")));
+ok("B9) renomear conta como alteração não salva", /alterações não salvas/.test(await p.locator("#editor-ficha-nao-salvo").textContent()) && !(await p.isDisabled("#editor-ficha-salvar")));
 
 // ----- salvar: UM documento com as duas abas
 await p.locator("#editor-ficha-texto").focus();
@@ -84,7 +84,7 @@ await p.keyboard.press("Control+s");
 await p.waitForTimeout(150);
 const salva = await fichaNaMesa();
 ok("B10) salvar guarda as DUAS abas no mesmo documento (versão 2)", salva.versao === 2 && salva.abas.length === 2 && salva.abas[1].nome === "Ações" && salva.abas[1].texto === "(Dano)[1d8 + MOD]" && salva.abas[0].texto.startsWith("FOR:: 16"), JSON.stringify(salva));
-ok("B11) continua na aba que estava aberta (Ações, a que foi renomeada) e sem alterações pendentes", (await abaAtiva()) === "Ações" && !/não salvas/.test(await p.locator("#editor-ficha-versao").textContent()));
+ok("B11) continua na aba que estava aberta (Ações, a que foi renomeada) e sem alterações pendentes", (await abaAtiva()) === "Ações" && !/não salvas/.test(await p.locator("#editor-ficha-nao-salvo").textContent()));
 
 // ----- rolar na Página 2 (usa o MOD escrito na Página 1)
 await p.locator("#editor-ficha-abas-lista .aba-ficha-nome").nth(1).click();
@@ -145,20 +145,13 @@ await p.keyboard.press("Escape");
 const texto = () => p.inputValue("#editor-ficha-texto");
 await p.fill("#editor-ficha-texto", "Olá mundo");
 await p.locator("#editor-ficha-texto").evaluate((e) => { e.focus(); e.setSelectionRange(4, 9); }); // "mundo"
-await p.click('[data-formatar="negrito"]');
-ok("D1) o botão N cerca a seleção com ** (negrito)", (await texto()) === "Olá **mundo**", await texto());
-await p.click('[data-formatar="negrito"]');
+await p.keyboard.press("Control+b");
+ok("D1) Ctrl+B cerca a seleção com ** (negrito)", (await texto()) === "Olá **mundo**", await texto());
+await p.keyboard.press("Control+b");
 ok("D2) clicar de novo tira o negrito", (await texto()) === "Olá mundo", await texto());
 await p.keyboard.press("Control+i");
 ok("D3) Ctrl+I põe itálico (sem seleção: o par e o cursor no meio)", (await texto()) === "Olá *mundo*" || (await texto()).includes("**") === false && (await texto()).includes("*"), await texto());
-await p.fill("#editor-ficha-texto", "Primeira\nSegunda");
-await p.locator("#editor-ficha-texto").evaluate((e) => { e.focus(); e.setSelectionRange(2, 2); });
-await p.click('[data-formatar="2"]');
-ok("D4) o botão T2 põe '## ' no começo da linha do cursor", (await texto()) === "## Primeira\nSegunda", await texto());
-await p.click('[data-formatar="3"]');
-ok("D5) trocar para T3 troca o prefixo (sem empilhar #)", (await texto()) === "### Primeira\nSegunda", await texto());
-await p.click('[data-formatar="0"]');
-ok("D6) 'Aa' tira o título", (await texto()) === "Primeira\nSegunda", await texto());
+// (os botões T1/T2/T3/Aa e N/I foram removidos da janela: ficam os atalhos Ctrl+B e Ctrl+I; o texto com as marcas continua sendo formatado na visualização)
 await p.fill("#editor-ficha-texto", "# Grande\n### Pequeno\num **forte** e *torto* e ***os dois***\n<img src=x onerror=alert(1)> e <b>x</b>");
 await p.click("#editor-ficha-ver");
 const previa = await p.locator("#editor-ficha-previa").evaluate((el) => ({
@@ -167,9 +160,9 @@ const previa = await p.locator("#editor-ficha-previa").evaluate((el) => ({
     negrito: [...el.querySelectorAll(".negrito:not(.italico)")].map((e) => e.textContent), italico: [...el.querySelectorAll(".italico:not(.negrito)")].map((e) => e.textContent),
     ambos: [...el.querySelectorAll(".negrito.italico")].map((e) => e.textContent), imgs: el.querySelectorAll("img, b").length, texto: el.textContent,
 }));
-ok("D7) 'Visualizar' mostra títulos (T1 maior que T3), negrito, itálico e os dois", previa.visivel && previa.t1 === "Grande" && previa.t5 === "Pequeno" && previa.fonteT1 > previa.fonteT5 && previa.negrito.join() === "forte" && previa.italico.join() === "torto" && previa.ambos.join() === "os dois", JSON.stringify(previa));
+ok("D7) o botão 'Confirmar' (edição -> leitura) mostra títulos (T1 maior que T3), negrito, itálico e os dois", previa.visivel && previa.t1 === "Grande" && previa.t5 === "Pequeno" && previa.fonteT1 > previa.fonteT5 && previa.negrito.join() === "forte" && previa.italico.join() === "torto" && previa.ambos.join() === "os dois", JSON.stringify(previa));
 ok("D8) SEGURANÇA: HTML no texto aparece como letras (nenhum <img> nem <b> criado)", previa.imgs === 0 && previa.texto.includes("<img src=x onerror=alert(1)>") && previa.texto.includes("<b>x</b>"), JSON.stringify(previa));
-ok("D9) com a visualização ligada os botões de formatar ficam desligados", await p.isDisabled('[data-formatar="negrito"]'));
+ok("D9) a janela não tem mais os botões de formatação (N, I, T1-T3, Aa), só o Editar/Confirmar (no rodapé, ao lado de Fechar)", (await p.locator("[data-formatar]").count()) === 0 && (await p.locator("#editor-ficha-ver").isVisible()));
 await p.click("#editor-ficha-ver");
 ok("D10) 'Editar' volta ao campo de texto, com o texto intacto (as marcas continuam lá)", !(await p.locator("#editor-ficha-previa").isVisible()) && (await texto()).startsWith("# Grande"));
 
@@ -189,7 +182,7 @@ ok("E3) sem nenhuma marca de formatação, o campo NÃO vira leitura (não há o
 await p.fill("#editor-ficha-texto", "**forte**");
 await p.focus("#editor-ficha-texto");
 await p.click("#editor-ficha-ver");
-ok("E4) o botão 'Visualizar' continua funcionando (liga a leitura e vira 'Editar')", (await p.locator("#editor-ficha-previa").isVisible()) && (await p.locator("#editor-ficha-ver").textContent()) === "Editar");
+ok("E4) o botão 'Confirmar' continua funcionando (liga a leitura e vira 'Editar')", (await p.locator("#editor-ficha-previa").isVisible()) && (await p.locator("#editor-ficha-ver").textContent()) === "Editar");
 await p.click("#editor-ficha-ver");
 ok("E5) 'Editar' volta ao campo", !(await p.locator("#editor-ficha-previa").isVisible()));
 await p.fill("#editor-ficha-texto", "FOR:: 2*3*4\n**forte**");
@@ -198,8 +191,8 @@ await p.waitForTimeout(100);
 ok("E6) VARIÁVEIS NÃO são formatadas: 'FOR:: 2*3*4' aparece como texto puro (sem itálico)", (await p.locator("#editor-ficha-previa .italico").count()) === 0 && /FOR:: 2\*3\*4/.test(await p.locator("#editor-ficha-previa").textContent()));
 await p.locator("#editor-ficha-previa").dblclick();
 await p.locator("#editor-ficha-texto").evaluate((e) => { e.focus(); e.setSelectionRange(2, 2); });
-await p.click('[data-formatar="negrito"]');
-ok("E7) os botões N/I/T não mexem numa linha de variável (texto igual e aviso)", (await p.inputValue("#editor-ficha-texto")) === "FOR:: 2*3*4\n**forte**" && /Variáveis não têm formatação/.test(await p.locator("#editor-ficha-aviso").textContent()));
+await p.keyboard.press("Control+b");
+ok("E7) Ctrl+B/I não mexem numa linha de variável (texto igual e aviso)", (await p.inputValue("#editor-ficha-texto")) === "FOR:: 2*3*4\n**forte**" && /Variáveis não têm formatação/.test(await p.locator("#editor-ficha-aviso").textContent()));
 
 // ----- SALVAR: o BOTÃO leva à leitura; o Ctrl+S não
 await p.fill("#editor-ficha-texto", "# Titulo\n(Rolar)[1d6]");

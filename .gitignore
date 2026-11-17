@@ -10,4 +10,8 @@
 !/dados/grupos/.gitkeep
 /dados/pecas/*
 !/dados/pecas/.gitkeep
+/dados/mapas/*
+!/dados/mapas/.gitkeep
 /dados/mesa.json
+/dados/permissoes.json
+/dados/desenhos.json

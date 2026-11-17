@@ -51,7 +51,7 @@ async function arrastar(p, de, para) { await p.mouse.move(de.x, de.y); await p.m
 
 try {
     // ================= 1) duas pessoas entram
-    const A = await abrir("?online&nome=Ana"), B = await abrir("?online&nome=Beto");
+    const A = await abrir("?online&nome=Ana&papel=mestre"), B = await abrir("?online&nome=Beto&papel=mestre");
     await aguardarConexao(A); await aguardarConexao(B);
     await A.waitForFunction(() => document.getElementById("rede-status").textContent.includes("Beto"), null, { timeout: 8000 });
     const statusA = await A.locator("#rede-status").textContent();
@@ -97,7 +97,7 @@ try {
     ok("5c) 2d6+1 chega a Ana com a fórmula certa e um total de 3 a 13", r2.formula === "2d6+1" && Number(r2.total) >= 3 && Number(r2.total) <= 13, JSON.stringify(r2));
 
     // ================= 6) quem entra depois recebe o estado e o histórico
-    const C = await abrir("?online&nome=Caio");
+    const C = await abrir("?online&nome=Caio&papel=mestre");
     await aguardarConexao(C); await C.waitForTimeout(400);
     const c1 = await tokenDe(C, 1), c4 = await tokenDe(C, 4);
     ok("6) Caio entra depois e já vê os tokens onde estão e o histórico do chat", c1.col === 5 && c1.row === 2 && c4.col === a4.col && c4.row === a4.row && (await cartoes(C)).some((m) => m.texto === "oi do Ana"));
@@ -106,7 +106,7 @@ try {
     // ================= 7) PEDIDOS MALICIOSOS (WebSocket "cru", pelo mesmo caminho do navegador)
     const M = await abrir("");
     const r = await M.evaluate(async () => {
-        const caixa = []; const ws = new WebSocket("ws://127.0.0.1:5173/ws");
+        const caixa = []; const ws = new WebSocket("ws://127.0.0.1:5173/ws?papel=mestre");
         await new Promise((res) => ws.addEventListener("open", res));
         let fechou = null; ws.addEventListener("close", (e) => (fechou = e.code));
         ws.addEventListener("message", (e) => caixa.push(JSON.parse(e.data)));
@@ -151,7 +151,7 @@ try {
     // ================= 8) limite de frequência
     const R = await abrir("");
     const spam = await R.evaluate(async () => {
-        const ws = new WebSocket("ws://127.0.0.1:5173/ws"); let fechou = null, aceitas = 0;
+        const ws = new WebSocket("ws://127.0.0.1:5173/ws?papel=mestre"); let fechou = null, aceitas = 0;
         await new Promise((res) => ws.addEventListener("open", res));
         ws.addEventListener("close", (e) => (fechou = e.code)); ws.addEventListener("message", (e) => { if (JSON.parse(e.data).tipo === "mensagem") aceitas++; });
         ws.send(JSON.stringify({ tipo: "entrar", apelido: "Spam" })); await new Promise((res) => setTimeout(res, 300));

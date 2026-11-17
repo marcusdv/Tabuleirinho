@@ -35,9 +35,9 @@ await arrastar(centro(await fichinhas().first().boundingBox()), await telaDaCasa
 const depoisDoPrimeiro = await pecas();
 ok("2a) soltar no mapa cria uma peça na casa (8, 4), encaixada", depoisDoPrimeiro.length === 1 && depoisDoPrimeiro[0].col === 8 && depoisDoPrimeiro[0].row === 4 && depoisDoPrimeiro[0].guardado === false, JSON.stringify(depoisDoPrimeiro));
 ok("2b) o token da bolsa CONTINUA guardado, e a fichinha continua lá", (await modelo()).guardado === true && (await fichinhas().count()) === 1);
-ok("2c) a fichinha mostra '1 no mapa'", /1 no mapa/.test(await fichinhas().first().innerText()), await fichinhas().first().innerText());
+ok("2c) a fichinha NÃO mostra mais contador de peças no mapa", !/no mapa/.test(await fichinhas().first().innerText()) && (await p.locator(".item-no-mapa").count()) === 0, await fichinhas().first().innerText());
 await arrastar(centro(await fichinhas().first().boundingBox()), await telaDaCasa(12, 6));
-ok("3) arrastar de novo cria OUTRA peça (duas peças do mesmo token, '2 no mapa')", (await pecas()).length === 2 && /2 no mapa/.test(await fichinhas().first().innerText()));
+ok("3) arrastar de novo cria OUTRA peça (duas peças do mesmo token)", (await pecas()).length === 2);
 
 // 4) arrastar a peça de volta para a bolsa apaga a peça e oferece "Desfazer"
 const pecaB = (await pecas()).find((x) => x.col === 12);
@@ -53,6 +53,7 @@ ok("4c) 'Desfazer' recria a peça no mesmo lugar (12, 6)", refeitas.length === 2
 // 5) com a calibragem ligada, a bolsa não solta peças
 await abrirGaveta(p, "tabuleiro");
 await p.click("#calibrar-alternar"); await p.waitForTimeout(300);
+await p.click("#bolsa-aba-tokens"); await p.waitForTimeout(150); // (a calibragem fica ligada; volta à aba dos tokens para arrastar)
 await arrastar(centro(await fichinhas().first().boundingBox()), await telaDaCasa(5, 2));
 ok("5) calibrando, arrastar da bolsa para o mapa NÃO cria peça", (await pecas()).length === 2, String((await pecas()).length));
 await p.keyboard.press("Escape"); await p.waitForTimeout(300);

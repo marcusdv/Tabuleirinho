@@ -1,0 +1,49 @@
+/* Janela "Editar token" (reaproveita o painel, o fundo e os botões da janela da imagem). */
+.grade-tamanhos {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+}
+.paleta-token {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 6px;
+}
+.paleta-token .amostra {
+    height: 18px;
+}
+.cor-livre {
+    width: 100%;
+    height: 20px;
+    margin-top: 6px;
+    padding: 0;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    cursor: pointer;
+}
+#editor-token-previa {
+    width: fit-content; /* a caixa se ajusta ao token */
+    margin: 4px auto 0; /* (fica em cima, logo abaixo do título) */
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    background: #26262e;
+    border: 1px dashed #4a4a58;
+    border-radius: 8px;
+}
+#editor-token-previa .disco {
+    width: 110px; /* tamanho FIXO: com a prévia em cima, se ela crescesse os campos de baixo pulariam ao trocar o tamanho */
+    height: 110px;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    box-sizing: border-box;
+}
+#editor-token-previa small {
+    font-size: 12px;
+    color: #c9c9d4;
+}
+

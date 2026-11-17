@@ -22,7 +22,7 @@ ok("1a) o painel de dados é o ÚLTIMO filho da coluna da direita (#chat)", (awa
 ok("1b) fica no PÉ da coluna da direita (a base da caixa encosta no fim da janela e ela está na coluna)", perto(dados.y + dados.height, 800, 2) && dados.x >= chat.x - 1 && dados.x + dados.width <= chat.x + chat.width + 1, JSON.stringify(dados));
 ok("1b2) tem cabeçalho 'Dados' com o botão ▴ de recolher, como Ferramentas e Desenho", (await p.locator("#dados .cabecalho h1").textContent()) === "Dados" && (await p.locator("#dados-alternar").textContent()) === "▴");
 ok("1b3) aberto, o painel tem a largura da coluna (~318 px)", perto(dados.width, 318, 3), `${dados.width.toFixed(0)} px`);
-for (const [nome, sel] of [["painel de desenho", "#ferramentas-desenho"], ["barra de ferramentas", "#barra"]]) {
+for (const [nome, sel] of [["painel de desenho", "#ferramentas-desenho"], ["caixa da iniciativa", "#iniciativa"]]) {
     ok(`1c) o painel de dados não se sobrepõe à ${nome}`, !cruza(dados, await caixa(sel)));
 }
 

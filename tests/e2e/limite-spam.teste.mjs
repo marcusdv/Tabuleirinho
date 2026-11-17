@@ -38,7 +38,7 @@ await new Promise((res) => { const t = setInterval(() => { if (saida.includes("e
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 function cliente(apelido) {
     return new Promise((resolver) => {
-        const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws`);
+        const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws?papel=mestre`);
         const recebidos = [];
         ws.onmessage = (e) => recebidos.push(JSON.parse(e.data));
         ws.onopen = () => { ws.send(JSON.stringify({ tipo: "entrar", apelido })); resolver({ ws, recebidos, enviar: (o) => ws.send(JSON.stringify(o)) }); };

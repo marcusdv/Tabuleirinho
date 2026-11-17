@@ -1,70 +1,54 @@
 # Tabuleirinho
 
-Uma mesa virtual (VTT) de RPG no navegador, inspirada no Roll20, com foco em **D&D 5.5**.
-Hoje é um **protótipo**: o tabuleiro, os tokens, os desenhos, o chat e os dados funcionam, e há um
-servidor simples para jogar online com amigos (só tokens soltos, chat e dados são sincronizados).
+Mesa virtual (VTT) de RPG no navegador, inspirada no Roll20, com foco em **D&D 5.5**. Hoje é um **protótipo**: tabuleiro, tokens, fichas, mapas, chat, dados e iniciativa funcionam, e há um servidor simples para jogar online com amigos.
 
-> Detalhes técnicos e decisões do projeto: `CLAUDE.md` e `BRAINSTORM.md`.
+> Detalhes técnicos e decisões: `CLAUDE.md`, `BRAINSTORM.md`, `TODO.md` e `docs/historico.md`.
 
-## Requisitos
+## Começar
 
-- **Node.js 24 ou mais novo** (o servidor roda TypeScript direto, sem compilar).
-- Um navegador moderno (Chrome, Firefox, Edge...).
-
-## Instalação (uma vez só)
+Requisitos: **Node.js 24+** e um navegador moderno.
 
 ```
 npm install
+npm run dev        # modo local: http://localhost:5173 (nada é guardado)
 ```
 
-## Jogar sozinho (modo local)
+## Jogar online
+
+O mestre hospeda: o servidor roda no computador dele e os amigos entram por um link.
 
 ```
-npm run dev
+npm run build      # gera o site (refazer sempre que o código mudar)
+npm run servidor   # terminal 1: site + jogo na porta 3737
+cloudflared tunnel --url http://localhost:3737   # terminal 2 (só para amigos fora de casa)
 ```
 
-Abra http://localhost:5173. Tudo vale só na sua aba; nada é guardado.
+O túnel imprime um endereço `https://algo.trycloudflare.com` (grátis, sem conta, **muda a cada vez**). Para encerrar, `Ctrl+C` nos dois terminais. Use sempre a porta **3737** (o servidor entrega o site); a 5173 é só do desenvolvimento.
 
-## Jogar online com amigos (hospedar uma sessão)
+### Como cada pessoa entra
 
-Quem **hospeda** é o mestre: o servidor roda no computador dele e os amigos entram por um link.
+O **papel é obrigatório** no endereço (`&papel=mestre` ou `&papel=jogador`): sem ele a conexão é recusada. (É um login de teste, até existirem contas.)
 
-### Passo a passo
+| Quem | Endereço |
+|---|---|
+| **Você (mestre)**, no computador do servidor | `http://127.0.0.1:3737/?online&nome=SeuNome&papel=mestre` |
+| Amigos **fora de casa** | `https://algo.trycloudflare.com/?online&nome=Ana&papel=jogador` |
+| Amigos na **mesma rede** | `http://IP-DO-PC:3737/?online&nome=Ana&papel=jogador` (ligue com `HOST=0.0.0.0 npm run servidor` e libere a porta 3737 no firewall) |
 
-**1. Gere o site** (de novo, sempre que o código mudar):
+### Mestre × jogador (papéis de teste)
 
-```
-npm run build
-```
+- **Mestre** pede `papel=mestre` e só consegue **do próprio computador do servidor**. Quem vem de fora (rede ou túnel) e pede mestre é recusado: o servidor reconhece o túnel e ninguém de fora se promove a mestre.
+- **Jogador** pede `papel=jogador`, de qualquer lugar (também serve para testar o outro lado numa segunda aba).
+- O mestre controla tudo. O **jogador só vê e usa o que é dele ou o que o mestre liberou**, mas todos veem as peças no tabuleiro. Quem cria um token ou uma ficha é o **dono** (limite de 5 de cada por jogador). As liberações (leitor e editor) ficam em `dados/permissoes.json`.
+- **A pessoa é identificada pelo nome** (`&nome=`): dois jogadores com o mesmo nome contam como a mesma pessoa. Isso é provisório; as contas virão depois.
 
-**2. Ligue o servidor do jogo** (deixe este terminal aberto):
+### Cuidados
 
-```
-npm run servidor
-```
-
-Ele entrega o site e atende o jogo na porta **3737**. Para testar no seu próprio computador,
-abra http://127.0.0.1:3737/?online&nome=Ana
-
-**3. Abra um túnel para a internet** (em **outro terminal**, deixe-o aberto).
-O túnel dá um endereço público para os seus amigos. O jeito mais simples é o
-[`cloudflared`](https://github.com/cloudflare/cloudflared) (grátis, sem conta):
-
-```
-cloudflared tunnel --url http://127.0.0.1:3737
-```
-
-Ele imprime um endereço parecido com `https://palavras-aleatorias.trycloudflare.com`.
-
-**4. Mande o link aos amigos**, acrescentando `/?online&nome=` e o nome de cada um:
-
-```
-https://palavras-aleatorias.trycloudflare.com/?online&nome=Beto
-```
-
-No topo da tela aparece "● Online: Beto · Na mesa: Ana, Beto".
-
-**5. Para encerrar**, aperte `Ctrl+C` nos dois terminais.
+- Ainda não há login: o papel é só uma escolha no endereço (de quem vem de fora, só o `jogador` é aceito). **Contas e login virão depois.**
+- Os dois terminais ficam abertos e o computador ligado e sem suspender.
+- Tokens, fichas, grupos, mapas, as permissões e as regras da mesa são **gravados em `dados/`**, que é **sua**: faça backup e não a envie ao git (`DADOS=/outra/pasta npm run servidor` troca o lugar). Chat e iniciativa seguem a vida do servidor.
+- Os **desenhos** (lápis, formas e borracha) são **compartilhados**: cada mapa tem os seus, gravados em `dados/desenhos.json`; todos desenham, o mestre apaga todos e cada jogador apaga os próprios; **Ctrl+Z** e **Ctrl+Y** desfazem e refazem os seus. A régua e a câmera são só de cada pessoa (a câmera de cada mapa é lembrada no navegador).
+- Mudou o código? `npm run build` e reinicie o servidor.
 
 ### Instalar o cloudflared (Linux, sem `sudo`)
 
@@ -72,47 +56,26 @@ No topo da tela aparece "● Online: Beto · Na mesa: Ana, Beto".
 mkdir -p ~/bin
 curl -L -o ~/bin/cloudflared https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64
 chmod +x ~/bin/cloudflared
-~/bin/cloudflared --version
 ```
 
-(Em outros sistemas, veja as instruções no site do cloudflared. Se `cloudflared` não for
-encontrado, use o caminho completo `~/bin/cloudflared`.)
-
-### Mesma rede Wi-Fi (sem túnel)
-
-Rode `HOST=0.0.0.0 npm run servidor` e os amigos abrem `http://IP-DO-SEU-PC:3737/?online&nome=Beto`
-(se houver firewall, libere a porta 3737).
-
-### Cuidados (leia antes de convidar)
-
-- **O link dá acesso total.** Ainda não há login nem permissões: quem tiver o link mexe em qualquer
-  token. Mande só para quem você confia.
-- **O link muda** toda vez que você liga o túnel; mande o novo antes de cada sessão.
-- **Os dois terminais precisam ficar abertos** e o seu computador ligado e sem suspender.
-- **Tokens e fichas são gravados**: cada um é um arquivo (em `dados/tokens/` e `dados/fichas/`), que sobrevive a reiniciar o
-  servidor. O resto (chat) volta ao início se o servidor reiniciar. **A mesa começa sem tokens**: crie os seus pela bolsa. A pasta `dados/` é **sua**: faça backup dela e não a envie
-  para o git nem para outras pessoas (`DADOS=/outra/pasta npm run servidor` troca o lugar).
-- **Só estas ações são sincronizadas:** criar, editar, excluir e soltar tokens (no mapa ou na bolsa), chat, dados, criar, editar, excluir e rolar as rolagens das fichas.
-  Mapa, desenhos, régua, condições dos tokens e tamanho do tabuleiro
-  **são locais** e diferem entre as pessoas.
-- Se mudar o código, rode o `npm run build` de novo e **reinicie** o servidor.
+Se o comando não for encontrado, use `~/bin/cloudflared`. Outros sistemas: site do cloudflared.
 
 ### Problemas comuns
 
-| Sintoma | Causa e solução |
+| Sintoma | Solução |
 |---|---|
-| O link abre com erro / o túnel mostra `connection refused` | O servidor não está rodando. Rode `npm run servidor` (depois do `npm run build`). |
-| `A porta 3737 já está em uso` | Já há um servidor rodando. Feche-o ou use `PORT=3738 npm run servidor` (e aponte o túnel para a nova porta). |
-| A página abre mas fica "Conectando ao servidor…" | Faltou `?online` no endereço, ou o servidor caiu. Recarregue. |
+| Link com erro / túnel com `connection refused` | O servidor não está rodando: `npm run build` e `npm run servidor`. |
+| `A porta 3737 já está em uso` | Há outro servidor rodando. Feche-o, ou use `PORT=3738 npm run servidor` (e aponte o túnel para a nova porta). |
+| Fica em "Conectando ao servidor…" | Faltou `?online` no endereço, ou o servidor caiu. |
 | Mudei o código e nada mudou | Falta `npm run build` e reiniciar o servidor. |
-| Aparecem tokens que eu não criei, ou algo novo não funciona | O servidor ou o `dist/` são de uma versão antiga: `npm run build` e reinicie o servidor. |
-| No `npm run dev` aparece `ws proxy error ECONNREFUSED` | Você abriu uma aba com `?online` sem o servidor ligado. Rode `npm run servidor`. |
+| `ws proxy error ECONNREFUSED` no `npm run dev` | Aba com `?online` sem o servidor ligado. |
+| "Faltou o papel no endereço" | Acrescente `&papel=mestre` (no computador do servidor) ou `&papel=jogador`. |
 
-## Comandos úteis
+## Comandos
 
 | Comando | O que faz |
 |---|---|
-| `npm run dev` | Site em modo de desenvolvimento (http://localhost:5173) |
+| `npm run dev` | Site em desenvolvimento (http://localhost:5173) |
 | `npm run build` | Confere os tipos e gera o site em `dist/` |
 | `npm run servidor` | Servidor do jogo (porta 3737) |
 | `npm run test:e2e` | Testes de ponta a ponta (precisa do `npm run dev` ligado) |

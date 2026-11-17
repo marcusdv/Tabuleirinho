@@ -5,6 +5,7 @@
 // navegadores apenas desenharão o que vier daqui.
 // =====================================================================
 
+import type { RegistroDeMapa } from "./protocolo.ts";
 import {
     COLUNAS_INICIAIS,
     COR_BORDA_INICIAL_TOKEN,
@@ -25,14 +26,17 @@ import {
     MAX_PECAS,
     MAX_TOKENS,
     MIN_CASAS,
+    ESPESSURA_GRADE_MAX,
+    ESPESSURA_GRADE_MIN,
+    ESPESSURA_GRADE_PADRAO,
     TAMANHO_MAX_TOKEN,
     TAMANHO_MIN_TOKEN,
 } from "./config.ts";
-import { COR_STATUS_HP, DADOS_DISPONIVEIS, MAX_ACOES_MESA, MAX_CARACTERES_NOME_ACAO, MAX_QUANTIA_ACAO, MAX_CARACTERES_NOME_STATUS, MAX_CARACTERES_NOME_VARIAVEL, MAX_MODIFICADOR_DADOS, MAX_QUANTIDADE_DADOS, MAX_STATUS_TOKEN, MAX_VALOR_VARIAVEL_QUE_MUDA, STATUS_PADRAO_NOME, STATUS_PADRAO_VARIAVEL } from "./config.ts";
+import { COR_STATUS_HP, DADOS_DISPONIVEIS, LIMITE_COORDENADA_DESENHO, MAX_ACOES_MESA, MAX_PONTOS_DO_TRACO, MAX_CARACTERES_NOME_ACAO, MAX_QUANTIA_ACAO, MAX_CARACTERES_NOME_STATUS, MAX_CARACTERES_NOME_VARIAVEL, MAX_MODIFICADOR_DADOS, MAX_QUANTIDADE_DADOS, MAX_STATUS_TOKEN, MAX_VALOR_VARIAVEL_QUE_MUDA, STATUS_PADRAO_NOME, STATUS_PADRAO_VARIAVEL } from "./config.ts";
 import { buscarCondicao } from "./condicoes.ts";
 import { limitar } from "./coordenadas.ts";
 import { formulaDosDados, rolarDados, type Rolagem } from "./dados.ts";
-import { analisarAbas, rolarDaAnalise, type RolagemDeFicha } from "./formulas.ts";
+import { analisarAbas, rolarDaAnalise, type CartaoRolado, type RolagemDeFicha } from "./formulas.ts";
 
 /** Quantas casas (por lado) um token ocupa: 1 = 1x1, 2 = 2x2, 3 = 3x3, 4 = 4x4. */
 export type TamanhoToken = 1 | 2 | 3 | 4;
@@ -41,11 +45,23 @@ export type TamanhoToken = 1 | 2 | 3 | 4;
  * Um STATUS de um token (ex.: a barra de vida "HP"): o nome que aparece, a VARIÁVEL da ficha atribuída de onde vem o valor (ex.: "PV", da linha
  * `PV:: 20`) e a cor da barra. É a DEFINIÇÃO (fica no token); o valor atual existe só enquanto o token está no tabuleiro (`Token.valores`).
  */
+/** QUEM VÊ um status (pedido do dono, 17/11/2026): o MESTRE sempre vê; as caixas dizem se o DONO do token, os LEITORES e EDITORES dele (quem recebeu acesso) e os OUTROS jogadores veem. Tudo marcado = todos veem (o padrão). */
+export interface QuemVeStatus {
+    dono: boolean;
+    leitores: boolean;
+    outros: boolean;
+}
+/** O padrão: todos veem (um objeto novo a cada chamada). */
+export const quemVePadrao = (): QuemVeStatus => ({ dono: true, leitores: true, outros: true });
+/** Todos os jogadores veem este status? (Se algum grupo de quem vê está desmarcado, o chat não mostra os números dele.) */
+export const todosVeemOStatus = (status: { quemVe?: QuemVeStatus }): boolean => !status.quemVe || (status.quemVe.dono && status.quemVe.leitores && status.quemVe.outros);
+
 export interface StatusDoToken {
     id: number; // identifica o status dentro do token (não muda ao renomear: os valores dependem dele)
     nome: string;
     variavel: string; // nome da variável da ficha (sem os "::"); vazio = sem ligação (não vira barra)
     cor: number;
+    mostrarNome: boolean; // "Mostrar nome no tabuleiro" (pedido do dono, 17/11/2026): o nome do status aparece à esquerda da barra. Sem o campo (arquivos antigos): ligado, como era
     mostrar: boolean; // "Exibir em jogo": a barra aparece no tabuleiro (desligado: o valor continua existindo, só não se vê)
     numeros: boolean; // "Exibir números": o "atual/máx" aparece DENTRO da barra
     /** Em quais GRUPOS de tokens este status vale: `null` = TODOS os tokens (inclusive os sem grupo); uma lista = só os tokens que pertencem a ALGUM desses grupos; lista VAZIA (nada marcado) = NENHUM token (pedido do dono). */
@@ -54,6 +70,8 @@ export interface StatusDoToken {
     semGrupo: boolean;
     /** "Subtraído por números arrastados": ao arrastar o TOTAL de uma rolagem do chat e soltá-lo num token, o token perde essa quantidade DESTE status (em geral o HP). Sem o campo (arquivos antigos): desligado. */
     recebeArrasto: boolean;
+    /** Quem vê este status (o mestre sempre vê). O SERVIDOR não manda o valor a quem não vê (a barra nem existe para essa pessoa); Dano e Cura continuam valendo para todos. */
+    quemVe: QuemVeStatus;
 }
 
 /** O que o cliente manda ao criar/editar status: o `id` só vem nos que já existiam (os novos ganham um id). */
@@ -63,10 +81,12 @@ export interface StatusNovo {
     variavel: string;
     cor: number;
     mostrar?: boolean; // sem o campo vale ligado
+    mostrarNome?: boolean; // sem o campo vale ligado
     numeros?: boolean;
     grupos?: number[] | null; // sem o campo (ou null) vale para TODOS os tokens
     semGrupo?: boolean; // também vale para os tokens sem grupo (só conta com uma lista de grupos); sem o campo vale desligado
     recebeArrasto?: boolean; // "Subtraído por números arrastados" (sem o campo vale desligado)
+    quemVe?: QuemVeStatus; // sem o campo vale TODOS veem
 }
 
 /**
@@ -93,6 +113,8 @@ export interface ValorDeStatus {
     id: number; // o id do status
     atual: number;
     max: number;
+    /** SÓ do servidor, para um jogador que NÃO pode ver este status: o valor foi escondido (`atual` e `max` valem 0). Não se desenha barra nem se mostra conta, mas Dano e Cura continuam valendo. */
+    oculto?: boolean;
 }
 
 export interface Token {
@@ -108,6 +130,8 @@ export interface Token {
     guardado: boolean; // true = está na BOLSA (fora do tabuleiro); col/row só valem quando false
     favorito: boolean; // marcado com a estrela na bolsa (vale para a mesa toda, por enquanto: ainda não há contas)
     grupos: number[]; // ids dos GRUPOS (ver `Grupo`) a que o token pertence; sem repetir
+    nivel?: "dono" | "editor" | "leitor"; // SÓ do servidor, para um JOGADOR: o que ELE pode fazer com este token (o mestre não recebe: pode tudo). A interface esconde o que não pode; o servidor confere de novo
+    somenteMapa?: boolean; // SÓ do servidor, para um JOGADOR sem permissão: este modelo existe apenas porque uma peça dele está no tabuleiro; NÃO aparece na bolsa e vai sem ficha nem grupos
     ficha: number | null; // id da FICHA atribuída a este token (uma ficha pode ter VÁRIOS tokens; um token tem no máximo UMA); null = sem ficha
     status: StatusDoToken[]; // as barras (HP etc.) que o token mostra embaixo dele no tabuleiro; todo token novo tem o HP (variável PV da ficha)
     valores: ValorDeStatus[]; // os valores TEMPORÁRIOS (atual/máximo), só enquanto o token está no tabuleiro e tem ficha; [] na bolsa
@@ -117,6 +141,8 @@ export interface Token {
      * Várias peças do mesmo modelo compartilham a mesma ficha e guardam status diferentes. Remover a peça do tabuleiro a APAGA.
      */
     copiaDe: number | null;
+    /** O id do MAPA em que esta PEÇA foi colocada (cada mapa guarda os seus tokens: a peça só aparece enquanto esse mapa é o atual, e volta como estava quando ele volta). null nos modelos da bolsa (que não pertencem a mapa) e nas peças colocadas com a mesa sem mapa. */
+    mapa: string | null;
 }
 
 /**
@@ -134,15 +160,29 @@ export interface Grupo {
  * arquivos precisam LER valores que mudam em tempo real: um "let" exportado
  * não pode ser reatribuído de fora, mas as propriedades de um objeto podem.
  */
+/** Os ajustes da grade que são da MESA inteira. `cor` null = automática (escura sobre um mapa, cinza sem mapa). */
+export interface GradeDaMesa {
+    espessura: number; // px NA TELA, de ESPESSURA_GRADE_MIN a ESPESSURA_GRADE_MAX (0 = sem grade)
+    cor: string | null; // "#rrggbb" ou null
+}
+
 export const estado = {
     colunas: COLUNAS_INICIAIS, // largura do tabuleiro, em casas
     linhas: LINHAS_INICIAIS, // altura do tabuleiro, em casas
     /** Os STATUS (barras: HP etc.): UMA regra para a MESA INTEIRA. Todo token e toda peça copiam esta lista (o servidor a guarda em `dados/mesa.json`); só os VALORES (PV atual) são de cada peça. */
-    statusDaMesa: [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false, recebeArrasto: true }] as StatusDoToken[],
+    statusDaMesa: [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false, recebeArrasto: true, quemVe: quemVePadrao(), mostrarNome: true }] as StatusDoToken[],
     /** As AÇÕES da mesa (Dano, Cura...): também UMA regra para todos (o servidor a guarda em `dados/mesa.json`). De fábrica: Dano e Cura, que mexem no status 1 (o HP). */
     acoesDaMesa: acoesPadrao(), // (Dano e Cura; a função é declarada mais abaixo, e as declarações de função já existem quando este objeto é criado)
     // Imagem de fundo, esticada sobre o tabuleiro inteiro (null = sem imagem).
     mapa: (MAPA_INICIAL ? { url: MAPA_INICIAL } : null) as { url: string } | null,
+    /** Online: o id do mapa atual na BIBLIOTECA do servidor (null = nenhum). Sem servidor fica null (o mapa é o de fábrica ou o que a pessoa escolheu nesta aba). */
+    mapaId: null as string | null,
+    /** Online: a BIBLIOTECA de mapas do servidor (a imagem fica lá; aqui só o nome, o tipo e o tamanho). */
+    mapas: [] as RegistroDeMapa[],
+    /** A GRADE da MESA (espessura e cor da linha): UMA para todos; o servidor a guarda em `dados/mesa.json` e só o mestre a muda. (Mostrar/esconder a grade é gosto de cada pessoa e não entra aqui.) */
+    grade: { espessura: ESPESSURA_GRADE_PADRAO, cor: null } as GradeDaMesa,
+    /** Sou o MESTRE? Sem servidor sim (a mesa é só desta aba); online, quem o servidor disser (por enquanto: quem se conecta do computador do servidor). Só decide o que a interface mostra: quem barra de verdade é o servidor. */
+    mestre: true,
     // Pinturas feitas no mapa (lápis e formas), da mais antiga para a mais nova.
     desenhos: [] as Desenho[],
     // Mensagens do chat, da mais antiga para a mais nova.
@@ -163,6 +203,7 @@ export interface Mensagem {
     texto: string;
     rolagem?: Rolagem; // só nas mensagens de rolagem de dados (o `texto` então é a fórmula e o total)
     rolagemFicha?: RolagemDeFicha; // só nas mensagens de uma ROLAGEM DE FICHA (o `texto` então é o nome, a fórmula e o total)
+    cartaoFicha?: CartaoRolado; // só nas mensagens de um CARTÃO DE FICHA, `(Nome)"""texto"""` (o `texto` então é só o nome do cartão; o chat desenha o cartão a partir daqui)
     token?: number; // o id do TOKEN pelo qual a ficha foi aberta ao rolar (o chat mostra o ícone dele); só o id: se o token sumir, volta o ícone padrão
     hora: number; // quando foi enviada (milissegundos desde 1970, como Date.now())
 }
@@ -197,6 +238,10 @@ export function adicionarRolagem(autor: string, rolagem: Rolagem): Mensagem {
  * caracteres não vale (o texto é montado pelo programa). O `texto` guarda o nome, a fórmula e o total para quem só lê texto.
  * No multiplayer, o servidor sorteia e envia este evento.
  */
+/** Um CARTÃO de uma ficha foi usado: vai para o chat (com o ícone do token pelo qual a ficha foi aberta, se houver). */
+export function adicionarCartaoDeFicha(autor: string, cartaoFicha: CartaoRolado, token?: number): Mensagem {
+    return guardarMensagem({ id: proximoIdMensagem++, autor, texto: `${cartaoFicha.nome} (${cartaoFicha.ficha})`, cartaoFicha, hora: Date.now(), ...(token !== undefined && { token }) });
+}
 export function adicionarRolagemDeFicha(autor: string, rolagemFicha: RolagemDeFicha, token?: number): Mensagem {
     const texto = `${rolagemFicha.nome}: ${rolagemFicha.formula} = ${rolagemFicha.total}`;
     return guardarMensagem({ id: proximoIdMensagem++, autor, texto, rolagemFicha, hora: Date.now(), ...(token !== undefined && { token }) });
@@ -288,6 +333,7 @@ export interface AbaFicha {
 export interface Ficha {
     id: number;
     nome: string; // nunca vazio (sem nome, vira "Ficha N")
+    nivel?: "dono" | "editor" | "leitor"; // SÓ do servidor, para um JOGADOR: o que ELE pode fazer com esta ficha (leitor: ler e rolar; editor: editar; dono: editar e excluir)
     abas: AbaFicha[]; // de 1 a MAX_ABAS_FICHA; o conteúdo livre da ficha (variáveis e rolagens) fica no texto de cada aba
     versao: number; // 1, 2, 3... (sobe a cada salvamento)
     criadaEm: number; // milissegundos desde 1970 (Date.now())
@@ -303,11 +349,12 @@ let proximoIdFicha = 1;
  * depois, ao abrir a ficha. Devolve null se a mesa já tem MAX_FICHAS (a regra vale aqui, e não só na interface: o servidor a
  * repete). O servidor usa esta função (para gravar o arquivo ANTES de guardar a ficha) e o modo local usa `criarFicha`.
  */
-export function montarFicha(): Ficha | null {
+export function montarFicha(nomeInicial = ""): Ficha | null {
     if (estado.fichas.length >= MAX_FICHAS) return null;
     const id = proximoIdFicha++;
     const agora = Date.now();
-    return { id, nome: `Ficha ${id}`, abas: [{ nome: nomePadraoDaAba(0), texto: "" }], versao: 1, criadaEm: agora, alteradaEm: agora, favorito: false, grupos: [] };
+    // `nomeInicial`: "Criar ficha" a partir de um token (a ficha nasce com o MESMO nome dele); vazio = "Ficha N".
+    return { id, nome: normalizarNomeFicha(id, nomeInicial), abas: [{ nome: nomePadraoDaAba(0), texto: "" }], versao: 1, criadaEm: agora, alteradaEm: agora, favorito: false, grupos: [] };
 }
 
 /** Guarda na lista uma ficha que já está pronta (a que o servidor mandou, ou a que acabou de ser montada). Mesma id: substitui. */
@@ -403,8 +450,8 @@ export function editarFicha(id: number, versaoBase: number, mudancas: MudancasFi
 }
 
 /** Modo local: monta a ficha vazia e já a guarda. Devolve null se a mesa já tem o máximo de fichas. */
-export function criarFicha(): Ficha | null {
-    const ficha = montarFicha();
+export function criarFicha(nomeInicial = ""): Ficha | null {
+    const ficha = montarFicha(nomeInicial);
     if (ficha) receberFicha(ficha);
     return ficha;
 }
@@ -482,23 +529,44 @@ export function ajustarValorDaFicha(idFicha: number, nome: string, delta: number
     return { ok: true, nome: variavel.nome, antes: variavel.valor, depois };
 }
 
-/** A ficha tem alguma variável que MUDA? Então é uma ficha de JOGADOR (uma ficha, um token por tela); as fichas básicas (monstros) não têm. */
+/** A ficha tem alguma variável que MUDA? Então é uma ficha de JOGADOR (uma ficha, um token por cena); as fichas básicas (monstros) não têm. */
 export function fichaDeJogador(idFicha: number | null): boolean {
     const ficha = idFicha === null ? undefined : estado.fichas.find((f) => f.id === idFicha);
     if (!ficha || ficha.abas.length === 0) return false;
     return analisarAbas(ficha.abas.map((a) => a.texto))[0].variaveis.some((v) => v.muda !== null);
 }
 
+/** Os tokens da BOLSA (modelos) ligados a esta ficha, na ordem da bolsa (as peças do tabuleiro são cópias e não contam: elas só espelham o modelo). */
+export function modelosDaFicha(idFicha: number): Token[] {
+    return estado.tokens.filter((t) => t.copiaDe === null && t.ficha === idFicha);
+}
+
 /**
- * REGRA DAS FICHAS DE JOGADOR: uma ficha com variáveis que mudam só pode ter UM token por TELA (todos os tokens dela, em telas diferentes, compartilham o mesmo
- * status: o da ficha). Hoje só existe uma tela: então uma ficha de jogador só pode ter uma peça no tabuleiro. Devolve o MOTIVO de não poder colocar mais um token
- * deste modelo no tabuleiro, ou null se pode. (As fichas básicas, de monstro, não têm limite: cada peça tem os seus valores.)
+ * LIGAR um token a uma ficha é permitido? Uma ficha comum (Multi Tokens) aceita quantos tokens quiser; uma ficha ÚNICA (tem recursos) só aceita UM. Devolve o MOTIVO de recusar
+ * (a ficha única já tem outro token ligado) ou null se pode. `idDoToken` é o token que quer se ligar (null = um token novo): se a ficha já é DELE, não é recusa. O servidor repete a conta.
+ */
+export function motivoFichaOcupada(idFicha: number | null, idDoToken: number | null): string | null {
+    if (idFicha === null || !fichaDeJogador(idFicha)) return null;
+    const outro = modelosDaFicha(idFicha).find((t) => t.id !== idDoToken);
+    if (!outro) return null;
+    return `Esta ficha é única (tem recursos) e já tem um token ligado: "${outro.nome}".`;
+}
+
+/** Ficha única com MAIS DE UM token ligado (acontece se ela ganhou recursos depois de ter vários tokens): a interface avisa em vermelho para deixar só um. */
+export function fichaUnicaComVariosTokens(idFicha: number): boolean {
+    return fichaDeJogador(idFicha) && modelosDaFicha(idFicha).length > 1;
+}
+
+/**
+ * REGRA DAS FICHAS DE JOGADOR (Token Único): uma ficha com variáveis que mudam só pode ter UM token por CENA (por mapa). Ela PODE aparecer em outras cenas (uma peça em cada mapa), e todas as
+ * peças dela compartilham os mesmos valores (os da ficha: o PV que cai numa cena cai nas outras, ver `sincronizarValoresDaFicha`). Devolve o MOTIVO de não poder colocar mais um token deste
+ * modelo na cena ATUAL, ou null se pode. (As fichas básicas, de monstro, não têm limite: cada peça tem os seus valores.)
  */
 export function motivoParaNaoColocar(modelo: Token): string | null {
     if (modelo.ficha === null || !fichaDeJogador(modelo.ficha)) return null;
-    if (!estado.tokens.some((t) => !t.guardado && t.ficha === modelo.ficha)) return null;
+    if (!estado.tokens.some((t) => t.ficha === modelo.ficha && naCenaAtual(t))) return null; // (só conta quem está À VISTA nesta cena: as peças de outros mapas não bloqueiam)
     const ficha = estado.fichas.find((f) => f.id === modelo.ficha);
-    return `"${ficha?.nome ?? "Esta ficha"}" é uma Ficha Token Único (tem recursos): só pode ter um token por tela, e ele já está no tabuleiro.`;
+    return `"${ficha?.nome ?? "Esta ficha"}" é uma Ficha Token Único (tem recursos): só pode ter um token por cena, e ele já está nesta cena. Em outra cena (outro mapa) ela pode aparecer, com os mesmos valores.`;
 }
 
 /**
@@ -702,14 +770,49 @@ export interface Ponto {
  *   triangulo  cabe na caixa, com a ponta em cima, no meio
  * As formas são só CONTORNO (sem preenchimento).
  */
-export type Desenho =
+export type Desenho = (
     | { id: number; tipo: "livre"; cor: number; pontos: Ponto[] }
     | { id: number; tipo: "elipse"; cor: number; x: number; y: number; largura: number; altura: number }
     | { id: number; tipo: "retangulo"; cor: number; x: number; y: number; largura: number; altura: number }
-    | { id: number; tipo: "triangulo"; cor: number; x: number; y: number; largura: number; altura: number };
+    | { id: number; tipo: "triangulo"; cor: number; x: number; y: number; largura: number; altura: number }
+) & {
+    /** O id de usuário de quem desenhou (só o servidor preenche; sem ele, é do modo local). Um jogador só apaga os desenhos dele; o mestre apaga todos. */
+    autor?: string;
+};
 
 /** Um desenho ainda sem id (o id é dado ao adicionar). */
-export type NovoDesenho = Desenho extends infer D ? (D extends { id: number } ? Omit<D, "id"> : never) : never;
+export type NovoDesenho = Desenho extends infer D ? (D extends { id: number } ? Omit<D, "id" | "autor"> : never) : never;
+
+const numeroDeDesenho = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= LIMITE_COORDENADA_DESENHO;
+
+/**
+ * Confere um desenho que veio de FORA (um pedido da rede ou o arquivo `dados/desenhos.json`): devolve um desenho limpo, sem id (só os campos conhecidos, números finitos dentro do limite, cor válida,
+ * de 1 a MAX_PONTOS_DO_TRACO pontos no traço, formas com largura e altura positivas) ou null se qualquer coisa estiver errada. Nunca lança erro.
+ */
+export function limparDesenho(bruto: unknown): NovoDesenho | null {
+    if (typeof bruto !== "object" || bruto === null || Array.isArray(bruto)) return null;
+    const d = bruto as Record<string, unknown>;
+    const cor = typeof d.cor === "number" && Number.isFinite(d.cor) ? limitar(Math.round(d.cor), 0, 0xffffff) : null;
+    if (cor === null) return null;
+    if (d.tipo === "livre") {
+        if (!Array.isArray(d.pontos) || d.pontos.length < 1 || d.pontos.length > MAX_PONTOS_DO_TRACO) return null;
+        const pontos: Ponto[] = [];
+        for (const p of d.pontos) {
+            const q = p as Record<string, unknown> | null;
+            if (typeof q !== "object" || q === null || !numeroDeDesenho(q.x) || !numeroDeDesenho(q.y)) return null;
+            pontos.push({ x: q.x, y: q.y });
+        }
+        return { tipo: "livre", cor, pontos };
+    }
+    if (d.tipo === "elipse" || d.tipo === "retangulo" || d.tipo === "triangulo") {
+        if (!numeroDeDesenho(d.x) || !numeroDeDesenho(d.y) || !numeroDeDesenho(d.largura) || !numeroDeDesenho(d.altura) || d.largura <= 0 || d.altura <= 0) return null;
+        return { tipo: d.tipo, cor, x: d.x, y: d.y, largura: d.largura, altura: d.altura };
+    }
+    return null;
+}
+
+/** Quem pode apagar este desenho: o mestre apaga todos; os outros, só os que eles mesmos fizeram (um desenho sem autor é do modo local: vale para quem está nele). */
+export const podeApagarDesenho = (desenho: Desenho, usuario: string | null, ehMestre: boolean): boolean => ehMestre || desenho.autor === undefined || desenho.autor === usuario;
 
 let proximoIdDesenho = 1;
 
@@ -718,6 +821,18 @@ export function adicionarDesenho(novo: NovoDesenho): Desenho {
     const desenho = { ...novo, id: proximoIdDesenho++ } as Desenho;
     estado.desenhos.push(desenho);
     return desenho;
+}
+
+/** O servidor mandou os desenhos do mapa atual (ao entrar, ou quando o mestre troca de mapa): troca a lista inteira. */
+export function definirDesenhos(lista: Desenho[]): void {
+    estado.desenhos = lista;
+}
+
+/** Guarda um desenho que o SERVIDOR já criou (com id e autor). Mesmo id: substitui. */
+export function receberDesenho(desenho: Desenho): void {
+    const i = estado.desenhos.findIndex((d) => d.id === desenho.id);
+    if (i >= 0) estado.desenhos[i] = desenho;
+    else estado.desenhos.push(desenho);
 }
 
 /** Apaga as pinturas com estes ids (usado pela borracha). */
@@ -800,10 +915,11 @@ export function montarToken(
         guardado: true,
         favorito: false,
         grupos: [],
-        ficha: fichaExiste(ficha) ? ficha : null, // (uma ficha que não existe é ignorada)
+        ficha: fichaExiste(ficha) && motivoFichaOcupada(ficha, null) === null ? ficha : null, // (uma ficha que não existe, ou única e já ocupada, é ignorada)
         status: statusDaMesaCopiada(), // (os status são da MESA: o token nasce com a lista dela)
         valores: [],
         copiaDe: null,
+        mapa: null,
     };
 }
 
@@ -814,6 +930,7 @@ export function montarToken(
 function completarToken(token: Token): void {
     const t = token as Partial<Token> & Token;
     if (t.copiaDe === undefined) t.copiaDe = null;
+    if (t.mapa === undefined) t.mapa = null;
     if (t.ficha === undefined) t.ficha = null;
     if (!Array.isArray(t.status)) t.status = statusDaMesaCopiada();
     for (const s of t.status) {
@@ -822,6 +939,8 @@ function completarToken(token: Token): void {
         if (s.grupos === undefined) s.grupos = null; // (servidor mais antigo: o status valia para todos)
         if (s.semGrupo === undefined) s.semGrupo = false;
         if (s.recebeArrasto === undefined) s.recebeArrasto = false;
+        if (!s.quemVe) s.quemVe = quemVePadrao(); // (servidor ou arquivo mais antigo: todos viam)
+        if (s.mostrarNome === undefined) s.mostrarNome = true; // (o nome sempre aparecia)
     }
     if (!Array.isArray(t.valores)) t.valores = [];
     if (!Array.isArray(t.grupos)) t.grupos = [];
@@ -849,7 +968,7 @@ export function montarPeca(idDoModelo: number, col: number, row: number): Token 
     if (!modelo || modelo.copiaDe !== null) return null;
     if (estado.tokens.length - quantosModelos() >= MAX_PECAS) return null;
     if (!posicaoValida(modelo, col, row)) return null;
-    if (motivoParaNaoColocar(modelo) !== null) return null; // ficha de jogador: só um token por tela (quem chama mostra o motivo)
+    if (motivoParaNaoColocar(modelo) !== null) return null; // ficha de jogador: só um token por cena (quem chama mostra o motivo)
     const peca: Token = {
         id: proximoIdToken++,
         nome: modelo.nome,
@@ -867,6 +986,7 @@ export function montarPeca(idDoModelo: number, col: number, row: number): Token 
         status: modelo.status.map((s) => ({ ...s })),
         valores: [],
         copiaDe: modelo.id,
+        mapa: estado.mapaId,
     };
     peca.valores = valoresIniciais(peca);
     return peca;
@@ -994,6 +1114,7 @@ export function tokenValido(bruto: unknown): Token | null {
         ficha: inteiro(t.ficha) && t.ficha >= 1 ? t.ficha : null, // (arquivos ANTIGOS não têm o campo: valem "sem ficha"; se a ficha já não existe, o servidor solta ao ligar)
         status: limparStatus(t.status) ?? statusPadrao(), // (arquivos antigos, sem a lista: o HP de fábrica)
         valores: [],
+        mapa: typeof t.mapa === "string" && /^[0-9a-f]{16}$/.test(t.mapa) ? t.mapa : null, // (arquivos ANTIGOS não têm o campo)
         copiaDe: inteiro(t.copiaDe) && t.copiaDe >= 1 ? t.copiaDe : null, // (arquivos ANTIGOS não têm o campo: são tokens da bolsa)
     };
     if (token.copiaDe !== null) {
@@ -1086,6 +1207,20 @@ export function limparAcoes(bruto: unknown, idJaUsado = 0): AcaoDaMesa[] | null 
     });
 }
 
+/** Confere e limpa os ajustes da grade que vieram de FORA (rede ou arquivo): espessura dentro dos limites (em passos de meio pixel) e cor "#rrggbb" ou null. Qualquer coisa estranha vira o padrão. */
+export function limparGradeDaMesa(bruto: unknown): GradeDaMesa {
+    const g = typeof bruto === "object" && bruto !== null ? (bruto as Record<string, unknown>) : {};
+    const espessura = typeof g.espessura === "number" && Number.isFinite(g.espessura) ? limitar(Math.round(g.espessura * 2) / 2, ESPESSURA_GRADE_MIN, ESPESSURA_GRADE_MAX) : ESPESSURA_GRADE_PADRAO;
+    const cor = typeof g.cor === "string" && /^#[0-9a-fA-F]{6}$/.test(g.cor) ? g.cor.toLowerCase() : null;
+    return { espessura, cor };
+}
+
+/** Troca a grade da mesa (vinda do pedido, do arquivo ou do evento do servidor). Devolve a grade limpa que ficou valendo. */
+export function definirGradeDaMesa(bruto: unknown): GradeDaMesa {
+    estado.grade = limparGradeDaMesa(bruto);
+    return estado.grade;
+}
+
 /** Muda as AÇÕES da mesa inteira. Devolve a lista nova (ou null se a lista não presta). */
 export function definirAcoesDaMesa(bruto: unknown): AcaoDaMesa[] | null {
     const maiorIdDaMesa = estado.acoesDaMesa.reduce((m, a) => Math.max(m, a.id), 0);
@@ -1114,31 +1249,74 @@ export function lerQuantia(texto: string): Quantia | null {
 }
 
 export type ResultadoDeAcao =
-    | { ok: true; nomeStatus: string; antes: number; depois: number; max: number; quantia: number; detalhe: string; fichaAlterada?: number } // `fichaAlterada`: o valor mudou NA FICHA (variável que muda): quem chama avisa todos e grava
+    | { ok: true; nomeStatus: string; antes: number; depois: number; max: number; quantia: number; detalhe: string; todosVeem: boolean; efeito: "reduzir" | "aumentar"; fichaAlterada?: number } // `fichaAlterada`: o valor mudou NA FICHA (variável que muda): quem chama avisa todos e grava
     | { ok: false; erro: string };
 
 /**
  * Aplica uma AÇÃO ao valor de um status de um token: soma ou tira a quantia (um número, ou dados que são rolados AGORA com `sortear`) e deixa o valor entre 0 e o máximo.
  * Muda `token.valores`. O servidor usa esta função (com o sorteio dele) e o modo local também. Sem o status, ou sem valor (token sem ficha ou sem a variável): erro.
  */
+/** Lê o texto de uma quantia (um número ou dados) e já a RESOLVE: os dados são rolados AGORA (uma vez só). Devolve o total e o detalhe ("2d6 [3, 4]"), ou o erro. */
+function resolverQuantia(texto: string, sortear: () => number): { ok: true; total: number; detalhe: string } | { ok: false; erro: string } {
+    const quantia = lerQuantia(texto);
+    if (!quantia) return { ok: false, erro: "Escreva um número (ex.: 7) ou dados (ex.: 2d6+3)." };
+    if (quantia.tipo === "numero") return { ok: true, total: quantia.valor, detalhe: String(quantia.valor) };
+    const r = rolarDados(quantia.lados, quantia.quantidade, quantia.modificador, sortear); // (o sorteio é injetado: no servidor, o dele)
+    return {
+        ok: true,
+        total: Math.min(Math.max(0, r.total), MAX_QUANTIA_ACAO), // (uma conta que dá negativo não "cura ao contrário": vale 0)
+        detalhe: `${formulaDosDados(quantia.quantidade, quantia.lados, quantia.modificador)} [${r.resultados.join(", ")}]`,
+    };
+}
+
 export function aplicarAcao(token: Token, acaoId: number, texto: string, sortear: () => number): ResultadoDeAcao {
     const acao = estado.acoesDaMesa.find((a) => a.id === acaoId);
     if (!acao) return { ok: false, erro: "Essa ação não existe." };
     const status = statusDaAcao(token, acao);
     if (!status) return { ok: false, erro: `Este token não usa o status desta ação.` };
-    const quantia = lerQuantia(texto);
-    if (!quantia) return { ok: false, erro: "Escreva um número (ex.: 7) ou dados (ex.: 2d6+3)." };
-    let total: number;
-    let detalhe: string;
-    if (quantia.tipo === "numero") {
-        total = quantia.valor;
-        detalhe = String(quantia.valor);
-    } else {
-        const r = rolarDados(quantia.lados, quantia.quantidade, quantia.modificador, sortear); // (o sorteio é injetado: no servidor, o dele)
-        total = Math.min(Math.max(0, r.total), MAX_QUANTIA_ACAO); // (uma conta que dá negativo não "cura ao contrário": vale 0)
-        detalhe = `${formulaDosDados(quantia.quantidade, quantia.lados, quantia.modificador)} [${r.resultados.join(", ")}]`;
+    const quantia = resolverQuantia(texto, sortear);
+    if (!quantia.ok) return quantia;
+    return aplicarTotal(token, status, acao.efeito, quantia.total, quantia.detalhe);
+}
+
+/**
+ * Uma ação em ÁREA (vários tokens de uma vez): a quantia é resolvida UMA VEZ (dados rolados uma só vez: o MESMO total para todos) e aplicada a cada token, dentro do status e do máximo DELE. Só vale se a ação
+ * serve a TODOS os tokens (`acoesEmComum`): se algum não puder, nada é aplicado. Devolve o que aconteceu em cada token, na ordem, ou o erro.
+ */
+export function aplicarAcaoEmVarios(alvos: Token[], acaoId: number, texto: string, sortear: () => number): { ok: true; quantia: number; detalhe: string; itens: { token: Token; resultado: Extract<ResultadoDeAcao, { ok: true }> }[] } | { ok: false; erro: string } {
+    const acao = estado.acoesDaMesa.find((a) => a.id === acaoId);
+    if (!acao) return { ok: false, erro: "Essa ação não existe." };
+    if (alvos.length === 0) return { ok: false, erro: "Nenhum token." };
+    if (!acoesEmComum(alvos).some((a) => a.id === acaoId)) return { ok: false, erro: `"${acao.nome}" não vale para todos os tokens selecionados (algum não tem o status ou a ficha).` };
+    const quantia = resolverQuantia(texto, sortear);
+    if (!quantia.ok) return quantia;
+    const itens: { token: Token; resultado: Extract<ResultadoDeAcao, { ok: true }> }[] = [];
+    for (const token of alvos) {
+        const status = statusDaAcao(token, acao);
+        if (!status) continue; // (não acontece: conferido acima)
+        const resultado = aplicarTotal(token, status, acao.efeito, quantia.total, quantia.detalhe);
+        if (resultado.ok) itens.push({ token, resultado });
     }
-    return aplicarTotal(token, status, acao.efeito, total, detalhe);
+    return { ok: true, quantia: quantia.total, detalhe: quantia.detalhe, itens };
+}
+
+/** As AÇÕES que valem para TODOS estes tokens (têm o status e o valor dele): é o que o menu de vários tokens selecionados oferece (se todos recebem dano, aparece "Dano"). */
+export function acoesEmComum(alvos: Token[]): AcaoDaMesa[] {
+    if (alvos.length === 0) return [];
+    return estado.acoesDaMesa.filter((acao) =>
+        alvos.every((token) => {
+            const status = statusDaAcao(token, acao);
+            return !!status && (token.valores.some((v) => v.id === status.id) || ligacaoComVariavelQueMuda(token, status.variavel) !== null);
+        }),
+    );
+}
+
+/** LIGA ou DESLIGA uma condição de um token (diferente de `alternarCondicao`: se já está como se pediu, não muda). Devolve o token, ou null se o token ou a condição não existem. */
+export function definirCondicao(tokenId: number, condicaoId: string, ligar: boolean): Token | null {
+    const token = buscarToken(tokenId);
+    if (!token || !buscarCondicao(condicaoId)) return null;
+    if (token.condicoes.includes(condicaoId) === ligar) return token;
+    return alternarCondicao(tokenId, condicaoId);
 }
 
 /**
@@ -1153,13 +1331,13 @@ function aplicarTotal(token: Token, status: StatusDoToken, efeito: "reduzir" | "
         const depois = limitar(efeito === "reduzir" ? ligacao.atual - total : ligacao.atual + total, ligacao.min, ligacao.max);
         definirValorAtualDaFicha(ligacao.ficha, ligacao.nome, depois);
         sincronizarValoresDaFicha(ligacao.ficha); // (a barra deste token, e a de qualquer outro dela, passa a mostrar o valor novo)
-        return { ok: true, nomeStatus: rotuloDoStatus(status), antes: ligacao.atual, depois, max: ligacao.max, quantia: total, detalhe, fichaAlterada: ligacao.ficha };
+        return { ok: true, nomeStatus: rotuloDoStatus(status), antes: ligacao.atual, depois, max: ligacao.max, quantia: total, detalhe, todosVeem: todosVeemOStatus(status), efeito, fichaAlterada: ligacao.ficha };
     }
     if (!valor) return { ok: false, erro: "Valor do status indisponível." }; // (não acontece: conferido acima)
     const antes = valor.atual;
     const depois = limitar(efeito === "reduzir" ? antes - total : antes + total, 0, valor.max);
     valor.atual = depois;
-    return { ok: true, nomeStatus: rotuloDoStatus(status), antes, depois, max: valor.max, quantia: total, detalhe };
+    return { ok: true, nomeStatus: rotuloDoStatus(status), antes, depois, max: valor.max, quantia: total, detalhe, todosVeem: todosVeemOStatus(status), efeito };
 }
 
 /**
@@ -1184,16 +1362,26 @@ export function aplicarResultado(token: Token, total: number): ResultadoDeAcao {
     return aplicarTotal(token, status, "reduzir", quantia, String(quantia));
 }
 
-/** O TOTAL de uma rolagem do chat (dados ou ficha), pelo id da mensagem; null se a mensagem não existe ou não é uma rolagem. O servidor lê o total AQUI: o navegador nunca manda o número. */
-export function totalDaRolagem(idDaMensagem: number): number | null {
+/** O TOTAL de uma rolagem do chat (dados ou ficha), pelo id da mensagem (ou o valor de UM dado, com `dado`); null se a mensagem não existe ou não é uma rolagem. O servidor lê o número AQUI: o navegador nunca manda o número. */
+export function totalDaRolagem(idDaMensagem: number, indice?: number, dado?: number): number | null {
     const m = estado.mensagens.find((x) => x.id === idDaMensagem);
-    const total = m?.rolagem?.total ?? m?.rolagemFicha?.total;
+    // Um CARTÃO de ficha tem VÁRIOS números (as [expressões] já calculadas ou roladas): `indice` diz qual deles foi arrastado (0 = o primeiro). Sem `indice`, um cartão não tem "o" total.
+    const doCartao = m?.cartaoFicha && indice !== undefined && Number.isSafeInteger(indice) && indice >= 0 ? m.cartaoFicha.pedacos.filter((p) => p.tipo !== "texto")[indice] : undefined;
+    // Com `dado` (a posição de um dado, na ordem em que as peças aparecem na mensagem: ou, num cartão, no número `indice`), vale o que SAIU nesse dado e não o total.
+    if (dado !== undefined) {
+        if (!Number.isSafeInteger(dado) || dado < 0) return null;
+        const grupos = m?.rolagem ? [m.rolagem] : m?.rolagemFicha ? m.rolagemFicha.dados : doCartao?.tipo === "rolagem" ? doCartao.dados : undefined;
+        const saiu = grupos?.flatMap((g) => g.resultados)[dado];
+        return typeof saiu === "number" && Number.isFinite(saiu) ? saiu : null;
+    }
+    const total = m?.rolagem?.total ?? m?.rolagemFicha?.total ?? doCartao?.total;
     return typeof total === "number" && Number.isFinite(total) ? total : null;
 }
 
 /** A frase curta do chat depois de um dano ARRASTADO (cabe nos 72 caracteres): "Orc: Dano 9 (HP 15→6)". */
 export function frasePraChatDeDano(token: Token, r: Extract<ResultadoDeAcao, { ok: true }>): string {
-    return `${token.nome}: Dano ${r.quantia} (${r.nomeStatus} ${r.antes}→${r.depois})`.slice(0, MAX_CARACTERES_MENSAGEM);
+    const numeros = r.todosVeem ? ` (${r.nomeStatus} ${r.antes}→${r.depois})` : ""; // (status que nem todos veem: sem os números no chat)
+    return `${token.nome}: Dano ${r.quantia}${numeros}`.slice(0, MAX_CARACTERES_MENSAGEM);
 }
 
 /**
@@ -1224,7 +1412,9 @@ function ligacaoComVariavelQueMuda(token: Token, variavel: string): { ficha: num
 /** A frase curta que vai para o chat depois de uma ação (cabe nos 72 caracteres de uma mensagem). */
 export function frasePraChatDaAcao(token: Token, acaoId: number, r: Extract<ResultadoDeAcao, { ok: true }>): string {
     const acao = estado.acoesDaMesa.find((a) => a.id === acaoId);
-    return `${token.nome}: ${acao?.nome ?? "Ação"} ${r.quantia} (${r.nomeStatus} ${r.antes}→${r.depois})`.slice(0, MAX_CARACTERES_MENSAGEM);
+    // Um status que nem todos veem NÃO tem os números no chat (o chat é um só para todos: não pode vazar a vida de um monstro).
+    const numeros = r.todosVeem ? ` (${r.nomeStatus} ${r.antes}→${r.depois})` : "";
+    return `${token.nome}: ${acao?.nome ?? "Ação"} ${r.quantia}${numeros}`.slice(0, MAX_CARACTERES_MENSAGEM);
 }
 
 /** Copia a lista da mesa para todos os tokens (sem tocar nos valores): usado ao LIGAR o servidor, depois de ler os arquivos (cada arquivo traz uma cópia, que pode estar velha). */
@@ -1239,7 +1429,7 @@ export function rotuloDoStatus(status: { nome: string; variavel: string }): stri
 
 /** O status de fábrica: o HP, que lê a variável PV:: da ficha. */
 export function statusPadrao(): StatusDoToken[] {
-    return [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false, recebeArrasto: true }];
+    return [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false, recebeArrasto: true, quemVe: quemVePadrao(), mostrarNome: true }];
 }
 
 /**
@@ -1247,6 +1437,12 @@ export function statusPadrao(): StatusDoToken[] {
  * itens; nome limpo e cortado (um nome VAZIO continua vazio: a barra no tabuleiro fica sem rótulo); variável só com letras, números e "_" e sem começar por número, senão fica vazia; cor válida; ids sem
  * repetir, e os novos ganham um id) ou null se não é uma lista. Nunca lança erro.
  */
+/** Confere o "quem vê" que veio de fora: cada caixa só vale se for exatamente `false` (o que faltar ou vier errado continua marcado: todos veem). */
+function limparQuemVe(bruto: unknown): QuemVeStatus {
+    const q = typeof bruto === "object" && bruto !== null ? (bruto as Record<string, unknown>) : {};
+    return { dono: q.dono !== false, leitores: q.leitores !== false, outros: q.outros !== false };
+}
+
 export function limparStatus(bruto: unknown, idJaUsado = 0): StatusDoToken[] | null {
     if (!Array.isArray(bruto)) return null;
     const itens = bruto.slice(0, MAX_STATUS_TOKEN).map((s): Record<string, unknown> => (typeof s === "object" && s !== null ? (s as Record<string, unknown>) : {}));
@@ -1260,7 +1456,7 @@ export function limparStatus(bruto: unknown, idJaUsado = 0): StatusDoToken[] | n
         if (/^\p{N}/u.test(variavel)) variavel = ""; // (uma variável não pode começar por número)
         const cor = typeof s.cor === "number" && Number.isFinite(s.cor) ? limitar(Math.round(s.cor), 0, 0xffffff) : COR_STATUS_HP;
         const grupos = Array.isArray(s.grupos) ? limparGrupos(s.grupos.filter((g): g is number => typeof g === "number")) : null; // (sem a lista = TODOS os tokens; lista vazia = NENHUM; ids de grupos que não existem são descartados)
-        return { id, nome, variavel, cor, mostrar: s.mostrar !== false, numeros: s.numeros !== false, grupos, semGrupo: grupos !== null && s.semGrupo === true, recebeArrasto: s.recebeArrasto === true }; // (sem o campo, os dois ficam ligados)
+        return { id, nome, variavel, cor, mostrar: s.mostrar !== false, numeros: s.numeros !== false, grupos, semGrupo: grupos !== null && s.semGrupo === true, recebeArrasto: s.recebeArrasto === true, quemVe: limparQuemVe(s.quemVe), mostrarNome: s.mostrarNome !== false }; // (sem o campo, os dois ficam ligados)
     });
 }
 
@@ -1320,7 +1516,8 @@ export function editarToken(id: number, mudancas: MudancasToken): Token | null {
     if (mudancas.grupos !== undefined) token.grupos = limparGrupos(mudancas.grupos);
     const fichaAntes = token.ficha;
     const gruposAntes = token.grupos.join(",");
-    if (mudancas.ficha === null || fichaExiste(mudancas.ficha)) token.ficha = mudancas.ficha ?? null;
+    // (uma ficha ÚNICA que já tem outro token não aceita este: a interface avisa antes e o servidor devolve o motivo; aqui é a última barreira)
+    if (mudancas.ficha === null || (fichaExiste(mudancas.ficha) && (token.copiaDe !== null || motivoFichaOcupada(mudancas.ficha, token.id) === null))) token.ficha = mudancas.ficha ?? null;
     // No tabuleiro, trocar a ficha refaz os valores dos status (recomeça: a ficha é outra).
     if (!token.guardado && token.ficha !== fichaAntes) token.valores = valoresIniciais(token, []);
     if (mudancas.size !== undefined) {
@@ -1384,6 +1581,8 @@ export function definirTamanhoTabuleiro(colunas: number, linhas: number): Token[
 
     const movidos: Token[] = [];
     for (const token of estado.tokens) {
+        // As peças de OUTROS mapas ficam como estão (cada mapa guarda os seus tokens nas posições que tinham): só as à vista, e os modelos da bolsa, são puxados para dentro.
+        if (token.copiaDe !== null && token.mapa !== estado.mapaId) continue;
         const col = limitar(token.col, 0, estado.colunas - token.size);
         const row = limitar(token.row, 0, estado.linhas - token.size);
         if (col !== token.col || row !== token.row) {
@@ -1412,4 +1611,36 @@ export function alternarCondicao(tokenId: number, condicaoId: string): Token | n
         token.condicoes.push(condicaoId); // não tinha: adiciona
     }
     return token;
+}
+
+/** Este token está À VISTA no mapa atual? (Os da bolsa nunca; uma peça só no mapa em que foi colocada: ao trocar de mapa, as dos outros ficam guardadas, intactas, até voltarem.) */
+export function naCenaAtual(token: Token): boolean {
+    return !token.guardado && (token.copiaDe === null || token.mapa === estado.mapaId);
+}
+
+// ---------------------------------------------------------------------
+// O QUE ESTA PESSOA PODE FAZER (só para a interface ESCONDER o que não pode; quem decide de verdade é o SERVIDOR, que confere tudo de novo). O mestre pode tudo; um jogador só o que o
+// servidor disse no `nivel` do token ou da ficha: dono, editor ou leitor (ver `src/permissoes.ts`).
+// ---------------------------------------------------------------------
+/** Mover o token e usar o clique direito do tabuleiro (condição, dano, cura): leitor ou mais. */
+export const podeUsarToken = (token: Token): boolean => estado.mestre || token.nivel !== undefined;
+/** As configurações do token (a engrenagem: editar, guardar na bolsa): editor ou dono. */
+export const podeConfigurarToken = (token: Token): boolean => estado.mestre || token.nivel === "editor" || token.nivel === "dono";
+/** Excluir o token: só o dono (e o mestre). */
+export const podeExcluirToken = (token: Token): boolean => estado.mestre || token.nivel === "dono";
+/** Editar a ficha (texto e valores): editor ou dono. */
+export const podeEditarFicha = (ficha: Ficha): boolean => estado.mestre || ficha.nivel === "editor" || ficha.nivel === "dono";
+/** Excluir a ficha: só o dono (e o mestre). */
+export const podeExcluirFicha = (ficha: Ficha): boolean => estado.mestre || ficha.nivel === "dono";
+
+/** Online: troca o mapa atual pelo da biblioteca com este id (null = nenhum). O endereço da imagem é sempre `/mapas/<id>` (o servidor entrega). */
+export function definirMapaAtual(id: string | null): void {
+    estado.mapaId = id;
+    estado.mapa = id === null ? null : { url: `/mapas/${id}` };
+}
+
+/** Online: troca a biblioteca (a lista que o servidor mandou). Se o mapa atual não está mais nela, a mesa fica sem mapa. */
+export function definirBiblioteca(mapas: RegistroDeMapa[]): void {
+    estado.mapas = mapas;
+    if (estado.mapaId !== null && !mapas.some((m) => m.id === estado.mapaId)) definirMapaAtual(null);
 }

@@ -2,8 +2,8 @@
 // A CAIXA DA INICIATIVA (HTML), a 3ª gaveta da pilha da esquerda: mostra a ordem de combate (ver `src/iniciativa.ts` para as regras) e deixa mexer nela. NÃO muda o estado:
 // cada gesto vira uma AÇÃO (`opcoes.aoAcao`) que o `main.ts` manda ao servidor (ou aplica aqui, no modo local), e a caixa se redesenha quando o estado muda (`atualizar`).
 //
-// MODO DE EDIÇÃO (a caixa COMEÇA nele): aparecem o "+" (acrescentar uma criatura), "Limpar" e "Confirmar", e o "Próximo turno" (com a rodada) SOME; depois de "Confirmar" é o contrário: aparecem a rodada e o
-// "Próximo turno", e só sobra o botão "Editar".
+// MODO DE EDIÇÃO (a caixa COMEÇA nele): aparecem o "+" (acrescentar uma criatura), "Limpar" e "Confirmar", a rodada vira um CAMPO para digitar, e o "Próximo turno" e o "Retornar" SOMEM; depois de "Confirmar" é o
+// contrário: a rodada é só texto, aparecem "Próximo turno" e "Retornar" (acima do "Editar"), e só sobra o botão "Editar".
 //
 // A lista mostra cada personagem como TEXTO (o disco do token, ou uma bolinha cinza para uma criatura que não é token; o nome; o valor). Não há campos na lista:
 //   - BOTÃO DIREITO num personagem: "Editar…" (a janelinha com o nome e o valor) e "Remover";
@@ -46,10 +46,12 @@ export function criarIniciativa(opcoes: OpcoesIniciativa): PainelIniciativa {
     const caixa = pegar("iniciativa");
     const lista = pegar<HTMLUListElement>("iniciativa-lista");
     const vazia = pegar("iniciativa-vazia");
-    const topo = pegar("iniciativa-topo");
-    const rodada = pegar("iniciativa-rodada");
+        const rodada = pegar("iniciativa-rodada");
     const ordem = pegar<HTMLSelectElement>("iniciativa-ordem");
     const botaoProxima = pegar<HTMLButtonElement>("iniciativa-proxima");
+    const botaoAnterior = pegar<HTMLButtonElement>("iniciativa-anterior");
+    const rodadaEdicao = pegar("iniciativa-rodada-edicao");
+    const campoRodada = pegar<HTMLInputElement>("iniciativa-rodada-campo");
     const botaoCriatura = pegar<HTMLButtonElement>("iniciativa-criatura");
     const botaoLimpar = pegar<HTMLButtonElement>("iniciativa-limpar");
     const botaoEditar = pegar<HTMLButtonElement>("iniciativa-editar");
@@ -71,6 +73,19 @@ export function criarIniciativa(opcoes: OpcoesIniciativa): PainelIniciativa {
     // ---------------------------------------------------------------
     ordem.addEventListener("change", () => opcoes.aoAcao({ acao: "ordenar", ordenacao: ordem.value === "menor" ? "menor" : ordem.value === "livre" ? "livre" : "maior" }));
     botaoProxima.addEventListener("click", () => opcoes.aoAcao({ acao: "proxima" }));
+    botaoAnterior.addEventListener("click", () => opcoes.aoAcao({ acao: "anterior" }));
+    // Em edição a rodada é um campo: ao terminar de digitar (Enter ou sair do campo) vai ao servidor; valor que não vale volta ao que estava.
+    campoRodada.addEventListener("change", () => {
+        const n = Math.round(Number(campoRodada.value));
+        if (campoRodada.value.trim() === "" || !Number.isFinite(n) || n === iniciativa.rodada) {
+            campoRodada.value = String(iniciativa.rodada);
+            return;
+        }
+        opcoes.aoAcao({ acao: "rodada", rodada: Math.max(0, Math.min(9999, n)) });
+    });
+    campoRodada.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") campoRodada.blur();
+    });
     botaoCriatura.addEventListener("click", () => {
         abrirNaProxima = "nome";
         opcoes.aoAcao({ acao: "adicionar", nome: "Criatura", valor: 0, token: null });
@@ -228,13 +243,18 @@ export function criarIniciativa(opcoes: OpcoesIniciativa): PainelIniciativa {
         const editando = iniciativa.editando;
         ordem.value = iniciativa.ordenacao;
         // O que aparece em cada modo (pedido do dono): em EDIÇÃO, "+ Criatura", "Limpar" e "Confirmar"; CONFIRMADO, a rodada e o "Próximo turno" (e só o "Editar").
-        topo.hidden = editando;
+        rodada.hidden = editando; // confirmado: o texto "Rodada N"; em edição: o campo para digitar a rodada
+        rodadaEdicao.hidden = !editando;
+        botaoProxima.hidden = editando;
+        botaoAnterior.hidden = editando;
         botaoCriatura.hidden = !editando;
         botaoLimpar.hidden = !editando;
         botaoEditar.textContent = editando ? "Confirmar" : "Editar";
         botaoEditar.classList.toggle("principal", editando);
         rodada.textContent = iniciativa.rodada > 0 ? `Rodada ${iniciativa.rodada}` : "Rodada —";
         botaoProxima.disabled = iniciativa.entradas.length === 0;
+        botaoAnterior.disabled = iniciativa.vez === null;
+        if (document.activeElement !== campoRodada) campoRodada.value = String(iniciativa.rodada);
         vazia.hidden = iniciativa.entradas.length > 0;
         const novos: HTMLLIElement[] = [];
         iniciativa.entradas.forEach((entrada, i) => {

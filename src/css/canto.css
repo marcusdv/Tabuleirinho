@@ -1,0 +1,24 @@
+/* O canto inferior direito (calibragem) e o conteúdo criado pelo app. (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
+/* Canto inferior direito (à esquerda do chat): só o painel da calibragem (quando ligado). */
+#canto-inferior-direito {
+    position: fixed;
+    right: var(--recuo-chat); /* encostada à esquerda do chat */
+    bottom: 12px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+    pointer-events: none; /* a coluna em si é invisível: só o painel da calibragem (abaixo) pega o mouse; o resto da área deixa o clique passar */
+}
+#canto-inferior-direito > #painel-calibragem {
+    pointer-events: auto;
+}
+
+/* O conteúdo do painel de Desenho e o do de Dados é criado pelo app (JavaScript) um instante depois do primeiro desenho: sem isto os
+   dois apareceriam pequenos e CRESCERIAM de repente. Ficam invisíveis (sem sumir do layout) até o app montar tudo; o script do fim
+   do <body> libera de qualquer jeito depois de 3 s, caso o app falhe. */
+body:not(.app-pronta) #ferramentas-desenho,
+body:not(.app-pronta) #dados {
+    visibility: hidden;
+}

@@ -57,6 +57,8 @@ ok("5b) no limite, o botão fica desabilitado e a dica explica", (await p.isDisa
 ok("5c) a grade mostra as 200", (await p.locator(".bolsa-doc").count()) === 200);
 
 // 6) voltar para Tokens e para Fichas: as fichas continuam
+// ("Criar ficha" ABRE a ficha nova: ao fim das 200, uma janela de ficha está aberta por cima da bolsa; fecha-se antes de seguir)
+if (await p.locator("#editor-ficha").first().isVisible()) await p.click("#editor-ficha-x");
 await p.click("#bolsa-aba-tokens");
 ok("6a) na aba Tokens as fichas de personagem não aparecem", (await p.locator("#bolsa-fichas").isHidden()) && (await p.locator("#bolsa-conteudo").isVisible()));
 await p.click("#bolsa-aba-fichas");

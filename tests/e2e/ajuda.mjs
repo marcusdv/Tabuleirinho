@@ -96,11 +96,21 @@ export async function recolherDados(p) {
 }
 
 /**
- * Abre a GAVETA de uma barra da pilha da esquerda: "desenho" (o painel de Desenho, `#ferramentas-desenho`) ou "tabuleiro" (a barra Tabuleiro, `#barra`: colunas, linhas, grade, mapa...).
- * Tudo começa recolhido, e só UMA gaveta fica aberta por vez (abrir uma fecha a outra). Espera a animação terminar.
+ * Abre uma barra da pilha da esquerda: "desenho" (o painel de Desenho, `#ferramentas-desenho`) ou "iniciativa" (`#iniciativa`); elas abrem PARA BAIXO e podem ficar abertas juntas.
+ * "tabuleiro" (colunas, linhas, grade, mapa...) já NÃO é uma barra: vive na aba MAPAS da bolsa (só o mestre); então este atalho escolhe a bolsa e a aba Mapas (depois, para voltar
+ * aos tokens, clique em `#bolsa-aba-tokens`). Tudo começa recolhido. Espera a animação terminar.
  */
 export async function abrirGaveta(p, qual) {
-    const caixa = qual === "desenho" ? "#ferramentas-desenho" : "#barra";
+    if (qual === "tabuleiro") {
+        if (!(await p.evaluate(() => document.getElementById("chat").classList.contains("aba-bolsa")))) await p.click("#lateral-aba-bolsa");
+        if (!(await p.locator("#bolsa-aba-mapas").isVisible())) return; // (o jogador comum não tem a aba Mapas nem a janela do tabuleiro)
+        await p.click("#bolsa-aba-mapas");
+        // As configurações do tabuleiro abrem numa JANELA fora da coluna (no modo local, pelo botão "Configurar o tabuleiro"; online, pelo ⚙ de cada mapa).
+        if (await p.evaluate(() => document.getElementById("mapas-tabuleiro").hidden)) await p.click("#bolsa-mapas-configurar");
+        await p.waitForTimeout(150);
+        return;
+    }
+    const caixa = qual === "desenho" ? "#ferramentas-desenho" : "#iniciativa";
     if (await p.evaluate((c) => !document.querySelector(c).classList.contains("recolhida"), caixa)) return;
     await p.click(caixa + " .cabecalho");
     await p.waitForTimeout(450);
@@ -167,3 +177,16 @@ export async function criarFichaFechada(p) {
     await p.waitForSelector("#editor-ficha:not([hidden])", { timeout: 1500 }).catch(() => {});
     if (await p.locator("#editor-ficha").isVisible()) await p.click("#editor-ficha-x");
 }
+
+/**
+ * Esc na FICHA aberta. O Esc é em DUAS etapas: editando (o campo de texto à vista), o 1º Esc só volta para a visualização e o 2º fecha (ou abre a pergunta de
+ * descartar, se há alterações); já na visualização, um Esc basta. Este ajudante aperta o que for preciso para chegar ao "fechar".
+ */
+export async function escNaFicha(p) {
+    const editando = await p.locator("#editor-ficha-previa").isHidden();
+    await p.keyboard.press("Escape");
+    if (editando) await p.keyboard.press("Escape");
+}
+
+/** A versão em que o editor da ficha está ("Versão 3"): a tela não mostra mais o número, então vem do atributo `data-versao` do painel. */
+export const versaoDaFicha = (p) => p.getAttribute("#editor-ficha-painel", "data-versao").then((v) => "Versão " + v);

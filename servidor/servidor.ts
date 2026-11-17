@@ -21,7 +21,7 @@
 import { randomInt } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { dirname, extname, resolve, sep } from "node:path";
+import { dirname, extname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import {
@@ -42,22 +42,27 @@ import {
     TAMANHO_MAX_ARQUIVO_GRUPO,
     TAMANHO_MAX_ARQUIVO_TOKEN,
     TAMANHO_MAX_MENSAGEM_REDE,
+    MAX_BYTES_MAPA,
 } from "../src/config.ts";
 import { rolarDados } from "../src/dados.ts";
 import {
     adicionarMensagem,
     adicionarRolagem,
+    adicionarCartaoDeFicha,
     adicionarRolagemDeFicha,
     tokenDaRolagem,
     rolarIniciativaDoToken,
     montarPeca,
     pecasDoModelo,
+    motivoFichaOcupada,
     restaurarEstadoDaPeca,
     buscarToken,
     colocarToken,
     definirFichas,
     definirGrupos,
     aplicarAcao,
+    aplicarAcaoEmVarios,
+    definirCondicao,
     aplicarResultado,
     frasePraChatDeDano,
     totalDaRolagem,
@@ -75,12 +80,16 @@ import {
     definirAcoesDaMesa,
     frasePraChatDaAcao,
     definirStatusDaMesa,
+    definirGradeDaMesa,
+    type GradeDaMesa,
     definirTamanhoTabuleiro,
     definirTokens,
     editarToken,
     estado,
     excluirFicha,
     excluirTokenComPecas,
+    alternarCondicao,
+    definirMapaAtual,
     fichaExiste,
     excluirGrupo,
     fichaValida,
@@ -105,9 +114,15 @@ import {
 } from "../src/estado.ts";
 import { aplicarAcaoDaIniciativa, definirIniciativa, iniciativaComoObjeto } from "../src/iniciativa.ts";
 import { ABAS_THORIN, IMAGEM_GOBLIN, NOME_GOBLIN, NOME_THORIN, TEXTO_GOBLIN } from "../src/exemplos.ts";
-import { analisarAbas, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
+import { analisarAbas, rolarCartaoDaAnalise, rolarConta, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
+import type { ValorDeStatus } from "../src/estado.ts";
 import { gastar, novoBalde, type Balde } from "../src/limite.ts";
-import { lerPedido, limparApelido, type EventoDoServidor, type Jogador, type PedidoDoCliente } from "../src/protocolo.ts";
+import { estaBanido, idDeUsuarioDoNome, LIMITE_MAXIMO_POR_JOGADOR, podeEditar, podeExcluir, podeLer, temPoderDeMestre, type NivelEfetivo, type TipoDeItem } from "../src/permissoes.ts";
+import { adicionarDesenhoNoMapa, apagarDesenhosDoMapa, carregarDesenhos, desenhosDoMapa, gravarDesenhosPendentes } from "./desenhos.ts";
+import { carregarPermissoes, definirDono, esquecerItem, gravarPermissoes, motivoDoLimite, nivelDoUsuario, permissoes } from "./acesso.ts";
+import { lerPedido, limparApelido, type EventoDoServidor, type Jogador, type PedidoDoCliente, type RegistroDeMapa } from "../src/protocolo.ts";
+import { acharMapa, apagarMapa, definirQuemVeMapa, definirTamanhoDoMapa, lembrarTamanhoDoMapa, definirGradeDoMapa, lembrarGradeDoMapa, caminhoDoMapa, carregarMapas, criarMapasDeExemplo, guardarMapa, listaDeMapas, TIPO_MIME } from "./mapas.ts";
+import { enviarBackup, instrucoesDoBackup } from "./backup.ts";
 import { apagarDaPasta, carregarMesa, carregarPasta, gravarMesa, gravarNaPasta, PASTA_DE_DADOS, type NomeDaPasta } from "./dados.ts";
 
 // A pasta do site: `dist/` (o resultado de `npm run build`). Dá para trocar com a variável SITE (ex.: SITE=/outra/pasta npm run servidor).
@@ -135,7 +150,148 @@ function responder(resposta: ServerResponse, status: number, texto: string): voi
     resposta.end(texto);
 }
 
+/**
+ * A conexão veio do PRÓPRIO COMPUTADOR do servidor (127.0.0.1)? Atrás de um TÚNEL (cloudflared, ngrok) toda conexão chega de 127.0.0.1, mas o túnel acrescenta cabeçalhos com o
+ * endereço de verdade (`Cf-Connecting-Ip`, `X-Forwarded-For`): com eles, a conexão NÃO é do próprio computador (era por isso que, no túnel, todo mundo virava mestre).
+ */
+function veioDoProprioComputador(requisicao: IncomingMessage): boolean {
+    const c = requisicao.headers;
+    if (c["cf-connecting-ip"] || c["x-forwarded-for"] || c["forwarded"] || c["x-real-ip"]) return false;
+    const endereco = requisicao.socket.remoteAddress;
+    return endereco === "127.0.0.1" || endereco === "::1" || endereco === "::ffff:127.0.0.1";
+}
+
+/**
+ * O PAPEL FORJADO (para testes, até existirem contas): o endereço PRECISA trazer `?papel=mestre` ou `?papel=jogador` (decisão do dono, 17/11/2026: nada de ser mestre por padrão).
+ * `mestre` só vale para conexões do PRÓPRIO COMPUTADOR do servidor (quem vem de fora e pede mestre é recusado), então ninguém de fora se promove. Devolve o papel, ou o MOTIVO da recusa.
+ */
+function papelDaRequisicao(requisicao: IncomingMessage): { papel: "mestre" | "jogador" } | { recusa: string } {
+    let papel: string | null = null;
+    try {
+        papel = new URL(requisicao.url ?? "/", "http://local").searchParams.get("papel");
+    } catch {
+        /* sem papel: recusado abaixo */
+    }
+    if (papel === "jogador") return { papel };
+    if (papel === "mestre") return veioDoProprioComputador(requisicao) ? { papel } : { recusa: "Só dá para entrar como mestre pelo computador do servidor. Entre como jogador (…&papel=jogador)." };
+    return { recusa: "Faltou o papel no endereço: use …&papel=mestre (no computador do servidor) ou …&papel=jogador." };
+}
+
+/** Atende o envio de mapas por HTTP: só o mestre (o `?papel=mestre` do pedido, vindo do computador do servidor). */
+function ehMestre(requisicao: IncomingMessage): boolean {
+    const resultado = papelDaRequisicao(requisicao);
+    return "papel" in resultado && resultado.papel === "mestre";
+}
+
+function responderJson(resposta: ServerResponse, status: number, corpo: unknown): void {
+    resposta.writeHead(status, { "content-type": "application/json; charset=utf-8", "x-content-type-options": "nosniff" });
+    resposta.end(JSON.stringify(corpo));
+}
+
+/**
+ * Os MAPAS pelo HTTP (a imagem NUNCA vai pelo WebSocket, que recusa mensagens grandes):
+ *   - POST /mapas?nome=...  o MESTRE envia uma imagem (o corpo é a imagem pura). Confere o mestre, a origem do pedido, o tamanho enquanto lê (corta assim que passa do limite) e depois o tipo e os pixels (servidor/mapas.ts).
+ *   - GET /mapas/<id>       entrega a imagem de um mapa da biblioteca: o id vem do registro (16 caracteres hexadecimais), o tipo do conteúdo é o da imagem conferida, e o navegador não pode "adivinhar" outro (nosniff).
+ * Devolve true se o pedido era de mapas (e já foi respondido).
+ */
+async function tratarMapas(requisicao: IncomingMessage, resposta: ServerResponse): Promise<boolean> {
+    let url: URL;
+    try {
+        url = new URL(requisicao.url ?? "/", "http://local");
+    } catch {
+        return false;
+    }
+    const caminho = url.pathname;
+    if (caminho === "/mapas" && requisicao.method === "POST") {
+        if (!ehMestre(requisicao)) return responderJson(resposta, 403, { erro: "Só o mestre pode enviar mapas." }), true;
+        if (!origemPermitida(requisicao)) return responderJson(resposta, 403, { erro: "Origem não permitida." }), true;
+        const declarado = Number(requisicao.headers["content-length"]);
+        if (Number.isFinite(declarado) && declarado > MAX_BYTES_MAPA) {
+            requisicao.resume();
+            return responderJson(resposta, 413, { erro: `Imagem grande demais (${(declarado / 1048576).toFixed(1)} MB): o máximo é ${MAX_BYTES_MAPA / 1048576} MB.` }), true;
+        }
+        const pedacos: Buffer[] = [];
+        let total = 0;
+        let estourou = false;
+        await new Promise<void>((pronto) => {
+            requisicao.on("data", (parte: Buffer) => {
+                if (estourou) return;
+                total += parte.length;
+                if (total > MAX_BYTES_MAPA) {
+                    estourou = true; // (para de guardar na memória; o resto do corpo é descartado)
+                    pedacos.length = 0;
+                    return;
+                }
+                pedacos.push(parte);
+            });
+            requisicao.on("end", () => pronto());
+            requisicao.on("error", () => pronto());
+            requisicao.on("close", () => pronto());
+        });
+        if (estourou) return responderJson(resposta, 413, { erro: `Imagem grande demais: o máximo é ${MAX_BYTES_MAPA / 1048576} MB.` }), true;
+        const resultado = await guardarMapa(Buffer.concat(pedacos), url.searchParams.get("nome"));
+        if (!resultado.ok) return responderJson(resposta, 400, { erro: resultado.erro }), true;
+        console.log(`Mapa enviado: "${resultado.valor.nome}" (${resultado.valor.largura}×${resultado.valor.altura}, ${(resultado.valor.bytes / 1048576).toFixed(1)} MB)`);
+        avisarMapasDefinidos();
+        return responderJson(resposta, 201, resultado.valor), true;
+    }
+    const achou = /^\/mapas\/([0-9a-f]{16})$/.exec(caminho);
+    if (achou && (requisicao.method === "GET" || requisicao.method === "HEAD")) {
+        const arquivo = caminhoDoMapa(achou[1]);
+        if (!arquivo) return responder(resposta, 404, "Mapa não encontrado."), true;
+        try {
+            const conteudo = await readFile(arquivo.caminho);
+            resposta.writeHead(200, {
+                "content-type": TIPO_MIME[arquivo.tipo],
+                "content-length": conteudo.length,
+                "x-content-type-options": "nosniff",
+                "cache-control": "public, max-age=31536000, immutable", // (o id nunca muda de imagem: o navegador pode guardar)
+            });
+            resposta.end(requisicao.method === "HEAD" ? undefined : conteudo);
+        } catch {
+            responder(resposta, 404, "Mapa não encontrado.");
+        }
+        return true;
+    }
+    return false;
+}
+
+/**
+ * GET /backup: o BACKUP DA CAMPANHA (a pasta `dados/` inteira num .zip). SÓ o mestre baixa (o servidor confere pelo endereço, como no envio de mapas). Antes de empacotar, grava o que
+ * ainda estava esperando para ser gravado, para o backup não sair com a edição de um segundo atrás faltando. Devolve true se o pedido era deste caminho.
+ */
+async function tratarBackup(requisicao: IncomingMessage, resposta: ServerResponse): Promise<boolean> {
+    let caminho: string;
+    try {
+        caminho = new URL(requisicao.url ?? "/", "http://local").pathname;
+    } catch {
+        return false;
+    }
+    if (caminho !== "/backup" || requisicao.method !== "GET") return false;
+    if (!ehMestre(requisicao)) return responderJson(resposta, 403, { erro: "Só o mestre baixa o backup da campanha." }), true;
+    try {
+        if (gravacaoAgendada !== null) {
+            clearTimeout(gravacaoAgendada);
+            gravarTokensSujos();
+        }
+        await gravarDesenhosPendentes();
+        await new Promise<void>((pronto) => naFilaDeArquivos(async () => pronto())); // (espera a fila de gravação esvaziar)
+        const hoje = new Date();
+        const dia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
+        const resumo = `Conteúdo: ${estado.fichas.length} ficha(s), ${estado.tokens.filter((t) => t.copiaDe === null).length} token(s), ${estado.grupos.length} grupo(s) e ${listaDeMapas().length} mapa(s).`;
+        await enviarBackup(resposta, PASTA_DE_DADOS, `tabuleirinho-backup-${dia}.zip`, [{ nome: "LEIA-ME.txt", texto: instrucoesDoBackup(dia, resumo) }]);
+        console.log("Backup da campanha baixado pelo mestre.");
+    } catch (falha) {
+        console.error("Erro ao montar o backup:", falha);
+        if (!resposta.headersSent) responderJson(resposta, 500, { erro: "Não foi possível montar o backup." });
+        else resposta.destroy();
+    }
+    return true;
+}
+
 async function servirSite(requisicao: IncomingMessage, resposta: ServerResponse): Promise<void> {
+    if (await tratarBackup(requisicao, resposta)) return;
+    if (await tratarMapas(requisicao, resposta)) return;
     if (requisicao.method !== "GET" && requisicao.method !== "HEAD") return responder(resposta, 405, "Método não permitido.");
     let caminho: string;
     try {
@@ -171,6 +327,11 @@ interface Conexao {
     mensagensNaJanela: number;
     baldeRolagens: Balde; // LIMITE ANTI-SPAM: rolagens de dados e de fichas (as duas dividem o mesmo balde)
     baldeChat: Balde; // LIMITE ANTI-SPAM: mensagens do chat
+    papel: "mestre" | "jogador" | null; // o papel pedido no endereço (null = faltou ou foi recusado: a conexão não entra)
+    recusa: string | null; // o motivo de a conexão ser recusada ao entrar (sem papel, por exemplo)
+    usuario: string; // o ID de usuário estável (hoje vem do apelido; depois virá da conta): é ele que as permissões usam
+    mapaVisto: string | null; // o mapa em que ESTA conexão está (cada jogador tem o seu; o mestre sempre está no `mapaAtual`). null = nenhum
+    mestre: boolean; // é o MESTRE? Por enquanto (os papéis vêm depois das cenas): quem se conecta DO PRÓPRIO COMPUTADOR do servidor (endereço 127.0.0.1). Só o mestre envia, troca e apaga mapas; o servidor confere sempre.
 }
 
 // Para os TESTES automáticos (que rolam e escrevem muito rápido): SEM_LIMITE_SPAM=1 desliga o limite anti-spam. Em uso normal fica ligado.
@@ -194,6 +355,247 @@ function avisarTodos(evento: EventoDoServidor): void {
 }
 
 const erro = (ws: WebSocket, motivo: string): void => enviar(ws, { tipo: "erro", motivo });
+
+// ---------------------------------------------------------------------
+// PERMISSÕES E VISÃO (17/11/2026; ver `src/permissoes.ts`): o servidor decide quem vê e quem faz o quê. O mestre pode tudo; o jogador só o que é dele ou foi liberado.
+// ---------------------------------------------------------------------
+
+/** O nível de `c` sobre um token. As PEÇAS do tabuleiro seguem o MODELO delas (o token da bolsa). O mestre não passa por aqui. */
+function nivelNoToken(c: Conexao, token: Token): NivelEfetivo {
+    const modelo = token.copiaDe === null ? token : buscarToken(token.copiaDe);
+    return modelo ? nivelDoUsuario("tokens", modelo.id, c.usuario, modelo.grupos) : null;
+}
+const nivelNaFicha = (c: Conexao, ficha: Ficha): NivelEfetivo => nivelDoUsuario("fichas", ficha.id, c.usuario, ficha.grupos);
+
+/** "usar" = mover e usar o clique direito do tabuleiro (leitor ou mais); "editar" = configurações (editor ou dono); "excluir" = só o dono (e o mestre). */
+function podeNoToken(c: Conexao, token: Token, acao: "usar" | "editar" | "excluir"): boolean {
+    if (c.mestre) return true;
+    const nivel = nivelNoToken(c, token);
+    return acao === "usar" ? podeLer(nivel) : acao === "editar" ? podeEditar(nivel) : podeExcluir(nivel);
+}
+/** "ler" = ver e rolar; "editar" = alterar o texto e os valores; "excluir" = só o dono (e o mestre). */
+function podeNaFicha(c: Conexao, ficha: Ficha, acao: "ler" | "editar" | "excluir"): boolean {
+    if (c.mestre) return true;
+    const nivel = nivelNaFicha(c, ficha);
+    return acao === "ler" ? podeLer(nivel) : acao === "editar" ? podeEditar(nivel) : podeExcluir(nivel);
+}
+const SEM_PERMISSAO = "Você não tem permissão para isso.";
+
+/**
+ * Os valores de status de um token como `c` PODE VÊ-LOS (pedido do dono, 17/11/2026: "Quem vê" de cada status). O mestre vê todos. Para os outros, o valor de um status que ele não pode ver NÃO vai: chega
+ * `{ oculto: true, atual: 0, max: 0 }` (a entrada existe só para o Dano e a Cura continuarem valendo; a interface não desenha barra nem conta para ela).
+ */
+function valoresParaConexao(c: Conexao, token: Token): ValorDeStatus[] {
+    if (c.mestre) return token.valores;
+    const nivel = nivelNoToken(c, token);
+    return token.valores.map((v) => {
+        const q = token.status.find((s) => s.id === v.id)?.quemVe;
+        const ve = !q || (nivel === "dono" ? q.dono : nivel === null ? q.outros : q.leitores);
+        return ve ? v : { id: v.id, atual: 0, max: 0, oculto: true };
+    });
+}
+/** Manda a cada conexão os valores de status de um token, já filtrados pelo "Quem vê". */
+function avisarValoresDoToken(token: Token, efeito?: "dano" | "cura"): void {
+    // `efeito` (só quando uma ação acabou de ser aplicada) diz a TODOS o que animar no token (dano ou cura), mesmo para quem não vê o valor: a animação não depende dos números, então não denuncia a vida.
+    avisarCada((c) => ({ tipo: "valores_atualizados", id: token.id, valores: valoresParaConexao(c, token), ...(efeito !== undefined && { efeito }) }));
+}
+/** O mapa `id` é visível para `c`? O mestre vê todos; os outros, o que o mestre liberou (todos os jogadores, ou os listados). Sem mapa (null) todos "veem". */
+function mapaVisivelPara(c: Conexao, id: string | null): boolean {
+    if (id === null || c.mestre) return true;
+    const q = acharMapa(id)?.quemVe;
+    return !q || q.todos || q.usuarios.includes(c.usuario);
+}
+/**
+ * O mapa em que `c` está AGORA (cada jogador tem o seu; pedido do dono, 17/11/2026): o mestre está sempre no `mapaAtual`; o jogador, no que ele escolheu ou para onde o mestre o levou ("Mover jogadores").
+ * null = nenhum (ou um mapa que ele não pode ver: ele vê o tabuleiro vazio).
+ */
+function mapaDaConexao(c: Conexao): string | null {
+    if (c.mestre) return mapaAtual;
+    return c.mapaVisto !== null && acharMapa(c.mapaVisto) && mapaVisivelPara(c, c.mapaVisto) ? c.mapaVisto : null;
+}
+/** O mapa onde cada USUÁRIO estava (para quem cai e volta continuar no mesmo mapa). */
+const mapaDoUsuario = new Map<string, string | null>();
+function irParaMapa(c: Conexao, id: string | null): void {
+    c.mapaVisto = id;
+    mapaDoUsuario.set(c.usuario, id);
+}
+/** O tamanho do tabuleiro de um mapa: o guardado nele, ou o da mesa. */
+function tamanhoDoMapa(id: string | null): { colunas: number; linhas: number } {
+    const m = id === null ? undefined : acharMapa(id);
+    return m?.colunas !== undefined && m.linhas !== undefined ? { colunas: m.colunas, linhas: m.linhas } : { colunas: estado.colunas, linhas: estado.linhas };
+}
+/** A grade (espessura e cor) de um mapa: a guardada nele, ou a da mesa. Cada mapa tem a sua (pedido do dono, 17/11/2026). */
+function gradeDoMapa(id: string | null): GradeDaMesa {
+    const m = id === null ? undefined : acharMapa(id);
+    return m?.grade ?? estado.grade;
+}
+/**
+ * Roda `fazer` COM A CENA de quem pediu: o `estado` do servidor guarda um mapa e um tamanho de tabuleiro só (os do mestre); para o jogador que está em OUTRO mapa, troca por um instante o mapa, as
+ * colunas e as linhas pelos dele (as peças que ele coloca nascem no mapa dele, e as posições são conferidas com o tabuleiro dele). É tudo síncrono, então ninguém vê a troca.
+ */
+function comCenaDe(c: Conexao, fazer: () => void): void {
+    if (c.mestre || !c.jogador) return fazer();
+    const mapa = mapaDaConexao(c);
+    const tamanho = tamanhoDoMapa(mapa);
+    const salvo = { mapaId: estado.mapaId, colunas: estado.colunas, linhas: estado.linhas };
+    estado.mapaId = mapa;
+    estado.colunas = tamanho.colunas;
+    estado.linhas = tamanho.linhas;
+    try {
+        fazer();
+    } finally {
+        estado.mapaId = salvo.mapaId;
+        estado.colunas = salvo.colunas;
+        estado.linhas = salvo.linhas;
+    }
+}
+/** A biblioteca que `c` recebe: o mestre, tudo; os outros, só os mapas que podem ver (sem a lista de quem vê). */
+function bibliotecaParaConexao(c: Conexao): RegistroDeMapa[] {
+    if (c.mestre) return listaDeMapas();
+    // O jogador não escolhe mapas (só o mestre o move): recebe só o mapa em que está (se pode vê-lo), sem a lista de quem vê.
+    const meu = mapaDaConexao(c);
+    return listaDeMapas().filter((m) => m.id === meu).map(({ quemVe: _quemVe, ...resto }) => resto);
+}
+/** Manda a UMA conexão o mapa em que ela está (a imagem e o tamanho do tabuleiro dele) e os desenhos dele. */
+function avisarMapaDe(c: Conexao, comTamanho = true): void {
+    if (!c.jogador || c.ws.readyState !== WebSocket.OPEN) return;
+    const mapa = mapaDaConexao(c);
+    const tamanho = tamanhoDoMapa(mapa);
+    enviar(c.ws, { tipo: "mapa_definido", mapa, grade: gradeDoMapa(mapa), ...(comTamanho && { colunas: tamanho.colunas, linhas: tamanho.linhas }) });
+    // Foi levado a um mapa que NÃO pode ver: o tabuleiro vem vazio e a pessoa é avisada do motivo (pedido do dono, 17/11/2026).
+    if (!c.mestre && c.mapaVisto !== null && mapa === null) erro(c.ws, "Você não tem permissão para ver esse mapa.");
+    enviar(c.ws, { tipo: "desenhos_definidos", desenhos: desenhosDoMapa(mapa) }); // (cada mapa tem os seus desenhos)
+}
+/** Manda a quem está no mapa `id` (ou a todos, sem `id`) o mapa dele de novo. */
+function avisarMapaAtual(comTamanho: boolean, id?: string | null): void {
+    for (const c of conexoes) if (id === undefined || c.mapaVisto === id || (c.mestre && mapaAtual === id)) avisarMapaDe(c, comTamanho);
+    avisarMapasDefinidos();
+    avisarJogadores();
+}
+/** Manda a cada um a lista de quem está na mesa, marcando quem está NA CENA DELE (o mesmo mapa). */
+function avisarJogadores(): void {
+    avisarCada((c) => {
+        const meu = mapaDaConexao(c);
+        // O MESTRE também recebe o mapa de cada um (a aba Mapas mostra "jogadores aqui"); os jogadores, não (os ids dos mapas não vazam).
+        return { tipo: "jogadores", lista: [...conexoes].flatMap((x) => (x.jogador ? [{ ...x.jogador, naMinhaCena: mapaDaConexao(x) === meu, ...(c.mestre && { mapa: x.mestre ? mapaAtual : x.mapaVisto, semPermissao: !x.mestre && x.mapaVisto !== null && mapaDaConexao(x) === null }) }] : [])) };
+    });
+}
+/** Manda a cada um a biblioteca que ele pode ver. */
+function avisarMapasDefinidos(): void {
+    avisarCada((c) => ({ tipo: "mapas_definidos", mapas: bibliotecaParaConexao(c) }));
+}
+/** A estrela é de CADA usuário (`permissoes.favoritos`). */
+const ehFavoritoDe = (usuario: string, tipo: TipoDeItem, id: number): boolean => permissoes.favoritos[usuario]?.[tipo].includes(id) === true;
+function definirFavoritoDe(usuario: string, tipo: TipoDeItem, id: number, valor: boolean): void {
+    const meus = (permissoes.favoritos[usuario] ??= { tokens: [], fichas: [] });
+    meus[tipo] = valor ? [...new Set([...meus[tipo], id])] : meus[tipo].filter((x) => x !== id);
+    naFilaDeArquivos(() => gravarPermissoes());
+}
+/** O que `c` recebe sobre um token: as PEÇAS do tabuleiro todos veem; um token da BOLSA só quem tem acesso (o dono, os liberados e o mestre). Um modelo de uma peça que está no mapa vai SEM a ficha e marcado `somenteMapa` (os grupos ficam: valem para os status) (não aparece na bolsa). Quem não é mestre recebe também o `nivel` dele (a interface esconde o que ele não pode). */
+function tokenParaConexao(c: Conexao, token: Token): Token | null {
+    const visto = tokenParaConexaoSemEstrela(c, token);
+    return visto && visto.copiaDe === null ? { ...visto, favorito: ehFavoritoDe(c.usuario, "tokens", token.id) } : visto; // (a estrela é de cada pessoa)
+}
+function tokenParaConexaoSemEstrela(c: Conexao, token: Token): Token | null {
+    if (c.mestre) return token;
+    const nivel = nivelNoToken(c, token);
+    const valores = valoresParaConexao(c, token);
+    if (token.copiaDe !== null) return { ...token, valores, ...(nivel !== null && { nivel }) }; // (a peça do mapa todos veem, mesmo sem nível; os status só para quem pode vê-los)
+    if (podeLer(nivel)) return { ...token, valores, ...(nivel !== null && { nivel }) };
+    if (estado.tokens.some((p) => p.copiaDe === token.id)) return { ...token, ficha: null, favorito: false, somenteMapa: true }; // (os GRUPOS ficam: o cliente os usa para saber quais status, e portanto quais ações como Dano e Cura, valem para a peça; são só números, não revelam a ficha)
+    return null;
+}
+function fichaParaConexao(c: Conexao, ficha: Ficha): Ficha | null {
+    const visto = fichaParaConexaoSemEstrela(c, ficha);
+    return visto ? { ...visto, favorito: ehFavoritoDe(c.usuario, "fichas", ficha.id) } : null; // (a estrela é de cada pessoa)
+}
+function fichaParaConexaoSemEstrela(c: Conexao, ficha: Ficha): Ficha | null {
+    if (c.mestre) return ficha;
+    const nivel = nivelNaFicha(c, ficha);
+    return podeLer(nivel) && nivel !== null ? { ...ficha, nivel } : null;
+}
+
+/**
+ * Depois de mudar o que uma pessoa pode ver (liberar, tirar a liberação, virar mestre): refaz a visão DELA dos itens indicados. Um item que ela passou a ver chega inteiro (`token_editado` /
+ * `ficha_editada` fazem "criar ou trocar"); um token que deixou de ver vira só o modelo "somente mapa" (se há peça dele no mapa) ou é tirado; uma ficha que deixou de ver é tirada.
+ */
+function sincronizarVisaoDe(usuario: string, idsDeTokens: number[], idsDeFichas: number[]): void {
+    for (const c of conexoes) {
+        if (!c.jogador || c.usuario !== usuario || c.ws.readyState !== WebSocket.OPEN) continue;
+        for (const id of idsDeTokens) {
+            const token = buscarToken(id);
+            if (!token) continue;
+            const visto = tokenParaConexao(c, token);
+            enviar(c.ws, visto ? { tipo: "token_editado", token: visto } : { tipo: "token_excluido", id });
+        }
+        for (const id of idsDeFichas) {
+            const ficha = estado.fichas.find((f) => f.id === id);
+            if (!ficha) continue;
+            const vista = fichaParaConexao(c, ficha);
+            if (vista) {
+                enviar(c.ws, { tipo: "ficha_editada", ficha: vista });
+                enviar(c.ws, { tipo: "valores_ficha", id, valores: valoresDaFichaComoObjeto(id) });
+            } else enviar(c.ws, { tipo: "ficha_excluida", id });
+        }
+    }
+}
+/** Igual a `sincronizarVisaoDe`, para TODOS os usuários conectados (quando os grupos de um item mudam, quem tem acesso pelo grupo ganha ou perde o item). */
+function sincronizarVisaoDeTodos(idsDeTokens: number[], idsDeFichas: number[]): void {
+    for (const usuario of new Set([...conexoes].map((c) => c.usuario))) if (usuario !== "") sincronizarVisaoDe(usuario, idsDeTokens, idsDeFichas);
+}
+/** O documento de permissões vai SÓ aos mestres (a aba "Jogadores" o mostra). */
+function avisarPermissoes(): void {
+    for (const c of conexoes) if (c.jogador && c.mestre) enviar(c.ws, { tipo: "permissoes", permissoes });
+}
+/** O mestre mudou: refaz o papel de quem estava conectado com esse usuário, a visão dele e a lista de jogadores. */
+function atualizarPapeisConectados(): void {
+    for (const c of conexoes) {
+        if (!c.jogador) continue;
+        const antes = c.mestre;
+        c.mestre = c.papel === "mestre" || temPoderDeMestre(permissoes, c.usuario);
+        c.jogador.mestre = c.mestre;
+        if (antes !== c.mestre) {
+            enviar(c.ws, { tipo: "papel", mestre: c.mestre });
+            sincronizarVisaoDe(c.usuario, estado.tokens.filter((t) => t.copiaDe === null).map((t) => t.id), estado.fichas.map((f) => f.id));
+            if (c.mestre) enviar(c.ws, { tipo: "permissoes", permissoes });
+        }
+    }
+    avisarJogadores();
+}
+
+/** Manda a cada conexão o que `montar` devolver para ela (null = não manda nada a essa). */
+function avisarCada(montar: (c: Conexao) => EventoDoServidor | null): void {
+    for (const c of conexoes) {
+        if (!c.jogador || c.ws.readyState !== WebSocket.OPEN) continue;
+        const evento = montar(c);
+        if (evento) c.ws.send(JSON.stringify(evento));
+    }
+}
+function avisarToken(tipo: "token_criado" | "token_editado" | "peca_criada", token: Token): void {
+    avisarCada((c) => {
+        const visto = tokenParaConexao(c, token);
+        return visto ? { tipo, token: visto } : null;
+    });
+}
+function avisarFicha(tipo: "ficha_criada" | "ficha_editada", ficha: Ficha): void {
+    avisarCada((c) => {
+        const vista = fichaParaConexao(c, ficha);
+        return vista ? { tipo, ficha: vista } : null;
+    });
+}
+/** Os valores atuais das variáveis que mudam, SÓ das fichas que `c` pode ver (ficha -> NOME -> valor). */
+function valoresVisiveisPara(c: Conexao): Record<string, Record<string, number>> {
+    const todos = todosOsValoresDasFichas();
+    const visiveis: Record<string, Record<string, number>> = {};
+    for (const ficha of estado.fichas) if (podeNaFicha(c, ficha, "ler") && todos[String(ficha.id)]) visiveis[String(ficha.id)] = todos[String(ficha.id)];
+    return visiveis;
+}
+/** Os valores atuais de uma ficha: quem VÊ a ficha recebe todos; os outros recebem só as barras (valores) das peças dela no tabuleiro. */
+function avisarValoresDaFicha(id: number): void {
+    const ficha = estado.fichas.find((f) => f.id === id);
+    if (ficha) avisarCada((c) => (podeNaFicha(c, ficha, "ler") ? { tipo: "valores_ficha", id, valores: valoresDaFichaComoObjeto(id) } : null));
+    for (const t of estado.tokens) if (t.ficha === id && t.copiaDe !== null && !t.guardado) avisarValoresDoToken(t);
+}
 
 /** Sorteio do SERVIDOR: `crypto.randomInt` é imprevisível e sem viés (o Math.random do navegador permitiria trapacear). */
 // (randomInt só aceita faixas MENORES que 2**48, por isso 2**47: dá 47 bits de precisão, de sobra para um d1000.)
@@ -226,8 +628,15 @@ function naFilaDeArquivos(tarefa: () => Promise<void>): void {
  * Cria a ficha VAZIA e o seu ARQUIVO NA HORA (não espera ninguém escrever nada: o texto vem depois, pelo editor), e só então a
  * guarda na mesa e avisa todos: o que todos veem já está no disco.
  */
-async function criarFichaNoServidor(c: Conexao): Promise<void> {
-    const ficha = montarFicha();
+async function criarFichaNoServidor(c: Conexao, idDoToken?: number): Promise<void> {
+    // "Criar ficha" a partir de um token: só vale para um token da BOLSA que ainda não tem ficha; a ficha nasce com o nome dele.
+    const modelo = idDoToken === undefined ? undefined : buscarToken(idDoToken);
+    if (idDoToken !== undefined && (!modelo || modelo.copiaDe !== null)) return erro(c.ws, "Esse token não existe.");
+    if (modelo && modelo.ficha !== null && fichaExiste(modelo.ficha)) return erro(c.ws, "Esse token já tem uma ficha.");
+    if (modelo && !podeNoToken(c, modelo, "editar")) return erro(c.ws, SEM_PERMISSAO); // (ligar uma ficha é configurar o token)
+    const limite = c.mestre ? null : motivoDoLimite("fichas", c.usuario);
+    if (limite) return erro(c.ws, limite);
+    const ficha = montarFicha(modelo?.nome ?? "");
     if (!ficha) return erro(c.ws, `Não foi possível criar a ficha: o limite é de ${MAX_FICHAS} fichas na mesa.`);
     try {
         await gravarNaPasta("fichas", ficha);
@@ -236,7 +645,25 @@ async function criarFichaNoServidor(c: Conexao): Promise<void> {
         return erro(c.ws, "Não foi possível gravar a ficha no servidor."); // sem detalhes internos para quem pediu
     }
     receberFicha(ficha);
-    avisarTodos({ tipo: "ficha_criada", ficha });
+    definirDono("fichas", ficha.id, c.mestre ? null : c.usuario); // (quem cria é o dono; o mestre cria fichas "do mestre")
+    naFilaDeArquivos(() => gravarPermissoes());
+    avisarPermissoes(); // (os mestres veem o dono novo na janela "Compartilhar", sem recarregar)
+    avisarFicha("ficha_criada", ficha);
+    if (modelo) ligarTokenAFicha(modelo.id, ficha.id); // (a ficha nova não tem recursos, então nunca está "ocupada")
+}
+
+/** Liga o token da bolsa à ficha e avisa todos (o token e as peças dele), regravando os arquivos. Quem chama já conferiu a regra da ficha única. */
+function ligarTokenAFicha(idDoToken: number, idDaFicha: number | null): void {
+    const token = editarToken(idDoToken, { ficha: idDaFicha });
+    if (!token) return;
+    avisarToken("token_editado", token);
+    agendarGravacaoDoToken(token.id);
+    if (token.copiaDe === null) {
+        for (const peca of pecasDoModelo(token.id)) {
+            avisarToken("token_editado", peca);
+            agendarGravacaoDoToken(peca.id);
+        }
+    }
 }
 
 /**
@@ -245,11 +672,14 @@ async function criarFichaNoServidor(c: Conexao): Promise<void> {
  * então guarda na mesa e avisa todos. Roda na fila de arquivos: dois salvamentos seguidos nunca se misturam.
  */
 async function editarFichaNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "editar_ficha" }>): Promise<void> {
+    const existente = estado.fichas.find((f) => f.id === pedido.id);
+    if (existente && !podeNaFicha(c, existente, "editar")) return erro(c.ws, "Você só pode editar as fichas que são suas ou que o mestre liberou como EDITOR para você.");
     const resultado = montarEdicaoDaFicha(pedido.id, pedido.versao, { nome: pedido.nome, abas: pedido.abas });
     if (!resultado.ok) {
         if (resultado.erro === "versao_antiga") {
             const atual = estado.fichas.find((f) => f.id === pedido.id);
-            if (atual) enviar(c.ws, { tipo: "ficha_conflito", ficha: atual });
+            const vista = atual ? fichaParaConexao(c, atual) : null;
+            if (vista) enviar(c.ws, { tipo: "ficha_conflito", ficha: vista });
             return;
         }
         return erro(
@@ -272,7 +702,7 @@ async function editarFichaNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente
         // O texto pode ter mudado o mínimo/máximo de uma variável que muda: as barras dos tokens dela no tabuleiro são refeitas (cada navegador faz a mesma conta ao receber "ficha_editada").
         for (const token of sincronizarValoresDaFicha(resultado.ficha.id)) agendarGravacaoDoToken(token.id);
     }
-    avisarTodos({ tipo: "ficha_editada", ficha: resultado.ficha });
+    avisarFicha("ficha_editada", resultado.ficha);
 }
 
 /**
@@ -281,7 +711,9 @@ async function editarFichaNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente
  * pedido de salvar que chega depois cai em "essa ficha não existe". O id não é reaproveitado.
  */
 async function excluirFichaNoServidor(c: Conexao, id: number): Promise<void> {
-    if (!estado.fichas.some((f) => f.id === id)) return erro(c.ws, "Essa ficha não existe.");
+    const alvoDaExclusao = estado.fichas.find((f) => f.id === id);
+    if (!alvoDaExclusao) return erro(c.ws, "Essa ficha não existe.");
+    if (!podeNaFicha(c, alvoDaExclusao, "excluir")) return erro(c.ws, "Só o dono da ficha e o mestre podem excluí-la.");
     try {
         await apagarDaPasta("fichas", id);
     } catch (falha) {
@@ -290,11 +722,14 @@ async function excluirFichaNoServidor(c: Conexao, id: number): Promise<void> {
     }
     const soltos = estado.tokens.filter((t) => t.ficha === id); // (excluirFicha os deixa SEM ficha: é preciso avisar e regravar cada um)
     excluirFicha(id);
+    esquecerItem("fichas", id); // (some do documento de permissões)
+    naFilaDeArquivos(() => gravarPermissoes());
+    avisarPermissoes();
     analisesDasFichas.delete(id);
     naFilaDeArquivos(() => gravarMesaAtual()); // (os valores atuais dela saem do mesa.json)
     avisarTodos({ tipo: "ficha_excluida", id });
     for (const token of soltos) {
-        avisarTodos({ tipo: "token_editado", token });
+        avisarToken("token_editado", token);
         agendarGravacaoDoToken(token.id);
     }
 }
@@ -315,7 +750,17 @@ function analiseDaFicha(ficha: Ficha, aba: number): AnaliseDaFicha | undefined {
 
 /** Marca a ficha (estrela e/ou grupos): grava o arquivo ANTES, SEM subir a versão (não é o conteúdo), e avisa todos. */
 async function marcarFichaNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "marcar_ficha" }>): Promise<void> {
-    const ficha = montarMarcacaoDaFicha(pedido.id, { favorito: pedido.favorito, grupos: pedido.grupos });
+    // A ESTRELA é de cada pessoa (qualquer um que possa ler a ficha favorita as dele); os GRUPOS são só do mestre.
+    if (pedido.favorito !== undefined) {
+        const alvo = estado.fichas.find((f) => f.id === pedido.id);
+        const vista = alvo ? fichaParaConexao(c, alvo) : null;
+        if (!alvo || !vista) return erro(c.ws, "Essa ficha não existe.");
+        definirFavoritoDe(c.usuario, "fichas", alvo.id, pedido.favorito);
+        for (const x of conexoes) if (x.usuario === c.usuario && x.jogador && x.ws.readyState === WebSocket.OPEN) { const v = fichaParaConexao(x, alvo); if (v) enviar(x.ws, { tipo: "ficha_editada", ficha: v }); }
+        if (pedido.grupos === undefined) return;
+    }
+    if (!c.mestre) return erro(c.ws, "Só o mestre mexe nos grupos.");
+    const ficha = montarMarcacaoDaFicha(pedido.id, { grupos: pedido.grupos });
     if (!ficha) return erro(c.ws, "Essa ficha não existe.");
     try {
         await gravarNaPasta("fichas", ficha);
@@ -324,11 +769,13 @@ async function marcarFichaNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente
         return erro(c.ws, "Não foi possível gravar a ficha no servidor.");
     }
     receberFicha(ficha);
-    avisarTodos({ tipo: "ficha_editada", ficha }); // (mesma versão: quem edita a ficha não vê conflito nenhum)
+    avisarFicha("ficha_editada", ficha); // (mesma versão: quem edita a ficha não vê conflito nenhum)
+    if (pedido.grupos !== undefined) sincronizarVisaoDeTodos([], [ficha.id]); // (os grupos mudaram: quem tem acesso pelo grupo ganha ou perde esta ficha)
 }
 
 /** Cria o grupo: grava o arquivo ANTES de guardá-lo na mesa e avisar todos. */
 async function criarGrupoNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "criar_grupo" }>): Promise<void> {
+    if (!c.mestre) return erro(c.ws, "Só o mestre cria grupos.");
     const grupo = montarGrupo(pedido.nome, pedido.cor);
     if (!grupo) return erro(c.ws, `Não foi possível criar o grupo: o limite é de ${MAX_GRUPOS} grupos na mesa.`);
     try {
@@ -342,6 +789,7 @@ async function criarGrupoNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente,
 }
 
 async function editarGrupoNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "editar_grupo" }>): Promise<void> {
+    if (!c.mestre) return erro(c.ws, "Só o mestre edita grupos.");
     const grupo = montarEdicaoDoGrupo(pedido.id, { nome: pedido.nome, cor: pedido.cor });
     if (!grupo) return erro(c.ws, "Esse grupo não existe.");
     try {
@@ -356,6 +804,7 @@ async function editarGrupoNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente
 
 /** Exclui o grupo: apaga o arquivo dele, tira a marca de todos os tokens e fichas (regrava os que mudaram) e avisa todos. Os itens ficam. */
 async function excluirGrupoNoServidor(c: Conexao, id: number): Promise<void> {
+    if (!c.mestre) return erro(c.ws, "Só o mestre exclui grupos.");
     if (!estado.grupos.some((g) => g.id === id)) return erro(c.ws, "Esse grupo não existe.");
     try {
         await apagarDaPasta("grupos", id);
@@ -367,7 +816,7 @@ async function excluirGrupoNoServidor(c: Conexao, id: number): Promise<void> {
     avisarTodos({ tipo: "grupo_excluido", id });
     if (mudados?.status) {
         // Algum status valia para esse grupo: a regra mudou (para todos), então os tokens e a mesa são regravados.
-        avisarTodos({ tipo: "status_definidos", status: estado.statusDaMesa, pecas: estado.tokens.filter((t) => t.copiaDe !== null).map((t) => ({ id: t.id, valores: t.valores })) });
+        avisarCada((c) => ({ tipo: "status_definidos", status: estado.statusDaMesa, pecas: estado.tokens.filter((t) => t.copiaDe !== null).map((t) => ({ id: t.id, valores: valoresParaConexao(c, t) })) }));
         for (const token of estado.tokens) agendarGravacaoDoToken(token.id);
         naFilaDeArquivos(() => gravarMesaAtual());
     }
@@ -383,6 +832,9 @@ async function excluirGrupoNoServidor(c: Conexao, id: number): Promise<void> {
 // (`src/exemplos.ts`). A marca `exemplos` em `dados/mesa.json` impede que voltem se o dono as apagar; SEM_EXEMPLOS=1 desliga (os testes automáticos usam isto).
 const SEM_EXEMPLOS = process.env.SEM_EXEMPLOS === "1";
 let exemplosCriados = false;
+// A BIBLIOTECA DE MAPAS (servidor/mapas.ts): `mapaAtual` é o id do mapa que todos veem (null = nenhum). Os mapas de EXEMPLO (os que vêm com o site) também entram UMA vez (marca `mapasDeExemplo` em mesa.json) e podem ser apagados.
+let mapaAtual: string | null = null;
+let mapasDeExemploCriados = false;
 async function semearExemplos(): Promise<void> {
     const exemplos = [
         { nome: NOME_GOBLIN, abas: [{ nome: "Página 1", texto: TEXTO_GOBLIN }], cor: 0x2f5d2a, corBorda: 0xffffff, imagem: IMAGEM_GOBLIN as string | null },
@@ -405,7 +857,7 @@ async function semearExemplos(): Promise<void> {
 
 /** Grava `dados/mesa.json` com o estado de AGORA (tamanho do tabuleiro e status da mesa). */
 function gravarMesaAtual(): Promise<void> {
-    return gravarMesa({ colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, valores: todosOsValoresDasFichas(), exemplos: exemplosCriados, iniciativa: iniciativaComoObjeto() }).catch((falha) => console.error("Não foi possível gravar mesa.json:", falha));
+    return gravarMesa({ colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, valores: todosOsValoresDasFichas(), exemplos: exemplosCriados, mapa: mapaAtual, mapasDeExemplo: mapasDeExemploCriados, iniciativa: iniciativaComoObjeto(), grade: estado.grade }).catch((falha) => console.error("Não foi possível gravar mesa.json:", falha));
 }
 
 /** A pasta de um token: os tokens da BOLSA (modelos) em `dados/tokens/`, as PEÇAS do tabuleiro em `dados/pecas/`. */
@@ -414,7 +866,8 @@ const pastaDoToken = (token: Token): NomeDaPasta => (token.copiaDe === null ? "t
 /** "Arrastar um token da bolsa para o tabuleiro": cria a PEÇA (cópia temporária), grava o arquivo dela e avisa todos. O token da bolsa não muda. */
 async function criarPecaNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "colocar_modelo" }>): Promise<void> {
     const modelo = buscarToken(pedido.modelo);
-    const motivo = modelo ? motivoParaNaoColocar(modelo) : null; // ficha de jogador (variáveis que mudam): só um token por tela
+    if (modelo && !podeNoToken(c, modelo, "usar")) return erro(c.ws, "Esse token não é seu: só dá para colocar no mapa os tokens que o mestre liberou para você.");
+    const motivo = modelo ? motivoParaNaoColocar(modelo) : null; // ficha de jogador (variáveis que mudam): só um token por cena
     if (motivo) return erro(c.ws, motivo);
     const peca = montarPeca(pedido.modelo, pedido.col, pedido.row);
     if (!peca) return erro(c.ws, `Não foi possível colocar o token: ele não existe, a posição não vale ou a mesa já tem ${MAX_PECAS} peças.`);
@@ -426,11 +879,19 @@ async function criarPecaNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, 
         return erro(c.ws, "Não foi possível gravar a peça no servidor.");
     }
     receberToken(peca);
-    avisarTodos({ tipo: "peca_criada", token: peca });
+    avisarToken("peca_criada", peca);
 }
 
 async function criarTokenNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente, { tipo: "criar_token" }>): Promise<void> {
     if (pedido.ficha != null && !fichaExiste(pedido.ficha)) return erro(c.ws, "Essa ficha não existe.");
+    if (pedido.ficha != null) {
+        const ligada = estado.fichas.find((f) => f.id === pedido.ficha);
+        if (ligada && !podeNaFicha(c, ligada, "editar")) return erro(c.ws, SEM_PERMISSAO); // (só se liga uma ficha que se pode editar)
+    }
+    const limite = c.mestre ? null : motivoDoLimite("tokens", c.usuario);
+    if (limite) return erro(c.ws, limite);
+    const ocupada = pedido.ficha == null ? null : motivoFichaOcupada(pedido.ficha, null);
+    if (ocupada) return erro(c.ws, ocupada);
     const token = montarToken(pedido.cor, pedido.tamanho, pedido.nome, pedido.imagem, pedido.corBorda, pedido.ficha ?? null);
     if (!token) return erro(c.ws, `Não foi possível criar o token: o limite é de ${MAX_TOKENS} tokens na mesa.`);
     try {
@@ -440,7 +901,10 @@ async function criarTokenNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente,
         return erro(c.ws, "Não foi possível gravar o token no servidor.");
     }
     receberToken(token);
-    avisarTodos({ tipo: "token_criado", token });
+    definirDono("tokens", token.id, c.mestre ? null : c.usuario); // (quem cria é o dono; o mestre cria itens "do mestre")
+    naFilaDeArquivos(() => gravarPermissoes());
+    avisarPermissoes(); // (os mestres veem o dono novo na janela "Compartilhar", sem recarregar)
+    avisarToken("token_criado", token);
 }
 
 // A POSIÇÃO de um token muda a toda hora (cada vez que alguém o solta). Em vez de gravar a cada movimento, marcamos o token como
@@ -469,28 +933,55 @@ function agendarGravacaoDoToken(id: number): void {
  * Depois de mudar o valor de um status de um token (uma ação do menu ou um dano arrastado): avisa todos (valores da peça; e, se mudou NA FICHA de um jogador, os valores da ficha), grava os arquivos
  * (das peças e o mesa.json) e põe a frase no chat em nome de quem agiu.
  */
-function publicarResultadoDeAcao(autor: string, alvo: Token, resultado: Extract<ResultadoDeAcao, { ok: true }>, frase: string): void {
-    avisarTodos({ tipo: "valores_atualizados", id: alvo.id, valores: alvo.valores });
+function publicarResultadoDeAcao(autor: string, alvo: Token, resultado: Extract<ResultadoDeAcao, { ok: true }>, frase: string | null): void {
+    avisarValoresDoToken(alvo, resultado.quantia > 0 ? (resultado.efeito === "reduzir" ? "dano" : "cura") : undefined); // (dano e cura animam em TODAS as telas, mesmo com a vida em 0 ou escondida)
     if (resultado.fichaAlterada !== undefined) {
         // Ficha de jogador: mudou o valor da FICHA (as barras de todos os tokens dela já foram refeitas): avisa, grava os arquivos das peças e o mesa.json.
-        avisarTodos({ tipo: "valores_ficha", id: resultado.fichaAlterada, valores: valoresDaFichaComoObjeto(resultado.fichaAlterada) });
+        avisarValoresDaFicha(resultado.fichaAlterada);
         for (const t of estado.tokens) if (t.ficha === resultado.fichaAlterada && !t.guardado) agendarGravacaoDoToken(t.id);
         naFilaDeArquivos(() => gravarMesaAtual());
     }
-    const mensagem = adicionarMensagem(autor, frase);
-    if (mensagem) avisarTodos({ tipo: "mensagem", mensagem });
+    if (frase !== null) {
+        const mensagem = adicionarMensagem(autor, frase);
+        if (mensagem) avisarTodos({ tipo: "mensagem", mensagem });
+    }
     agendarGravacaoDoToken(alvo.id);
 }
 
+/** Trata um pedido com a CENA de quem o mandou (o mapa e o tamanho do tabuleiro dele; ver `comCenaDe`). */
 function tratar(c: Conexao, pedido: PedidoDoCliente): void {
+    comCenaDe(c, () => tratarNaCena(c, pedido));
+}
+function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
     // Antes de tudo a pessoa precisa se apresentar.
     if (pedido.tipo === "entrar") {
         if (c.jogador) return erro(c.ws, "Você já entrou.");
-        c.jogador = { id: c.id, apelido: limparApelido(pedido.apelido, c.id) };
+        // SEM PAPEL NO ENDEREÇO a conexão é recusada (decisão do dono, 17/11/2026): o motivo explica como entrar, e a conexão fecha.
+        if (c.recusa !== null || c.papel === null) {
+            erro(c.ws, c.recusa ?? "Faltou o papel no endereço.");
+            c.ws.close(1008, "Papel obrigatório.");
+            return;
+        }
+        const apelidoDeEntrada = limparApelido(pedido.apelido, c.id);
+        const usuarioDeEntrada = idDeUsuarioDoNome(apelidoDeEntrada); // (hoje o id vem do nome; com contas virá da conta)
+        // BANIDO (pelo mestre, na aba Jogadores): não entra. (Um mestre nunca é barrado.)
+        if (c.papel !== "mestre" && !temPoderDeMestre(permissoes, usuarioDeEntrada) && estaBanido(permissoes, usuarioDeEntrada)) {
+            erro(c.ws, "Você foi banido desta mesa.");
+            c.ws.close(1008, "Banido.");
+            return;
+        }
+        c.jogador = { id: c.id, apelido: apelidoDeEntrada };
+        c.usuario = usuarioDeEntrada;
+        c.mestre = c.papel === "mestre" || temPoderDeMestre(permissoes, c.usuario);
+        c.jogador.usuario = c.usuario;
+        c.jogador.mestre = c.mestre;
+        // O mapa em que esta pessoa começa: o em que estava da última vez (se ainda existe) ou o do mestre.
+        const lembrado = mapaDoUsuario.get(c.usuario);
+        c.mapaVisto = lembrado !== undefined && (lembrado === null || acharMapa(lembrado)) ? lembrado : mapaAtual;
         // Quem entra recebe o estado COMPLETO uma vez; depois só os eventos.
-        enviar(c.ws, { tipo: "estado_inicial", voce: c.jogador, colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, tokens: estado.tokens, mensagens: estado.mensagens, fichas: estado.fichas, grupos: estado.grupos, valores: todosOsValoresDasFichas(), iniciativa: iniciativaComoObjeto() });
-        avisarTodos({ tipo: "jogadores", lista: listaDeJogadores() });
-        console.log(`+ ${c.jogador.apelido} entrou (${listaDeJogadores().length} na mesa)`);
+        enviar(c.ws, { tipo: "estado_inicial", voce: c.jogador, colunas: tamanhoDoMapa(mapaDaConexao(c)).colunas, linhas: tamanhoDoMapa(mapaDaConexao(c)).linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, tokens: estado.tokens.flatMap((t) => tokenParaConexao(c, t) ?? []), mensagens: estado.mensagens, fichas: estado.fichas.flatMap((f) => fichaParaConexao(c, f) ?? []), grupos: estado.grupos, valores: valoresVisiveisPara(c), iniciativa: iniciativaComoObjeto(), mestre: c.mestre, mapa: mapaDaConexao(c), mapas: bibliotecaParaConexao(c), grade: gradeDoMapa(mapaDaConexao(c)), permissoes: c.mestre ? permissoes : null, desenhos: desenhosDoMapa(mapaDaConexao(c)) });
+        avisarJogadores();
+        console.log(`+ ${c.jogador.apelido} entrou como ${c.mestre ? "MESTRE" : "jogador"} (${listaDeJogadores().length} na mesa)`);
         return;
     }
     if (!c.jogador) return erro(c.ws, "Apresente-se primeiro (entrar).");
@@ -500,20 +991,31 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
         case "colocar_token": {
             const token = buscarToken(pedido.id);
             if (!token) return erro(c.ws, "Esse token não existe.");
+            if (!podeNoToken(c, token, "usar")) return erro(c.ws, "Esse token não é seu: só dá para mover os tokens que o mestre liberou para você.");
             if (!posicaoValida(token, pedido.col, pedido.row)) {
                 // Pedido inválido: quem pediu recebe a verdade (o token como está de fato) para se corrigir.
-                enviar(c.ws, token.guardado ? { tipo: "token_guardado", id: token.id } : { tipo: "token_colocado", id: token.id, col: token.col, row: token.row, valores: token.valores });
+                enviar(c.ws, token.guardado ? { tipo: "token_guardado", id: token.id } : { tipo: "token_colocado", id: token.id, col: token.col, row: token.row, valores: valoresParaConexao(c, token) });
                 return erro(c.ws, "Posição inválida.");
             }
             colocarToken(token.id, pedido.col, pedido.row);
             // `valores`: os status temporários (se o token acabou de sair da bolsa, foram calculados agora, lendo a ficha NESTE servidor: todos veem os mesmos números)
-            avisarTodos({ tipo: "token_colocado", id: token.id, col: pedido.col, row: pedido.row, valores: token.valores });
+            avisarCada((c2) => ({ tipo: "token_colocado", id: token.id, col: pedido.col, row: pedido.row, valores: valoresParaConexao(c2, token) }));
             agendarGravacaoDoToken(token.id);
+            return;
+        }
+        case "alternar_condicao": {
+            // Liga/desliga uma condição (Morto, Caído...): o servidor confere que o token e a condição existem, muda, GRAVA o arquivo do token e avisa todos.
+            const alvo = buscarToken(pedido.id);
+            if (!alvo) return erro(c.ws, "Esse token não existe.");
+            if (!alternarCondicao(alvo.id, pedido.condicao)) return erro(c.ws, "Essa condição não existe.");
+            avisarTodos({ tipo: "condicoes_atualizadas", id: alvo.id, condicoes: alvo.condicoes });
+            agendarGravacaoDoToken(alvo.id);
             return;
         }
         case "guardar_token": {
             const token = buscarToken(pedido.id);
             if (!token) return erro(c.ws, "Esse token não existe.");
+            if (!podeNoToken(c, token, "editar")) return erro(c.ws, SEM_PERMISSAO); // (guardar na bolsa é uma configuração do token: leitor não faz)
             guardarToken(token.id);
             avisarTodos({ tipo: "token_guardado", id: token.id });
             agendarGravacaoDoToken(token.id);
@@ -522,19 +1024,40 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
         case "colocar_modelo":
             naFilaDeArquivos(() => criarPecaNoServidor(c, pedido));
             return;
+        case "definir_grade": {
+            // A espessura e a cor da grade são da MESA: só o mestre as muda. O servidor limpa (limites e cor "#rrggbb"), grava em mesa.json e avisa todos.
+            if (!c.mestre) return erro(c.ws, "Só o mestre pode mudar a grade.");
+            definirGradeDaMesa({ espessura: pedido.espessura, cor: pedido.cor });
+            const idDaGrade = mapaAtual;
+            if (idDaGrade !== null) {
+                lembrarGradeDoMapa(idDaGrade, estado.grade); // (cada mapa guarda a SUA grade)
+                naFilaDeArquivos(async () => void (await definirGradeDoMapa(idDaGrade, estado.grade)));
+                avisarMapasDefinidos();
+            }
+            avisarCada((c2) => (mapaDaConexao(c2) === mapaAtual ? { tipo: "grade_definida", grade: estado.grade } : null)); // (só quem está no mapa do mestre)
+            naFilaDeArquivos(() => gravarMesaAtual());
+            return;
+        }
         case "definir_tamanho": {
+            if (!c.mestre) return erro(c.ws, "Só o mestre pode mudar o tamanho do tabuleiro.");
             // O tamanho do tabuleiro é do SERVIDOR (ele valida as posições com ele): limita ao permitido, puxa para dentro os tokens que ficaram fora, grava e avisa todos.
             const movidos = definirTamanhoTabuleiro(pedido.colunas, pedido.linhas);
-            avisarTodos({ tipo: "tamanho_definido", colunas: estado.colunas, linhas: estado.linhas }); // (cada navegador refaz a mesma conta e puxa os tokens para dentro)
+            const idDoMapa = mapaAtual;
+            if (idDoMapa !== null) lembrarTamanhoDoMapa(idDoMapa, estado.colunas, estado.linhas);
+            if (idDoMapa !== null) naFilaDeArquivos(async () => void (await definirTamanhoDoMapa(idDoMapa, estado.colunas, estado.linhas))); // (cada mapa guarda o seu tamanho)
+            avisarMapasDefinidos(); // (a biblioteca leva o tamanho de cada mapa: o navegador do mestre não manda a previsão da imagem por cima do que ele configurou)
+            avisarCada((c2) => (mapaDaConexao(c2) === mapaAtual ? { tipo: "tamanho_definido", colunas: estado.colunas, linhas: estado.linhas } : null)); // (só quem está no mapa do mestre; cada navegador refaz a mesma conta e puxa os tokens para dentro)
             for (const token of movidos) agendarGravacaoDoToken(token.id);
             naFilaDeArquivos(() => gravarMesaAtual());
             return;
         }
         case "ajustar_valor_ficha": {
             // "+" e "−" (ou o número digitado) de uma variável que muda: o cliente só diz QUAL ficha, QUAL variável e QUANTO somar; o servidor confere, limita ao intervalo, grava e avisa todos.
+            const fichaAjustada = estado.fichas.find((f) => f.id === pedido.ficha);
+            if (fichaAjustada && !podeNaFicha(c, fichaAjustada, "editar")) return erro(c.ws, SEM_PERMISSAO);
             const resultado = ajustarValorDaFicha(pedido.ficha, pedido.nome, pedido.delta);
             if (!resultado.ok) return erro(c.ws, resultado.erro);
-            avisarTodos({ tipo: "valores_ficha", id: pedido.ficha, valores: valoresDaFichaComoObjeto(pedido.ficha) });
+            avisarValoresDaFicha(pedido.ficha);
             for (const token of sincronizarValoresDaFicha(pedido.ficha)) agendarGravacaoDoToken(token.id); // (as barras dos tokens dela espelham o valor)
             naFilaDeArquivos(() => gravarMesaAtual());
             return;
@@ -549,7 +1072,33 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             publicarResultadoDeAcao(autor, alvo, resultado, frasePraChatDaAcao(alvo, pedido.acao, resultado));
             return;
         }
+        case "aplicar_acao_varios": {
+            // Dano ou cura em ÁREA: a mesma ação em vários tokens selecionados. Os dados são rolados UMA vez (o mesmo total para todos) e cada token perde ou ganha dentro do status e do máximo DELE.
+            // Qualquer jogador pode (como no dano de um token só); o limite anti-spam gasta UMA rolagem. Uma frase só no chat.
+            const alvos = pedido.tokens.flatMap((id) => buscarToken(id) ?? []);
+            if (alvos.length !== pedido.tokens.length || alvos.some((t) => t.guardado)) return erro(c.ws, "Algum token não está no tabuleiro.");
+            if (!podeRolar(c)) return erro(c.ws, "Calma! Você está agindo rápido demais.");
+            const feito = aplicarAcaoEmVarios(alvos, pedido.acao, pedido.valor, sortear);
+            if (!feito.ok) return erro(c.ws, feito.erro);
+            for (const { token, resultado } of feito.itens) publicarResultadoDeAcao(autor, token, resultado, null);
+            const acao = estado.acoesDaMesa.find((a) => a.id === pedido.acao);
+            const mensagem = adicionarMensagem(autor, `${acao?.nome ?? "Ação"} ${feito.quantia} em ${feito.itens.length} tokens`);
+            if (mensagem) avisarTodos({ tipo: "mensagem", mensagem });
+            return;
+        }
+        case "condicao_varios": {
+            // Liga (ou desliga) uma condição em vários tokens de uma vez: o servidor confere que todos existem e a condição também, muda, grava e avisa todos.
+            const alvos = pedido.tokens.flatMap((id) => buscarToken(id) ?? []);
+            if (alvos.length !== pedido.tokens.length || alvos.some((t) => t.guardado)) return erro(c.ws, "Algum token não está no tabuleiro.");
+            for (const alvo of alvos) {
+                if (!definirCondicao(alvo.id, pedido.condicao, pedido.ligar)) return erro(c.ws, "Essa condição não existe.");
+                avisarTodos({ tipo: "condicoes_atualizadas", id: alvo.id, condicoes: alvo.condicoes });
+                agendarGravacaoDoToken(alvo.id);
+            }
+            return;
+        }
         case "iniciativa": {
+            if (!c.mestre) return erro(c.ws, "Só o mestre mexe na iniciativa."); // (nesta etapa; o jogador rolar a do próprio token fica para depois)
             // Uma ação na ORDEM DE COMBATE (a lista, quem tem a vez, a rodada): o servidor confere, aplica com as regras de iniciativa.ts, guarda em mesa.json e avisa todos.
             let { acao } = pedido;
             if (acao.acao === "adicionar" && acao.token !== null) {
@@ -574,7 +1123,7 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             // "Valor subtraído por números arrastados", tira o valor e avisa todos (as mesmas regras da ação "Dano").
             const alvo = buscarToken(pedido.token);
             if (!alvo || alvo.guardado) return erro(c.ws, "Esse token não está no tabuleiro.");
-            const total = totalDaRolagem(pedido.mensagem);
+            const total = totalDaRolagem(pedido.mensagem, pedido.indice, pedido.dado);
             if (total === null) return erro(c.ws, "Essa mensagem não é uma rolagem.");
             if (!podeRolar(c)) return erro(c.ws, "Calma! Você está agindo rápido demais.");
             const resultado = aplicarResultado(alvo, total);
@@ -583,6 +1132,7 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             return;
         }
         case "definir_acoes": {
+            if (!c.mestre) return erro(c.ws, "Só o mestre pode mudar as ações da mesa.");
             // As AÇÕES são da MESA INTEIRA (como os status): o servidor limpa a lista, guarda em mesa.json e avisa todos.
             if (!definirAcoesDaMesa(pedido.acoes)) return erro(c.ws, "Lista de ações inválida.");
             avisarTodos({ tipo: "acoes_definidas", acoes: estado.acoesDaMesa });
@@ -590,10 +1140,11 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             return;
         }
         case "definir_status": {
+            if (!c.mestre) return erro(c.ws, "Só o mestre pode mudar os status da mesa.");
             // A regra dos STATUS é da MESA INTEIRA: vale para todos os tokens e peças (sem escolher nenhum). O servidor limpa a lista, copia para todos, refaz os valores das peças
             // se a estrutura mudou, grava (mesa.json e o arquivo de cada token) e avisa todos.
             definirStatusDaMesa(pedido.status);
-            avisarTodos({ tipo: "status_definidos", status: estado.statusDaMesa, pecas: estado.tokens.filter((t) => t.copiaDe !== null).map((t) => ({ id: t.id, valores: t.valores })) });
+            avisarCada((c) => ({ tipo: "status_definidos", status: estado.statusDaMesa, pecas: estado.tokens.filter((t) => t.copiaDe !== null).map((t) => ({ id: t.id, valores: valoresParaConexao(c, t) })) }));
             for (const token of estado.tokens) agendarGravacaoDoToken(token.id);
             naFilaDeArquivos(() => gravarMesaAtual());
             return;
@@ -602,15 +1153,40 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             naFilaDeArquivos(() => criarTokenNoServidor(c, pedido));
             return;
         case "editar_token": {
+            // A ESTRELA é de cada pessoa: qualquer um que veja o token favorita o dele; o resto do pedido segue as regras de sempre.
+            let mudancas = pedido.mudancas;
+            if (mudancas.favorito !== undefined) {
+                const { favorito, ...resto } = mudancas;
+                const alvoDaEstrela = buscarToken(pedido.id);
+                if (!alvoDaEstrela || alvoDaEstrela.copiaDe !== null || !tokenParaConexaoSemEstrela(c, alvoDaEstrela)) return erro(c.ws, "Esse token não existe.");
+                definirFavoritoDe(c.usuario, "tokens", alvoDaEstrela.id, favorito === true);
+                for (const x of conexoes) if (x.usuario === c.usuario && x.jogador && x.ws.readyState === WebSocket.OPEN) { const v = tokenParaConexao(x, alvoDaEstrela); if (v) enviar(x.ws, { tipo: "token_editado", token: v }); }
+                if (Object.keys(resto).length === 0) return;
+                mudancas = resto;
+            }
+            // Ficha ÚNICA que já tem outro token: recusa com o motivo (o modelo de uma peça não conta: ela só espelha).
+            const alvoDaEdicao = buscarToken(pedido.id);
+            if (alvoDaEdicao && !podeNoToken(c, alvoDaEdicao, "editar")) return erro(c.ws, "Você só pode mudar as configurações dos tokens que o mestre liberou como EDITOR para você.");
+            // Quem não é mestre não mexe nos GRUPOS nem na estrela (a liberação por grupo seria um atalho para dar acesso a si mesmo), e só liga uma ficha que pode editar.
+            if (!c.mestre && (mudancas.grupos !== undefined || false)) return erro(c.ws, "Só o mestre mexe nos grupos e nos favoritos.");
+            if (!c.mestre && typeof mudancas.ficha === "number") {
+                const fichaLigada = estado.fichas.find((f) => f.id === mudancas.ficha);
+                if (!fichaLigada || !podeNaFicha(c, fichaLigada, "editar")) return erro(c.ws, SEM_PERMISSAO);
+            }
+            if (alvoDaEdicao && alvoDaEdicao.copiaDe === null && typeof mudancas.ficha === "number") {
+                const ocupada = motivoFichaOcupada(mudancas.ficha, alvoDaEdicao.id);
+                if (ocupada) return erro(c.ws, ocupada);
+            }
             // editarToken aplica as MESMAS regras da criação (nome aparado, tamanho de 1 a 4, cores válidas, imagem válida).
-            const token = editarToken(pedido.id, pedido.mudancas);
+            const token = editarToken(pedido.id, mudancas);
             if (!token) return erro(c.ws, "Esse token não existe.");
-            avisarTodos({ tipo: "token_editado", token });
+            avisarToken("token_editado", token);
             agendarGravacaoDoToken(token.id);
+            if (mudancas.grupos !== undefined && token.copiaDe === null) sincronizarVisaoDeTodos([token.id], []); // (os grupos mudaram: quem tem acesso pelo grupo ganha ou perde este token)
             // Editar um token da BOLSA atualiza as PEÇAS dele no tabuleiro (visual, ficha, status): cada uma é avisada e regravada.
             if (token.copiaDe === null) {
                 for (const peca of pecasDoModelo(token.id)) {
-                    avisarTodos({ tipo: "token_editado", token: peca });
+                    avisarToken("token_editado", peca);
                     agendarGravacaoDoToken(peca.id);
                 }
             }
@@ -619,9 +1195,16 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
         case "excluir_token": {
             const alvo = buscarToken(pedido.id);
             if (!alvo) return erro(c.ws, "Esse token não existe.");
+            // Excluir o token da BOLSA é só do dono e do mestre; tirar uma PEÇA do tabuleiro (arrastá-la para a bolsa) vale para quem pode USAR o token: leitor, editor, dono e o mestre.
+            if (!podeNoToken(c, alvo, alvo.copiaDe === null ? "excluir" : "usar")) return erro(c.ws, alvo.copiaDe === null ? "Só o dono do token e o mestre podem excluí-lo." : SEM_PERMISSAO);
             // Excluir um token da BOLSA também exclui as PEÇAS dele; excluir uma peça ("Remover do tabuleiro") só apaga ela. Cada arquivo some da pasta certa.
             const apagados = [alvo, ...(alvo.copiaDe === null ? pecasDoModelo(alvo.id) : [])].map((t) => ({ id: t.id, pasta: pastaDoToken(t) }));
             excluirTokenComPecas(pedido.id);
+            if (alvo.copiaDe === null) {
+                esquecerItem("tokens", alvo.id); // (some do documento de permissões)
+                naFilaDeArquivos(() => gravarPermissoes());
+                avisarPermissoes();
+            }
             for (const { id, pasta } of apagados) {
                 tokensSujos.delete(id); // não há mais o que gravar
                 avisarTodos({ tipo: "token_excluido", id });
@@ -644,10 +1227,19 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             avisarTodos({ tipo: "mensagem", mensagem: adicionarRolagem(autor, rolagem) });
             return;
         }
+        case "rolar_conta": {
+            // O "/r" do chat: uma conta com dados digitada na hora (sem variáveis). Entra no MESMO limite das rolagens; o servidor confere a conta e sorteia.
+            if (!podeRolar(c)) return erro(c.ws, "Calma! Você está rolando rápido demais.");
+            const feito = rolarConta(pedido.texto, sortear);
+            if (!feito.ok) return erro(c.ws, feito.erro);
+            avisarTodos({ tipo: "mensagem", mensagem: adicionarRolagemDeFicha(autor, feito.valor) });
+            return;
+        }
         case "rolar_ficha": {
             // Rola a rolagem de uma ficha SALVA: o cliente só diz QUAL (ficha, versão, aba e posição); o texto e o sorteio são do servidor.
             const ficha = estado.fichas.find((f) => f.id === pedido.id);
             if (!ficha) return erro(c.ws, "Essa ficha não existe.");
+            if (!podeNaFicha(c, ficha, "ler")) return erro(c.ws, SEM_PERMISSAO);
             if (ficha.versao !== pedido.versao) return erro(c.ws, "Esta ficha foi alterada. Feche e abra de novo para rolar.");
             const analise = analiseDaFicha(ficha, pedido.aba);
             if (!analise) return erro(c.ws, "Essa página não existe.");
@@ -656,6 +1248,202 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             if (!podeRolar(c)) return erro(c.ws, "Calma! Você está rolando rápido demais."); // (só gasta ficha do balde numa rolagem que de fato vai acontecer)
             // O token que "rolou": só vale se existe e tem ESTA ficha (se não, a mensagem sai sem token e o chat usa o ícone padrão).
             avisarTodos({ tipo: "mensagem", mensagem: adicionarRolagemDeFicha(autor, resultado.valor, tokenDaRolagem(ficha.id, pedido.token)) });
+            return;
+        }
+        case "usar_cartao": {
+            // Usa o CARTÃO de uma ficha SALVA: como na rolagem, o cliente só diz QUAL (ficha, versão, aba e posição); o texto, as contas e o sorteio são do servidor.
+            const ficha = estado.fichas.find((f) => f.id === pedido.id);
+            if (!ficha) return erro(c.ws, "Essa ficha não existe.");
+            if (!podeNaFicha(c, ficha, "ler")) return erro(c.ws, SEM_PERMISSAO);
+            if (ficha.versao !== pedido.versao) return erro(c.ws, "Esta ficha foi alterada. Feche e abra de novo para usar o cartão.");
+            const analise = analiseDaFicha(ficha, pedido.aba);
+            if (!analise) return erro(c.ws, "Essa página não existe.");
+            const resultado = rolarCartaoDaAnalise(analise, pedido.indice, ficha.nome, sortear); // o SERVIDOR calcula e sorteia
+            if (!resultado.ok) return erro(c.ws, resultado.erro);
+            if (!podeRolar(c)) return erro(c.ws, "Calma! Você está rolando rápido demais."); // (o limite anti-spam é o mesmo das rolagens)
+            avisarTodos({ tipo: "mensagem", mensagem: adicionarCartaoDeFicha(autor, resultado.valor, tokenDaRolagem(ficha.id, pedido.token)) });
+            return;
+        }
+        case "desenhar": {
+            // Um desenho novo (lápis ou forma) no mapa atual: o pedido já foi conferido pela forma (`limparDesenho`); o servidor dá o id e o autor e avisa todos (todos podem desenhar).
+            const meuMapa = mapaDaConexao(c);
+            if (!c.mestre && meuMapa === null) return erro(c.ws, "Você não está em nenhum mapa.");
+            const criado = adicionarDesenhoNoMapa(meuMapa, pedido.desenho, c.usuario);
+            if (!criado) return erro(c.ws, "Este mapa já tem desenhos demais. Peça ao mestre para apagar alguns.");
+            avisarCada((c2) => (mapaDaConexao(c2) === meuMapa ? { tipo: "desenho_criado", desenho: criado, ...(pedido.ref !== undefined && { ref: pedido.ref }) } : null)); // (só quem vê o mapa vê o desenho)
+            return;
+        }
+        case "apagar_desenhos": {
+            // A borracha, o Ctrl+Z e o "Apagar tudo": o mestre apaga todos; os outros, só os desenhos que eles mesmos fizeram (o resto do pedido é ignorado).
+            const meuMapa = mapaDaConexao(c);
+            const apagados = apagarDesenhosDoMapa(meuMapa, pedido.ids, c.usuario, c.mestre);
+            if (apagados.length === 0) {
+                if (!c.mestre) erro(c.ws, "Você só pode apagar os desenhos que você mesmo fez.");
+                return;
+            }
+            avisarCada((c2) => (mapaDaConexao(c2) === meuMapa ? { tipo: "desenhos_apagados", ids: apagados } : null));
+            return;
+        }
+        case "liberar": {
+            // O MESTRE libera (ou tira a liberação de) um token, uma ficha ou um GRUPO inteiro para um usuário, como leitor ou editor. Guarda em permissoes.json e refaz a visão dessa pessoa.
+            if (!c.mestre) return erro(c.ws, "Só o mestre libera itens para os jogadores.");
+            const { item, id, usuario, nivel } = pedido;
+            if (item === "grupos") {
+                if (!estado.grupos.some((g) => g.id === id)) return erro(c.ws, "Esse grupo não existe.");
+                const doGrupo = (permissoes.grupos[String(id)] ??= {});
+                if (nivel === null) delete doGrupo[usuario];
+                else doGrupo[usuario] = nivel;
+                if (Object.keys(doGrupo).length === 0) delete permissoes.grupos[String(id)];
+            } else {
+                const existe = item === "tokens" ? buscarToken(id)?.copiaDe === null : estado.fichas.some((f) => f.id === id);
+                if (!existe) return erro(c.ws, item === "tokens" ? "Esse token não existe." : "Essa ficha não existe.");
+                // O token e a ficha são liberados SEPARADAMENTE (pedido do dono, 17/11/2026): compartilhar um não leva o outro, mesmo ligados.
+                const registro = (permissoes[item][String(id)] ??= { dono: null, acessos: {} });
+                if (nivel === null) delete registro.acessos[usuario];
+                else registro.acessos[usuario] = nivel;
+            }
+            naFilaDeArquivos(() => gravarPermissoes());
+            avisarPermissoes();
+            // quem é afetado: o próprio item, ou todos os tokens e fichas do grupo
+            const tokensAfetados = item === "tokens" ? [id] : item === "fichas" ? [] : estado.tokens.filter((t) => t.copiaDe === null && t.grupos.includes(id)).map((t) => t.id);
+            const fichasAfetadas = item === "fichas" ? [id] : item === "tokens" ? [] : estado.fichas.filter((f) => f.grupos.includes(id)).map((f) => f.id);
+            sincronizarVisaoDe(usuario, tokensAfetados, fichasAfetadas);
+            return;
+        }
+        case "definir_limites": {
+            if (!c.mestre) return erro(c.ws, "Só o mestre muda os limites da mesa.");
+            permissoes.limites = { tokensPorJogador: Math.min(pedido.tokens, LIMITE_MAXIMO_POR_JOGADOR), fichasPorJogador: Math.min(pedido.fichas, LIMITE_MAXIMO_POR_JOGADOR) };
+            naFilaDeArquivos(() => gravarPermissoes());
+            avisarPermissoes();
+            return;
+        }
+        case "definir_quem_ve_mapa": {
+            // O mestre escolhe quem vê um mapa (todos os jogadores, jogadores específicos ou só ele). Quem passa a não ver o mapa ATUAL recebe o tabuleiro vazio, e vice-versa.
+            if (!c.mestre) return erro(c.ws, "Só o mestre escolhe quem vê um mapa.");
+            const { id, todos, usuarios } = pedido;
+            naFilaDeArquivos(async () => {
+                if (!(await definirQuemVeMapa(id, todos, usuarios))) return erro(c.ws, "Esse mapa não existe.");
+                avisarMapasDefinidos();
+                avisarMapaAtual(false, id); // (quem está nesse mapa recebe o que pode ver dele)
+            });
+            return;
+        }
+        case "banir": {
+            // O mestre bane (ou desbane) um jogador: o banido é desconectado na hora e não consegue entrar de novo. Não se bane um mestre nem a si mesmo.
+            if (!c.mestre) return erro(c.ws, "Só o mestre bane jogadores.");
+            if (pedido.banir) {
+                if (pedido.usuario === c.usuario) return erro(c.ws, "Você não pode banir a si mesmo.");
+                if (pedido.usuario === permissoes.dono || permissoes.mestres.includes(pedido.usuario) || [...conexoes].some((x) => x.usuario === pedido.usuario && x.mestre)) return erro(c.ws, "Não dá para banir um mestre: tire o poder de mestre antes.");
+                if (!estaBanido(permissoes, pedido.usuario)) {
+                    const conhecido = [...conexoes].find((x) => x.usuario === pedido.usuario)?.jogador?.apelido;
+                    permissoes.banidos.push({ usuario: pedido.usuario, nome: (conhecido ?? pedido.nome ?? pedido.usuario).slice(0, 40) });
+                }
+                for (const x of [...conexoes]) {
+                    if (x.usuario !== pedido.usuario) continue;
+                    erro(x.ws, "Você foi banido desta mesa.");
+                    x.ws.close(1008, "Banido.");
+                }
+            } else {
+                permissoes.banidos = permissoes.banidos.filter((b) => b.usuario !== pedido.usuario);
+            }
+            naFilaDeArquivos(() => gravarPermissoes());
+            avisarPermissoes();
+            return;
+        }
+        case "definir_mestre": {
+            // O mestre dá (ou tira) o poder de mestre a outro usuário. O DONO do servidor nunca perde o poder; ninguém tira o próprio poder por engano (use outro mestre).
+            if (!c.mestre) return erro(c.ws, "Só o mestre dá o poder de mestre.");
+            if (pedido.usuario === permissoes.dono) return erro(c.ws, "O dono do servidor sempre é mestre.");
+            if (!pedido.mestre && pedido.usuario === c.usuario) return erro(c.ws, "Peça a outro mestre para tirar o seu poder.");
+            const lista = permissoes.mestres.filter((m) => m !== pedido.usuario);
+            permissoes.mestres = pedido.mestre ? [...lista, pedido.usuario] : lista;
+            naFilaDeArquivos(() => gravarPermissoes());
+            atualizarPapeisConectados();
+            avisarPermissoes();
+            return;
+        }
+        case "definir_mapa": {
+            // O MESTRE troca o mapa atual (um id da biblioteca, ou null): o servidor confere que ele existe, guarda em mesa.json e avisa todos. O tamanho do tabuleiro acompanha pelo pedido `definir_tamanho` do mestre.
+            if (!c.mestre) return erro(c.ws, "Só o mestre pode trocar o mapa.");
+            if (pedido.id !== null && !acharMapa(pedido.id)) return erro(c.ws, "Esse mapa não existe.");
+            const mapaAnterior = mapaAtual;
+            if (mapaAnterior !== null && mapaAnterior !== pedido.id) {
+                const tamanhoAnterior = { colunas: estado.colunas, linhas: estado.linhas };
+                lembrarTamanhoDoMapa(mapaAnterior, tamanhoAnterior.colunas, tamanhoAnterior.linhas);
+                lembrarGradeDoMapa(mapaAnterior, estado.grade); // (o mapa que o mestre deixa guarda a grade dele)
+                const gradeAnterior = estado.grade;
+                naFilaDeArquivos(async () => void (await definirGradeDoMapa(mapaAnterior, gradeAnterior)));
+                naFilaDeArquivos(async () => void (await definirTamanhoDoMapa(mapaAnterior, tamanhoAnterior.colunas, tamanhoAnterior.linhas))); // (o mapa que o mestre deixa guarda o tamanho dele)
+            }
+            mapaAtual = pedido.id;
+            definirMapaAtual(mapaAtual);
+            // A PRIMEIRA vez que a mesa ganha um mapa, as peças que já estavam no tabuleiro (colocadas sem mapa) passam a ser deste: senão sumiriam de vista.
+            if (mapaAnterior === null && mapaAtual !== null) {
+                for (const p of estado.tokens.filter((t) => t.copiaDe !== null && t.mapa === null)) {
+                    p.mapa = mapaAtual;
+                    avisarToken("token_editado", p);
+                    agendarGravacaoDoToken(p.id);
+                }
+            } // (as peças novas nascem com o mapa que está à vista)
+            // O tamanho do tabuleiro que acompanha o mapa (a previsão do mestre) é aplicado AQUI, com as mesmas regras do `definir_tamanho` (limites, tokens puxados para dentro), e vai no MESMO evento: cada
+            // navegador baixa a imagem e só então troca o mapa e o tamanho, de uma vez.
+            const guardado = mapaAtual !== null ? acharMapa(mapaAtual) : undefined;
+            if (guardado?.grade) definirGradeDaMesa(guardado.grade); // (a grade deste mapa; um mapa novo, sem grade guardada, começa com a de agora)
+            else if (mapaAtual !== null) lembrarGradeDoMapa(mapaAtual, estado.grade);
+            // O tamanho que o mestre CONFIGUROU para o mapa vale sempre (os mapas lembram as colunas e linhas); a previsão pela imagem (o pedido) só vale para um mapa SEM tamanho guardado (recém-enviado).
+            const tamanhoNovo = guardado?.colunas !== undefined && guardado.linhas !== undefined ? { colunas: guardado.colunas, linhas: guardado.linhas } : pedido.colunas !== undefined && pedido.linhas !== undefined ? { colunas: pedido.colunas, linhas: pedido.linhas } : null;
+            const comTamanho = tamanhoNovo !== null;
+            const movidos = tamanhoNovo ? definirTamanhoTabuleiro(tamanhoNovo.colunas, tamanhoNovo.linhas) : [];
+            const idNovo = mapaAtual;
+            if (idNovo !== null && comTamanho) lembrarTamanhoDoMapa(idNovo, estado.colunas, estado.linhas);
+            if (idNovo !== null && comTamanho) naFilaDeArquivos(async () => void (await definirTamanhoDoMapa(idNovo, estado.colunas, estado.linhas)));
+            // SÓ o mestre vai para o mapa novo: os jogadores ficam onde estavam, até o mestre "mover jogadores" (pedido do dono, 17/11/2026).
+            for (const x of conexoes) if (x.mestre) avisarMapaDe(x, true);
+            avisarMapasDefinidos();
+            avisarJogadores();
+            for (const token of movidos) agendarGravacaoDoToken(token.id);
+            naFilaDeArquivos(() => gravarMesaAtual());
+            return;
+        }
+        case "mover_jogadores": {
+            // O mestre leva TODOS os jogadores para o mapa em que ele está (quem não pode ver esse mapa fica com o tabuleiro vazio).
+            if (!c.mestre) return erro(c.ws, "Só o mestre move os jogadores.");
+            mapaDoUsuario.clear();
+            for (const x of conexoes) {
+                if (x.mestre || !x.jogador) continue;
+                irParaMapa(x, mapaAtual);
+                avisarMapaDe(x, true);
+            }
+            avisarMapasDefinidos(); // (a biblioteca de cada jogador é só o mapa em que ele está)
+            avisarJogadores();
+            return;
+        }
+        case "excluir_mapa": {
+            // O MESTRE apaga um mapa da biblioteca (o arquivo também). Se era o mapa atual, a mesa fica sem mapa.
+            if (!c.mestre) return erro(c.ws, "Só o mestre pode apagar mapas.");
+            const id = pedido.id;
+            if (!acharMapa(id)) return erro(c.ws, "Esse mapa não existe.");
+            naFilaDeArquivos(async () => {
+                await apagarMapa(id);
+                // As peças que estavam NESSE mapa vão embora com ele (cada mapa guarda as suas); os modelos da bolsa ficam.
+                for (const p of estado.tokens.filter((t) => t.copiaDe !== null && t.mapa === id)) {
+                    excluirTokenComPecas(p.id);
+                    tokensSujos.delete(p.id);
+                    avisarTodos({ tipo: "token_excluido", id: p.id });
+                    naFilaDeArquivos(() => apagarDaPasta("pecas", p.id));
+                }
+                const afetados = [...conexoes].filter((x) => !x.mestre && x.mapaVisto === id);
+                for (const [u, m] of mapaDoUsuario) if (m === id) mapaDoUsuario.delete(u);
+                if (mapaAtual === id) {
+                    mapaAtual = null;
+                    definirMapaAtual(null);
+                    await gravarMesaAtual();
+                }
+                for (const x of afetados) irParaMapa(x, mapaAtual); // (quem estava no mapa apagado vai para o do mestre)
+                for (const x of conexoes) if (x.mestre || afetados.includes(x)) avisarMapaDe(x, true);
+                avisarMapasDefinidos();
+                avisarJogadores();
+            });
             return;
         }
         case "marcar_ficha":
@@ -673,7 +1461,7 @@ function tratar(c: Conexao, pedido: PedidoDoCliente): void {
             return;
         }
         case "criar_ficha":
-            naFilaDeArquivos(() => criarFichaNoServidor(c));
+            naFilaDeArquivos(() => criarFichaNoServidor(c, pedido.token));
             return;
         case "editar_ficha":
             naFilaDeArquivos(() => editarFichaNoServidor(c, pedido));
@@ -723,7 +1511,7 @@ servidorHttp.on("upgrade", (requisicao, socket, cabeca) => {
     wss.handleUpgrade(requisicao, socket, cabeca, (ws) => wss.emit("connection", ws, requisicao));
 });
 
-wss.on("connection", (ws) => {
+wss.on("connection", (ws, requisicao: IncomingMessage) => {
     const conexao: Conexao = {
         id: proximoIdDeConexao++,
         ws,
@@ -732,6 +1520,13 @@ wss.on("connection", (ws) => {
         mensagensNaJanela: 0,
         baldeRolagens: novoBalde(RAJADA_ROLAGENS),
         baldeChat: novoBalde(RAJADA_CHAT),
+        ...(() => {
+            const r = papelDaRequisicao(requisicao);
+            return "papel" in r ? { papel: r.papel, recusa: null } : { papel: null, recusa: r.recusa };
+        })(),
+        usuario: "",
+        mapaVisto: null,
+        mestre: false, // (definido ao entrar: papel mestre OU poder de mestre guardado no permissoes.json)
     };
     conexoes.add(conexao);
 
@@ -759,7 +1554,7 @@ wss.on("connection", (ws) => {
         conexoes.delete(conexao);
         if (conexao.jogador) {
             console.log(`- ${conexao.jogador.apelido} saiu (${listaDeJogadores().length} na mesa)`);
-            avisarTodos({ tipo: "jogadores", lista: listaDeJogadores() });
+            avisarJogadores();
         }
     });
     ws.on("error", () => ws.terminate());
@@ -791,6 +1586,8 @@ try {
     // O tamanho do tabuleiro vem ANTES de tudo: as posições dos tokens e das peças são conferidas com ele ao carregar.
     const mesa = await carregarMesa();
     if (mesa) definirTamanhoTabuleiro(mesa.colunas, mesa.linhas);
+    await carregarPermissoes(); // (quem é dono de quê e o que foi liberado: `dados/permissoes.json`)
+    await carregarDesenhos(); // (os desenhos de cada mapa: `dados/desenhos.json`)
     const fichasLidas = await carregarPasta("fichas", fichaValida, TAMANHO_MAX_ARQUIVO_FICHA);
     const tokensLidos = await carregarPasta("tokens", tokenValido, TAMANHO_MAX_ARQUIVO_TOKEN);
     const pecasLidas = await carregarPasta("pecas", tokenValido, TAMANHO_MAX_ARQUIVO_TOKEN);
@@ -810,11 +1607,37 @@ try {
     for (const token of estado.tokens) if (token.ficha !== null && !fichaExiste(token.ficha)) token.ficha = null;
     // A regra dos STATUS só depois dos GRUPOS (ela cita grupos, e os que não existem mais são descartados): se viesse antes, todos os grupos seriam descartados e o status
     // não valeria para ninguém depois de reiniciar. Cada arquivo de token traz uma cópia da lista, que pode estar velha: vale a da mesa.
+    if (mesa?.grade !== undefined) definirGradeDaMesa(mesa.grade);
     if (mesa?.status !== undefined) carregarStatusDaMesa(mesa.status);
     if (mesa?.acoes !== undefined) carregarAcoesDaMesa(mesa.acoes);
     aplicarStatusDaMesaAosTokens();
     await migrarTokensDoTabuleiro(); // (usa os grupos e os status: por isso por último)
     for (const ficha of estado.fichas) sincronizarValoresDaFicha(ficha.id); // (as barras ligadas a variáveis que mudam espelham o valor atual da ficha)
+    // A BIBLIOTECA DE MAPAS: lê o índice, escolhe o mapa atual (o da mesa, se ainda existe) e, UMA vez, cria os mapas de exemplo que vêm com o site.
+    await carregarMapas();
+    if (mesa?.mapa !== undefined) mapaAtual = mesa.mapa !== null && acharMapa(mesa.mapa) ? mesa.mapa : null;
+    if (mesa?.mapasDeExemplo === true) mapasDeExemploCriados = true;
+    else if (!SEM_EXEMPLOS) {
+        const pastas = [join(PASTA_DO_SITE, "images", "maps"), resolve(dirname(fileURLToPath(import.meta.url)), "..", "public", "images", "maps")];
+        let inicial: string | null = null;
+        for (const pasta of pastas) {
+            inicial = await criarMapasDeExemplo(pasta);
+            if (inicial !== null) break;
+        }
+        if (inicial !== null && mesa?.mapa === undefined) mapaAtual = inicial; // (uma mesa NOVA já abre com o mapa de exemplo)
+        mapasDeExemploCriados = true;
+        await gravarMesaAtual();
+        console.log(`Mapas de exemplo criados (${listaDeMapas().length}).`);
+    }
+    definirMapaAtual(mapaAtual);
+    if (mapaAtual !== null && acharMapa(mapaAtual)?.grade) definirGradeDaMesa(acharMapa(mapaAtual)?.grade);
+    else if (mapaAtual !== null) await definirGradeDoMapa(mapaAtual, estado.grade);
+    if (mapaAtual !== null && acharMapa(mapaAtual)?.colunas === undefined) await definirTamanhoDoMapa(mapaAtual, estado.colunas, estado.linhas); // (o mapa atual ainda sem tamanho próprio guarda o da mesa)
+    // Peças de arquivos ANTIGOS (sem o mapa gravado) passam a pertencer ao mapa que está à vista agora.
+    for (const p of estado.tokens.filter((t) => t.copiaDe !== null && t.mapa === null && mapaAtual !== null)) {
+        p.mapa = mapaAtual;
+        agendarGravacaoDoToken(p.id);
+    }
     if (mesa?.exemplos === true) exemplosCriados = true;
     else if (!SEM_EXEMPLOS) {
         await semearExemplos();
@@ -838,7 +1661,11 @@ servidorHttp.on("error", (falha: NodeJS.ErrnoException) => {
 });
 servidorHttp.listen(porta, host, () => {
     console.log(`Servidor do Tabuleirinho escutando em http://${host}:${porta} (WebSocket em /ws)`);
-    console.log("No desenvolvimento, abra o Vite (http://127.0.0.1:5173/?online&nome=SeuNome) em duas abas.");
+    console.log("\nPARA ENTRAR (o PAPEL é OBRIGATÓRIO no endereço; sem ele a conexão é recusada):");
+    console.log(`  Mestre (só no computador do servidor): http://127.0.0.1:${porta}/?online&nome=SeuNome&papel=mestre`);
+    console.log(`  Jogador (de qualquer lugar):           http://127.0.0.1:${porta}/?online&nome=Ana&papel=jogador   (pelo túnel, troque o começo pelo endereço do túnel)`);
+    console.log("  No desenvolvimento, use o Vite (http://127.0.0.1:5173/?online&nome=SeuNome&papel=mestre) em duas abas, uma de cada papel.");
+    console.log("  Atrás de um túnel (cloudflared) ninguém vira mestre: o servidor reconhece o túnel e só aceita jogadores de fora.\n");
 });
 
 process.on("SIGINT", async () => {
@@ -847,6 +1674,7 @@ process.on("SIGINT", async () => {
     // Grava as posições que ainda estavam esperando (um token que acabou de andar não pode ser perdido).
     if (gravacaoAgendada) clearTimeout(gravacaoAgendada);
     gravarTokensSujos();
+    await gravarDesenhosPendentes(); // (os últimos traços também)
     await filaDeArquivos;
     servidorHttp.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 1000).unref();

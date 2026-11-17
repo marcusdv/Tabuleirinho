@@ -18,6 +18,11 @@ export interface Mapa {
     /** Carrega a imagem de estado.mapa (ou remove o fundo se for null). */
     carregar(): Promise<void>;
     /**
+     * Baixa a imagem de `url` (null = sem mapa) e, SÓ quando ela chegou, a põe no lugar da atual: até lá a imagem antiga continua à vista e nada muda. `aindaVale` é perguntado depois do download: se a troca
+     * já foi superada por outra, a imagem é descartada e nada muda. Devolve true se trocou (ou se não havia o que baixar), false se falhou ou foi superada.
+     */
+    carregarDe(url: string | null, aindaVale: () => boolean): Promise<boolean>;
+    /**
      * Troca o mapa por uma imagem escolhida pelo usuário (arquivo do computador).
      * Devolve null se deu certo, ou o texto do problema (e o mapa atual continua).
      */
@@ -51,21 +56,35 @@ export function criarMapa(camera: Camera): Mapa {
         imagem.height = estado.linhas * TAMANHO_CASA;
     }
 
+    let urlDaBiblioteca: string | null = null; // o mapa da biblioteca que está carregado agora (para liberar o anterior ao trocar)
+
     async function carregar(): Promise<void> {
-        if (!estado.mapa) {
+        const url = estado.mapa?.url ?? null;
+        await carregarDe(url, () => (estado.mapa?.url ?? null) === url);
+    }
+
+    async function carregarDe(url: string | null, aindaVale: () => boolean): Promise<boolean> {
+        if (url === null) {
             imagem.visible = false;
-            return;
+            return true;
         }
         try {
-            const textura = await Assets.load<Texture>(estado.mapa.url);
+            // O endereço de um mapa da biblioteca (/mapas/<id>) não tem extensão (.png): diz-se ao PixiJS qual leitor usar. Enquanto a imagem nova baixa, a antiga continua à vista.
+            const textura = await Assets.load<Texture>(/\.(png|jpe?g|webp)$/i.test(url) ? url : { src: url, loadParser: "loadTextures" });
+            if (!aindaVale()) return false; // (outra troca chegou enquanto esta baixava: esta já não vale)
             // Mipmaps: sem eles a imagem serrilha quando o zoom a reduz bastante.
             textura.source.autoGenerateMipmaps = true;
             imagem.texture = textura;
             ajustar();
             imagem.visible = true;
+            // A imagem de um mapa anterior da biblioteca (até 10 MB) sai da memória da placa de vídeo.
+            if (urlDaBiblioteca !== null && urlDaBiblioteca !== url) await Assets.unload(urlDaBiblioteca).catch(() => undefined);
+            urlDaBiblioteca = url.startsWith("/mapas/") ? url : null;
+            return true;
         } catch (erro) {
             // Imagem faltando não deve impedir o tabuleiro de abrir.
-            console.warn(`Não foi possível carregar o mapa "${estado.mapa.url}".`, erro);
+            console.warn(`Não foi possível carregar o mapa "${url}".`, erro);
+            return false;
         }
     }
 
@@ -112,5 +131,5 @@ export function criarMapa(camera: Camera): Mapa {
         return imagem.visible ? { largura: imagem.texture.width, altura: imagem.texture.height } : null; // (a textura guarda o tamanho original; o Sprite é esticado)
     }
 
-    return { ajustar, carregar, carregarArquivo, tamanhoDaImagem };
+    return { ajustar, carregar, carregarDe, carregarArquivo, tamanhoDaImagem };
 }

@@ -4,8 +4,8 @@
 // =====================================================================
 
 // --- Preferências guardadas no navegador (localStorage; ver ui/preferencias.ts) ---
+export const CHAVE_VISOES = "tabuleirinho.camera.visoes"; // JSON { [id do mapa]: { z: zoom, x, y } }: o zoom e a posição da câmera em cada mapa, para voltar como estava
 export const CHAVE_ABA_BOLSA = "tabuleirinho.bolsa.aba"; // "tokens" ou "fichas": a última aba escolhida na bolsa
-export const CHAVE_BARRA_RECOLHIDA = "tabuleirinho.barra.recolhida"; // "1" = a barra de Ferramentas está recolhida
 export const CHAVE_INICIATIVA_RECOLHIDA = "tabuleirinho.iniciativa.recolhida"; // "1" = a gaveta da Iniciativa está recolhida
 // --- INICIATIVA (a ordem de combate; ver iniciativa.ts) ---
 export const MAX_ENTRADAS_INICIATIVA = 60; // quantos personagens cabem na ordem
@@ -13,6 +13,20 @@ export const MAX_CARACTERES_NOME_INICIATIVA = 24; // o nome de uma entrada (de u
 export const VALOR_MAX_INICIATIVA = 1000; // o valor da iniciativa vai de -1000 a 1000
 export const CHAVE_ORDEM_PILHA = "tabuleirinho.pilha.ordem"; // a ordem das barras da pilha (Desenho/Ferramentas), ex.: "barra,ferramentas-desenho"; vazio = a de fábrica
 export const CHAVE_DESENHO_RECOLHIDO = "tabuleirinho.desenho.recolhido"; // "1" = o painel de Desenho está recolhido
+/** SELEÇÃO de tokens no tabuleiro: a cor e a espessura do anel dos selecionados e as cores do retângulo de seleção (Ctrl + arrastar). */
+/** ANIMAÇÕES de vida no token: a piscada vermelha do DANO e a piscada verde da CURA (com barrinhas que sobem). Durações em ms. */
+export const MS_ANIMACAO_DANO = 380;
+export const MS_ANIMACAO_CURA = 950;
+export const COR_DANO = 0xff2d2d;
+export const PROFUNDIDADE_BORDA_DANO = 0.4; // quanto do raio, de fora para dentro, o vermelho do dano alcança (0 a 1)
+export const ANEIS_DA_BORDA_DANO = 10; // em quantos anéis finos o vermelho é desenhado (mais anéis = degradê mais suave)
+export const COR_CURA = 0x3ddc84;
+export const BARRAS_DA_CURA = 7;
+
+export const COR_SELECAO = 0xffd34d;
+export const ALPHA_TILE_SELECAO = 0.25; // quão forte é o amarelo do tile do token selecionado (0 a 1; fraco de propósito)
+export const ALPHA_RETANGULO_SELECAO = 0.15;
+
 export const CHAVE_ORDEM_TOKENS = "tabuleirinho.bolsa.ordem.tokens"; // a ordem escolhida na aba Tokens (ver ORDENS em ui/bolsa.ts)
 export const CHAVE_ORDEM_FICHAS = "tabuleirinho.bolsa.ordem.fichas"; // idem na aba Fichas
 export const CHAVE_STATUS_AJUDA = "tabuleirinho.status.ajuda.v2"; // "1" = a pessoa deixou à MOSTRA as instruções dos status (o "?"); sem escolha guardada: OCULTAS (pedido do dono; a chave é nova de propósito: a escolha antiga, de quando o padrão era à mostra, não vale mais)
@@ -37,8 +51,8 @@ export const MAX_CASAS = 100;
 export const TAMANHOS_DE_CASA_COMUNS = [70, 50, 100, 140, 200, 128, 64]; // (50 antes de 100: 1000×700 cabe nos dois, e 20×14 casas é a escala mais comum em mapas táticos)
 export const TOLERANCIA_PX_GRADE = 2; // quantos pixels a imagem pode "sobrar/faltar" para ainda contar como múltiplo exato de uma casa
 export const TEMPO_AVISO_MAPA_MS = 9000; // quanto tempo o aviso da previsão fica na tela
-// --- Ajustes da GRADE (barra "Tabuleiro": mostrar/esconder, espessura da linha e cor). Hoje ficam no navegador de cada pessoa; depois serão da CENA. ---
-export const CHAVE_GRADE = "tabuleirinho.grade"; // JSON: { mostrar, espessura, cor }
+// --- Ajustes da GRADE (barra "Tabuleiro": mostrar/esconder, espessura da linha e cor). Online, a ESPESSURA e a COR são da MESA (vêm do servidor, `dados/mesa.json`; só o mestre muda); "mostrar/esconder" é de cada pessoa. Sem servidor, tudo fica no navegador. Depois serão da CENA. ---
+export const CHAVE_GRADE = "tabuleirinho.grade"; // JSON no navegador: { mostrar, espessura, cor } (online só o `mostrar` vale; o resto vem do servidor)
 export const ESPESSURA_GRADE_PADRAO = 1; // px NA TELA (a linha é desenhada com a espessura dividida pelo zoom, então não muda ao dar zoom)
 export const ESPESSURA_GRADE_MIN = 0; // 0 px = SEM grade (pedido do dono: para quem prefere jogar sem as linhas)
 export const ESPESSURA_GRADE_MAX = 4;
@@ -109,6 +123,21 @@ export const MAX_CARACTERES_NOME_ACAO = 20;
 export const MAX_CARACTERES_QUANTIA_ACAO = 40;
 /** O maior valor que uma ação pode somar ou tirar de uma vez. */
 export const MAX_QUANTIA_ACAO = 1_000_000;
+/** O TAMANHO da coluna da direita (chat e bolsa), que a pessoa ajusta arrastando o canto de cima à esquerda (pedido do dono, 17/11/2026): largura e altura mínimas (para o layout não quebrar) e a largura máxima. */
+export const LARGURA_MIN_COLUNA = 260;
+export const LARGURA_MAX_COLUNA = 720;
+export const ALTURA_MIN_COLUNA = 280;
+export const CHAVE_TAMANHO_COLUNA = "tabuleirinho.coluna.tamanho";
+/** A régua só aparece depois de o mouse andar pelo menos isto (px da tela) com o botão apertado: um clique simples não desenha nada (pedido do dono, 17/11/2026: dá a ideia de que é preciso ARRASTAR para medir). */
+export const PX_MIN_ARRASTO_REGUA = 4;
+/** DESENHOS COMPARTILHADOS (17/11/2026): quantos desenhos um mapa guarda no servidor, quantos pontos tem um traço do lápis e até onde (em casas) um ponto pode ir (o tabuleiro tem no máximo 100 casas de lado). */
+export const MAX_DESENHOS_POR_MAPA = 3000;
+export const MAX_PONTOS_DO_TRACO = 1500;
+export const LIMITE_COORDENADA_DESENHO = 300;
+/** Quantas ações de desenho a pessoa consegue desfazer com Ctrl+Z (e refazer com Ctrl+Y). */
+export const MAX_HISTORICO_DESENHO = 100;
+/** Quantos tokens uma ação em ÁREA (dano, cura ou condição em vários tokens selecionados) pode atingir de uma vez. */
+export const MAX_TOKENS_ACAO_EM_GRUPO = 50;
 /** Tamanho máximo do NOME de um status (ex.: "HP", "Mana"). */
 export const MAX_CARACTERES_NOME_STATUS = 12;
 /** O status que todo token novo tem: a barra de vida "HP", que lê a variável PV:: da ficha atribuída ao token. */
@@ -118,7 +147,9 @@ export const COR_STATUS_HP = 0x2ecc71;
 /** As cores oferecidas ao criar um status novo (a próxima que ainda não está em uso). */
 export const CORES_STATUS = [0x2ecc71, 0x3498db, 0xe67e22, 0x9b59b6, 0xf1c40f, 0xe74c3c];
 /** A barra no tabuleiro: altura e vão entre uma barra e a próxima (em pixels do mundo, antes do zoom). */
-export const ALTURA_BARRA_STATUS = 10; // barras FINAS (eram 14; pedido do dono): ainda cabe o número "100/100" DENTRO dela, com a letra um pouco menor
+export const ALTURA_BARRA_STATUS = 8; // barras FINAS (já foram 14 e 10; pedido do dono): o número "100/100" ainda cabe DENTRO dela, com a letra pequena
+export const TAMANHO_NUMERO_BARRA = 13; // tamanho da letra do número e do nome da barra (era 16; o texto é feito com o dobro e reduzido à metade, então fica nítido)
+export const VAO_BARRA_TOKEN = 1; // px entre a BORDA do círculo do token e a primeira barra (a barra encosta no círculo, não no bloco)
 export const VAO_BARRA_STATUS = 2;
 
 /** Duplo clique num token do tabuleiro: o 2º aperto no mesmo token vale se vier em até isto (ms) e com o mouse parado (até PX_DUPLO_CLIQUE pixels de tela). */
@@ -153,9 +184,16 @@ export const MAX_GRUPOS = 50; // quantos grupos (de tokens e fichas) a mesa acei
 export const MAX_CARACTERES_NOME_GRUPO = 20; // nome do grupo (aparado e cortado a isto)
 export const COR_INICIAL_GRUPO = 0x3498db; // a cor sugerida ao criar um grupo (as amostras são as de CORES_TOKEN)
 export const TAMANHO_MAX_ARQUIVO_GRUPO = 4096; // bytes: ao ligar, o servidor ignora arquivos de grupo maiores que isto
+// --- A BIBLIOTECA DE MAPAS (imagens que o MESTRE envia ao servidor; todos veem o mapa atual) ---
+export const MAX_BYTES_MAPA = 10 * 1024 * 1024; // bytes: o servidor RECUSA uma imagem de mapa maior que isto (10 MB), antes mesmo de lê-la inteira
+export const MAX_LADO_MAPA = 8192; // pixels: o lado maior de um mapa (lido no cabeçalho da imagem); acima disto muitas placas de vídeo não conseguem desenhar a textura, e uma imagem pequena em bytes pode ter bilhões de pixels
+export const MAX_MAPAS = 40; // quantos mapas a biblioteca guarda
+export const MAX_BYTES_TOTAL_MAPAS = 400 * 1024 * 1024; // bytes: a soma de todos os mapas guardados (o disco do dono do servidor não enche por abuso)
+export const MAX_CARACTERES_NOME_MAPA = 40; // o nome que se dá a um mapa (só texto)
 export const MAX_FICHAS = 200; // quantas fichas a mesa aceita
 export const MAX_CARACTERES_NOME_FICHA = 40; // o nome da ficha é cortado a este tamanho
 export const MAX_ABAS_FICHA = 6; // quantas ABAS (páginas) uma ficha pode ter: continua sendo UM arquivo só em dados/fichas
+export const MAX_FICHAS_FIXADAS = 5; // quantas janelas de ficha podem estar FIXADAS ao mesmo tempo (fora elas, ainda cabe mais uma janela solta, que troca de ficha)
 export const MAX_CARACTERES_NOME_ABA_FICHA = 20; // o nome de uma aba é cortado a este tamanho (vazio vira "Página N")
 export const MAX_CARACTERES_TEXTO_FICHA = 25000; // o texto de uma ficha (cerca de 8 páginas de Word) é a SOMA de todas as abas; passar disto é recusado (não é cortado, para não perder o fim sem avisar)
 export const TAMANHO_MAX_ARQUIVO_TOKEN = 262144; // bytes (256 KB): ao ligar, o servidor ignora arquivos de token maiores que isto. Tem de caber a imagem máxima (150 mil caracteres) e o resto
@@ -167,6 +205,9 @@ export const MAX_CARACTERES_NOME_VARIAVEL = 30; // o nome de uma variável (ex.:
 export const MAX_CARACTERES_NOME_ROLAGEM = 60; // o nome de uma rolagem, entre parênteses (ex.: "Ataque com espada")
 export const MAX_VARIAVEIS_POR_FICHA = 100; // além destas, as linhas "NOME:: valor" são ignoradas (limita o trabalho por ficha)
 export const MAX_ROLAGENS_POR_FICHA = 100; // idem para as rolagens "(Nome)[fórmula]"
+export const MAX_CARTOES_POR_FICHA = 40; // idem para os CARTÕES (Nome)"""texto""" (magias, itens...): além destes, são ignorados
+export const MAX_CARACTERES_CARTAO = 3000; // o texto de dentro das aspas triplas de UM cartão (maior que isto, o cartão dá erro e não vai ao chat)
+export const MAX_EXPRESSOES_POR_CARTAO = 20; // quantos [cálculos ou rolagens] cabem dentro de UM cartão (cada um é calculado/rolado quando o cartão vai ao chat)
 export const MAX_PROFUNDIDADE_FORMULA = 50; // profundidade da conta (cada parêntese aninhado conta 4: cabem 12 níveis)
 export const MAX_VALOR_VARIAVEL_QUE_MUDA = 999_999_999; // as variáveis que MUDAM durante o jogo ("OURO::0:150:999999999"): mínimo, inicial e máximo ficam entre -999.999.999 e +999.999.999
 export const MAX_VALOR_FORMULA = 1_000_000_000; // nenhum número (nem resultado de conta) pode passar disto: evita estouro e números absurdos

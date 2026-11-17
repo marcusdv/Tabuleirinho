@@ -1,0 +1,440 @@
+/* ===================================================================
+         BOTÕES DO TOKEN: aparecem ao clicar com o botão DIREITO num token.
+           - engrenagem (configuração): ACIMA do token, no canto direito;
+           - lista de ações ("Add condição", ...): ABAIXO do token, alinhada à esquerda dele, uma embaixo da outra.
+         A posição (left/top) de cada um vem do menuToken.ts.
+         =================================================================== */
+/* Os escudos (um em cima, um embaixo do token): caixas invisíveis e sólidas atrás dos botões e painéis (abaixo deles, z-index 20; acima do mapa). Engole o mouse nos vãos. O tamanho vem do menuToken.ts. */
+.escudo-menu-token {
+    position: fixed;
+    z-index: 19;
+    background: transparent;
+}
+.escudo-menu-token[hidden] {
+    display: none;
+}
+#acoes-token {
+    position: fixed;
+    z-index: 21; /* (acima dos painéis comuns, que valem 20; só o painel de ESCOLHER condição (22) fica por cima delas, de propósito) */
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+}
+#engrenagem,
+.acao-token {
+    height: 28px;
+    border: 1px solid #4a4a58;
+    background: #22222a;
+    color: #e6e6ea;
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+    cursor: pointer;
+}
+#engrenagem:hover,
+.acao-token:hover {
+    background: #33333f;
+}
+#engrenagem {
+    position: fixed;
+    z-index: 21; /* (idem) */
+    width: 28px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+}
+#engrenagem .furo {
+    fill: #22222a;
+} /* o "buraco" no meio da engrenagem */
+#engrenagem:hover .furo {
+    fill: #33333f;
+}
+.acao-token {
+    padding: 0 11px;
+    border-radius: 14px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* ===================================================================
+         PAINÉIS FLUTUANTES: menu de tamanho, menu de condições e o balão
+         =================================================================== */
+.painel {
+    position: fixed;
+    z-index: 20;
+    box-sizing: border-box;
+    padding: 10px;
+    background: rgba(34, 34, 42, 0.97);
+    border: 1px solid #3a3a45;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+    user-select: none;
+}
+.painel h1 {
+    margin: 0 0 10px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #c9c9d4;
+}
+.painel h2 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9a9aa8;
+}
+#menu-token {
+    width: 150px;
+}
+
+/* --- Menu de condições: grade de 4 colunas (ícone + nome) --- */
+/* A largura do painel se ajusta ao NOME MAIS COMPRIDO ("max-content"), seja qual for a
+         fonte do sistema (as monoespaçadas são bem mais largas). Assim nenhum nome quebra de
+         linha. O max-width só evita passar da janela. */
+/* Coluna: o título fica fixo e só a grade rola quando o painel precisa ser menor que o conteúdo
+         (o max-height é calculado pelo menuToken.ts conforme o espaço livre acima dos botões).
+         O padding-right menor compensa o espaço reservado para a barra de rolagem da grade. */
+#menu-condicoes {
+    z-index: 22; /* ACIMA da lista de ações e da engrenagem (21): o painel de escolher condição abre na frente do token e o menu de ações fica ATRÁS dele, sem tapar as condições (pedido do dono, 17/11/2026) */
+    width: max-content;
+    max-width: calc(100vw - 12px);
+    display: flex;
+    flex-direction: column;
+    padding-right: 2px;
+}
+#menu-condicoes h1 {
+    flex-shrink: 0;
+}
+/* A linha do título: "Condições" à esquerda e o atalho do "Morto" à direita. */
+#menu-condicoes-topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px; /* o espaço que o título tinha embaixo */
+    flex-shrink: 0;
+}
+#menu-condicoes-topo h1 {
+    margin: 0;
+}
+.condicao-rapida {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 8px 2px 3px;
+    border: 1px solid #4a4a58;
+    border-radius: 999px;
+    background: #2f2f3a;
+    color: inherit;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+}
+.condicao-rapida:hover {
+    background: #3b3b49;
+}
+.condicao-rapida img {
+    width: 20px;
+    height: 20px;
+    box-sizing: border-box;
+    padding: 2px;
+    border-radius: 50%;
+    background: #f2f2f6;
+    pointer-events: none;
+}
+.condicao-rapida.ativa {
+    border-color: #6aa7ff;
+    background: #2c4469;
+    box-shadow: inset 0 0 0 1px #6aa7ff;
+}
+/* 4 colunas iguais: num container "max-content", "1fr" dá a todas a largura do maior
+         nome (com minmax(0, 1fr) elas ficariam espremidas ao tamanho do painel). */
+#grade-condicoes {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6px;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable; /* reserva o espaço da barra: as colunas não mudam de largura ao rolar */
+}
+.condicao {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 8px; /* folga nos lados, para o nome não encostar na borda do botão */
+    border: 1px solid #4a4a58;
+    border-radius: 8px;
+    background: #2f2f3a;
+    color: inherit;
+    font: inherit;
+    font-size: 10px;
+    line-height: 1.1;
+    cursor: pointer;
+}
+.condicao:hover {
+    background: #3b3b49;
+}
+/* O nome nunca quebra de linha: é o painel que cresce para acomodá-lo. */
+.condicao span {
+    white-space: nowrap;
+    text-align: center;
+}
+/* Os ícones são pretos/brancos com fundo transparente: ficam sobre um disco claro. */
+.condicao img {
+    width: 34px;
+    height: 34px;
+    box-sizing: border-box;
+    padding: 4px;
+    border-radius: 50%;
+    background: #f2f2f6;
+    pointer-events: none;
+}
+/* Condição que o token já sofre: destacada. Clicar de novo a remove. */
+.condicao.ativa {
+    border-color: #6aa7ff;
+    background: #2c4469;
+    box-shadow: inset 0 0 0 1px #6aa7ff;
+}
+
+/* --- Balão ao passar o mouse no token --- */
+/* O balão é interativo: o mouse pode ir do token até ele e passar numa condição
+         para ver a descrição. (O atraso para sumir está no balaoToken.ts.) */
+#balao-token {
+    z-index: 30;
+    max-width: 230px;
+    /* Coluna: o título fica fixo e só a lista rola quando passa da altura máxima
+           (o max-height é calculado pelo balaoToken.ts conforme o espaço livre). */
+    display: flex;
+    flex-direction: column;
+}
+#balao-token h1 {
+    flex-shrink: 0;
+}
+/* Setinha apontando para o token. A posição horizontal vem do balaoToken.ts. */
+#balao-token::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: var(--seta-x, 50%);
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: rgba(34, 34, 42, 0.97);
+}
+#balao-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    /* Com condições demais, a lista rola dentro do balão (sem barra horizontal). */
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* --- Descrição de uma condição (ao passar o mouse numa condição do menu ou do balão) ---
+         Fica ao lado do painel de origem; a posição vem do dicaCondicao.ts. */
+#dica-condicao {
+    z-index: 40; /* acima de tudo */
+    width: 290px;
+    pointer-events: none; /* nunca captura o mouse: quem a abriu continua recebendo-o */
+}
+#dica-condicao h1 {
+    margin: 0 0 6px;
+    font-size: 14px;
+    letter-spacing: 0;
+    text-transform: none; /* aqui o nome aparece por extenso, não em caixa alta */
+    color: #fff;
+}
+#dica-condicao-lista {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #d6d6de;
+}
+#dica-condicao-lista li + li {
+    margin-top: 4px;
+}
+#balao-lista li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 6px;
+    flex-shrink: 0; /* área de passar o mouse um pouco maior; as linhas não encolhem (a lista rola) */
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: help; /* indica que há mais informação ao passar o mouse */
+}
+#balao-lista li:hover {
+    background: #33333f;
+}
+/* Quando o balão fica ABAIXO do token, a setinha vai para cima, apontando para ele. */
+#balao-token.abaixo::after {
+    top: auto;
+    bottom: 100%;
+    border-top-color: transparent;
+    border-bottom-color: rgba(34, 34, 42, 0.97);
+}
+#balao-lista img {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    box-sizing: border-box;
+    padding: 2px;
+    border-radius: 50%;
+    background: #f2f2f6;
+}
+
+
+/* ===== MENU DE VÁRIOS TOKENS selecionados (ui/menuGrupoMapa.ts): dano, cura e condição em área ===== */
+#menu-grupo-mapa {
+    position: fixed;
+    z-index: 30;
+    min-width: 170px;
+    max-width: min(420px, calc(100vw - 16px));
+    box-sizing: border-box;
+    padding: 8px;
+    background: rgba(34, 34, 42, 0.97);
+    border: 1px solid #3a3a45;
+    border-radius: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+#menu-grupo-mapa[hidden] {
+    display: none;
+}
+#menu-grupo-mapa h1 {
+    margin: 0 0 6px;
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #ffd54f;
+}
+#menu-grupo-mapa > button {
+    display: block;
+    width: 100%;
+    padding: 7px 10px;
+    background: none;
+    border: none;
+    border-radius: 5px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+#menu-grupo-mapa > button:hover {
+    background: #3b3b49;
+}
+.grupo-vazio {
+    margin: 0 0 4px;
+    font-size: 12px;
+    color: #9a9aa8;
+}
+.grade-condicoes-grupo {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    margin-top: 6px;
+    max-height: 260px;
+    overflow-y: auto;
+}
+.condicao-grupo {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 5px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 11px;
+    text-align: left;
+    cursor: pointer;
+}
+.condicao-grupo:hover {
+    background: #3b3b49;
+}
+.condicao-grupo.ativa {
+    border-color: #ffd54f;
+    background: #46425a;
+}
+.condicao-grupo img {
+    flex: none;
+    width: 22px;
+    height: 22px;
+}
+.condicao-grupo span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* O CAMPO de valor que abre dentro do painel ao clicar numa ação (Dano, Cura...), com a conta embaixo. */
+#menu-grupo-mapa > button.aberta {
+    background: #3b3b49;
+}
+.linha-valor-grupo {
+    margin: 2px 0 6px;
+    padding: 6px;
+    background: #26262f;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+}
+.linha-valor-grupo .linha {
+    display: flex;
+    gap: 6px;
+}
+.linha-valor-grupo input {
+    flex: 1;
+    min-width: 0;
+    height: 28px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    background: #1f1f27;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+}
+.linha-valor-grupo input:focus {
+    outline: none;
+    border-color: #ffd54f;
+}
+.linha-valor-grupo button.aplicar {
+    flex: none;
+    padding: 0 12px;
+    background: #3a3a46;
+    border: 1px solid #ffd54f;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 12px;
+    cursor: pointer;
+}
+.linha-valor-grupo button.aplicar:disabled {
+    border-color: #4a4a58;
+    opacity: 0.5;
+    cursor: default;
+}
+.linha-valor-grupo .previa {
+    margin: 5px 2px 0;
+    min-height: 15px;
+    font-size: 12px;
+    color: #c9c9d4;
+}
+.linha-valor-grupo .previa.erro {
+    color: #ff9a9a;
+}

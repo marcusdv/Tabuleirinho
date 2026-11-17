@@ -15,9 +15,9 @@
 
 import { Assets, Container, FederatedPointerEvent, Graphics, PointData, Sprite, Text, Texture, Ticker } from "pixi.js";
 import { buscarCondicao } from "../condicoes";
-import { ALTURA_BARRA_STATUS, FOLGA_TOKEN, LARGURA_BORDA_TOKEN, MAX_ICONES_CONDICAO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, VAO_BARRA_STATUS } from "../config";
+import { ALPHA_RETANGULO_SELECAO, ALTURA_BARRA_STATUS, BARRAS_DA_CURA, COR_CURA, COR_DANO, COR_SELECAO, MS_ANIMACAO_CURA, MS_ANIMACAO_DANO, FOLGA_TOKEN, ALPHA_TILE_SELECAO, LARGURA_BORDA_TOKEN, ANEIS_DA_BORDA_DANO, PROFUNDIDADE_BORDA_DANO, MAX_ICONES_CONDICAO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, TAMANHO_NUMERO_BARRA, VAO_BARRA_STATUS, VAO_BARRA_TOKEN } from "../config";
 import { casaMaisProxima, diametroDoIcone, posicoesNoAnel } from "../coordenadas";
-import { buscarToken, colocarToken, estado, guardarToken, statusAplicaveis, Token } from "../estado";
+import { buscarToken, colocarToken, estado, guardarToken, naCenaAtual, podeUsarToken, statusAplicaveis, Token } from "../estado";
 import type { Camera } from "./camera";
 import type { Grade } from "./grade";
 
@@ -39,6 +39,8 @@ export interface OpcoesTokens {
     aoMudarSobreBolsa(sobre: boolean): void;
     /** Um token foi guardado ou tirado da bolsa (a lista da bolsa precisa ser refeita). */
     aoMudarBolsa(): void;
+    /** A SELEÇÃO mudou (alguém selecionou, tirou a seleção, soltou o retângulo ou um selecionado saiu do mapa): `selecionados` são os que estão selecionados agora. */
+    aoMudarSelecao(selecionados: Token[]): void;
     /**
      * O usuário SOLTOU um token (já aplicado ao estado local: `token.guardado`, `col` e `row` valem). No modo online, quem
      * criou esta camada manda o pedido ao servidor, que é quem decide.
@@ -46,10 +48,14 @@ export interface OpcoesTokens {
     aoSoltarToken(token: Token): void;
     /** Um token que ESTAVA NO MAPA foi solto na bolsa (removido do tabuleiro): `col` e `row` são onde ele estava (para o "Desfazer"). */
     aoRemoverArrastando(token: Token, col: number, row: number): void;
+    /** VÁRIOS tokens selecionados foram soltos na bolsa (removidos do tabuleiro de uma vez, com um só "Desfazer"). */
+    aoRemoverVarios(tokens: Token[]): void;
     /** Um token da BOLSA foi solto no tabuleiro em (col, row): criar uma PEÇA (cópia temporária) ali. O token da bolsa NÃO muda e continua na bolsa. */
     aoSoltarModelo(token: Token, col: number, row: number): void;
     /** Uma PEÇA do tabuleiro foi solta em cima da bolsa: apagá-la (ela é temporária; quem trata oferece o "Desfazer"). `col`/`row`: onde ela estava. */
     aoRemoverPeca(token: Token, col: number, row: number): void;
+    /** Alguém soltou na bolsa uma peça que NÃO pode tirar do mapa (quem tem acesso ao token, como leitor ou mais, e o mestre tiram): ela volta ao lugar e esta pessoa é avisada. */
+    aoSemPermissao(nome: string): void;
     /**
      * O token arrastado está SOBRE a bolsa. O canvas fica atrás dos painéis HTML, então o token do canvas
      * se esconde e quem criou esta camada mostra uma cópia em HTML POR CIMA da bolsa: centro e diâmetro
@@ -84,6 +90,16 @@ export interface CamadaTokens {
      * vem de FORA (do servidor). Se o usuário está segurando este token agora, não mexe: o que ele soltar vale.
      */
     aplicarPosicao(token: Token): void;
+    /** Os tokens SELECIONADOS agora (só os que estão à vista no mapa atual). */
+    readonly selecionados: Token[];
+    /** Tira a seleção de todos. */
+    limparSelecao(): void;
+    /** true enquanto o retângulo de seleção (Ctrl + arrastar) está sendo desenhado. */
+    readonly selecionando: boolean;
+    /** Começa o retângulo de seleção num ponto da TELA; `arrastarRetangulo` o estica; `soltarRetangulo` seleciona os tokens cujo centro ficou dentro. */
+    iniciarRetangulo(ponto: PointData): void;
+    arrastarRetangulo(ponto: PointData): void;
+    soltarRetangulo(): void;
     /** true enquanto um token está sendo arrastado. */
     readonly arrastando: boolean;
     /** Move o token arrastado para acompanhar o mouse (ponto na TELA). */
@@ -96,8 +112,8 @@ export interface CamadaTokens {
     definirInterativo(ativo: boolean): void;
     /** Reposiciona as views de tokens cujo estado mudou de lugar. */
     reposicionar(tokens: Token[]): void;
-    /** Redesenha um token cujo tamanho ou condições mudaram. */
-    redesenhar(token: Token): void;
+    /** Redesenha um token cujo tamanho ou condições mudaram. `animar`: se a VIDA (soma dos valores dos status) mudou, pisca em vermelho (dano) ou em verde com barrinhas subindo (cura). */
+    redesenhar(token: Token, animar?: boolean | "dano" | "cura"): void;
     /** Onde o bloco do token está na TELA: canto superior esquerdo e largura (âncora dos botões do menu). */
     ancoraNaTela(id: number): AncoraToken | null;
     /** Onde ancorar o balão de condições: acima ou abaixo do token e dos seus ícones. */
@@ -128,7 +144,13 @@ interface ViewToken {
     marca: Graphics;
     anelVez: Graphics | null; // a borda suave e pulsante de quem tem a vez na iniciativa (só existe enquanto ele a tem)
     condicoes: Container;
+    vida: number; // a soma dos valores atuais dos status na última vez que as barras foram desenhadas (para saber se foi dano ou cura)
     barras: Container; // as BARRAS de status (HP etc.) embaixo do token: um Graphics (as caixas) e os textos (o nome fora, o "atual/máx" dentro)
+}
+
+/** A soma dos valores ATUAIS dos status de um token (o que sobe com a cura e desce com o dano). */
+function somaDaVida(token: Token): number {
+    return token.valores.reduce((soma, v) => soma + v.atual, 0);
 }
 
 /** Raio do círculo do token. Cresce junto com o tamanho (size). */
@@ -152,6 +174,12 @@ export function criarTokens(
 
     // Estado do arrasto. Só um token é arrastado por vez.
     let arrastando: { token: Token; view: ViewToken } | null = null;
+    // SELEÇÃO: os ids selecionados, o anel de cada um e, durante um arrasto em GRUPO, os outros tokens que acompanham o principal (com a distância até ele, em px do mundo).
+    const selecionadosIds = new Set<number>();
+    const aneisSelecao = new Map<number, Graphics>();
+    const animacoesAtivas = new Map<number, "dano" | "cura">(); // a animação de vida que está rodando em cada token (ver `animarVida`)
+    let grupo: { token: Token; view: ViewToken; dx: number; dy: number }[] = [];
+    let retangulo: { x0: number; y0: number; x1: number; y1: number; desenho: Graphics } | null = null;
     let ultimoAperto = { id: -1, t: 0, x: 0, y: 0 }; // o último aperto esquerdo num token (para reconhecer o duplo clique)
     // Distância entre o ponto onde clicamos e o centro do token.
     // Sem isso, o token "pularia" para centralizar no cursor ao clicar.
@@ -160,6 +188,100 @@ export function criarTokens(
     // Último ponto (TELA) do mouse durante o arrasto, e se ele está sobre a bolsa.
     let ultimoPonto: PointData = { x: 0, y: 0 };
     let sobreBolsa = false;
+
+    /**
+     * A animação BÁSICA de vida: DANO = uma piscada vermelha rápida SÓ NAS BORDAS INTERNAS do token (o meio fica limpo); CURA = uma piscada verde mais suave com barrinhas verdes subindo. Tudo vive num contêiner preso à
+     * raiz do token (anda com ele) e some sozinho no fim.
+     */
+    function animarVida(token: Token, view: ViewToken, tipo: "dano" | "cura"): void {
+        // UMA piscada por golpe: o mesmo dano costuma chegar em dois avisos seguidos (o valor do token e o da ficha); enquanto a animação deste tipo roda, um novo disparo é ignorado.
+        if (animacoesAtivas.get(token.id) === tipo) return;
+        animacoesAtivas.set(token.id, tipo);
+        const raio = raioDoToken(token.size);
+        const fx = new Container();
+        fx.eventMode = "none"; // (não atrapalha cliques)
+        const brilho = new Graphics();
+        if (tipo === "dano") {
+            // DANO: vermelho só nas BORDAS INTERNAS do token (uma vinheta): vários anéis finos, encostados na borda por dentro, cada um mais fraco que o de fora, e o meio fica limpo.
+            const profundidade = raio * PROFUNDIDADE_BORDA_DANO;
+            const passoAnel = profundidade / ANEIS_DA_BORDA_DANO;
+            for (let i = 0; i < ANEIS_DA_BORDA_DANO; i++) {
+                brilho.circle(0, 0, raio - passoAnel * (i + 0.5)).stroke({ width: passoAnel + 0.5, color: COR_DANO, alpha: Math.pow(1 - i / ANEIS_DA_BORDA_DANO, 1.5) }); // (+0.5: sem frestas entre os anéis)
+            }
+        } else brilho.circle(0, 0, raio).fill(COR_CURA);
+        fx.addChild(brilho);
+        const barrinhas: { g: Graphics; x: number; atraso: number; velocidade: number }[] = [];
+        if (tipo === "cura") {
+            for (let i = 0; i < BARRAS_DA_CURA; i++) {
+                const g = new Graphics().roundRect(-1.5, -9, 3, 18, 1.5).fill(COR_CURA);
+                const x = (-0.75 + (1.5 * (i + 0.5)) / BARRAS_DA_CURA) * raio * 0.9; // (espalhadas pela largura do círculo)
+                g.position.set(x, raio * 0.6);
+                g.alpha = 0;
+                fx.addChild(g);
+                barrinhas.push({ g, x, atraso: (i % 3) * 120 + Math.random() * 80, velocidade: 0.7 + Math.random() * 0.5 });
+            }
+        }
+        view.raiz.addChild(fx);
+        const duracao = tipo === "dano" ? MS_ANIMACAO_DANO : MS_ANIMACAO_CURA;
+        let passado = 0;
+        const passo = (ticker: Ticker): void => {
+            passado += ticker.deltaMS;
+            if (view.raiz.destroyed || fx.destroyed) {
+                Ticker.shared.remove(passo);
+                animacoesAtivas.delete(token.id);
+                return;
+            }
+            const t = Math.min(1, passado / duracao);
+            if (tipo === "dano") {
+                brilho.alpha = 0.95 * Math.sin(Math.PI * t); // sobe e desce numa piscada só
+            } else {
+                brilho.alpha = 0.35 * Math.sin(Math.PI * Math.min(1, passado / (duracao * 0.6)));
+                for (const b of barrinhas) {
+                    const u = Math.max(0, Math.min(1, (passado - b.atraso) / (duracao - 200)));
+                    b.g.y = raio * 0.6 - u * raio * 1.5 * b.velocidade;
+                    b.g.alpha = u <= 0 ? 0 : 0.95 * (1 - u);
+                }
+            }
+            if (t >= 1) {
+                Ticker.shared.remove(passo);
+                animacoesAtivas.delete(token.id);
+                fx.destroy({ children: true });
+            }
+        };
+        Ticker.shared.add(passo);
+    }
+
+    /** O ponteiro ao passar por cima de um token: a mãozinha SÓ para quem pode movê-lo; sem permissão fica o ponteiro normal (a mãozinha enganava o jogador; pedido do dono, 17/11/2026). */
+    const cursorDe = (token: Token): string => (podeUsarToken(token) ? "grab" : "default");
+
+    /** Refaz as marcas de seleção: o TILE (o quadrado da grade que o token ocupa) fica amarelo fraco, por baixo do token (e some o dos que saíram da seleção). Sem borda: o token já tem a dele. */
+    function desenharSelecao(): void {
+        for (const [id, anel] of aneisSelecao) {
+            if (selecionadosIds.has(id) && views.has(id)) continue;
+            anel.destroy();
+            aneisSelecao.delete(id);
+        }
+        for (const id of selecionadosIds) {
+            const token = buscarToken(id);
+            const view = views.get(id);
+            if (!token || !view || aneisSelecao.has(id)) continue;
+            const anel = new Graphics();
+            const metade = (token.size * TAMANHO_CASA) / 2; // (a origem da raiz é o CENTRO do bloco)
+            anel.rect(-metade, -metade, metade * 2, metade * 2).fill({ color: COR_SELECAO, alpha: ALPHA_TILE_SELECAO });
+            view.raiz.addChildAt(anel, 0); // atrás do corpo, da foto, da borda e dos ícones: o token continua à vista por cima do tile
+            aneisSelecao.set(id, anel);
+        }
+        opcoes.aoMudarSelecao(selecionadosVivos()); // (quem quiser mostrar "N tokens selecionados" é avisado a cada mudança)
+    }
+    function selecionarSo(id: number): void {
+        selecionadosIds.clear();
+        selecionadosIds.add(id);
+        desenharSelecao();
+    }
+    /** Os tokens selecionados que ainda estão à vista (o mapa pode ter mudado ou o token saído do tabuleiro). */
+    function selecionadosVivos(): Token[] {
+        return [...selecionadosIds].map((id) => buscarToken(id)).filter((t): t is Token => !!t && naCenaAtual(t));
+    }
 
     /**
      * Posiciona a view conforme o estado. (col,row) é o canto superior
@@ -176,16 +298,17 @@ export function criarTokens(
      * (os valores nascem ao sair da bolsa, lendo a ficha: ver `valoresIniciais`). Ficam presas à raiz do token, então andam junto com ele.
      */
     function desenharBarras(token: Token, view: ViewToken): void {
+        view.vida = somaDaVida(token);
         for (const filho of view.barras.removeChildren()) filho.destroy({ children: true }); // (refaz tudo: o Graphics e os textos)
         if (token.guardado) return;
         const caixas = new Graphics();
         view.barras.addChild(caixas);
         const raio = raioDoToken(token.size);
-        const topo = (token.size * TAMANHO_CASA) / 2 + VAO_BARRA_STATUS; // logo abaixo do bloco do token (a raiz está no CENTRO dele)
+        const topo = raio + LARGURA_BORDA_TOKEN / 2 + VAO_BARRA_TOKEN; // logo abaixo do CÍRCULO do token, depois da borda (a raiz está no CENTRO dele)
         let i = 0;
         for (const status of statusAplicaveis(token)) {
             const valor = token.valores.find((v) => v.id === status.id);
-            if (!valor || !status.mostrar) continue; // ("Exibir em jogo" desligado: o valor existe, mas a barra não é desenhada)
+            if (!valor || valor.oculto || !status.mostrar) continue; // ("Exibir em jogo" desligado, ou um status que esta pessoa NÃO pode ver (`oculto`): o valor existe, mas a barra não é desenhada)
             const y = topo + i * (ALTURA_BARRA_STATUS + VAO_BARRA_STATUS);
             const largura = raio * 2;
             const parte = Math.max(0, Math.min(1, valor.atual / valor.max));
@@ -194,7 +317,7 @@ export function criarTokens(
             // O número DENTRO da barra ("atual/máx", ex.: 100/100), centralizado (só com "Exibir números" ligado). Texto feito com o dobro do tamanho e reduzido (nítido ao aproximar o zoom).
             const numero = new Text({
                 text: `${valor.atual}/${valor.max}`,
-                style: { fontFamily: "system-ui, sans-serif", fontSize: 16, fontWeight: "700", fill: 0xffffff, stroke: { color: 0x000000, width: 3 } },
+                style: { fontFamily: "system-ui, sans-serif", fontSize: TAMANHO_NUMERO_BARRA, fontWeight: "700", fill: 0xffffff, stroke: { color: 0x000000, width: 3 } },
             });
             numero.anchor.set(0.5);
             numero.scale.set(0.5);
@@ -203,14 +326,14 @@ export function criarTokens(
             numero.position.set(0, y + ALTURA_BARRA_STATUS / 2);
             if (status.numeros) view.barras.addChild(numero);
             else numero.destroy();
-            // O NOME do status ("HP") FORA da caixa, à esquerda dela, alinhado à direita, na cor do status. Um status SEM nome fica sem rótulo (só a barra).
-            if (status.nome === "") {
+            // O NOME do status ("HP") FORA da caixa, à esquerda dela, alinhado à direita, na cor do status. Só com "Mostrar nome no tabuleiro" ligado; um status SEM nome fica sem rótulo (só a barra).
+            if (status.nome === "" || status.mostrarNome === false) {
                 i++;
                 continue;
             }
             const nome = new Text({
                 text: status.nome,
-                style: { fontFamily: "system-ui, sans-serif", fontSize: 16, fontWeight: "700", fill: status.cor, stroke: { color: 0x000000, width: 3 } },
+                style: { fontFamily: "system-ui, sans-serif", fontSize: TAMANHO_NUMERO_BARRA, fontWeight: "700", fill: status.cor, stroke: { color: 0x000000, width: 3 } },
             });
             nome.anchor.set(1, 0.5);
             nome.scale.set(0.5);
@@ -428,7 +551,7 @@ export function criarTokens(
         const condicoes = new Container();
         const barras = new Container();
         raiz.addChild(corpo, foto, borda, marca, condicoes, barras); // do fundo para a frente
-        const view: ViewToken = { raiz, corpo, foto, borda, fotoUrl: null, marca, anelVez: null, condicoes, barras };
+        const view: ViewToken = { raiz, corpo, foto, borda, fotoUrl: null, marca, anelVez: null, condicoes, barras, vida: somaDaVida(token) };
 
         desenharCorpo(token, view);
         void desenharFoto(token, view);
@@ -438,20 +561,28 @@ export function criarTokens(
         posicionar(token, view);
         views.set(token.id, view);
         mundo.addChild(raiz);
-        raiz.visible = !token.guardado; // token guardado na bolsa não aparece no mapa
+        raiz.visible = naCenaAtual(token); // token guardado na bolsa, ou peça de OUTRO mapa, não aparece
 
         // eventMode "static": o objeto passa a receber eventos do mouse/toque.
         // (O padrão é "passive", que ignora os eventos.) Os filhos (círculo e
         // ícones) contam como parte do token na hora de clicar ou passar o mouse.
         raiz.eventMode = interativo ? "static" : "none";
-        raiz.cursor = "grab"; // cursor de mãozinha ao passar por cima
+        raiz.cursor = cursorDe(token); // cursor de mãozinha ao passar por cima (só se a pessoa PODE mover o token)
 
         // --- Mouse entrando/saindo: mostra/esconde o balão de condições ---
         // (Durante um arrasto o balão não deve aparecer.)
-        raiz.on("pointerover", () => {
-            if (!arrastando) opcoes.aoPassarMouse(token);
+        // ATENÇÃO: o PixiJS escuta o mouse no DOCUMENTO inteiro, então mesmo com o mouse em cima de algo HTML (o balão de condições, os menus, painéis, o chat) ele continua
+        // achando qual token está POR BAIXO e dispara o hover dele, o que trocava/escondia o balão. Por isso só vale o evento cujo alvo real é o canvas.
+        const sobreOMapa = (evento: FederatedPointerEvent): boolean => {
+            const alvo = (evento.nativeEvent as Event | undefined)?.target;
+            return !(alvo instanceof HTMLElement) || alvo.tagName === "CANVAS";
+        };
+        raiz.on("pointerover", (evento: FederatedPointerEvent) => {
+            if (!arrastando && sobreOMapa(evento)) opcoes.aoPassarMouse(token);
         });
-        raiz.on("pointerout", () => opcoes.aoSairMouse(token));
+        raiz.on("pointerout", (evento: FederatedPointerEvent) => {
+            if (sobreOMapa(evento)) opcoes.aoSairMouse(token);
+        });
 
         raiz.on("pointerdown", (evento: FederatedPointerEvent) => {
             // Botão DIREITO (2): abre as opções do token, sem arrastar.
@@ -461,6 +592,18 @@ export function criarTokens(
             }
             // Qualquer botão que não seja o esquerdo (0) é ignorado.
             if (evento.button !== 0) return;
+
+            // SELEÇÃO: Ctrl + clique liga/desliga este token na seleção (sem arrastar e sem contar como duplo clique); o clique comum seleciona SÓ este (a menos que ele já esteja numa
+            // seleção: aí arrasta o grupo).
+            if (evento.ctrlKey || evento.metaKey) {
+                if (selecionadosIds.has(token.id)) selecionadosIds.delete(token.id);
+                else selecionadosIds.add(token.id);
+                desenharSelecao();
+                return;
+            }
+
+            // Um token que esta pessoa não pode usar (não é dele nem foi liberado) não se arrasta nem abre ficha: só dá para olhar. (O servidor recusa de qualquer jeito.)
+            if (!podeUsarToken(token)) return;
 
             // DUPLO CLIQUE: o segundo aperto no MESMO token, logo depois e sem o mouse ter andado, abre a ficha (e não começa um arrasto).
             const agora = performance.now();
@@ -472,9 +615,20 @@ export function criarTokens(
                 return;
             }
 
+            if (!selecionadosIds.has(token.id)) selecionarSo(token.id);
+
             // --- INÍCIO DO ARRASTO ---
             opcoes.aoIniciarArrasto();
             arrastando = { token, view };
+            grupo = [];
+            if (selecionadosIds.size > 1) {
+                for (const id of selecionadosIds) {
+                    const outro = buscarToken(id);
+                    const v = views.get(id);
+                    if (id !== token.id && outro && v && naCenaAtual(outro)) grupo.push({ token: outro, view: v, dx: v.raiz.x - raiz.x, dy: v.raiz.y - raiz.y });
+                }
+            }
+            for (const m of grupo) mundo.addChild(m.view.raiz); // (todos passam por cima dos outros enquanto andam)
             // O ponteiro de AGORA. `ultimoPonto` só era atualizado quando o mouse SE MOVIA durante o arrasto; um clique sem mover (ou um duplo clique) usava a posição VELHA do arrasto
             // anterior. Depois de clicar num token da bolsa, essa posição estava em cima da bolsa: ao clicar num token do tabuleiro, `soltar` achava que ele tinha sido solto na bolsa e o REMOVIA.
             ultimoPonto = { x: evento.global.x, y: evento.global.y };
@@ -505,10 +659,14 @@ export function criarTokens(
             grade.esconderDestaque();
         }
         views.delete(id);
+        const estavaSelecionado = selecionadosIds.delete(id);
+        aneisSelecao.delete(id); // (o anel é filho da raiz: é destruído junto com ela)
+        grupo = grupo.filter((m) => m.token.id !== id);
         mundo.removeChild(view.raiz);
         view.raiz.destroy({ children: true }); // (a textura da imagem é compartilhada: sai da memória logo abaixo, se ninguém mais a usa)
         const url = view.fotoUrl;
         if (url && !estado.tokens.some((t) => t.imagem === url)) void Assets.unload(url);
+        if (estavaSelecionado) opcoes.aoMudarSelecao(selecionadosVivos());
     }
 
     for (const token of estado.tokens) criarView(token);
@@ -527,9 +685,11 @@ export function criarTokens(
 
         reconstruir() {
             for (const id of [...views.keys()]) destruirView(id);
+            selecionadosIds.clear();
             for (const token of estado.tokens) criarView(token);
             reordenar();
             aplicarAnelDaVez();
+            opcoes.aoMudarSelecao([]);
         },
 
         tokenEm(ponto) {
@@ -537,7 +697,7 @@ export function criarTokens(
             let achado: Token | null = null;
             for (const [id, view] of views) {
                 const token = buscarToken(id);
-                if (!token || token.guardado || !view.raiz.visible) continue;
+                if (!token || !naCenaAtual(token) || !view.raiz.visible) continue;
                 if (Math.hypot(mundo.x - view.raiz.x, mundo.y - view.raiz.y) > raioDoToken(token.size)) continue; // (fora do círculo do token)
                 if (!achado || token.size < achado.size || (token.size === achado.size && token.id > achado.id)) achado = token;
             }
@@ -560,9 +720,60 @@ export function criarTokens(
         aplicarPosicao(token) {
             const view = views.get(token.id);
             if (!view || arrastando?.token.id === token.id) return;
-            view.raiz.visible = !token.guardado;
+            view.raiz.visible = naCenaAtual(token);
+            if (!naCenaAtual(token) && selecionadosIds.delete(token.id)) desenharSelecao();
             desenharBarras(token, view); // (os status nascem ao sair da bolsa e somem ao voltar)
             posicionar(token, view);
+        },
+
+        get selecionados() {
+            return selecionadosVivos();
+        },
+
+        limparSelecao() {
+            if (selecionadosIds.size === 0) return;
+            selecionadosIds.clear();
+            desenharSelecao();
+        },
+
+        get selecionando() {
+            return retangulo !== null;
+        },
+
+        iniciarRetangulo(ponto) {
+            const p = camera.telaParaMundo(ponto);
+            const desenho = new Graphics();
+            mundo.addChild(desenho);
+            retangulo = { x0: p.x, y0: p.y, x1: p.x, y1: p.y, desenho };
+        },
+
+        arrastarRetangulo(ponto) {
+            if (!retangulo) return;
+            const p = camera.telaParaMundo(ponto);
+            retangulo.x1 = p.x;
+            retangulo.y1 = p.y;
+            const { x0, y0, desenho } = retangulo;
+            desenho.clear().rect(Math.min(x0, p.x), Math.min(y0, p.y), Math.abs(p.x - x0), Math.abs(p.y - y0)).fill({ color: COR_SELECAO, alpha: ALPHA_RETANGULO_SELECAO }).stroke({ width: 2 / camera.zoom, color: COR_SELECAO });
+        },
+
+        soltarRetangulo() {
+            if (!retangulo) return;
+            const { x0, y0, x1, y1, desenho } = retangulo;
+            retangulo = null;
+            desenho.destroy();
+            selecionadosIds.clear();
+            // Seleciona os tokens à vista cujo CENTRO ficou dentro do retângulo.
+            const minX = Math.min(x0, x1);
+            const maxX = Math.max(x0, x1);
+            const minY = Math.min(y0, y1);
+            const maxY = Math.max(y0, y1);
+            for (const token of estado.tokens) {
+                if (!naCenaAtual(token)) continue;
+                const cx = (token.col + token.size / 2) * TAMANHO_CASA;
+                const cy = (token.row + token.size / 2) * TAMANHO_CASA;
+                if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY) selecionadosIds.add(token.id);
+            }
+            desenharSelecao();
         },
 
         get arrastando() {
@@ -578,6 +789,7 @@ export function criarTokens(
 
             // O token acompanha o mouse livremente (sem encaixe) para ficar fluido.
             view.raiz.position.set(p.x + deslocamentoX, p.y + deslocamentoY);
+            for (const m of grupo) m.view.raiz.position.set(view.raiz.x + m.dx, view.raiz.y + m.dy); // (o grupo acompanha, com as mesmas distâncias)
 
             // Descobre onde o token encaixaria agora (canto superior esquerdo)
             // e mostra o destaque nesse bloco.
@@ -600,8 +812,10 @@ export function criarTokens(
                 const centro = camera.mundoParaTela(view.raiz.x, view.raiz.y);
                 opcoes.aoMostrarSobreBolsa(token, centro, raioDoToken(token.size) * 2 * camera.zoom, LARGURA_BORDA_TOKEN * camera.zoom);
                 view.raiz.alpha = 0;
+                for (const m of grupo) m.view.raiz.alpha = 0;
             } else {
                 view.raiz.alpha = 1;
+                for (const m of grupo) m.view.raiz.alpha = 1;
                 opcoes.aoEsconderSobreBolsa();
             }
         },
@@ -611,10 +825,63 @@ export function criarTokens(
             const { token, view } = arrastando;
             const veioDaBolsa = token.guardado;
             const ehPeca = token.copiaDe !== null; // (uma PEÇA é a cópia temporária que vive no tabuleiro)
-            const guardar = opcoes.sobreBolsa(ultimoPonto);
+            let guardar = opcoes.sobreBolsa(ultimoPonto);
             let depoisDaLimpeza: (() => void) | null = null; // o aviso a dar quando o arrasto já terminou (o estado muda fora daqui)
 
-            if (guardar && ehPeca) {
+            // ARRASTO EM GRUPO (vários selecionados): só vale TUDO OU NADA. Se algum sair do tabuleiro, todos voltam para onde estavam; soltos na bolsa, todos são removidos juntos.
+            if (grupo.length > 0 && !veioDaBolsa) {
+                const membros = [{ token, view, dx: 0, dy: 0 }, ...grupo];
+                grupo = [];
+                const mover = membros.map((m) => ({
+                    ...m,
+                    col: Math.round((m.view.raiz.x - (m.token.size * TAMANHO_CASA) / 2) / TAMANHO_CASA), // (SEM limitar: é justamente para saber se algum caiu fora)
+                    row: Math.round((m.view.raiz.y - (m.token.size * TAMANHO_CASA) / 2) / TAMANHO_CASA),
+                }));
+                const principal = mover[0];
+                const dCol = principal.col - token.col;
+                const dRow = principal.row - token.row;
+                const cabe = mover.every((m) => {
+                    const c = m.token.col + dCol;
+                    const l = m.token.row + dRow;
+                    return c >= 0 && l >= 0 && c + m.token.size <= estado.colunas && l + m.token.size <= estado.linhas;
+                });
+                view.raiz.cursor = cursorDe(token);
+                for (const m of mover) m.view.raiz.alpha = 1;
+                opcoes.aoEsconderSobreBolsa();
+                grade.esconderDestaque();
+                arrastando = null;
+                if (sobreBolsa) opcoes.aoMudarSobreBolsa(false);
+                sobreBolsa = false;
+                const semPermissao = guardar ? mover.find((m) => m.token.copiaDe !== null && !podeUsarToken(m.token)) : undefined;
+                if (semPermissao) {
+                    // Alguma peça do grupo não pode ser tirada do mapa por esta pessoa: NADA é removido (tudo ou nada) e todas voltam ao lugar, com aviso. (Verifica ANTES de esconder qualquer uma.)
+                    for (const m of mover) posicionar(m.token, m.view);
+                    opcoes.aoSemPermissao(semPermissao.token.nome);
+                } else if (guardar) {
+                    for (const m of mover) m.view.raiz.visible = false;
+                    selecionadosIds.clear();
+                    desenharSelecao();
+                    opcoes.aoRemoverVarios(mover.map((m) => m.token));
+                } else if (cabe) {
+                    for (const m of mover) {
+                        colocarToken(m.token.id, m.token.col + dCol, m.token.row + dRow);
+                        posicionar(m.token, m.view);
+                        opcoes.aoSoltarToken(m.token);
+                    }
+                } else {
+                    for (const m of mover) posicionar(m.token, m.view); // movimento INVÁLIDO: todos voltam para onde estavam
+                }
+                return;
+            }
+            grupo = [];
+
+            if (guardar && ehPeca && !podeUsarToken(token)) {
+                // Sem acesso a este token (nem leitor): não pode tirar esta peça do mapa: NÃO some (nada é escondido antes de saber): volta ao lugar e a pessoa é avisada. O servidor também recusaria.
+                posicionar(token, view);
+                view.raiz.visible = true;
+                guardar = false;
+                depoisDaLimpeza = () => opcoes.aoSemPermissao(token.nome);
+            } else if (guardar && ehPeca) {
                 // Uma PEÇA solta na bolsa: ela é temporária, então é APAGADA (quem trata cuida do estado, da rede e do "Desfazer").
                 const { col: colAntes, row: rowAntes } = token;
                 view.raiz.visible = false;
@@ -642,7 +909,7 @@ export function criarTokens(
                 view.raiz.visible = true;
             }
 
-            view.raiz.cursor = "grab";
+            view.raiz.cursor = cursorDe(token);
             view.raiz.alpha = 1; // (estava escondido enquanto a cópia em HTML aparecia sobre a bolsa)
             opcoes.aoEsconderSobreBolsa();
             grade.esconderDestaque();
@@ -662,6 +929,7 @@ export function criarTokens(
 
             opcoes.aoIniciarArrasto();
             arrastando = { token, view };
+            grupo = [];
             // O centro do token fica sob o mouse (não há "ponto de pegada" como num token do tabuleiro).
             deslocamentoX = 0;
             deslocamentoY = 0;
@@ -687,9 +955,11 @@ export function criarTokens(
             }
         },
 
-        redesenhar(token) {
+        redesenhar(token, animar = false) {
             const view = views.get(token.id);
             if (!view) return;
+            const vidaAntes = view.vida;
+            if (view.raiz.cursor !== "grabbing") view.raiz.cursor = cursorDe(token); // (a permissão pode ter mudado)
             desenharCorpo(token, view);
             void desenharFoto(token, view);
             desenharMarca(token, view);
@@ -698,6 +968,12 @@ export function criarTokens(
             posicionar(token, view);
             reordenar(); // o novo tamanho pode mudar quem fica por cima
             if (vezDestacada === token.id) aplicarAnelDaVez(); // (o tamanho do anel acompanha o do token)
+            if (animar && naCenaAtual(token)) {
+                // `"dano"` ou `"cura"` (o servidor diz o que aconteceu): anima SEMPRE, mesmo que a vida visível não tenha mudado (vida em 0, ou status escondido: a animação não pode denunciar o valor).
+                // `true`: anima só se a vida visível mudou (os outros caminhos, que só têm os números).
+                const tipo = animar === "dano" || animar === "cura" ? animar : view.vida !== vidaAntes ? (view.vida < vidaAntes ? "dano" : "cura") : null;
+                if (tipo) animarVida(token, view, tipo);
+            }
         },
 
         ancoraNaTela(id) {

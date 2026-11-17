@@ -33,7 +33,7 @@ ok("1) calibrando, a nossa grade some (a região muda)", diff(normal, calibrando
 const bx = await p.locator("#painel-calibragem").boundingBox();
 ok("2) painel no canto inferior direito, à esquerda da coluna do chat/bolsa", Math.abs(bx.x + bx.width - (1400 - 12 - 320 - 8)) <= 2 && Math.abs(bx.y + bx.height - (800 - 12)) <= 2, `direita=${(bx.x + bx.width).toFixed(0)} base=${(bx.y + bx.height).toFixed(0)}`);
 ok("3) painel não chega ao centro da tela (esquerda > 600 px)", bx.x > 600, `esquerda ${bx.x.toFixed(0)}`);
-const barra = await p.locator("#barra").boundingBox(); ok("4) painel fica ABAIXO da barra de ferramentas", bx.y >= barra.y + barra.height + 4, `topo do painel ${bx.y.toFixed(0)}, base da barra ${(barra.y + barra.height).toFixed(0)}`);
+const barra = await p.locator("#ferramentas-desenho").boundingBox(); ok("4) painel não cobre a barra de desenho", bx.y >= barra.y + barra.height + 4 || bx.x > barra.x + barra.width, `topo do painel ${bx.y.toFixed(0)}, base da barra ${(barra.y + barra.height).toFixed(0)}`);
 
 // Medir ainda funciona com a grade escondida
 const zoom = Number((await p.locator("#zoom-valor").evaluate((e) => e.value ?? e.textContent)).replace("%", "")) / 100;

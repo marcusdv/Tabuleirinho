@@ -5,7 +5,7 @@
 // quem o criou (`aoReceber`). O que fazer com cada evento (mover o token, mostrar a mensagem...) é com o main.ts.
 // Se a conexão cai, tenta de novo (esperando cada vez mais, até 8 s).
 //
-// O modo online é OPCIONAL: só liga com `?online` no endereço (ex.: http://127.0.0.1:5173/?online&nome=Ana). Sem isso o
+// O modo online é OPCIONAL: só liga com `?online` no endereço (ex.: http://127.0.0.1:5173/?online&nome=Ana; login forjado de teste: &papel=mestre ou &papel=jogador). Sem isso o
 // programa funciona local, como sempre funcionou.
 // =====================================================================
 
@@ -35,7 +35,7 @@ export function criarRede(opcoes: OpcoesRede): Rede {
     function conectar(): void {
         const protocolo = location.protocol === "https:" ? "wss" : "ws";
         // O mesmo endereço que entregou a página: no desenvolvimento o Vite repassa /ws ao servidor.
-        const socket = new WebSocket(`${protocolo}://${location.host}/ws`);
+        const socket = new WebSocket(`${protocolo}://${location.host}/ws${location.search.includes("papel=") ? "?papel=" + encodeURIComponent(new URLSearchParams(location.search).get("papel") ?? "") : ""}`);
         ws = socket;
 
         socket.addEventListener("open", () => {

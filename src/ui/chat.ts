@@ -13,7 +13,10 @@
 import { DURACAO_ANIMACAO_CHAT, MAX_CARACTERES_MENSAGEM, MAX_DADOS_NO_CARTAO } from "../config";
 import { detalheDaRolagem, formulaDosDados } from "../dados";
 import { buscarToken, estado, type Mensagem } from "../estado";
+import { lerPedacos } from "../formatacao";
+import type { CartaoRolado } from "../formulas";
 import { pintarDisco } from "./aparenciaToken";
+import { formaDoDado } from "./formaDado";
 
 export interface OpcoesChat {
     /** O usuário enviou uma mensagem (texto já sem espaços nas pontas e nunca vazio). */
@@ -25,7 +28,7 @@ export interface OpcoesChat {
     /** O TOTAL de uma rolagem está sendo ARRASTADO e o ponteiro passou por este ponto da tela (para destacar o token embaixo); null = o arrasto terminou ou foi cancelado. */
     aoArrastarResultado(ponto: { x: number; y: number } | null): void;
     /** O TOTAL de uma rolagem foi SOLTO neste ponto da tela: quem recebe vê se há um token ali e dá o dano a ele (só dano). */
-    aoSoltarResultado(idDaMensagem: number, ponto: { x: number; y: number }): void;
+    aoSoltarResultado(idDaMensagem: number, ponto: { x: number; y: number }, indice?: number, dado?: number): void;
 }
 
 export interface Chat {
@@ -64,60 +67,32 @@ function marcaDoCartao(grupos: GrupoDeDados[]): "critico" | "falha" | null {
     return d20[0] === 20 ? "critico" : d20[0] === 1 ? "falha" : null;
 }
 
-// A FORMA de cada dado, vista de frente, COMO NA IMAGEM DE REFERÊNCIA DO DONO: d4 triângulo, d6 quadrado, d8 hexágono (ponta para cima), d10 hexágono com a ponta para cima, um pouco mais largo que o do d8 (formato do último print do dono), d12 decágono, d20 hexágono (ponta para cima), d100 um polígono de 20 lados (quase um círculo) e d1000 um círculo perfeito. `lados` = quantos lados tem o polígono e `giro` =
-// onde fica o primeiro vértice (-90° = ponta para cima; 0° = ponta para a direita; 45° no quadrado deixa os lados retos). Um dado que não está na lista (não existe hoje) fica com a
-// caixinha arredondada de sempre.
-const FORMAS: Record<number, { lados: number; giro: number; esticar?: number }> = {
-    4: { lados: 3, giro: -Math.PI / 2 },
-    6: { lados: 4, giro: Math.PI / 4 },
-    8: { lados: 6, giro: -Math.PI / 2 },
-    10: { lados: 6, giro: -Math.PI / 2, esticar: 1.12 }, // (hexágono com a ponta para cima, um pouco MAIS LARGO que o do d8/d20: `esticar` alarga o polígono na horizontal)
-    12: { lados: 10, giro: -Math.PI / 2 },
-    20: { lados: 6, giro: -Math.PI / 2 },
-    100: { lados: 20, giro: -Math.PI / 2 },
-};
-const NS_SVG = "http://www.w3.org/2000/svg";
-
-/**
- * O desenho de fundo de uma peça de dado: um SVG com um polígono regular (ver `FORMAS`) ou um círculo (d1000). A forma é centralizada e ocupa o máximo do quadrado, sem deformar. As cores vêm do CSS (`--dado-fundo` e `--dado-borda`), para o verde do máximo, o vermelho do 1 e o
- * dourado do crítico continuarem funcionando. Devolve null para um dado que não tem forma.
- */
-function formaDoDado(lados: number): SVGSVGElement | null {
-    const svg = document.createElementNS(NS_SVG, "svg");
-    svg.setAttribute("viewBox", "0 0 100 100");
-    svg.setAttribute("aria-hidden", "true");
-    svg.classList.add("chat-dado-forma-svg");
-    if (lados === 1000) {
-        const circulo = document.createElementNS(NS_SVG, "circle");
-        circulo.setAttribute("cx", "50");
-        circulo.setAttribute("cy", "50");
-        circulo.setAttribute("r", "47");
-        svg.append(circulo);
-        return svg;
+/** Uma PEÇA de dado: o formato do dado (polígono), o valor dentro e o tipo ("d20") embaixo. A cor vem do tipo do dado (CSS, pelo `data-lados`); o valor máximo fica verde e o 1 vermelho. */
+function criarPecaDeDado(lados: number, valor: number): HTMLElement {
+    const peca = document.createElement("span");
+    peca.className = "chat-dado";
+    const forma = formaDoDado(lados);
+    if (forma) {
+        peca.classList.add("forma"); // (a caixinha vira o polígono do dado: o fundo e a borda vêm do SVG)
+        peca.dataset.lados = String(lados);
+        peca.append(forma);
     }
-    const forma = FORMAS[lados];
-    if (!forma) return null;
-    const { lados: n, giro, esticar = 1 } = forma;
-    const pontos = Array.from({ length: n }, (_, i) => [Math.cos(giro + (2 * Math.PI * i) / n) * esticar, Math.sin(giro + (2 * Math.PI * i) / n)]);
-    const xs = pontos.map((p) => p[0]);
-    const ys = pontos.map((p) => p[1]);
-    const largura = Math.max(...xs) - Math.min(...xs);
-    const altura = Math.max(...ys) - Math.min(...ys);
-    const escala = 94 / Math.max(largura, altura); // (uma escala só para os dois eixos: o polígono não se deforma)
-    const centroX = 50 - ((Math.max(...xs) + Math.min(...xs)) / 2) * escala;
-    const centroY = 50 - ((Math.max(...ys) + Math.min(...ys)) / 2) * escala;
-    const poligono = document.createElementNS(NS_SVG, "polygon");
-    poligono.setAttribute("points", pontos.map((p) => `${(centroX + p[0] * escala).toFixed(1)},${(centroY + p[1] * escala).toFixed(1)}`).join(" "));
-    svg.append(poligono);
-    return svg;
+    if (valor === lados) peca.classList.add("maximo");
+    else if (valor === 1 && lados >= 4) peca.classList.add("minimo");
+    const numero = document.createElement("b");
+    numero.textContent = String(valor);
+    const tipo = document.createElement("small");
+    tipo.textContent = `d${lados}`;
+    peca.append(numero, tipo);
+    return peca;
 }
 
 /**
  * A BANDEJA de dados: cada dado vira uma peça com o valor (grande) e o tipo ("d20", pequeno). O valor máximo do dado fica verde e o 1 fica vermelho.
  * `modificador` (se não for 0) vira uma etiqueta no fim. Mostra no máximo `maximo` peças e termina com "+N" (a lista completa vai na dica do mouse).
- * Tudo entra por textContent/createElement.
+ * `aoCriarPeca` (opcional) recebe cada peça com a posição dela (0 = a primeira) e o valor: é por onde o chat as torna ARRASTÁVEIS. Tudo entra por textContent/createElement.
  */
-function montarBandeja(grupos: GrupoDeDados[], modificador: number, maximo: number): HTMLElement {
+function montarBandeja(grupos: GrupoDeDados[], modificador: number, maximo: number, aoCriarPeca?: (peca: HTMLElement, posicao: number, valor: number, lados: number) => void): HTMLElement {
     const bandeja = document.createElement("div");
     bandeja.className = "chat-dados";
     let mostrados = 0;
@@ -126,21 +101,8 @@ function montarBandeja(grupos: GrupoDeDados[], modificador: number, maximo: numb
     for (const g of grupos) {
         for (const valor of g.resultados) {
             if (mostrados >= maximo) break;
-            const peca = document.createElement("span");
-            peca.className = "chat-dado";
-            const forma = formaDoDado(g.lados);
-            if (forma) {
-                peca.classList.add("forma"); // (a caixinha vira o polígono do dado: o fundo e a borda vêm do SVG)
-                peca.dataset.lados = String(g.lados);
-                peca.append(forma);
-            }
-            if (valor === g.lados) peca.classList.add("maximo");
-            else if (valor === 1 && g.lados >= 4) peca.classList.add("minimo");
-            const numero = document.createElement("b");
-            numero.textContent = String(valor);
-            const tipo = document.createElement("small");
-            tipo.textContent = `d${g.lados}`;
-            peca.append(numero, tipo);
+            const peca = criarPecaDeDado(g.lados, valor);
+            aoCriarPeca?.(peca, mostrados, valor, g.lados);
             bandeja.append(peca);
             mostrados += 1;
         }
@@ -225,11 +187,11 @@ export function criarChat(opcoes: OpcoesChat): Chat {
      * faz nada); uma "sombra" com o número segue o mouse; soltar chama `aoSoltarResultado` com o ponto da tela; Esc ou cancelar do navegador abandona. O ponteiro fica "capturado" pelo
      * total, então o movimento continua chegando mesmo sobre o canvas ou fora do chat.
      */
-    function tornarTotalArrastavel(total: HTMLElement, idDaMensagem: number): void {
+    function tornarTotalArrastavel(total: HTMLElement, idDaMensagem: number, indice?: number, dado?: number, texto?: string): void {
         total.classList.add("arrastavel");
-        total.title = "Arraste até um token para dar esse dano a ele";
         total.addEventListener("pointerdown", (e) => {
             if (e.button !== 0) return;
+            e.stopPropagation(); // (um DADO dentro de um resultado arrasta só ele: o arrasto do resultado inteiro, que está por fora, não começa)
             const inicio = { x: e.clientX, y: e.clientY };
             let sombra: HTMLElement | null = null;
             total.setPointerCapture(e.pointerId);
@@ -243,14 +205,14 @@ export function criarChat(opcoes: OpcoesChat): Chat {
                 const arrastou = sombra !== null;
                 sombra = null;
                 opcoes.aoArrastarResultado(null);
-                if (arrastou && soltou) opcoes.aoSoltarResultado(idDaMensagem, soltou);
+                if (arrastou && soltou) opcoes.aoSoltarResultado(idDaMensagem, soltou, indice, dado); // (`indice`: qual número de um CARTÃO; `dado`: qual dado, se foi uma peça de dado e não o total)
             };
             const mover = (ev: PointerEvent): void => {
                 if (!sombra) {
                     if (Math.hypot(ev.clientX - inicio.x, ev.clientY - inicio.y) < 4) return; // (ainda é um clique)
                     sombra = document.createElement("div");
                     sombra.className = "chat-sombra-dano";
-                    sombra.textContent = total.textContent; // (só texto: nada do chat vira HTML)
+                    sombra.textContent = texto ?? total.textContent; // (só texto: nada do chat vira HTML)
                     document.body.append(sombra);
                 }
                 sombra.style.left = `${ev.clientX}px`;
@@ -271,6 +233,60 @@ export function criarChat(opcoes: OpcoesChat): Chat {
         });
     }
 
+    /**
+     * O CORPO de um cartão de ficha: o texto em linhas (cada linha um bloco; "# ", "## " e "### " no começo da linha viram título, e **negrito** e *itálico* valem, como na ficha), com os
+     * resultados das [expressões] no meio das linhas. Os pedaços já vêm do servidor, cortados nas expressões.
+     */
+    function corpoDoCartao(c: CartaoRolado, idDaMensagem: number): HTMLElement {
+        const corpo = document.createElement("div");
+        corpo.className = "chat-cartao-corpo";
+        let linha: HTMLElement | null = null;
+        let comecoDeLinha = true; // o próximo texto começa uma linha? (só ali um "# " vale como título)
+        let numeros = 0; // quantos resultados (números) já foram desenhados: o índice de cada um, que o arrasto diz ao soltar
+        const novaLinha = (): HTMLElement => {
+            const bloco = document.createElement("div");
+            corpo.append(bloco);
+            comecoDeLinha = true;
+            return bloco;
+        };
+        for (const pedaco of c.pedacos) {
+            if (pedaco.tipo === "texto") {
+                pedaco.texto.split("\n").forEach((trecho, i) => {
+                    if (i > 0 || linha === null) linha = novaLinha();
+                    let resto = trecho;
+                    const titulo = comecoDeLinha ? /^(#{1,3}) /.exec(resto) : null;
+                    if (titulo) {
+                        linha.className = `chat-cartao-titulo t${titulo[1].length}`;
+                        resto = resto.slice(titulo[0].length);
+                    }
+                    if (resto === "" && i > 0 && trecho === "") linha.append(document.createElement("br")); // (linha em branco mantém a altura)
+                    for (const p of lerPedacos(resto)) {
+                        const parte = document.createElement("span");
+                        if (p.negrito) parte.classList.add("negrito");
+                        if (p.italico) parte.classList.add("italico");
+                        parte.textContent = p.texto;
+                        linha.append(parte);
+                    }
+                    if (resto !== "") comecoDeLinha = false;
+                });
+                continue;
+            }
+            if (linha === null) linha = novaLinha();
+            comecoDeLinha = false;
+            const resultado = document.createElement("span");
+            resultado.className = "chat-cartao-resultado " + pedaco.tipo;
+            // Só o TOTAL aparece (o cálculo não): a fórmula e o que saiu em cada dado ficam na dica do mouse.
+            const total = document.createElement("b");
+            total.textContent = String(pedaco.total);
+            resultado.append(total);
+            // Cada número se ARRASTA como o total de uma rolagem: até um token (dá esse dano a ele) ou até a caixa da iniciativa.
+            tornarTotalArrastavel(resultado, idDaMensagem, numeros++);
+            resultado.title = `${pedaco.tipo === "rolagem" ? pedaco.detalhe : pedaco.formula} = ${pedaco.total}`; // (a dica mostra a fórmula COM os números que saíram em cada dado, ex.: "8d6 [4, 2, 6...] + 3")
+            linha.append(resultado);
+        }
+        return corpo;
+    }
+
     function criarCartao(mensagem: Mensagem): HTMLElement {
         const cartao = document.createElement("div");
         cartao.className = "chat-mensagem";
@@ -282,6 +298,25 @@ export function criarChat(opcoes: OpcoesChat): Chat {
         const hora = document.createElement("time");
         hora.textContent = formatarHora(mensagem.hora);
         cabecalho.append(autor, hora);
+
+        // CARTÃO de ficha (ex.: uma magia ou um item): o NOME em cima, a criatura (o nome da ficha) embaixo e o texto do cartão, com cada [expressão] trocada pelo resultado (uma CONTA, com um número,
+        // ou uma ROLAGEM, com a fórmula e o total). Tudo entra por textContent (o texto vem de uma ficha escrita por um jogador).
+        if (mensagem.cartaoFicha) {
+            cartao.classList.add("chat-rolagem", "chat-cartao-ficha");
+            const c = mensagem.cartaoFicha;
+            const titulo = document.createElement("p");
+            titulo.className = "chat-formula chat-titulo-ficha";
+            const nome = document.createElement("strong");
+            nome.textContent = c.nome;
+            titulo.append(nome);
+            titulo.title = c.nome;
+            const criatura = document.createElement("p");
+            criatura.className = "chat-criatura";
+            criatura.textContent = c.ficha;
+            criatura.title = c.ficha;
+            cartao.append(criarAvatar(mensagem.autor, mensagem.token), cabecalho, titulo, criatura, corpoDoCartao(c, mensagem.id));
+            return cartao;
+        }
 
         // Rolagem de FICHA (ex.: o "Ataque com espada"): o NOME da rolagem (o golpe), EMBAIXO a criatura (o nome da ficha), embaixo disso o cálculo com o que saiu em cada dado, e o TOTAL
         // grande à direita. Tudo entra por textContent (os nomes vêm de uma ficha escrita por um jogador).
@@ -301,6 +336,7 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             criatura.className = "chat-criatura";
             criatura.textContent = r.ficha;
             criatura.title = r.ficha;
+            criatura.hidden = r.ficha === ""; // (o "/r" do chat não tem ficha)
 
             const detalhe = document.createElement("p");
             detalhe.className = "chat-detalhe";
@@ -314,7 +350,7 @@ export function criarChat(opcoes: OpcoesChat): Chat {
 
             // A bandeja com os dados de cada termo; a conta (com o que saiu) e o TOTAL grande ficam no rodapé.
             const grupos = r.dados.map((d) => ({ lados: d.lados, resultados: d.resultados }));
-            const bandeja = montarBandeja(grupos, 0, MAX_DADOS_NO_CARTAO);
+            const bandeja = montarBandeja(grupos, 0, MAX_DADOS_NO_CARTAO, (peca, posicao, valor) => tornarTotalArrastavel(peca, mensagem.id, undefined, posicao, String(valor)));
             const linha = document.createElement("div");
             linha.className = "chat-linha";
             linha.append(bandeja, total);
@@ -347,7 +383,7 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             tornarTotalArrastavel(total, mensagem.id);
 
             const grupos = [{ lados: rolagem.lados, resultados: rolagem.resultados }];
-            const bandeja = montarBandeja(grupos, rolagem.modificador, MAX_DADOS_NO_CARTAO);
+            const bandeja = montarBandeja(grupos, rolagem.modificador, MAX_DADOS_NO_CARTAO, (peca, posicao, valor) => tornarTotalArrastavel(peca, mensagem.id, undefined, posicao, String(valor)));
             const linha = document.createElement("div");
             linha.className = "chat-linha";
             linha.append(bandeja, total);

@@ -1,0 +1,35 @@
+/* TODAS as barras de rolagem do site: o MESMO visual da barra do chat (trilha fina escura com borda e cursor dourado
+   semitransparente, que acende ao passar o mouse). Não declare `scrollbar-width`/`scrollbar-color` num elemento: no Chrome
+   isso faz o navegador IGNORAR este estilo nele. (A faixa do chat esconde a barra nativa de propósito: tem a própria.) */
+*::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+*::-webkit-scrollbar-track {
+    background: #26262f;
+    border: 1px solid #3a3a45;
+    border-radius: 5px;
+}
+*::-webkit-scrollbar-thumb {
+    min-width: 24px;
+    min-height: 24px;
+    background: rgba(255, 213, 79, 0.55);
+    border-radius: 5px;
+}
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 213, 79, 0.95);
+}
+*::-webkit-scrollbar-button {
+    display: none; /* sem setinhas */
+}
+*::-webkit-scrollbar-corner {
+    background: transparent;
+}
+/* Firefox não tem ::-webkit-scrollbar: usa a versão padrão (cores iguais, sem os cantos redondos). */
+@supports not selector(::-webkit-scrollbar) {
+    * {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(255, 213, 79, 0.55) #26262f;
+    }
+}
+

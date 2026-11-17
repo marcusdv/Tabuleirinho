@@ -41,20 +41,20 @@ await p.waitForTimeout(150);
 
 // ================= 1) arrastar por cada parte NEUTRA
 const painel = await caixa("#editor-ficha-painel");
-ok("1a) pelo título 'Editar ficha'", await moveu(meio(await caixa("#editor-ficha-titulo"))));
-ok("1b) pelo rótulo da versão", await moveu(meio(await caixa("#editor-ficha-versao"))));
+ok("1a) pela barra do alto (o espaço do meio, entre o tipo da ficha e os botões)", await moveu(meio(await caixa("#editor-ficha-topo"))));
+ok("1b) pelo rótulo 'alterações não salvas' (que ocupa o espaço livre do alto)", await moveu(meio(await caixa("#editor-ficha-nao-salvo"))));
 let pn = await caixa("#editor-ficha-painel");
 ok("1c) pela BORDA/folga esquerda da janela (o espaço entre a margem e o campo do nome)", await moveu({ x: pn.x + 8, y: pn.y + pn.height / 2 }));
 pn = await caixa("#editor-ficha-painel");
 ok("1d) pela folga de BAIXO da janela (embaixo do rodapé)", await moveu({ x: pn.x + pn.width / 2 - 100, y: pn.y + pn.height - 5 }));
 ok("1e) pelo contador de caracteres do rodapé", await moveu(meio(await caixa("#editor-ficha-contagem"))));
-ok("1f) pelo título 'Variáveis' do painel lateral", await moveu(meio(await caixa("#editor-ficha-assistente h4"))));
+ok("1f) o título de uma caixa do painel lateral é um BOTÃO (recolhe a caixa) e NÃO arrasta", await moveu(meio(await caixa("#editor-ficha-assistente h4")), false));
 ok("1g) pelo item de uma variável da lista", await moveu(meio(await caixa("#editor-ficha-variaveis li"))));
 ok("1h) o item de uma ROLAGEM da lista NÃO arrasta (ele é clicável: rola)", await moveu(meio(await caixa("#editor-ficha-rolagens li")), false));
 const ass = await caixa("#editor-ficha-assistente");
 ok("1i) pelo espaço vazio do painel de tela de rolagens", await moveu({ x: ass.x + 30, y: ass.y + ass.height - 8 }));
 const rod = await caixa("#editor-ficha-rodape");
-ok("1k) pelo espaço vazio do rodapé (entre o aviso e os botões)", await moveu({ x: rod.x + rod.width - 220, y: rod.y + rod.height / 2 }));
+ok("1k) pelo espaço vazio do rodapé (entre o aviso e os botões)", await moveu({ x: rod.x + rod.width / 2, y: rod.y + rod.height / 2 }));
 
 // ================= 2) o que NÃO arrasta
 const campoT = await caixa("#editor-ficha-texto");
@@ -69,32 +69,33 @@ ok("2f) nem por um botão (Salvar)", await moveu(meio(await caixa("#editor-ficha
 
 // ================= 3) o foco continua no campo de texto depois de arrastar por uma parte neutra
 await p.click("#editor-ficha-texto");
-await moveu(meio(await caixa("#editor-ficha-versao")));
+await moveu(meio(await caixa("#editor-ficha-nao-salvo")));
 ok("3a) depois de arrastar por uma parte neutra o FOCO continua no campo de texto", (await p.evaluate(() => document.activeElement?.id)) === "editor-ficha-texto");
-const ponto = meio(await caixa("#editor-ficha-versao"));
+const ponto = meio(await caixa("#editor-ficha-nao-salvo"));
 await p.mouse.move(ponto.x, ponto.y); await p.mouse.down(); await p.mouse.move(ponto.x + 20, ponto.y + 10, { steps: 2 });
-ok("3c) durante o arrasto a janela mostra a mãozinha fechada ('grabbing')", /arrastando/.test((await p.locator("#editor-ficha-painel").getAttribute("class")) ?? "") && (await p.locator("#editor-ficha-versao").evaluate((e) => getComputedStyle(e).cursor)) === "grabbing");
+ok("3c) durante o arrasto a janela mostra a mãozinha fechada ('grabbing')", /arrastando/.test((await p.locator("#editor-ficha-painel").getAttribute("class")) ?? "") && (await p.locator("#editor-ficha-nao-salvo").evaluate((e) => getComputedStyle(e).cursor)) === "grabbing");
 await p.mouse.up();
 
-// ================= 4) ocultar instruções e ajuda: vale para TODAS as fichas
-ok("4a) começa com a tela de rolagens à vista e o botão diz 'Ocultar rolagens'", (await p.locator("#editor-ficha-assistente").isVisible()) && (await p.textContent("#editor-ficha-alternar-rolagens")) === "Ocultar rolagens");
-const larguraCom = (await caixa("#editor-ficha-texto")).width;
-await p.click("#editor-ficha-alternar-rolagens");
-ok("4c) 'Ocultar rolagens' esconde a tela de rolagens; o painel lateral SOME e o texto ocupa a largura toda", (await p.locator("#editor-ficha-lateral").isHidden()) && (await caixa("#editor-ficha-texto")).width > larguraCom + 200, `${larguraCom} -> ${(await caixa("#editor-ficha-texto")).width}`);
+// ================= 4) recolher cada CAIXA do painel lateral (variáveis da ficha, de recursos e rolagens): vale para TODAS as fichas
+const recolhida = (s) => p.locator(`#editor-ficha-lateral [data-secao="${s}"]`).evaluate((e) => e.classList.contains("recolhida"));
+const listaVisivel = (id) => p.locator(id).evaluate((e) => getComputedStyle(e).display !== "none");
+ok("4a) começa com as três caixas abertas e SEM o botão 'Ocultar rolagens' no alto", (await recolhida("variaveis")) === false && (await recolhida("recursos")) === false && (await recolhida("rolagens")) === false && (await p.locator("#editor-ficha-alternar-rolagens").count()) === 0);
+await p.click('[data-secao="rolagens"] .secao-botao');
+ok("4c) clicar no título 'Rolagens desta página' recolhe SÓ essa caixa (a lista some, o título fica)", (await recolhida("rolagens")) && !(await recolhida("variaveis")) && !(await listaVisivel("#editor-ficha-rolagens")) && (await p.locator('[data-secao="rolagens"] .secao-botao').isVisible()) && (await p.getAttribute('[data-secao="rolagens"] .secao-botao', "aria-expanded")) === "false");
 await p.keyboard.press("Control+s"); // (salva antes: sem alterações, o ✕ fecha direto)
 await p.click("#editor-ficha-x");
 ok("4d) o ✕ do alto fecha a ficha (sem alterações, fecha direto)", await p.locator("#editor-ficha").isHidden());
 await p.locator(".bolsa-doc").nth(1).dblclick();
-ok("4e) ao abrir OUTRA ficha (a 2), a tela de rolagens CONTINUA oculta e o botão diz 'Mostrar rolagens'", (await p.locator("#editor-ficha-lateral").isHidden()) && (await p.textContent("#editor-ficha-alternar-rolagens")) === "Mostrar rolagens");
+ok("4e) ao abrir OUTRA ficha (a 2), a caixa continua recolhida", await recolhida("rolagens"));
 await p.click("#editor-ficha-x");
 await p.reload();
 await p.waitForFunction(() => window.__tabuleirinho?.pronto === true);
 await p.click("#bolsa-aba-fichas");
 await criarFichaFechada(p);
 await p.locator(".bolsa-doc").first().dblclick();
-ok("4f) depois de RECARREGAR a página (uma ficha nova), a escolha continua: tudo oculto", (await p.locator("#editor-ficha-lateral").isHidden()) && (await p.textContent("#editor-ficha-alternar-rolagens")) === "Mostrar rolagens");
-await p.click("#editor-ficha-alternar-rolagens");
-ok("4h) 'Mostrar rolagens' traz de volta a tela de rolagens", (await p.locator("#editor-ficha-assistente").isVisible()) && (await p.locator("#editor-ficha-lateral").isVisible()));
+ok("4f) depois de RECARREGAR a página (uma ficha nova), a escolha continua: a caixa segue recolhida", await recolhida("rolagens"));
+await p.click('[data-secao="rolagens"] .secao-botao');
+ok("4h) clicar de novo no título abre a caixa", !(await recolhida("rolagens")) && (await p.locator('[data-secao="rolagens"] .secao-botao').getAttribute("aria-expanded")) === "true");
 // o ✕ com alterações pergunta
 await p.fill("#editor-ficha-texto", "algo ainda não salvo");
 await p.click("#editor-ficha-x");

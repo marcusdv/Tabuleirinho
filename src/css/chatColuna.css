@@ -1,0 +1,114 @@
+/* O CHAT: a coluna fixa da direita, as abas Chat/Bolsa e o aviso de mensagens não lidas. (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
+/* ===================================================================
+         CHAT: uma COLUNA fixa na borda DIREITA da tela, da altura toda (menos as folgas de 12 px). As mensagens correm de CIMA para BAIXO:
+         a mais NOVA fica EMBAIXO (como num aplicativo de conversa), o campo de digitar fica no pé da coluna e a roda do mouse rola para as antigas.
+         Ele não é arrastável: as outras caixas (Desenho, Dados, Ferramentas e a bolsa) ficam à ESQUERDA dele (ver --largura-chat).
+         =================================================================== */
+:root {
+    --largura-chat: 320px;
+    --recuo-chat: calc(
+        12px + var(--largura-chat) + 8px
+    ); /* o que as outras caixas deixam livre na direita: folga + chat + vão */
+}
+/* As ABAS da coluna ("Chat" e "Bolsa"), no alto: uma linha de botões; só um painel fica à vista (a classe aba-bolsa do #chat escolhe). */
+#lateral-abas {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap; /* coluna estreita: as abas passam para uma SEGUNDA linha em vez de quebrar o texto (pedido do dono, 17/11/2026) */
+    gap: 0 4px;
+    padding: 10px 14px 0;
+    border-bottom: 1px solid #3a3a45;
+}
+.lateral-aba {
+    flex: 1 1 auto; /* (o ui/abasEmLinhas.ts troca isto por uma fração igual quando as abas não cabem numa linha) */
+    white-space: nowrap; /* o nome da aba nunca quebra no meio */
+    padding: 0 10px;
+    height: 32px;
+    margin-bottom: -1px; /* o traço da aba ativa cobre a linha de baixo */
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #9a9aa8;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+}
+.lateral-aba:hover {
+    color: #ffd54f;
+}
+.lateral-aba[aria-selected="true"] {
+    color: #ffd54f;
+    border-bottom-color: #ffd54f;
+}
+/* O aviso de mensagens NÃO lidas na aba "Chat" (quando se está na Bolsa). */
+#lateral-novas {
+    margin-left: 6px;
+    padding: 1px 6px;
+    background: #ffd54f;
+    border-radius: 9px;
+    font-size: 11px;
+    color: #2a2208;
+}
+#chat-painel {
+    position: relative;
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+#chat.aba-bolsa #chat-painel {
+    display: none;
+}
+#chat:not(.aba-bolsa) #bolsa {
+    display: none;
+}
+#chat {
+    position: fixed;
+    top: var(--topo-chat, 0px); /* COLADO na página, em cima e embaixo (pedido do dono); a pessoa pode DIMINUIR a coluna pelo canto de cima à esquerda (`--topo-chat`) */
+    bottom: 0;
+    right: 12px;
+    z-index: 10;
+    width: var(--largura-chat);
+    box-sizing: border-box;
+    padding: 0; /* o respiro fica DENTRO da lista (padding dela) e do campo (margem): assim a barra de rolagem encosta na parede do chat */
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    background: rgba(34, 34, 42, 0.94);
+    border: 1px solid #3a3a45;
+    border-top: 0;
+    border-bottom: 0;
+    border-radius: 0; /* encostado nas bordas de cima e de baixo: sem cantos arredondados */
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+/* O CANTO de cima à esquerda da coluna: a alça de redimensionar (arrastar para a direita e para baixo DIMINUI; para a esquerda e para cima aumenta). */
+#chat-redimensionar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 5;
+    width: 18px;
+    height: 18px;
+    cursor: nwse-resize;
+    touch-action: none;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0 2px, transparent 2px 5px, rgba(255, 255, 255, 0.5) 5px 7px, transparent 7px 10px, rgba(255, 255, 255, 0.5) 10px 12px, transparent 12px);
+    opacity: 0.45;
+    border-top-left-radius: 4px;
+}
+#chat-redimensionar:hover,
+#chat.redimensionando #chat-redimensionar {
+    opacity: 1;
+}
+/* Com a coluna MENOR que a tela, ela ganha o contorno e os cantos de cima (antes, colada na parede, não tinha). */
+#chat.reduzida {
+    border-top: 1px solid #3a3a45;
+    border-top-left-radius: 10px;
+}
+
+/* Com a bolsa em TELA CHEIA a alça de tamanho da coluna some: ela ficava POR CIMA da bolsa (pedido do dono, 17/11/2026). */
+#chat:has(#bolsa.expandida) #chat-redimensionar {
+    display: none;
+}

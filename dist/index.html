@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Tabuleirinho</title>
-      <script type="module" crossorigin src="/assets/index-Chivg9YJ.js"></script>
+      <script type="module" crossorigin src="/assets/index-C33xndFc.js"></script>
       <link rel="modulepreload" crossorigin href="/assets/CanvasPool-cZm-qJ09.js">
       <link rel="modulepreload" crossorigin href="/assets/Filter-CBWLFxHX.js">
       <link rel="modulepreload" crossorigin href="/assets/canvasUtils-D8Fc3Bye.js">
@@ -14,7 +14,7 @@
       <link rel="modulepreload" crossorigin href="/assets/getTextureBatchBindGroup-CPM2N5IT.js">
       <link rel="modulepreload" crossorigin href="/assets/GraphicsContext-DtkgRzau.js">
       <link rel="modulepreload" crossorigin href="/assets/getTexelRangeRects-fmak5Y5p.js">
-      <link rel="stylesheet" crossorigin href="/assets/index-Diom4cHT.css">
+      <link rel="stylesheet" crossorigin href="/assets/index-DmKU11WJ.css">
     </head>
     <body>
         <div id="app"></div>
@@ -31,6 +31,13 @@
                 <span id="zoom-valor">100%</span>
                 <button id="zoom-mais" title="Aumentar zoom (aproximar)">+</button>
                 <button id="zoom-ajustar" title="Ajustar o mapa à tela">⤢</button>
+            </div>
+
+            <!-- ACESSO RÁPIDO às ferramentas mais usadas (régua, lápis, borracha): fica FIXO abaixo do zoom e liga as mesmas ferramentas do painel Desenho (ui/painelDesenho.ts). Clicar na que já está ligada volta para "Mover". -->
+            <div id="atalhos-rapidos" class="controle">
+                <button type="button" data-atalho="regua" aria-pressed="false" title="Régua (clique de novo para voltar a Mover)">📏</button>
+                <button type="button" data-atalho="lapis" aria-pressed="false" title="Lápis (clique de novo para voltar a Mover)">✎</button>
+                <button type="button" data-atalho="borracha" aria-pressed="false" title="Borracha (clique de novo para voltar a Mover)">⌫</button>
             </div>
 
             <!-- Painel de desenho (1ª barra da pilha): ferramentas, cor e "Apagar tudo". Ids usados no ui/painelDesenho.ts. -->
@@ -124,15 +131,53 @@
                 </div>
             </aside>
 
-            <!-- Barra de ferramentas (2ª barra da pilha). Os ids são usados no ui/barra.ts. -->
-            <aside id="barra" class="caixa-pilha">
+            <!-- A INICIATIVA (2ª barra da pilha): a ordem de combate (quem age em que ordem, de quem é a vez, a rodada). Ids usados no ui/iniciativa.ts. -->
+            <aside id="iniciativa" class="caixa-pilha">
                 <div class="cabecalho">
-                    <h1>Tabuleiro</h1>
-                    <button id="barra-alternar" title="Recolher barra" aria-expanded="true"><span class="seta" aria-hidden="true">▴</span></button>
+                    <h1>Iniciativa</h1>
+                    <button id="iniciativa-alternar" title="Recolher iniciativa" aria-expanded="true"><span class="seta" aria-hidden="true">▴</span></button>
                 </div>
 
                 <div class="conteudo">
                     <section>
+                        <h2>Ordenar por</h2>
+                        <select id="iniciativa-ordem" aria-label="Ordenar por">
+                            <option value="maior">Maior &gt; menor</option>
+                            <option value="menor">Menor &lt; maior</option>
+                            <option value="livre">Livre</option>
+                        </select>
+                    </section>
+                    <section id="iniciativa-andamento">
+                        <div id="iniciativa-topo">
+                            <!-- Confirmado: o texto "Rodada N". Em EDIÇÃO: o campo numérico, para a pessoa digitar a rodada. -->
+                            <span id="iniciativa-rodada">Rodada —</span>
+                            <label id="iniciativa-rodada-edicao" hidden>Rodada <input type="number" id="iniciativa-rodada-campo" min="0" max="9999" step="1" autocomplete="off" aria-label="Rodada" /></label>
+                        </div>
+                        <ul id="iniciativa-lista"></ul>
+                        <p id="iniciativa-vazia">Ninguém na iniciativa. Arraste o resultado de uma rolagem do chat para cá, use o botão + ou "Adicionar à iniciativa" no menu de um token. Botão direito num personagem: editar ou remover.</p>
+                    </section>
+                    <section id="iniciativa-botoes" class="so-mestre">
+                        <!-- O "+" (acrescentar uma criatura) e o "Limpar" SÓ APARECEM em modo de edição. -->
+                        <button id="iniciativa-criatura" class="botao-largo" title="Acrescenta uma criatura que não é um token (para quando não há tabuleiro ou token)" aria-label="Acrescentar uma criatura">+</button>
+                        <button id="iniciativa-limpar" class="botao-largo" title="Limpa a iniciativa (a lista, a vez e a rodada)">Limpar</button>
+                        <!-- Próximo turno e Retornar (acima do Editar) SÓ APARECEM depois de Confirmar (em edição somem). -->
+                        <button id="iniciativa-proxima" class="botao-largo" title="Passa a vez para o próximo da lista">Próximo turno</button>
+                        <button id="iniciativa-anterior" class="botao-largo" title="Devolve a vez ao personagem anterior (do primeiro da lista, volta ao último da rodada anterior)">Retornar</button>
+                        <button id="iniciativa-editar" class="botao-largo" title="Edita a ordem e a rodada: em edição aparecem + Criatura e Limpar, e o Próximo turno e o Retornar somem até confirmar">Editar</button>
+                    </section>
+                </div>
+            </aside>
+        </div>
+
+        <!-- A JANELA DO TABULEIRO (colunas, linhas, mapa de fundo, grade): fora da caixa do chat; abre pelo botão ⚙ de cada mapa na aba Mapas (só o mestre). Ids usados no ui/barra.ts e ui/bolsaMapas.ts. -->
+        <div id="mapas-tabuleiro" class="so-mestre" role="dialog" aria-label="Configurar o tabuleiro" hidden>
+            <div class="mapas-tabuleiro-topo">
+                <h1 id="mapas-tabuleiro-titulo">Tabuleiro</h1>
+                <button id="mapas-tabuleiro-fechar" type="button" title="Fechar (Esc)" aria-label="Fechar">✕</button>
+            </div>
+            <p id="mapas-tabuleiro-nota" hidden>Este não é o seu mapa de agora: clique em "Usar" nele para configurar o tabuleiro.</p>
+            <div id="mapas-tabuleiro-grade">
+                    <section class="so-mestre">
                         <h2>Colunas</h2>
                         <div class="controle">
                             <button id="colunas-menos" title="Remover uma coluna">−</button>
@@ -150,7 +195,7 @@
                         </div>
                     </section>
 
-                    <section>
+                    <section class="so-mestre">
                         <h2>Linhas</h2>
                         <div class="controle">
                             <button id="linhas-menos" title="Remover uma linha">−</button>
@@ -168,7 +213,7 @@
                         </div>
                     </section>
 
-                    <section>
+                    <section class="so-mestre">
                         <h2>Mapa</h2>
                         <button
                             id="mapa-escolher"
@@ -218,52 +263,19 @@
                             id="reorganizar-telas"
                             class="botao-largo"
                             style="margin-top: 6px"
-                            title="Devolve as barras da esquerda (Desenho e Tabuleiro) à ordem de fábrica"
+                            title="Devolve as barras da esquerda (Desenho e Iniciativa) à ordem de fábrica"
                         >
                             Reorganizar telas
                         </button>
                     </section>
-                </div>
-            </aside>
-
-            <!-- A INICIATIVA (3ª barra da pilha): a ordem de combate (quem age em que ordem, de quem é a vez, a rodada). Ids usados no ui/iniciativa.ts. -->
-            <aside id="iniciativa" class="caixa-pilha">
-                <div class="cabecalho">
-                    <h1>Iniciativa</h1>
-                    <button id="iniciativa-alternar" title="Recolher iniciativa" aria-expanded="true"><span class="seta" aria-hidden="true">▴</span></button>
-                </div>
-
-                <div class="conteudo">
-                    <section>
-                        <h2>Ordenar por</h2>
-                        <select id="iniciativa-ordem" aria-label="Ordenar por">
-                            <option value="maior">Maior → menor</option>
-                            <option value="menor">Menor → maior</option>
-                            <option value="livre">Livre</option>
-                        </select>
-                    </section>
-                    <section id="iniciativa-andamento">
-                        <div id="iniciativa-topo">
-                            <span id="iniciativa-rodada">Rodada —</span>
-                            <!-- O Próximo turno SÓ APARECE depois de Confirmar (em edição ele some). -->
-                            <button id="iniciativa-proxima" class="botao-largo" title="Passa a vez para o próximo da lista">Próximo turno</button>
-                        </div>
-                        <ul id="iniciativa-lista"></ul>
-                        <p id="iniciativa-vazia">Ninguém na iniciativa. Arraste o resultado de uma rolagem do chat para cá, use o botão + ou "Adicionar à iniciativa" no menu de um token. Botão direito num personagem: editar ou remover.</p>
-                    </section>
-                    <section id="iniciativa-botoes">
-                        <!-- O "+" (acrescentar uma criatura) e o "Limpar" SÓ APARECEM em modo de edição. -->
-                        <button id="iniciativa-criatura" class="botao-largo" title="Acrescenta uma criatura que não é um token (para quando não há tabuleiro ou token)" aria-label="Acrescentar uma criatura">+</button>
-                        <button id="iniciativa-limpar" class="botao-largo" title="Limpa a iniciativa (a lista, a vez e a rodada)">Limpar</button>
-                        <button id="iniciativa-editar" class="botao-largo" title="Edita a ordem: em edição aparecem + Criatura e Limpar, e o Próximo turno some até confirmar">Editar</button>
-                    </section>
-                </div>
-            </aside>
+            </div>
         </div>
 
         <!-- A COLUNA da direita (altura toda): no alto, as ABAS "Chat" e "Bolsa"; embaixo, o painel da aba escolhida. O chat e a bolsa têm o MESMO tamanho
              (o da coluna). A classe `aba-bolsa` do #chat diz qual está à vista. Ids usados no ui/lateral.ts, ui/chat.ts e ui/bolsa.ts. -->
         <section id="chat" aria-label="Chat e bolsa">
+            <!-- O CANTO de cima à esquerda: arrastar diminui (ou aumenta) a coluna em largura e altura. Ver ui/redimensionarColuna.ts. -->
+            <div id="chat-redimensionar" role="separator" aria-label="Arraste para mudar o tamanho da coluna" title="Arraste para diminuir ou aumentar a coluna (largura e altura)"></div>
             <div id="lateral-abas" role="tablist" aria-label="Painéis da coluna da direita">
                 <button id="lateral-aba-chat" class="lateral-aba" role="tab" data-aba="chat" aria-selected="false" aria-controls="chat-painel" tabindex="-1">
                     Chat<span id="lateral-novas" hidden></span>
@@ -286,9 +298,6 @@
             <aside id="bolsa" aria-label="Bolsa de tokens">
                 <div class="bolsa-topo">
                     <span class="bolsa-titulo">Bolsa</span>
-                    <!-- O botão do alto, igual nas duas abas: ⤢ abre a bolsa em TELA CHEIA (criar e editar tokens e fichas). (A bolsa não se minimiza mais:
-                         ela é uma aba da coluna da direita.) -->
-                    <button id="bolsa-gerenciar" class="bolsa-botao-pequeno" title="Abrir a bolsa em tela cheia (criar e editar tokens e fichas)" aria-label="Abrir a bolsa em tela cheia">Abrir bolsa</button>
                     <!-- Pesquisa as fichas pelo nome (ou pelo tamanho, ex.: 3x3). -->
                     <input type="search" id="bolsa-busca" placeholder="Pesquisar token…" aria-label="Pesquisar token" autocomplete="off" />
                     <!-- A pesquisa da aba FICHAS: é outro campo, independente da dos tokens (cada aba tem o seu texto e o seu filtro). -->
@@ -303,7 +312,7 @@
                         <div id="bolsa-grupos-chips" aria-label="Filtrar por grupo"></div>
                         <!-- Na bolsa do CANTO (pequena) os grupos viram esta lista suspensa (os chips só aparecem na tela cheia). -->
                         <button id="bolsa-filtro-grupos" type="button" class="bolsa-chip" aria-haspopup="menu" title="Filtrar por grupo">Grupos ▾</button>
-                        <button id="bolsa-grupo-novo" type="button" class="bolsa-chip" title="Criar um grupo (nome e cor)" aria-label="Criar um grupo">+ Grupo</button>
+                        <button id="bolsa-grupo-novo" type="button" class="bolsa-chip so-mestre" title="Criar um grupo (nome e cor)" aria-label="Criar um grupo">+ Grupo</button>
                     </div>
                     <!-- A barra de AÇÕES DA SELEÇÃO: aparece no lugar da pesquisa quando há 2 ou mais itens selecionados (ids usados no ui/bolsa.ts). -->
                     <div id="bolsa-selecao-barra" hidden>
@@ -319,6 +328,8 @@
                     <div id="bolsa-abas" role="tablist" aria-label="Seções da bolsa">
                         <button id="bolsa-aba-tokens" class="bolsa-aba" role="tab" data-aba="tokens" aria-selected="true" aria-controls="bolsa-conteudo">Tokens</button>
                         <button id="bolsa-aba-fichas" class="bolsa-aba" role="tab" data-aba="fichas" aria-selected="false" aria-controls="bolsa-fichas" tabindex="-1">Fichas</button>
+                        <button id="bolsa-aba-mapas" class="bolsa-aba so-mestre" role="tab" data-aba="mapas" aria-selected="false" aria-controls="bolsa-mapas" tabindex="-1">Mapas</button>
+                        <button id="bolsa-aba-jogadores" class="bolsa-aba so-mestre" role="tab" data-aba="jogadores" aria-selected="false" aria-controls="bolsa-jogadores" tabindex="-1">Jogadores</button>
                     </div>
                 </div>
                 <div id="bolsa-conteudo">
@@ -335,7 +346,7 @@
                             <div id="bolsa-previa-barras" aria-hidden="true"></div>
                         </div>
                         <!-- Os STATUS (barras) do token novo: ui/editorStatus.ts. Ficam AO LADO da prévia (à direita dela), não embaixo. -->
-                        <div id="bolsa-status"></div>
+                        <div id="bolsa-status" class="so-mestre"></div>
                     </div>
                     <p id="bolsa-vazia">Arraste tokens para cá para guardá-los.</p>
                     <div id="bolsa-itens"></div>
@@ -379,6 +390,36 @@
                     <p id="bolsa-fichas-vazia">Nenhuma ficha ainda.</p>
                     <ul id="bolsa-fichas-lista"></ul>
                 </section>
+                <!-- A aba MAPAS: a biblioteca de mapas da mesa (online, o servidor guarda as imagens; só o MESTRE envia, troca e apaga). Ids usados no ui/bolsaMapas.ts. -->
+                <section id="bolsa-mapas" role="tabpanel" aria-label="Mapas" aria-labelledby="bolsa-aba-mapas">
+                    <div id="bolsa-mapas-barra">
+                        <button id="bolsa-mapas-enviar" type="button" class="botao-largo" hidden>+ Enviar mapa</button>
+                        <button id="bolsa-mapas-mover" type="button" class="botao-largo so-mestre" hidden title="Leva todos os jogadores para o mapa em que você está agora">Mover jogadores para este mapa</button>
+                        <button id="bolsa-mapas-configurar" type="button" class="botao-largo so-mestre" hidden title="Abre as configurações do tabuleiro (colunas, linhas, mapa de fundo, grade)">⚙ Configurar o tabuleiro</button>
+                        <input type="file" id="bolsa-mapas-arquivo" accept="image/png,image/jpeg,image/webp" hidden />
+                        <p id="bolsa-mapas-aviso" aria-live="polite"></p>
+                    </div>
+                    <p id="bolsa-mapas-explicacao"></p>
+                    <ul id="bolsa-mapas-lista"></ul>
+                </section>
+                <!-- Aba JOGADORES (só do mestre): quem está na mesa, o papel de cada um e a configuração da mesa (limites por jogador). Ids usados no ui/jogadores.ts. -->
+                <section id="bolsa-jogadores" role="tabpanel" aria-label="Jogadores" aria-labelledby="bolsa-aba-jogadores">
+                    <ul id="bolsa-jogadores-lista"></ul>
+                    <button id="bolsa-banidos-botao" type="button" class="botao-largo" aria-expanded="false">Banidos (0)</button>
+                    <ul id="bolsa-banidos-lista" hidden></ul>
+                    <!-- BACKUP da campanha (só o mestre, só online): baixa a pasta de dados do servidor num .zip, depois de confirmar. Ver o código no main.ts. -->
+                    <p class="bolsa-rotulo">Backup da campanha</p>
+                    <button id="bolsa-backup" type="button" class="botao-largo" title="Baixar o backup da campanha (um .zip com fichas, tokens, mapas, grupos, desenhos e permissões)">⬇ Baixar backup da campanha</button>
+                    <p class="bolsa-rotulo">Configuração da mesa: limites por jogador</p>
+                    <div id="bolsa-limites">
+                        <label>Tokens <input type="number" id="bolsa-limite-tokens" min="0" max="100" step="1" autocomplete="off" /></label>
+                        <label>Fichas <input type="number" id="bolsa-limite-fichas" min="0" max="100" step="1" autocomplete="off" /></label>
+                        <button id="bolsa-limites-salvar" type="button" class="botao-largo">Salvar</button>
+                        <span id="bolsa-limites-salvo" role="status" aria-live="polite" hidden>✓ Salvo</span>
+                    </div>
+                </section>
+                <!-- "Abrir bolsa": abre a bolsa em TELA CHEIA (criar e editar tokens, fichas e mapas). Fica no PÉ da bolsa do canto, fora da linha das abas e dos filtros; na tela cheia some (ela tem o botão Fechar). -->
+                <button id="bolsa-gerenciar" type="button" class="bolsa-botao-pequeno" title="Abrir a bolsa em tela cheia (criar e editar tokens e fichas)" aria-label="Abrir a bolsa em tela cheia">⤢ Abrir bolsa</button>
             </aside>
                     <!-- Painel de DADOS: uma BARRA no pé da coluna da direita (embaixo do chat ou da bolsa). Clicar nela expande a caixa de dados ali mesmo (para cima). Ids usados no ui/painelDados.ts. -->
             <aside id="dados" aria-label="Dados">
@@ -462,9 +503,10 @@
         <!-- Menu do clique direito numa ficha da bolsa. Ids usados no ui/bolsa.ts. -->
         <div id="menu-ficha" hidden role="menu">
             <button id="menu-ficha-editar" role="menuitem">Editar token…</button>
-            <button id="menu-ficha-ficha" role="menuitem">Adicionar ficha</button>
+            <button id="menu-ficha-ficha" role="menuitem">Criar ficha</button>
             <button id="menu-ficha-favorito" role="menuitem">Favoritar</button>
             <button id="menu-ficha-grupos" role="menuitem">Grupos…</button>
+            <button id="menu-ficha-compartilhar" role="menuitem">Compartilhar…</button>
             <button id="menu-ficha-excluir" role="menuitem">Excluir token</button>
         </div>
         <!-- Menu do clique direito num DOCUMENTO (ficha) da aba Fichas. Ids usados no ui/bolsa.ts. -->
@@ -492,9 +534,25 @@
                 <input type="color" id="editor-grupo-cor" title="Outra cor" aria-label="Outra cor do grupo" />
                 <div id="editor-grupo-botoes">
                     <button id="editor-grupo-excluir" type="button" hidden>Excluir grupo</button>
+                    <button id="editor-grupo-compartilhar" type="button" hidden>Compartilhar…</button>
                     <button id="editor-grupo-cancelar" type="button">Cancelar</button>
                     <button id="editor-grupo-salvar" type="button">Salvar</button>
                 </div>
+            </div>
+        </div>
+        <!-- TOKENS DA FICHA: as ligações entre uma ficha e os tokens da bolsa (tirar, botar, pesquisa). Ids usados no ui/tokensDaFicha.ts. -->
+        <div id="tokens-ficha" hidden role="dialog" aria-modal="true" aria-labelledby="tokens-ficha-titulo">
+            <div class="editor-imagem-painel">
+                <h3 id="tokens-ficha-titulo">Tokens da ficha</h3>
+                <p id="tokens-ficha-aviso" role="alert" hidden></p>
+                <p class="bolsa-rotulo">Ligados a esta ficha</p>
+                <ul id="tokens-ficha-ligados"></ul>
+                <p id="tokens-ficha-sem-ligados" class="tokens-ficha-vazio">Nenhum token ligado.</p>
+                <p class="bolsa-rotulo">Botar um token</p>
+                <input type="search" id="tokens-ficha-busca" placeholder="Pesquisar token…" aria-label="Pesquisar token para ligar a esta ficha" autocomplete="off" />
+                <ul id="tokens-ficha-livres"></ul>
+                <p id="tokens-ficha-sem-livres" class="tokens-ficha-vazio"></p>
+                <div class="editor-imagem-botoes"><button id="tokens-ficha-fechar" type="button">Fechar</button></div>
             </div>
         </div>
         <!-- O retângulo de seleção (arrastar numa área vazia da lista da bolsa): só desenho, não pega o mouse. -->
@@ -505,11 +563,26 @@
             <button id="menu-iniciativa-remover" role="menuitem">Remover</button>
         </div>
 
+        <!-- COMPARTILHAR: libera um token, uma ficha ou um grupo a cada jogador (Sem acesso, Leitor, Editor). Ids usados no ui/jogadores.ts. -->
+        <div id="compartilhar" hidden role="dialog" aria-modal="true" aria-labelledby="compartilhar-titulo">
+            <div class="editor-imagem-painel">
+                <h3 id="compartilhar-titulo">Compartilhar</h3>
+                <p class="tokens-ficha-vazio">Leitor: o token aparece na bolsa para usar e arrastar (ficha: para ler e rolar). Editor: também edita. Só o dono e o mestre excluem. <b>Token e ficha são liberados separadamente</b>: compartilhar um não compartilha o outro. A pessoa recebe na hora.</p>
+                <ul id="compartilhar-lista"></ul>
+                <p id="compartilhar-vazio" class="tokens-ficha-vazio">Nenhum jogador conhecido ainda: eles aparecem aqui depois de entrar na mesa.</p>
+                <div class="editor-imagem-botoes"><button id="compartilhar-fechar" type="button">Fechar</button></div>
+            </div>
+        </div>
+        <!-- MENU DE VÁRIOS TOKENS selecionados no tabuleiro (clique direito): dano, cura e condição em área. Conteúdo criado por ui/menuGrupoMapa.ts. -->
+        <div id="menu-grupo-mapa" hidden role="menu"></div>
         <div id="menu-doc" hidden role="menu">
             <button id="menu-doc-abrir" role="menuitem">Abrir e editar</button>
             <button id="menu-doc-gerar-token" role="menuitem">Gerar um token</button>
+            <button id="menu-doc-adicionar-token" role="menuitem">Adicionar a um token</button>
+            <button id="menu-doc-tokens" role="menuitem">Tokens da ficha</button>
             <button id="menu-doc-favorito" role="menuitem">Favoritar</button>
             <button id="menu-doc-grupos" role="menuitem">Grupos…</button>
+            <button id="menu-doc-compartilhar" role="menuitem">Compartilhar…</button>
             <button id="menu-doc-excluir" role="menuitem">Excluir ficha</button>
         </div>
 
@@ -525,7 +598,15 @@
                 <p class="bolsa-rotulo">Nome</p>
                 <input type="text" id="editor-token-nome" placeholder="Nome do token" autocomplete="off" />
                 <p class="bolsa-rotulo">Ficha</p>
-                <select id="editor-token-ficha" aria-label="Ficha atribuída a este token"></select>
+                <!-- A FICHA: um menu suspenso PRÓPRIO. O botão mostra a ficha escolhida; ao abrir, a PESQUISA fica DENTRO do menu, no alto, e a lista abaixo é filtrada a cada letra (sem maiúsculas e acentos). "+ Criar ficha" nasce com o nome do token, já ligada. -->
+                <div id="editor-token-ficha-combo">
+                    <button id="editor-token-ficha" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Ficha atribuída a este token"></button>
+                    <div id="editor-token-ficha-painel" hidden>
+                        <input type="search" id="editor-token-ficha-busca" placeholder="Pesquisar ficha…" aria-label="Pesquisar ficha para este token" autocomplete="off" />
+                        <ul id="editor-token-ficha-lista" role="listbox" aria-label="Fichas"></ul>
+                    </div>
+                </div>
+                <button id="editor-token-ficha-criar" type="button" class="botao-tamanho" title="Salva o token, cria uma ficha com o nome dele e a liga a ele">+ Criar ficha</button>
                 <p class="bolsa-rotulo">Imagem</p>
                 <div class="linha-imagem">
                     <button id="editor-token-imagem" class="botao-tamanho">Escolher imagem…</button>
@@ -568,41 +649,32 @@
         </div>
 
         <!-- Editor de FICHA: abre ao clicar num documento da grade da aba Fichas (nome e texto; salvar sobe a versão). Janela flutuante e arrastável, sem escurecer o fundo. Ids usados no ui/editorFicha.ts. -->
-        <div id="editor-ficha" hidden role="dialog" aria-modal="false" aria-labelledby="editor-ficha-titulo">
+        <div id="editor-ficha" hidden role="dialog" aria-modal="false" aria-label="Ficha">
             <div id="editor-ficha-painel">
                 <div id="editor-ficha-topo">
-                    <h3 id="editor-ficha-titulo">Editar ficha</h3>
-                    <!-- O nome da ficha, só quando ela está MINIMIZADA (a barrinha mostra o nome no lugar de "Editar ficha"). -->
+                    <!-- O nome da ficha, só quando ela está MINIMIZADA (a barrinha mostra o nome). -->
                     <span id="editor-ficha-mini-nome"></span>
-                    <span id="editor-ficha-versao"></span>
                     <!-- O TIPO da ficha, ao vivo: com pelo menos um RECURSO (NOME::mín:inicial:máx) ela é uma "Ficha Token Único" (um token só); sem recursos, é uma "Ficha Multi Tokens". Passar o mouse mostra o resumo (title); clicar abre a telinha que explica melhor (ui/infoTipoFicha.ts). -->
                     <button id="editor-ficha-tipo" type="button" aria-haspopup="dialog"></button>
-                    <!-- Só aparece quando a ficha foi aberta por um TOKEN (duplo clique): o ícone e o nome dele. -->
-                    <span id="editor-ficha-token" hidden></span>
-                    <!-- Em cima: mostrar/ocultar as instruções (embaixo, ao lado do texto) e a tela de rolagens (em cima, ao lado do texto), e fechar. -->
+                    <!-- Aparece só quando há mudanças não salvas (o número da versão não é mais mostrado). -->
+                    <span id="editor-ficha-nao-salvo"></span>
+                    <!-- Em cima: o tamanho da letra, minimizar e fechar. -->
                     <div id="editor-ficha-ferramentas">
                         <button id="editor-ficha-fonte-menos" title="Diminuir a letra do texto" aria-label="Diminuir a letra">A−</button>
                         <button id="editor-ficha-fonte-mais" title="Aumentar a letra do texto" aria-label="Aumentar a letra">A+</button>
-                        <button id="editor-ficha-alternar-rolagens" aria-expanded="true" aria-controls="editor-ficha-assistente" title="Mostrar ou ocultar a tela de rolagens (as variáveis e rolagens que o texto define, já calculadas)">Ocultar rolagens</button>
+                        <!-- FIXAR: a ficha fica à vista (até 5 fixadas ao mesmo tempo): abrir outra ficha NÃO a fecha (abre numa janela nova), o Esc a MINIMIZA em vez de fechar, e ela lembra o lugar e o tamanho (até depois de recarregar). -->
+                        <button id="editor-ficha-fixar" type="button" aria-pressed="false" title="Fixar a ficha: ela não fecha ao abrir outra ficha, o Esc só a minimiza, e ela lembra o lugar e o tamanho">📌 Fixar</button>
                         <button id="editor-ficha-minimizar" type="button" title="Minimizar a ficha: ela vira uma barrinha que dá para arrastar pela tela" aria-label="Minimizar a ficha">–</button>
                         <button id="editor-ficha-x" title="Fechar a ficha (Esc)" aria-label="Fechar a ficha">✕</button>
                     </div>
                 </div>
                 <input type="text" id="editor-ficha-nome" placeholder="Nome da ficha" aria-label="Nome da ficha" autocomplete="off" />
+                <!-- AVISO EM VERMELHO: a ficha é única (tem recursos) mas há VÁRIOS tokens ligados a ela. Só aparece nesse caso. -->
+                <p id="editor-ficha-aviso-unica" role="alert" hidden></p>
                 <!-- As ABAS (páginas) da ficha: até 6, todas no mesmo arquivo. Duplo clique no nome renomeia; o ✕ exclui; o "+" cria. -->
                 <div id="editor-ficha-abas">
                     <div id="editor-ficha-abas-lista" role="tablist" aria-label="Páginas da ficha"></div>
                     <button id="editor-ficha-aba-nova" type="button" title="Nova página" aria-label="Nova página">+</button>
-                </div>
-                <!-- FORMATAÇÃO: botões que inserem as marcas no texto (negrito, itálico, títulos) e o botão que mostra o resultado já formatado. -->
-                <div id="editor-ficha-formatar" role="toolbar" aria-label="Formatação do texto">
-                    <button type="button" data-formatar="negrito" title="Negrito (Ctrl+B): **texto**"><b>N</b></button>
-                    <button type="button" data-formatar="italico" title="Itálico (Ctrl+I): *texto*"><i>I</i></button>
-                    <button type="button" data-formatar="1" title="Título 1 (o maior): # Título">T1</button>
-                    <button type="button" data-formatar="2" title="Título 2: ## Título">T2</button>
-                    <button type="button" data-formatar="3" title="Título 3 (o menor): ### Título">T3</button>
-                    <button type="button" data-formatar="0" title="Tirar o título da linha">Aa</button>
-                    <button type="button" id="editor-ficha-ver" aria-pressed="false" title="Ver o texto já formatado (só leitura)">Visualizar</button>
                 </div>
                 <div id="editor-ficha-corpo">
                     <!-- O campo de texto tem POR CIMA uma camada só de cores (o texto do campo é transparente): variáveis, nomes e fórmulas. -->
@@ -614,25 +686,30 @@
                         <!-- A BARRA DE ROLAGEM do texto (e da leitura): numa faixa à direita, FORA do texto (a nativa, dentro do campo, ficava com o cursor de texto). -->
                         <div id="editor-ficha-barra" hidden aria-hidden="true"><div id="editor-ficha-barra-polegar"></div></div>
                     </div>
+                    <!-- A DIVISÓRIA entre o texto e o painel: arrastar muda a largura do painel; arrastada até o fim (ou clicada), ele se ESCONDE e a divisória vira uma aba visível no canto direito, que traz o painel de volta. -->
+                    <div id="editor-ficha-divisoria" role="separator" aria-orientation="vertical" aria-expanded="true"><span class="divisoria-rotulo">◂ Variáveis e rolagens</span></div>
                     <aside id="editor-ficha-lateral" aria-label="Variáveis, rolagens e dicas da ficha">
                         <!-- EM CIMA, a tela de rolagens: o que o programa reconheceu no texto, já calculado. -->
                         <div id="editor-ficha-assistente">
                             <!-- Duas colunas: à ESQUERDA as variáveis fixas ("NOME:: valor") e à DIREITA as que MUDAM durante o jogo ("NOME::mín:inicial:máx"), com − e +. -->
                             <div id="editor-ficha-colunas">
-                                <div class="coluna-ficha">
-                                    <h4 title="Valem para todas as páginas da ficha">Variáveis da ficha</h4>
+                                <!-- Cada caixa (data-secao) tem o título CLICÁVEL: recolhe e abre só ela. A escolha de cada uma fica guardada no navegador (ver ui/editorFicha.ts). -->
+                                <div class="coluna-ficha" data-secao="variaveis">
+                                    <h4><button type="button" class="secao-botao" aria-expanded="true" title="Valem para todas as páginas da ficha. Clique para recolher ou abrir.">Variáveis da ficha</button></h4>
                                     <ul id="editor-ficha-variaveis"></ul>
                                     <p id="editor-ficha-sem-variaveis">Nenhuma variável definida.</p>
                                 </div>
-                                <div class="coluna-ficha">
-                                    <h4 title="Escritos NOME::mín:inicial:máx. O valor de agora fica à parte do texto: mudá-lo não edita a ficha.">Variáveis de recursos</h4>
+                                <div class="coluna-ficha" data-secao="recursos">
+                                    <h4><button type="button" class="secao-botao" aria-expanded="true" title="Escritos NOME::mín:inicial:máx. O valor de agora fica à parte do texto: mudá-lo não edita a ficha. Clique para recolher ou abrir.">Variáveis de recursos</button></h4>
                                     <ul id="editor-ficha-mudam"></ul>
                                     <p id="editor-ficha-sem-mudam">Nenhum recurso definido.</p>
                                 </div>
                             </div>
-                            <h4 title="Cada página tem as suas rolagens">Rolagens desta página</h4>
-                            <ul id="editor-ficha-rolagens"></ul>
-                            <p id="editor-ficha-sem-rolagens">Nenhuma rolagem definida.</p>
+                            <div id="editor-ficha-secao-rolagens" data-secao="rolagens">
+                                <h4><button type="button" class="secao-botao" aria-expanded="true" title="Cada página tem as suas rolagens. Clique para recolher ou abrir.">Rolagens desta página</button></h4>
+                                <ul id="editor-ficha-rolagens"></ul>
+                                <p id="editor-ficha-sem-rolagens">Nenhuma rolagem definida.</p>
+                            </div>
                         </div>
                     </aside>
                 </div>
@@ -644,6 +721,8 @@
                     <span id="editor-ficha-contagem"></span>
                     <span id="editor-ficha-aviso" aria-live="polite"></span>
                     <div class="editor-imagem-botoes">
+                        <!-- EDITAR / CONFIRMAR (ao lado de Fechar): na leitura diz "Editar" (abre o campo de texto); na edição diz "Confirmar" (volta à leitura, mantendo o que foi escrito: salvar é o botão Salvar). -->
+                        <button id="editor-ficha-ver" type="button" aria-pressed="false" title="Confirmar: voltar à leitura (o que você escreveu continua; para gravar, use Salvar)">Confirmar</button>
                         <button id="editor-ficha-fechar">Fechar</button>
                         <button id="editor-ficha-salvar" disabled>Salvar</button>
                     </div>
@@ -695,6 +774,22 @@
 <span class="trecho rolagem-nome">(Bola de Fogo)</span><span class="trecho rolagem-formula">[8d6]</span>
 <span class="trecho rolagem-nome">(Cura)</span><span class="trecho rolagem-formula">[2d4 + 2]</span></pre>
 
+                    <h4>Cartões</h4>
+                    <ul>
+                        <li>Um cartão serve para magias, itens e qualquer coisa que você queira jogar no chat de uma vez.</li>
+                        <li>Escreva o nome entre parênteses, <b>colado</b> a três aspas, o texto, e três aspas para fechar. O texto pode ter várias linhas.</li>
+                        <li>Clique no nome (ou no botão do cartão, na leitura) e <b>todo o texto de dentro</b> vai para o chat, em forma de cartão.</li>
+                        <li>Dentro do cartão, use colchetes: <code>[2d6 + 3]</code> é <b>rolado</b> (tem dado) e <code>[8 + PROF + MOD_DES]</code> é <b>calculado</b> (sem dado). Isso acontece na hora em que o cartão chega ao chat, e variáveis valem.</li>
+                        <li>Dentro de um cartão, <code>#</code>, <code>**negrito**</code> e <code>*itálico*</code> funcionam (como no resto da ficha).</li>
+                        <li>Um erro dentro do cartão (variável que não existe, dado inválido) fica sublinhado, e o cartão não vai ao chat até ser corrigido.</li>
+                    </ul>
+<pre><span class="trecho cartao-nome">(Bola de Fogo)</span>"""
+# Bola de Fogo
+Evocação de 3º nível, alcance 45 m.
+Salvaguarda de Destreza, CD <span class="trecho cartao-formula">[8 + PROF + MOD_DES]</span>.
+Dano: <span class="trecho cartao-formula">[8d6]</span> de fogo (metade se passar).
+"""</pre>
+
                     <h4>Páginas</h4>
                     <ul>
                         <li>Variáveis valem para a ficha inteira (se repetida, vale a primeira).</li>
@@ -720,7 +815,10 @@
                     <p><b>Regras das variáveis de recurso:</b></p>
                     <ul>
                         <li>Escreva <code>NOME::valormínimo:valorinicial:valormáximo</code>. Ex.: <span class="trecho variavel-nome">FLECHAS</span>::<span class="trecho variavel-muda">0:12:20</span> (mínimo de 0 flechas, 12 no momento, e cabem 20 no total).</li>
-                        <li>Só números inteiros, até 999.999.999. Os três campos devem ser preenchidos.</li>
+                        <li>Cada campo é um número inteiro, até 999.999.999 (os três devem ser preenchidos), <b>ou uma conta</b>.</li>
+                        <li><b>A conta vai ENTRE PARÊNTESES</b> e pode usar as variáveis fixas da ficha e <code>+ - * /</code> (a divisão arredonda para baixo). Ex.: <span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:(10 + CONSTITUICAO):(10 + CONSTITUICAO + 1)</span>, onde <span class="trecho variavel-nome">CONSTITUICAO</span> é uma variável da ficha (ex.: <span class="trecho variavel-nome">CONSTITUICAO</span>:: <span class="trecho variavel-muda">2</span>). A conta é refeita sempre que as variáveis dela mudam, e o valor de agora nunca passa do novo máximo.</li>
+                        <li><b>Sem dados na conta</b> (<code>1d8</code>, <code>2d6</code>...): o número precisa ser conhecido de antemão, para saber se o intervalo é válido. E um recurso <b>não usa outro recurso</b> na conta (só variáveis fixas, como <code>NIVEL</code> e <code>MOD_CON</code>).</li>
+                        <li>Uma conta fora dos parênteses (<code>10 + NIVEL</code>) dá erro.</li>
                     </ul>
 <pre><span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:44:44</span>
 <span class="trecho variavel-nome">OURO</span>::<span class="trecho variavel-muda">0:150:999999999</span>
@@ -736,7 +834,7 @@
 
                     <h4>Fichas e tokens</h4>
                     <ul>
-                        <li>Uma ficha pode ter vários tokens (Token Único: um por tela). Cada token tem uma ficha só.</li>
+                        <li>Uma ficha pode ter vários tokens (Token Único: um por cena, e os valores são os mesmos em todas). Cada token tem uma ficha só.</li>
                         <li><b>Deve-se escrever</b> a variável de pontos de vida como <span class="trecho variavel-nome">PV</span>:: <span class="trecho variavel-valor">valor</span> para fichas comuns (ex.: ficha de monstros) e <span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">mín:atual:máx</span> para fichas únicas (ex.: ficha de jogador).</li>
                         <li>Recomenda-se também ter uma rolagem chamada <span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + MOD_DES]</span> (ex.: <span class="trecho variavel-nome">MOD_DES</span> é o modificador de destreza): é ela que o token usa ao ser adicionado à iniciativa (modo de iniciativa rápida). Sem ela, o token entra com 0.</li>
                     </ul>
@@ -853,7 +951,10 @@
 
         <!-- Painel de condições (abre ao clicar em "Add condição"). Os botões são criados pelo menuToken.ts. -->
         <div id="menu-condicoes" class="painel" hidden>
-            <h1>Condições</h1>
+            <div id="menu-condicoes-topo">
+                <h1>Condições</h1>
+                <!-- Acesso rápido à condição "Morto" (o botão é criado pelo menuToken.ts; marca e desmarca como o da grade). -->
+            </div>
             <div id="grade-condicoes"></div>
         </div>
 
@@ -892,11 +993,10 @@
                     var el = document.querySelector(seletor);
                     if (el) el.classList.add("recolhido");
                 }
-                // A PILHA de barras (ui/pilha.ts): a ordem guardada (`order` do CSS) e qual gaveta estava aberta (só UMA por vez; sem escolha guardada: nenhuma).
-                var padraoPilha = ["ferramentas-desenho", "barra", "iniciativa"];
+                // A PILHA de barras (ui/pilha.ts): a ordem guardada (`order` do CSS) e quais gavetas estavam abertas (sem escolha guardada: nenhuma).
+                var padraoPilha = ["ferramentas-desenho", "iniciativa"];
                 var barrasPilha = {
                     "ferramentas-desenho": { chave: "tabuleirinho.desenho.recolhido", seta: "#desenho-alternar" },
-                    barra: { chave: "tabuleirinho.barra.recolhida", seta: "#barra-alternar" },
                     iniciativa: { chave: "tabuleirinho.iniciativa.recolhida", seta: "#iniciativa-alternar" },
                 };
                 var guardadaPilha = (ler("tabuleirinho.pilha.ordem") || "").split(",");
@@ -905,12 +1005,13 @@
                     var el = document.getElementById(id);
                     if (el) el.style.order = String(i);
                 });
+                // (As gavetas abrem PARA BAIXO e empurram as de baixo; só UMA fica aberta por vez.)
                 var jaAberta = false;
                 ordemPilha.forEach(function (id) {
-                    var recolhida = ler(barrasPilha[id].chave) !== "0" || jaAberta; // (duas abertas por engano: vale a de cima)
+                    var recolhida = ler(barrasPilha[id].chave) !== "0" || jaAberta;
                     if (!recolhida) jaAberta = true;
                     marcar(id, "recolhida", recolhida);
-                    if (recolhida) marcarSeta(barrasPilha[id].seta); // (a seta ▸ quando recolhida: ver .seta no CSS)
+                    if (recolhida) marcarSeta(barrasPilha[id].seta); // (a seta ‹ quando recolhida: ver .seta no CSS)
                 });
                 // Libera os painéis escondidos até o app montar (ver o CSS "app-pronta"), mesmo se o app falhar.
                 setTimeout(function () { document.body.classList.add("app-pronta"); }, 3000);

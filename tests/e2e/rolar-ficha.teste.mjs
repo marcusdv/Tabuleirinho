@@ -52,7 +52,7 @@ let saida = ""; proc.stdout.on("data", (d) => (saida += d)); proc.stderr.on("dat
 await new Promise((res) => { const t = setInterval(() => { if (saida.includes("escutando")) { clearInterval(t); res(); } }, 30); });
 function cliente(apelido) {
     return new Promise((resolver) => {
-        const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws`);
+        const ws = new WebSocket(`ws://127.0.0.1:${PORTA}/ws?papel=mestre`);
         const recebidos = []; let fechou = null;
         ws.onmessage = (e) => recebidos.push(JSON.parse(e.data));
         ws.onclose = (e) => (fechou = e.code);

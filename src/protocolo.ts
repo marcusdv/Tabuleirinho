@@ -10,52 +10,102 @@
 // (o token existe? essa posição cabe? o texto passa do limite?) é conferido depois, pelas regras de estado.ts.
 // =====================================================================
 
-import { MAX_ABAS_FICHA, MAX_ACOES_MESA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_NOME_VARIAVEL, MAX_CARACTERES_QUANTIA_ACAO, MAX_CARACTERES_TEXTO_FICHA, MAX_GRUPOS, MAX_STATUS_TOKEN, MAX_VALOR_VARIAVEL_QUE_MUDA } from "./config.ts";
+import { MAX_ABAS_FICHA, MAX_ACOES_MESA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_NOME_VARIAVEL, MAX_CARACTERES_QUANTIA_ACAO, MAX_CARACTERES_TEXTO_FICHA, MAX_GRUPOS, MAX_STATUS_TOKEN, MAX_TOKENS_ACAO_EM_GRUPO, MAX_VALOR_VARIAVEL_QUE_MUDA } from "./config.ts";
 import { lerAcaoDaIniciativa, type AcaoDaIniciativa, type Iniciativa } from "./iniciativa.ts";
-import type { AbaFicha, AcaoDaMesa, AcaoNova, Ficha, Grupo, Mensagem, MudancasToken, StatusDoToken, StatusNovo, Token, ValorDeStatus } from "./estado.ts";
+import { idDeUsuarioValido, LIMITE_MAXIMO_POR_JOGADOR, type NivelDeAcesso, type Permissoes, type TipoDeItem } from "./permissoes.ts";
+import { limparDesenho, type Desenho, type NovoDesenho } from "./estado.ts";
+import type { AbaFicha, AcaoDaMesa, AcaoNova, Ficha, GradeDaMesa, Grupo, Mensagem, MudancasToken, StatusDoToken, StatusNovo, Token, ValorDeStatus } from "./estado.ts";
 
 /** Um jogador conectado à mesa. */
 export interface Jogador {
     id: number;
     apelido: string;
+    usuario?: string; // o ID de usuário estável (o servidor o preenche; é o que as permissões usam)
+    mestre?: boolean; // tem poder de MESTRE agora (o servidor preenche)
+    /** Esta pessoa está NA MESMA CENA (no mesmo mapa) de quem recebe a lista? O servidor calcula para cada destinatário (assim os ids dos mapas não vazam). */
+    naMinhaCena?: boolean;
+    /** O mapa em que a pessoa está (o servidor só preenche para o MESTRE, que sabe os ids): a aba Mapas mostra "jogadores aqui". */
+    mapa?: string | null;
+    /** (só para o MESTRE) a pessoa foi levada a um mapa que NÃO tem permissão de ver. */
+    semPermissao?: boolean;
 }
+
+/** Um mapa da BIBLIOTECA da mesa (a imagem fica num arquivo no servidor, nunca na mensagem): quem o escolhe baixa por `/mapas/<id>`. O `id` é gerado pelo servidor (16 caracteres hexadecimais). */
+export interface RegistroDeMapa {
+    id: string;
+    nome: string;
+    tipo: "png" | "jpeg" | "webp";
+    largura: number; // pixels, lidos no cabeçalho da imagem
+    altura: number;
+    bytes: number;
+    /** QUEM VÊ este mapa (pedido do dono, 17/11/2026): o mestre sempre vê; `todos` = todos os jogadores; senão, só os `usuarios` listados (nenhum = só o mestre). Quem não vê o mapa atual vê o tabuleiro vazio. Sem o campo: todos. */
+    quemVe?: { todos: boolean; usuarios: string[] };
+    /** O tamanho do tabuleiro DESTE mapa (cada mapa tem o seu; sem o campo vale o da mesa). */
+    colunas?: number;
+    linhas?: number;
+    /** A grade (espessura e cor) DESTE mapa: cada mapa tem a sua (sem o campo vale a da mesa). */
+    grade?: GradeDaMesa;
+}
+
+/** O formato de um id de mapa (o servidor gera; um pedido com outra coisa é recusado). */
+export const ID_DE_MAPA = /^[0-9a-f]{16}$/;
 
 /** O que o navegador PEDE ao servidor. */
 export type PedidoDoCliente =
     | { tipo: "entrar"; apelido: string }
     | { tipo: "colocar_token"; id: number; col: number; row: number } // soltar um token no mapa (mover ou tirar da bolsa)
     | { tipo: "guardar_token"; id: number } // soltar um token na bolsa
+    | { tipo: "alternar_condicao"; id: number; condicao: string } // liga/desliga uma condição (ex.: "morto") de um token; o servidor confere, grava e avisa todos
     | { tipo: "ajustar_valor_ficha"; ficha: number; nome: string; delta: number } // SOMAR `delta` (+ ou -) ao valor atual de uma variável que muda da ficha: o SERVIDOR limita ao intervalo, grava e avisa todos
     | { tipo: "iniciativa"; acao: AcaoDaIniciativa } // uma ação na ordem de COMBATE (adicionar, remover, mover, valor, ordenar, resetar, próxima vez...): o SERVIDOR aplica, guarda e avisa todos
-    | { tipo: "arrastar_resultado"; token: number; mensagem: number } // o TOTAL de uma rolagem do chat foi solto num token: ele perde essa quantidade do status marcado; o SERVIDOR lê o total da mensagem (o navegador não manda número)
+    | { tipo: "arrastar_resultado"; token: number; mensagem: number; indice?: number; dado?: number } // o TOTAL de uma rolagem do chat (ou um DADO dela, `dado` = a posição) foi solto num token: ele perde essa quantidade do status marcado; o SERVIDOR lê o total da mensagem (o navegador não manda número)
+    | { tipo: "aplicar_acao_varios"; tokens: number[]; acao: number; valor: string } // a mesma ação em VÁRIOS tokens de uma vez (dano ou cura em área): os dados são rolados UMA vez (o mesmo total para todos)
+    | { tipo: "condicao_varios"; tokens: number[]; condicao: string; ligar: boolean } // LIGA ou desliga uma condição em vários tokens de uma vez
     | { tipo: "aplicar_acao"; token: number; acao: number; valor: string } // aplicar uma ação (Dano, Cura...) a um token: `valor` = um número ou dados ("2d6+3"); o SERVIDOR sorteia e aplica
     | { tipo: "definir_acoes"; acoes: AcaoNova[] } // mudar as AÇÕES da mesa inteira (criar, excluir)
     | { tipo: "definir_status"; status: StatusNovo[] } // mudar os STATUS (barras) da MESA INTEIRA: vale para todos os tokens e peças; o SERVIDOR guarda e avisa todos
+    | { tipo: "definir_grade"; espessura: number; cor: string | null } // mudar a espessura e a cor da grade da MESA (só o mestre): o servidor limpa, grava e avisa todos
     | { tipo: "definir_tamanho"; colunas: number; linhas: number } // mudar o tamanho do tabuleiro (trocar de mapa, botões de colunas/linhas, Alinhar mapa): o SERVIDOR é quem decide e avisa todos
     | { tipo: "colocar_modelo"; modelo: number; col: number; row: number; valores?: { id: number; atual: number }[]; condicoes?: string[] } // arrastar um token da BOLSA para o tabuleiro: o SERVIDOR cria uma PEÇA (cópia temporária); `valores`/`condicoes` só no "Desfazer" de uma remoção
     | { tipo: "enviar_mensagem"; texto: string }
     | { tipo: "rolar_dados"; lados: number; quantidade: number; modificador: number }
+    | { tipo: "rolar_conta"; texto: string } // o "/r" do chat: uma conta com dados (o servidor confere, sorteia e manda o cartão)
     | { tipo: "criar_token"; nome: string; cor: number; corBorda: number; tamanho: number; imagem: string | null; ficha?: number | null } // o SERVIDOR dá o id e cria o arquivo (`ficha` = "Gerar um token" a partir de uma ficha)
     | { tipo: "editar_token"; id: number; mudancas: MudancasToken } // nome, tamanho, cores e/ou imagem
     | { tipo: "excluir_token"; id: number } // apaga o token E o arquivo dele
-    | { tipo: "criar_ficha" } // sem dados: o SERVIDOR dá o id e o nome ("Ficha N") e cria o arquivo NA HORA (a ficha nasce vazia)
+    | { tipo: "criar_ficha"; token?: number } // o SERVIDOR dá o id e cria o arquivo NA HORA (a ficha nasce vazia, "Ficha N"); com `token` (um token da bolsa SEM ficha), ela nasce com o NOME do token e já fica LIGADA a ele
     | { tipo: "editar_ficha"; id: number; versao: number; nome?: string; abas?: AbaFicha[] } // `versao` = a que a pessoa tinha na tela ao abrir; `abas` = a lista INTEIRA de abas (1 a 6)
     | { tipo: "excluir_ficha"; id: number } // apaga a ficha E o arquivo dela
     | { tipo: "marcar_ficha"; id: number; favorito?: boolean; grupos?: number[] } // estrela e/ou grupos da ficha: NÃO sobe a versão (não é o conteúdo)
     | { tipo: "criar_grupo"; nome: string; cor: number } // o SERVIDOR dá o id e cria o arquivo em dados/grupos/
     | { tipo: "editar_grupo"; id: number; nome?: string; cor?: number }
     | { tipo: "excluir_grupo"; id: number } // apaga o grupo E a marca dele em todos os tokens e fichas (os itens ficam)
-    | { tipo: "rolar_ficha"; id: number; versao: number; aba: number; indice: number; token?: number | null }; // rola a rolagem de posição `indice` da ABA `aba` da ficha SALVA (na versão `versao`)
+    | { tipo: "rolar_ficha"; id: number; versao: number; aba: number; indice: number; token?: number | null } // rola a rolagem de posição `indice` da ABA `aba` da ficha SALVA (na versão `versao`)
+    | { tipo: "definir_mapa"; id: string | null; colunas?: number; linhas?: number } // o MESTRE troca o mapa atual (null = nenhum); o servidor confere que ele existe e avisa todos
+    | { tipo: "desenhar"; desenho: NovoDesenho; ref?: string } // um desenho novo (lápis ou forma) no mapa atual; o SERVIDOR confere, dá o id e o autor e avisa todos (`ref` volta junto, para quem desenhou reconhecer o seu)
+    | { tipo: "apagar_desenhos"; ids: number[] } // apagar desenhos (a borracha, o Ctrl+Z, "Apagar tudo"): o servidor apaga só os que a pessoa pode (o mestre, todos; os outros, os próprios)
+    | { tipo: "liberar"; item: TipoDeItem | "grupos"; id: number; usuario: string; nivel: NivelDeAcesso | null } // o MESTRE libera um token, uma ficha ou um GRUPO a um jogador como leitor ou editor (nivel null = tirar a liberação)
+    | { tipo: "definir_limites"; tokens: number; fichas: number } // o MESTRE muda os limites por jogador (configuração da mesa)
+    | { tipo: "mover_jogadores" } // o MESTRE leva todos os jogadores para o mapa em que ele está
+    | { tipo: "definir_quem_ve_mapa"; id: string; todos: boolean; usuarios: string[] } // o MESTRE escolhe quem vê um mapa da biblioteca (todos os jogadores, jogadores específicos ou só o mestre)
+    | { tipo: "banir"; usuario: string; banir: boolean; nome?: string } // o MESTRE bane (ou desbane) um jogador da mesa: ele é desconectado e não consegue entrar de novo
+    | { tipo: "definir_mestre"; usuario: string; mestre: boolean } // o MESTRE dá (ou tira) o poder de mestre a outro usuário (o dono do servidor nunca perde)
+    | { tipo: "excluir_mapa"; id: string } // o MESTRE apaga um mapa da biblioteca (e o arquivo)
+    | { tipo: "usar_cartao"; id: number; versao: number; aba: number; indice: number; token?: number | null }; // usa o CARTÃO de posição `indice` da ABA `aba` da ficha SALVA: o servidor calcula/rola as [expressões] e manda o cartão ao chat
 
 /** O que o servidor AVISA aos navegadores. */
 export type EventoDoServidor =
-    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; status: StatusDoToken[]; acoes: AcaoDaMesa[]; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[]; grupos: Grupo[]; valores: Record<string, Record<string, number>>; iniciativa: Iniciativa }
+    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; status: StatusDoToken[]; acoes: AcaoDaMesa[]; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[]; grupos: Grupo[]; valores: Record<string, Record<string, number>>; iniciativa: Iniciativa; mestre: boolean; mapa: string | null; mapas: RegistroDeMapa[]; grade: GradeDaMesa; permissoes: Permissoes | null; desenhos: Desenho[] } // `permissoes`: o documento inteiro, SÓ para o mestre (null para os jogadores);  `grade`: a espessura e a cor da grade da mesa; `mestre`: esta conexão é a do MESTRE (por enquanto: a do computador do servidor); `mapa`: o id do mapa atual; `mapas`: a biblioteca
     | { tipo: "token_criado"; token: Token } // já gravado no disco do servidor; nasce guardado na bolsa
     | { tipo: "iniciativa_definida"; iniciativa: Iniciativa } // a ordem de combate inteira, como ficou depois de uma ação
     | { tipo: "valores_ficha"; id: number; valores: Record<string, number> } // os valores atuais das variáveis que mudam de uma ficha (NOME em MAIÚSCULAS -> valor): o SERVIDOR já limitou; cada navegador refaz as barras dos tokens dela
-    | { tipo: "valores_atualizados"; id: number; valores: ValorDeStatus[] } // os valores (PV...) de uma peça mudaram (uma ação foi aplicada)
+    | { tipo: "condicoes_atualizadas"; id: number; condicoes: string[] } // as condições de um token mudaram (a lista inteira, na ordem em que foram aplicadas)
+    | { tipo: "valores_atualizados"; id: number; valores: ValorDeStatus[]; efeito?: "dano" | "cura" } // os valores (PV...) de uma peça mudaram (uma ação foi aplicada)
     | { tipo: "acoes_definidas"; acoes: AcaoDaMesa[] } // a lista de ações da mesa mudou
     | { tipo: "status_definidos"; status: StatusDoToken[]; pecas: { id: number; valores: ValorDeStatus[] }[] } // a regra dos status mudou para todos; `pecas`: os valores (PV...) de cada peça, que o servidor já refez
+    | { tipo: "mapa_definido"; mapa: string | null; colunas?: number; linhas?: number; grade?: GradeDaMesa } // o mapa atual mudou (o id na biblioteca; null = nenhum)
+    | { tipo: "mapas_definidos"; mapas: RegistroDeMapa[] } // a biblioteca mudou (enviaram ou apagaram um mapa): a lista inteira
+    | { tipo: "grade_definida"; grade: GradeDaMesa } // a espessura e a cor da grade DO MAPA em que você está mudaram (já limpas)
     | { tipo: "tamanho_definido"; colunas: number; linhas: number } // o tamanho do tabuleiro mudou (já limitado ao permitido); cada navegador puxa para dentro os tokens que ficaram fora
     | { tipo: "peca_criada"; token: Token } // uma PEÇA nova no tabuleiro (cópia de um token da bolsa), já gravada no servidor
     | { tipo: "token_editado"; token: Token } // o token inteiro, como ficou
@@ -68,6 +118,11 @@ export type EventoDoServidor =
     | { tipo: "grupo_editado"; grupo: Grupo }
     | { tipo: "grupo_excluido"; id: number } // quem recebe tira o grupo também de todos os tokens e fichas (`excluirGrupo`)
     | { tipo: "jogadores"; lista: Jogador[] }
+    | { tipo: "desenho_criado"; desenho: Desenho; ref?: string } // um desenho novo no mapa (com id e autor); `ref` é o que o autor mandou
+    | { tipo: "desenhos_apagados"; ids: number[] }
+    | { tipo: "desenhos_definidos"; desenhos: Desenho[] } // os desenhos do mapa inteiro (o mestre trocou de mapa)
+    | { tipo: "permissoes"; permissoes: Permissoes } // SÓ para os mestres: o documento de permissões mudou (liberações, limites, mestres)
+    | { tipo: "papel"; mestre: boolean } // SÓ para quem mudou de papel (foi promovido ou rebaixado): a interface se refaz
     | { tipo: "token_colocado"; id: number; col: number; row: number; valores?: ValorDeStatus[] } // `valores`: os status temporários (nascem ao sair da bolsa; o SERVIDOR os calcula lendo a ficha)
     | { tipo: "token_guardado"; id: number }
     | { tipo: "mensagem"; mensagem: Mensagem } // texto do chat OU cartão de rolagem (criados só pelo servidor)
@@ -94,13 +149,19 @@ function lerListaDeStatus(bruto: unknown): StatusNovo[] | null {
         const x = s as Record<string, unknown>;
         if (!eTexto(x.nome, TEXTO_MAX_BRUTO) || !eTexto(x.variavel, TEXTO_MAX_BRUTO) || !eInteiro(x.cor)) return null;
         if (x.id !== undefined && !eInteiro(x.id)) return null;
-        if ((x.mostrar !== undefined && typeof x.mostrar !== "boolean") || (x.numeros !== undefined && typeof x.numeros !== "boolean")) return null;
+        if ((x.mostrar !== undefined && typeof x.mostrar !== "boolean") || (x.numeros !== undefined && typeof x.numeros !== "boolean") || (x.mostrarNome !== undefined && typeof x.mostrarNome !== "boolean")) return null;
+        let quemVe: { dono: boolean; leitores: boolean; outros: boolean } | undefined;
+        if (x.quemVe !== undefined) {
+            const q = x.quemVe as Record<string, unknown> | null;
+            if (typeof q !== "object" || q === null || typeof q.dono !== "boolean" || typeof q.leitores !== "boolean" || typeof q.outros !== "boolean") return null;
+            quemVe = { dono: q.dono, leitores: q.leitores, outros: q.outros };
+        }
         let grupos: number[] | null | undefined;
         if (x.grupos !== undefined && x.grupos !== null) {
             if (!Array.isArray(x.grupos) || x.grupos.length > MAX_GRUPOS || !x.grupos.every(eInteiro)) return null; // (a lista de grupos em que o status vale; o estado.ts descarta os que não existem)
             grupos = [...(x.grupos as number[])];
         } else grupos = x.grupos;
-        lista.push({ ...(x.id !== undefined && { id: x.id }), nome: x.nome, variavel: x.variavel, cor: x.cor, ...(x.mostrar !== undefined && { mostrar: x.mostrar }), ...(x.numeros !== undefined && { numeros: x.numeros }), ...(grupos !== undefined && { grupos }), ...(x.semGrupo === true && { semGrupo: true }), ...(x.recebeArrasto === true && { recebeArrasto: true }) });
+        lista.push({ ...(x.id !== undefined && { id: x.id }), nome: x.nome, variavel: x.variavel, cor: x.cor, ...(x.mostrar !== undefined && { mostrar: x.mostrar }), ...(x.mostrarNome !== undefined && { mostrarNome: x.mostrarNome }), ...(x.numeros !== undefined && { numeros: x.numeros }), ...(grupos !== undefined && { grupos }), ...(x.semGrupo === true && { semGrupo: true }), ...(x.recebeArrasto === true && { recebeArrasto: true }), ...(quemVe !== undefined && { quemVe }) });
     }
     return lista;
 }
@@ -109,6 +170,17 @@ function lerListaDeStatus(bruto: unknown): StatusNovo[] | null {
  * Confere a FORMA de um pedido que veio da rede (já convertido de JSON). Devolve um pedido limpo (só os campos
  * conhecidos) ou null se for qualquer outra coisa. Nunca lança erro, não importa o que chegue.
  */
+/** Uma lista de ids de tokens para uma ação em ÁREA: de 1 a MAX_TOKENS_ACAO_EM_GRUPO números inteiros, sem repetir. Qualquer outra coisa invalida o pedido. */
+function lerIdsDeTokens(bruto: unknown): number[] | null {
+    if (!Array.isArray(bruto) || bruto.length < 1 || bruto.length > MAX_TOKENS_ACAO_EM_GRUPO) return null;
+    const ids: number[] = [];
+    for (const id of bruto) {
+        if (!eInteiro(id) || ids.includes(id)) return null;
+        ids.push(id);
+    }
+    return ids;
+}
+
 export function lerPedido(bruto: unknown): PedidoDoCliente | null {
     if (typeof bruto !== "object" || bruto === null || Array.isArray(bruto)) return null;
     const p = bruto as Record<string, unknown>;
@@ -117,6 +189,8 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             return eTexto(p.apelido, TEXTO_MAX_BRUTO) ? { tipo: "entrar", apelido: p.apelido } : null;
         case "colocar_token":
             return eInteiro(p.id) && eInteiro(p.col) && eInteiro(p.row) ? { tipo: "colocar_token", id: p.id, col: p.col, row: p.row } : null;
+        case "alternar_condicao":
+            return eInteiro(p.id) && eTexto(p.condicao, 40) ? { tipo: "alternar_condicao", id: p.id, condicao: p.condicao } : null;
         case "guardar_token":
             return eInteiro(p.id) ? { tipo: "guardar_token", id: p.id } : null;
         case "ajustar_valor_ficha":
@@ -126,7 +200,15 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             return acao ? { tipo: "iniciativa", acao } : null;
         }
         case "arrastar_resultado":
-            return eInteiro(p.token) && eInteiro(p.mensagem) ? { tipo: "arrastar_resultado", token: p.token, mensagem: p.mensagem } : null;
+            return eInteiro(p.token) && eInteiro(p.mensagem) && (p.indice === undefined || eInteiro(p.indice)) && (p.dado === undefined || eInteiro(p.dado)) ? { tipo: "arrastar_resultado", token: p.token, mensagem: p.mensagem, ...(p.indice !== undefined && { indice: p.indice }), ...(p.dado !== undefined && { dado: p.dado }) } : null; // (`indice`: qual número de um CARTÃO foi arrastado)
+        case "aplicar_acao_varios": {
+            const ids = lerIdsDeTokens(p.tokens);
+            return ids && eInteiro(p.acao) && eTexto(p.valor, MAX_CARACTERES_QUANTIA_ACAO) ? { tipo: "aplicar_acao_varios", tokens: ids, acao: p.acao, valor: p.valor } : null;
+        }
+        case "condicao_varios": {
+            const ids = lerIdsDeTokens(p.tokens);
+            return ids && eTexto(p.condicao, 40) && typeof p.ligar === "boolean" ? { tipo: "condicao_varios", tokens: ids, condicao: p.condicao, ligar: p.ligar } : null;
+        }
         case "aplicar_acao":
             return eInteiro(p.token) && eInteiro(p.acao) && eTexto(p.valor, MAX_CARACTERES_QUANTIA_ACAO) ? { tipo: "aplicar_acao", token: p.token, acao: p.acao, valor: p.valor } : null;
         case "definir_acoes": {
@@ -144,6 +226,40 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             const status = lerListaDeStatus(p.status);
             return status === null ? null : { tipo: "definir_status", status };
         }
+        case "definir_mapa":
+            // `colunas` e `linhas` (as duas ou nenhuma): o tamanho do tabuleiro que acompanha o mapa. Vão JUNTOS no mesmo evento, para cada navegador trocar a imagem e o tamanho de uma vez, só depois de a imagem chegar.
+            if (!(p.id === null || (typeof p.id === "string" && ID_DE_MAPA.test(p.id)))) return null;
+            if (p.colunas === undefined && p.linhas === undefined) return { tipo: "definir_mapa", id: p.id };
+            return eInteiro(p.colunas) && eInteiro(p.linhas) ? { tipo: "definir_mapa", id: p.id, colunas: p.colunas, linhas: p.linhas } : null;
+        case "desenhar": {
+            const desenho = limparDesenho(p.desenho);
+            if (!desenho || (p.ref !== undefined && !eTexto(p.ref, 24))) return null;
+            return { tipo: "desenhar", desenho, ...(p.ref !== undefined && { ref: p.ref as string }) };
+        }
+        case "apagar_desenhos": {
+            if (!Array.isArray(p.ids) || p.ids.length < 1 || p.ids.length > 5000 || !p.ids.every(eInteiro)) return null;
+            return { tipo: "apagar_desenhos", ids: [...(p.ids as number[])] };
+        }
+        case "liberar":
+            return (p.item === "tokens" || p.item === "fichas" || p.item === "grupos") && eInteiro(p.id) && idDeUsuarioValido(p.usuario) && (p.nivel === null || p.nivel === "leitor" || p.nivel === "editor")
+                ? { tipo: "liberar", item: p.item, id: p.id, usuario: p.usuario, nivel: p.nivel }
+                : null;
+        case "definir_limites":
+            return eInteiro(p.tokens) && eInteiro(p.fichas) && p.tokens >= 0 && p.fichas >= 0 && p.tokens <= LIMITE_MAXIMO_POR_JOGADOR && p.fichas <= LIMITE_MAXIMO_POR_JOGADOR ? { tipo: "definir_limites", tokens: p.tokens, fichas: p.fichas } : null;
+        case "definir_quem_ve_mapa":
+            return typeof p.id === "string" && ID_DE_MAPA.test(p.id) && typeof p.todos === "boolean" && Array.isArray(p.usuarios) && p.usuarios.length <= 100 && p.usuarios.every((u) => idDeUsuarioValido(u))
+                ? { tipo: "definir_quem_ve_mapa", id: p.id, todos: p.todos, usuarios: [...new Set(p.usuarios as string[])] }
+                : null;
+        case "banir":
+            return idDeUsuarioValido(p.usuario) && typeof p.banir === "boolean" && (p.nome === undefined || eTexto(p.nome, 40)) ? { tipo: "banir", usuario: p.usuario, banir: p.banir, ...(p.nome !== undefined && { nome: p.nome as string }) } : null;
+        case "definir_mestre":
+            return idDeUsuarioValido(p.usuario) && typeof p.mestre === "boolean" ? { tipo: "definir_mestre", usuario: p.usuario, mestre: p.mestre } : null;
+        case "mover_jogadores":
+            return { tipo: "mover_jogadores" };
+        case "excluir_mapa":
+            return typeof p.id === "string" && ID_DE_MAPA.test(p.id) ? { tipo: "excluir_mapa", id: p.id } : null;
+        case "definir_grade":
+            return typeof p.espessura === "number" && Number.isFinite(p.espessura) && (p.cor === null || (typeof p.cor === "string" && p.cor.length <= 7)) ? { tipo: "definir_grade", espessura: p.espessura, cor: p.cor } : null; // (o sentido e os limites: `limparGradeDaMesa`)
         case "definir_tamanho":
             return eInteiro(p.colunas) && eInteiro(p.linhas) ? { tipo: "definir_tamanho", colunas: p.colunas, linhas: p.linhas } : null;
         case "colocar_modelo": {
@@ -167,6 +283,8 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
         }
         case "enviar_mensagem":
             return eTexto(p.texto, TEXTO_MAX_BRUTO) ? { tipo: "enviar_mensagem", texto: p.texto } : null;
+        case "rolar_conta":
+            return eTexto(p.texto, TEXTO_MAX_BRUTO) ? { tipo: "rolar_conta", texto: p.texto } : null;
         case "rolar_dados":
             return eInteiro(p.lados) && eInteiro(p.quantidade) && eInteiro(p.modificador)
                 ? { tipo: "rolar_dados", lados: p.lados, quantidade: p.quantidade, modificador: p.modificador }
@@ -215,12 +333,17 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
         case "excluir_grupo":
             return eInteiro(p.id) ? { tipo: "excluir_grupo", id: p.id } : null;
         case "criar_ficha":
-            return { tipo: "criar_ficha" }; // qualquer outro campo que venha junto é descartado
+            if (p.token !== undefined && !eInteiro(p.token)) return null;
+            return { tipo: "criar_ficha", ...(p.token !== undefined && { token: p.token }) }; // qualquer outro campo que venha junto é descartado
         case "excluir_ficha":
             return eInteiro(p.id) ? { tipo: "excluir_ficha", id: p.id } : null;
         case "rolar_ficha":
             return eInteiro(p.id) && eInteiro(p.versao) && eInteiro(p.aba) && eInteiro(p.indice) && (p.token === undefined || p.token === null || eInteiro(p.token))
                 ? { tipo: "rolar_ficha", id: p.id, versao: p.versao, aba: p.aba, indice: p.indice, ...(p.token !== undefined && { token: p.token }) }
+                : null;
+        case "usar_cartao":
+            return eInteiro(p.id) && eInteiro(p.versao) && eInteiro(p.aba) && eInteiro(p.indice) && (p.token === undefined || p.token === null || eInteiro(p.token))
+                ? { tipo: "usar_cartao", id: p.id, versao: p.versao, aba: p.aba, indice: p.indice, ...(p.token !== undefined && { token: p.token }) }
                 : null;
         case "editar_ficha": {
             if (!eInteiro(p.id) || !eInteiro(p.versao)) return null;

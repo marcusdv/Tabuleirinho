@@ -7,7 +7,7 @@
 
 const PARAGRAFOS_TOKEN_UNICO = [
     "Esta ficha tem pelo menos um recurso: uma variável escrita NOME::mín:inicial:máx, como PV, ouro ou flechas.",
-    "Por isso ela só pode ser usada por um único token por tela. Se houver várias telas de mapa, o token de cada uma compartilha os mesmos recursos: é o mesmo personagem.",
+    "Por isso ela só pode ser usada por um único token por cena (mapa). Em outra cena ela pode aparecer de novo, e o token de cada cena compartilha os mesmos recursos: é o mesmo personagem (o PV que cai numa cena cai nas outras).",
     "A barra de vida desse token mostra o valor da ficha ao vivo, e as ações Dano e Cura mudam o PV dela.",
     "É a ficha ideal para jogadores, chefões e personagens especiais do mestre.",
     "Para virar uma Ficha Multi Tokens, apague todos os recursos do texto.",
@@ -29,7 +29,7 @@ export function criarInfoTipoFicha(): void {
     const titulo = pegar("info-tipo-ficha-titulo");
     const corpo = pegar("info-tipo-ficha-corpo");
     const botaoFechar = pegar<HTMLButtonElement>("info-tipo-ficha-fechar");
-    const etiqueta = pegar("editor-ficha-tipo");
+    // (há UMA etiqueta por janela de ficha, e as janelas extras nascem depois: por isso o clique é escutado no documento inteiro, e a etiqueta que vale é a clicada)
     let focoAnterior: HTMLElement | null = null; // quem tinha o foco antes de abrir (volta para ele ao fechar)
 
     function fechar(): void {
@@ -45,7 +45,7 @@ export function criarInfoTipoFicha(): void {
         fechar();
     }
 
-    function abrir(): void {
+    function abrir(etiqueta: HTMLElement): void {
         if (!janela.hidden) return;
         const unica = etiqueta.classList.contains("unica");
         titulo.textContent = unica ? "Ficha Token Único" : "Ficha Multi Tokens";
@@ -62,7 +62,10 @@ export function criarInfoTipoFicha(): void {
         botaoFechar.focus();
     }
 
-    etiqueta.addEventListener("click", abrir);
+    document.addEventListener("click", (e) => {
+        const etiqueta = e.target instanceof Element ? e.target.closest<HTMLElement>("#editor-ficha-tipo") : null;
+        if (etiqueta) abrir(etiqueta);
+    });
     botaoFechar.addEventListener("click", fechar);
     janela.addEventListener("click", (e) => {
         if (e.target === janela) fechar(); // clicar no fundo escuro fecha
