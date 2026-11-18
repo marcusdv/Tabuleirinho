@@ -165,36 +165,21 @@ export async function definirQuemVeMapa(id: string, todos: boolean, usuarios: st
     return true;
 }
 
-/** Lembra NA HORA a grade (espessura e cor) deste mapa; e `definirGradeDoMapa` grava o índice. */
-export function lembrarGradeDoMapa(id: string, grade: GradeDaMesa): void {
-    const m = acharMapa(id);
-    if (m) m.grade = { ...grade };
-}
-export async function definirGradeDoMapa(id: string, grade: GradeDaMesa): Promise<boolean> {
-    const m = acharMapa(id);
-    if (!m) return false;
-    m.grade = { ...grade };
-    await gravarIndice().catch((falha) => console.warn(`Não foi possível gravar o índice dos mapas: ${falha instanceof Error ? falha.message : "erro"}`));
-    return true;
-}
-
-/** Lembra NA HORA (na memória) o tamanho do tabuleiro deste mapa; quem chama grava o índice depois (`definirTamanhoDoMapa`). */
-export function lembrarTamanhoDoMapa(id: string, colunas: number, linhas: number): void {
-    const m = acharMapa(id);
-    if (m) {
-        m.colunas = colunas;
-        m.linhas = linhas;
+/**
+ * O tamanho e a grade de cada mapa passaram a morar em `dados/cenas.json` (servidor/cenas.ts, 17/11/2026). Índices ANTIGOS ainda têm esses campos: depois que `carregarCenas` os copia para
+ * lá, esta função os tira daqui e regrava o índice (a biblioteca de mapas fica só com o que é da IMAGEM: nome, tipo, pixels, bytes e quem vê).
+ */
+export async function esquecerConfigDosMapas(): Promise<void> {
+    let mudou = false;
+    for (const m of mapas) {
+        if (m.colunas !== undefined || m.linhas !== undefined || m.grade !== undefined) {
+            delete m.colunas;
+            delete m.linhas;
+            delete m.grade;
+            mudou = true;
+        }
     }
-}
-
-/** Guarda o tamanho do tabuleiro DESTE mapa (cada mapa tem o seu) e grava o índice. false se o id não existe. */
-export async function definirTamanhoDoMapa(id: string, colunas: number, linhas: number): Promise<boolean> {
-    const m = acharMapa(id);
-    if (!m) return false;
-    m.colunas = colunas;
-    m.linhas = linhas;
-    await gravarIndice().catch((falha) => console.warn(`Não foi possível gravar o índice dos mapas: ${falha instanceof Error ? falha.message : "erro"}`));
-    return true;
+    if (mudou) await gravarIndice().catch((falha) => console.warn(`Não foi possível gravar o índice dos mapas: ${falha instanceof Error ? falha.message : "erro"}`));
 }
 
 /** Apaga um mapa (o arquivo e a entrada do índice). false se o id não existe. */

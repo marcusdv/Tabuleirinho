@@ -4,26 +4,32 @@
    já existia e NÃO se reordenam os @imports (nem as regras dentro de cada arquivo) sem conferir
    a tela. Carregado pelo index.html por <link rel="stylesheet">; o Vite junta tudo em um só no build.
    (Um @import só vale ANTES de qualquer regra: por isso este arquivo não tem regras próprias.)
+   CAMADAS (@layer, 17/11/2026): todos os arquivos de componentes ficam na camada "componentes"; "estados" (os modos que precisam vencer: abas, minimizada, celular...) e
+   "utilitarios" ([hidden], só do mestre) vêm DEPOIS e vencem qualquer seletor de "componentes". Por isso o site NÃO usa !important: quando uma regra precisa vencer
+   sempre, ela vai para estados.css ou utilitarios.css (ou ganha um seletor mais preciso).
    ===================================================================== */
-@import "./css/base.css"; /* o reset: margem, hidden e o canvas */
-@import "./css/pilha.css"; /* A PILHA DE BARRAS da esquerda: zoom rápido, gavetas, aviso do canto, setas de recolher, controles e a calibragem da grade. */
-@import "./css/painelDesenho.css"; /* O painel de DESENHO (esquerda). */
-@import "./css/chatColuna.css"; /* O CHAT: a coluna fixa da direita, as abas Chat/Bolsa e o aviso de mensagens não lidas. */
-@import "./css/dados.css"; /* O painel de DADOS (no pé da coluna) e o comportamento da coluna em janelas estreitas e no celular. */
-@import "./css/chatMensagens.css"; /* As MENSAGENS do chat: cartões de rolagem (dados e ficha), peças em forma de dado, lista e campo de enviar. */
-@import "./css/canto.css"; /* O canto inferior direito (calibragem) e o conteúdo criado pelo app. */
-@import "./css/bolsa.css"; /* A BOLSA: cabeçalho, tamanhos, fichinhas dos tokens, o disco e a prévia. */
-@import "./css/status.css"; /* O EDITOR DE STATUS (as barras do token) e a prévia das barras. */
-@import "./css/bolsaAbas.css"; /* A BOLSA, 2ª parte: abas Tokens/Fichas, ordenar, grupos, seleção e os documentos das fichas. */
-@import "./css/bolsaMapas.css"; /* A BOLSA, 3ª parte: a aba Mapas e a regra so-mestre. */
-@import "./css/bolsaJogadores.css"; /* A BOLSA, 4ª parte: a aba Jogadores. */
-@import "./css/bolsaMarcas.css"; /* A BOLSA, 5ª parte: marcas das fichinhas e cartões, janela do tabuleiro. */
-@import "./css/chatCartaoFicha.css"; /* O CARTÃO DE FICHA no chat (os cartões `(Nome)"""texto"""`). */
-@import "./css/menuToken.css"; /* engrenagem e lista de ações do token, menu e balão das condições */
-@import "./css/diversos.css"; /* pílula online, cópia do token arrastado, menu da ficha na bolsa, recorte da imagem */
-@import "./css/editorFicha.css"; /* a janela da ficha, o painel lateral e a janela "Instruções" */
-@import "./css/editorFichaJanelas.css"; /* a janela da ficha, 2ª parte: fixar, divisória, cartões e celular */
-@import "./css/modais.css"; /* caixa de confirmar e modais das ações */
-@import "./css/barrasRolagem.css"; /* o visual das barras de rolagem do site */
-@import "./css/editarToken.css"; /* a janela "Editar token" */
-@import "./css/iniciativa.css"; /* a 3ª gaveta da pilha: a ordem de combate */
+@layer componentes, estados, utilitarios; /* (a ordem das camadas: a última vence) */
+@import "./css/base.css" layer(componentes); /* o reset: margem e o canvas (o [hidden] está em utilitarios.css) */
+@import "./css/pilha.css" layer(componentes); /* A PILHA DE BARRAS da esquerda: zoom rápido, gavetas, aviso do canto, setas de recolher, controles e a calibragem da grade. */
+@import "./css/painelDesenho.css" layer(componentes); /* O painel de DESENHO (esquerda). */
+@import "./css/chatColuna.css" layer(componentes); /* O CHAT: a coluna fixa da direita, as abas Chat/Bolsa e o aviso de mensagens não lidas. */
+@import "./css/dados.css" layer(componentes); /* O painel de DADOS (no pé da coluna) e o comportamento da coluna em janelas estreitas e no celular. */
+@import "./css/chatMensagens.css" layer(componentes); /* As MENSAGENS do chat: cartões de rolagem (dados e ficha), peças em forma de dado, lista e campo de enviar. */
+@import "./css/canto.css" layer(componentes); /* O canto inferior direito (calibragem) e o conteúdo criado pelo app. */
+@import "./css/bolsa.css" layer(componentes); /* A BOLSA: cabeçalho, tamanhos, fichinhas dos tokens, o disco e a prévia. */
+@import "./css/status.css" layer(componentes); /* O EDITOR DE STATUS (as barras do token) e a prévia das barras. */
+@import "./css/bolsaAbas.css" layer(componentes); /* A BOLSA, 2ª parte: abas Tokens/Fichas, ordenar, grupos, seleção e os documentos das fichas. */
+@import "./css/bolsaMapas.css" layer(componentes); /* A BOLSA, 3ª parte: a aba Mapas e a regra so-mestre. */
+@import "./css/bolsaJogadores.css" layer(componentes); /* A BOLSA, 4ª parte: a aba Jogadores. */
+@import "./css/bolsaMarcas.css" layer(componentes); /* A BOLSA, 5ª parte: marcas das fichinhas e cartões, janela do tabuleiro. */
+@import "./css/chatCartaoFicha.css" layer(componentes); /* O CARTÃO DE FICHA no chat (os cartões `(Nome)"""texto"""`). */
+@import "./css/menuToken.css" layer(componentes); /* engrenagem e lista de ações do token, menu e balão das condições */
+@import "./css/diversos.css" layer(componentes); /* pílula online, cópia do token arrastado, menu da ficha na bolsa, recorte da imagem */
+@import "./css/editorFicha.css" layer(componentes); /* a janela da ficha, o painel lateral e a janela "Instruções" */
+@import "./css/editorFichaJanelas.css" layer(componentes); /* a janela da ficha, 2ª parte: fixar, divisória, cartões e celular */
+@import "./css/modais.css" layer(componentes); /* caixa de confirmar e modais das ações */
+@import "./css/barrasRolagem.css" layer(componentes); /* o visual das barras de rolagem do site */
+@import "./css/editarToken.css" layer(componentes); /* a janela "Editar token" */
+@import "./css/iniciativa.css" layer(componentes); /* a 3ª gaveta da pilha: a ordem de combate */
+@import "./css/estados.css" layer(estados); /* os modos que precisam vencer (abas da bolsa, ficha minimizada, celular...) */
+@import "./css/utilitarios.css" layer(utilitarios); /* [hidden] e o que é só do mestre */

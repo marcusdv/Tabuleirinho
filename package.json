@@ -8,7 +8,8 @@
     "build": "tsc && tsc -p servidor/tsconfig.json && vite build",
     "preview": "vite preview",
     "servidor": "node servidor/servidor.ts",
-    "test:e2e": "node tests/e2e/rodar.mjs"
+    "test:e2e": "node tests/e2e/rodar.mjs",
+    "test:unidade": "node --test \"tests/unidade/*.test.ts\""
   },
   "dependencies": {
     "pixi.js": "^8.23.0",

@@ -20,7 +20,7 @@ const dados = mkdtempSync(join(tmpdir(), "tabuleirinho-dados-"));
 const pastaTokens = join(dados, "tokens");
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 const jsons = () => readdirSync(pastaTokens).filter((f) => f.endsWith(".json")).sort((a, b) => parseInt(a) - parseInt(b));
-const arquivo = (id) => JSON.parse(readFileSync(join(pastaTokens, `${id}.json`), "utf8"));
+const arquivo = (id) => { const { formato: _f, ...resto } = JSON.parse(readFileSync(join(pastaTokens, `${id}.json`), "utf8")); return resto; }; // (sem o campo `formato`: é a versão do arquivo, gravada pelo servidor; ver servidor/migracoes.ts)
 
 function subir() {
     const proc = spawn(process.execPath, ["servidor/servidor.ts"], { cwd: RAIZ, env: { ...process.env, PORT: String(PORTA), DADOS: dados } });

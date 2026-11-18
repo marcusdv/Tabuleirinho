@@ -317,8 +317,9 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
     function dimensionar(largura: number, altura: number): void {
         const maxLargura = Math.max(LARGURA_MIN_JANELA, window.innerWidth - Math.max(painel.offsetLeft, 0) - 8);
         const maxAltura = Math.max(ALTURA_MIN_JANELA, window.innerHeight - Math.max(painel.offsetTop, 0) - 8);
-        painel.style.width = `${limitar(largura, LARGURA_MIN_JANELA, maxLargura)}px`;
-        painel.style.height = `${limitar(altura, ALTURA_MIN_JANELA, maxAltura)}px`;
+        // (variáveis CSS, e não `style.width`: um estilo inline venceria até o modo minimizado e o celular, que antes precisavam de !important)
+        painel.style.setProperty("--ficha-largura", `${limitar(largura, LARGURA_MIN_JANELA, maxLargura)}px`);
+        painel.style.setProperty("--ficha-altura", `${limitar(altura, ALTURA_MIN_JANELA, maxAltura)}px`);
     }
     function aplicarTamanhoGuardado(): void {
         const partes = (lerTexto(CHAVE_TAMANHO) ?? "").split(",").map(Number);
@@ -365,8 +366,8 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
                   y: limitar(y, 0, window.innerHeight - 44), // 44 px: a altura da barra do título (e um respiro)
               };
         lugar = nova;
-        painel.style.left = `${nova.x}px`;
-        painel.style.top = `${nova.y}px`;
+        painel.style.setProperty("--ficha-x", `${nova.x}px`); // (variáveis CSS: ver `dimensionar`)
+        painel.style.setProperty("--ficha-y", `${nova.y}px`);
     }
 
     /**
@@ -475,6 +476,7 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
     });
     window.addEventListener("resize", () => {
         if (janela.hidden || !lugar) return;
+        if (window.innerWidth <= 700) return; // (no tamanho de CELULAR a ficha ocupa a tela toda pelo CSS: não aperta o tamanho do desktop, que volta intacto quando a janela alarga)
         dimensionar(painel.offsetWidth, painel.offsetHeight); // a janela da página mudou de tamanho: a ficha não pode passar da borda
         posicionar(lugar.x, lugar.y); // e é puxada de volta para dentro
     });
@@ -1377,8 +1379,8 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
 
     /** Onde a janela está (lugar, tamanho normal e se está minimizada). O tamanho vem do estilo guardado: minimizada, a janela mede só a barrinha. */
     function geometria(): GeometriaFicha {
-        const largura = parseFloat(painel.style.width);
-        const altura = parseFloat(painel.style.height);
+        const largura = parseFloat(painel.style.getPropertyValue("--ficha-largura"));
+        const altura = parseFloat(painel.style.getPropertyValue("--ficha-altura"));
         return {
             x: lugar?.x ?? painel.offsetLeft,
             y: lugar?.y ?? painel.offsetTop,
