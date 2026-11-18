@@ -7,9 +7,12 @@ import { fileURLToPath } from "node:url";
 
 const pasta = fileURLToPath(new URL(".", import.meta.url));
 const filtros = process.argv.slice(2);
+// EXCLUIR=rede,tokens-online npm run test:e2e   roda tudo MENOS os arquivos que têm esses nomes (útil quando o servidor do dono ocupa a porta 3737).
+const excluidos = (process.env.EXCLUIR ?? "").split(",").filter(Boolean);
 const arquivos = readdirSync(pasta)
     .filter((f) => f.endsWith(".teste.mjs"))
     .filter((f) => filtros.length === 0 || filtros.some((x) => f.includes(x)))
+    .filter((f) => !excluidos.includes(f.replace(".teste.mjs", ""))) // (nome exato do arquivo, sem a extensão)
     .sort();
 
 if (arquivos.length === 0) {

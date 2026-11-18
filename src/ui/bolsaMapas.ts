@@ -76,7 +76,8 @@ export function criarBolsaMapas(opcoes: OpcoesBolsaMapas): BolsaMapas {
     }
     pegar("mapas-tabuleiro-fechar").addEventListener("click", fecharJanela);
     document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !janela.hidden) fecharJanela();
+        // (Esc dentro de um campo da janela só sai do campo, como sempre; fora dele fecha a janela.)
+        if (e.key === "Escape" && !janela.hidden && !(e.target instanceof HTMLInputElement)) fecharJanela();
     });
     botaoConfigurar.addEventListener("click", () => (janela.hidden ? abrirJanela(null) : fecharJanela()));
     botaoMover.addEventListener("click", () => opcoes.aoMoverJogadores());

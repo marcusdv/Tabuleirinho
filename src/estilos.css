@@ -14,11 +14,15 @@
 @import "./css/canto.css"; /* O canto inferior direito (calibragem) e o conteúdo criado pelo app. */
 @import "./css/bolsa.css"; /* A BOLSA: cabeçalho, tamanhos, fichinhas dos tokens, o disco e a prévia. */
 @import "./css/status.css"; /* O EDITOR DE STATUS (as barras do token) e a prévia das barras. */
-@import "./css/bolsaAbas.css"; /* A BOLSA, segunda parte: abas Tokens/Fichas, ordenar, grupos, seleção e os documentos das fichas. */
+@import "./css/bolsaAbas.css"; /* A BOLSA, 2ª parte: abas Tokens/Fichas, ordenar, grupos, seleção e os documentos das fichas. */
+@import "./css/bolsaMapas.css"; /* A BOLSA, 3ª parte: a aba Mapas e a regra so-mestre. */
+@import "./css/bolsaJogadores.css"; /* A BOLSA, 4ª parte: a aba Jogadores. */
+@import "./css/bolsaMarcas.css"; /* A BOLSA, 5ª parte: marcas das fichinhas e cartões, janela do tabuleiro. */
 @import "./css/chatCartaoFicha.css"; /* O CARTÃO DE FICHA no chat (os cartões `(Nome)"""texto"""`). */
 @import "./css/menuToken.css"; /* engrenagem e lista de ações do token, menu e balão das condições */
 @import "./css/diversos.css"; /* pílula online, cópia do token arrastado, menu da ficha na bolsa, recorte da imagem */
 @import "./css/editorFicha.css"; /* a janela da ficha, o painel lateral e a janela "Instruções" */
+@import "./css/editorFichaJanelas.css"; /* a janela da ficha, 2ª parte: fixar, divisória, cartões e celular */
 @import "./css/modais.css"; /* caixa de confirmar e modais das ações */
 @import "./css/barrasRolagem.css"; /* o visual das barras de rolagem do site */
 @import "./css/editarToken.css"; /* a janela "Editar token" */

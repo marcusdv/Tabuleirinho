@@ -1,0 +1,118 @@
+/* A BOLSA, quarta parte: a aba JOGADORES (papéis, banidos, limites). (Trecho contíguo do antigo bolsaAbas.css.) */
+/* ===== A ABA JOGADORES (ui/jogadores.ts): mesmo esquema da aba Mapas (um modo à parte da bolsa) ===== */
+#bolsa-jogadores {
+    display: none;
+}
+#bolsa.aba-jogadores #bolsa-conteudo,
+#bolsa.aba-jogadores #bolsa-criar,
+#bolsa.aba-jogadores #bolsa-busca,
+#bolsa.aba-jogadores #bolsa-fichas,
+#bolsa.aba-jogadores #bolsa-fichas-busca,
+#bolsa.aba-jogadores #bolsa-organizar,
+#bolsa.aba-jogadores #bolsa-criar-token-botao,
+#bolsa.aba-jogadores #bolsa-ficha-criar-botao,
+#bolsa.aba-jogadores #bolsa-mapas {
+    display: none !important;
+}
+#bolsa.aba-jogadores #bolsa-jogadores {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+    overflow-y: auto;
+}
+#bolsa-banidos-lista li {
+    padding: 3px 0;
+    font-size: 12px;
+    color: #c9c9d4;
+}
+#bolsa-banidos-botao {
+    align-self: flex-start;
+    width: auto;
+    padding: 3px 12px;
+}
+#bolsa-jogadores li button.banir {
+    color: #ff8a80;
+    border-color: #7a3a3a;
+}
+#bolsa-banidos-lista[hidden] {
+    display: none;
+}
+#bolsa-jogadores-lista,
+#compartilhar-lista {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+#bolsa-jogadores-lista li,
+#compartilhar-lista li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 0;
+    font-size: 13px;
+}
+.jogador-nome {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#bolsa-jogadores .ponto {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #5a5a68;
+}
+#bolsa-jogadores .ponto.online {
+    background: #4cd964;
+}
+.papel {
+    flex: none;
+    padding: 1px 8px;
+    border-radius: 10px;
+    font-size: 11px;
+    background: #3a3a46;
+    color: #c9c9d4;
+}
+.papel.mestre {
+    background: #5b4a14;
+    color: #ffd54f;
+}
+#bolsa-jogadores li button,
+#compartilhar-fechar,
+#compartilhar-lista select {
+    padding: 3px 8px;
+    font: inherit;
+    font-size: 12px;
+    color: inherit;
+    background: #3a3a46;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    cursor: pointer;
+}
+#bolsa-limites {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+}
+#bolsa-limites input {
+    width: 56px;
+    height: 26px;
+    box-sizing: border-box;
+    padding: 0 6px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+}
+#bolsa-limites .botao-largo {
+    width: auto;
+    padding: 3px 12px;
+}

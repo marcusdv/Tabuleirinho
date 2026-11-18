@@ -47,8 +47,8 @@ await ferr("regua");
 ok("B1) Régua ficou ativa e Mover não", (await cls("regua")).includes("ativo") && !(await cls("mover")).includes("ativo"));
 await arrastar(casa(4, 2), casa(8, 5)); // dc=4, dr=3 -> 4 casas
 ok("B2) (4,2)->(8,5): 4 □ = 6 m", (await dist()) === "Distância: 4 □ = 6 m", await dist());
-const linha = await cor(AMARELO, { x0: 170, x1: 1225, y0: 0, y1: 560 }, `${S}/d1_regua.png`);
-ok("B3) a linha amarela da régua aparece (e continua após soltar)", linha.n > 200 && linha.x0 < 300 && linha.x1 > 520, `${linha.n} px, x ${linha.x0}..${linha.x1}`);
+const linha = await cor(AMARELO, { x0: 340, x1: 1060, y0: 0, y1: 560 }, `${S}/d1_regua.png`); // (a região para antes da coluna da direita, que tem o traço amarelo da aba)
+ok("B3) a linha amarela da régua aparece (e continua após soltar)", linha.n > 200 && linha.x0 < 450 && linha.x1 > 600, `${linha.n} px, x ${linha.x0}..${linha.x1}`);
 await arrastar(casa(4, 2), casa(5, 2));
 ok("B4) uma casa: '1 □ = 1,5 m' (vírgula decimal)", (await dist()) === "Distância: 1 □ = 1,5 m", await dist());
 await arrastar(casa(4, 0), casa(11, 3)); // diagonal conta 1: max(7,3)=7 (as casas das colunas 0 a 3 ficam atrás da gaveta do Desenho)
@@ -167,6 +167,8 @@ await ferr("regua");
 await abrirGaveta(p, "tabuleiro"); // (o botão "Alinhar mapa" fica na gaveta do Tabuleiro)
 await p.click("#calibrar-alternar"); await p.waitForTimeout(300);
 ok("J2) ligar a calibragem desliga a ferramenta (volta a 'Mover') e abre o painel dela", (await cls("mover")).includes("ativo") && await p.locator("#painel-calibragem").isVisible());
+await p.click("#mapas-tabuleiro-fechar"); // (a janela do tabuleiro, aberta para chegar ao "Alinhar mapa", cobriria os tokens)
+await p.click("#bolsa-aba-tokens"); // (e a bolsa volta à aba dos tokens)
 await abrirGaveta(p, "desenho");
 await ferr("lapis");
 ok("J3) escolher uma ferramenta fecha a calibragem", !(await p.locator("#painel-calibragem").isVisible()));

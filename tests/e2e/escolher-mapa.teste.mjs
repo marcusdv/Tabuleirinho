@@ -12,11 +12,11 @@ const ok = (n, c, d = "") => { if (!c) falhas++; console.log(`${c ? "PASS" : "FA
 await abrirPagina(p, "", { gaveta: "tabuleiro" });
 await recolherDados(p); // (o painel de Dados aberto cobriria a faixa do mapa onde o teste arrasta)
 
-// Cor média de uma região do tabuleiro (fora da barra e dos tokens)
+// Cor média de uma região do tabuleiro (fora da barra e dos tokens; x até 700: a janela do tabuleiro, aberta à direita, não entra na média)
 async function cor() {
   const png = PNG.sync.read(await p.screenshot());
   let r = 0, g = 0, bl = 0, n = 0;
-  for (let y = 100; y < 600; y += 4) for (let x = 200; x < 1000; x += 4) { const i = (y * png.width + x) * 4; r += png.data[i]; g += png.data[i + 1]; bl += png.data[i + 2]; n++; }
+  for (let y = 100; y < 600; y += 4) for (let x = 200; x < 700; x += 4) { const i = (y * png.width + x) * 4; r += png.data[i]; g += png.data[i + 1]; bl += png.data[i + 2]; n++; }
   return [r / n, g / n, bl / n].map(Math.round);
 }
 const dif = (a, c) => Math.abs(a[0] - c[0]) + Math.abs(a[1] - c[1]) + Math.abs(a[2] - c[2]);

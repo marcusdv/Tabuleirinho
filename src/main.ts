@@ -139,6 +139,7 @@ import { criarDicaCondicao } from "./ui/dicaCondicao";
 import { criarMenuToken } from "./ui/menuToken";
 import { criarPainelCalibragem } from "./ui/painelCalibragem";
 import { criarPilha } from "./ui/pilha";
+import { criarBotaoBackup } from "./ui/backup";
 import { organizarAbasEmLinhas } from "./ui/abasEmLinhas";
 import { criarPainelDados } from "./ui/painelDados";
 import { criarPainelDesenho, type NomeFerramenta } from "./ui/painelDesenho";
@@ -1343,42 +1344,11 @@ async function iniciar(): Promise<void> {
         }
     }
 
-    /**
-     * O BACKUP DA CAMPANHA (botão "⬇ Backup" da bolsa em tela cheia, só do mestre): baixa do servidor um .zip com a pasta de dados (fichas, tokens, mapas, grupos, permissões...).
-     * O servidor confere que quem pede é o mestre. Sem servidor (modo local) não há o que baixar: tudo vive só nesta aba.
-     */
-    const botaoBackup = document.getElementById("bolsa-backup") as HTMLButtonElement;
-    botaoBackup.addEventListener("click", async () => {
-        if (!rede?.ativa) return mostrarAvisoDoMapa("O backup só existe no modo online: os dados da campanha ficam no servidor.");
-        const sim = await confirmacao.perguntar({ titulo: "Baixar o backup da campanha?", mensagem: "Será baixado um arquivo .zip com TODOS os dados da campanha: fichas, tokens, grupos, mapas (com as imagens), desenhos e permissões. Pode ser grande.", confirmar: "Baixar backup" });
-        if (!sim) return;
-        botaoBackup.disabled = true;
-        const textoAntes = botaoBackup.textContent;
-        botaoBackup.textContent = "Preparando…";
-        try {
-            const papel = new URLSearchParams(location.search).get("papel");
-            const resposta = await fetch(`/backup${papel ? "?papel=" + encodeURIComponent(papel) : ""}`);
-            if (!resposta.ok) {
-                const corpo = (await resposta.json().catch(() => null)) as { erro?: string } | null;
-                return mostrarAvisoDoMapa(corpo?.erro ?? `O servidor recusou o backup (erro ${resposta.status}).`);
-            }
-            const arquivo = await resposta.blob();
-            const nome = /filename="([^"]+)"/.exec(resposta.headers.get("content-disposition") ?? "")?.[1] ?? "tabuleirinho-backup.zip";
-            const endereco = URL.createObjectURL(arquivo);
-            const link = document.createElement("a");
-            link.href = endereco;
-            link.download = nome;
-            document.body.append(link);
-            link.click();
-            link.remove();
-            setTimeout(() => URL.revokeObjectURL(endereco), 10000);
-            mostrarAvisoDoMapa(`Backup baixado: ${nome} (${(arquivo.size / 1048576).toFixed(1).replace(".", ",")} MB). Para restaurar, descompacte na pasta "dados" com o servidor desligado.`);
-        } catch {
-            mostrarAvisoDoMapa("Não foi possível baixar o backup: sem conexão com o servidor.");
-        } finally {
-            botaoBackup.disabled = false;
-            botaoBackup.textContent = textoAntes;
-        }
+    // O BACKUP DA CAMPANHA (botão da aba Jogadores, só do mestre; ver ui/backup.ts).
+    criarBotaoBackup({
+        online: () => rede?.ativa === true,
+        confirmar: () => confirmacao.perguntar({ titulo: "Baixar o backup da campanha?", mensagem: "Será baixado um arquivo .zip com TODOS os dados da campanha: fichas, tokens, grupos, mapas (com as imagens), desenhos e permissões. Pode ser grande.", confirmar: "Baixar backup" }),
+        avisar: (texto) => mostrarAvisoDoMapa(texto),
     });
 
     const tokens = criarTokens(camera, grade, texturas, {

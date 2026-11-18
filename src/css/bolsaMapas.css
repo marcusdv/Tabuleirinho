@@ -1,0 +1,231 @@
+/* A BOLSA, terceira parte: a aba MAPAS (a biblioteca de mapas) e a regra `so-mestre`. (Trecho CONTÍGUO do antigo bolsaAbas.css, dividido em 17/11/2026: a ORDEM dos @imports importa.) */
+/* ===== A ABA MAPAS (a biblioteca de mapas; ui/bolsaMapas.ts) ===== */
+/* A aba é um MODO À PARTE da bolsa (só a classe `aba-mapas`): esconde o que é de tokens e de fichas (com !important, porque outras regras da bolsa, como as da tela cheia, definem o display delas) e mostra o painel. */
+#bolsa-mapas {
+    display: none;
+}
+#bolsa.aba-mapas #bolsa-conteudo,
+#bolsa.aba-mapas #bolsa-criar,
+#bolsa.aba-mapas #bolsa-busca,
+#bolsa.aba-mapas #bolsa-fichas,
+#bolsa.aba-mapas #bolsa-fichas-busca,
+#bolsa.aba-mapas #bolsa-organizar,
+#bolsa.aba-mapas #bolsa-criar-token-botao,
+#bolsa.aba-mapas #bolsa-ficha-criar-botao {
+    display: none !important;
+}
+#bolsa.aba-mapas #bolsa-mapas {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    gap: 8px;
+    overflow-y: auto; /* o painel INTEIRO rola (a lista de mapas e, embaixo, as configurações do tabuleiro) */
+}
+#bolsa-mapas-barra {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+#bolsa-mapas-enviar {
+    width: auto;
+    align-self: flex-start;
+}
+#bolsa-mapas-aviso {
+    margin: 0;
+    font-size: 12px;
+    color: #9ad59a;
+}
+#bolsa-mapas-aviso:empty {
+    display: none;
+}
+#bolsa-mapas-aviso[data-erro] {
+    color: #ff9a9a;
+}
+#bolsa-mapas-explicacao {
+    flex: none;
+    margin: 0;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #9a9aa8;
+}
+#bolsa-mapas-lista {
+    flex: none;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.bolsa-mapa {
+    /* Layout EMPILHADO (cabe na coluna estreita; pedido do dono, 17/11/2026): nome, tamanho (pequeno e apagado), "jogadores aqui" e, por último, o menu e os botões. */
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 8px 10px;
+    background: #2f2f3a;
+    border: 1px solid #3a3a45;
+    border-radius: 8px;
+}
+.bolsa-mapa.atual {
+    border-color: #ffd54f; /* o mapa que está à vista agora */
+}
+.bolsa-mapa-nome {
+    overflow: hidden;
+    font-weight: 600;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+.bolsa-mapa-info {
+    font-size: 10px;
+    color: rgba(154, 154, 168, 0.55); /* bem pequeno e quase apagado */
+}
+.bolsa-mapa-aqui {
+    font-size: 11px;
+    color: #8fd18f;
+}
+.bolsa-mapa-acoes {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+}
+.bolsa-mapa-selo {
+    padding: 1px 8px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1d1d23;
+    background: #ffd54f;
+    border-radius: 5px;
+}
+.bolsa-mapa-usar,
+.bolsa-mapa-excluir {
+    padding: 3px 10px;
+    font: inherit;
+    font-size: 12px;
+    color: inherit;
+    background: #3b3b49;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.bolsa-mapa-usar:hover {
+    border-color: #ffd54f;
+    color: #ffd54f;
+}
+.bolsa-mapa-excluir {
+    padding: 3px 8px;
+}
+.bolsa-mapa-excluir:hover {
+    border-color: #ff6b6b;
+    color: #ff9a9a;
+}
+
+/* Os TOKENS ligados à ficha: a metade de cima do cartão, no meio. Ficam numa FILEIRA ÚNICA, um pouco SOBREPOSTOS (como as fotos de perfil de um grupo), então 2, 3 ou 4 itens (3 tokens + "+N") ficam
+   sempre alinhados e cabem na largura do cartão (pedido do dono, 17/11/2026: com vários, a arrumação anterior ficava bagunçada). Sozinho, o token é maior. */
+.bolsa-doc-tokens {
+    grid-row: 1;
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    padding: 0 2px;
+}
+.bolsa-doc-tokens > * {
+    flex: none;
+    box-sizing: border-box;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+}
+.bolsa-doc-tokens > * + * {
+    margin-left: -9px; /* cada um cobre um pedacinho do anterior */
+}
+.bolsa-doc-tokens .disco.mini {
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+.bolsa-doc-tokens[data-quantos="1"] > * {
+    width: 31px; /* (cabe na metade de cima, que ficou um pouco menor) */
+    height: 31px;
+}
+.bolsa-doc-tokens[data-quantos="2"] > * {
+    width: 26px;
+    height: 26px;
+}
+.bolsa-doc-tokens .mais {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #5a5a68;
+    color: #fff;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+    font-size: 10px;
+    font-weight: 700;
+}
+#bolsa.expandida .bolsa-doc-tokens > * {
+    width: 30px;
+    height: 30px;
+}
+#bolsa.expandida .bolsa-doc-tokens > * + * {
+    margin-left: -12px;
+}
+#bolsa.expandida .bolsa-doc-tokens[data-quantos="1"] > * {
+    width: 43px;
+    height: 43px;
+}
+#bolsa.expandida .bolsa-doc-tokens[data-quantos="2"] > * {
+    width: 35px;
+    height: 35px;
+}
+/* AVISO EM VERMELHO: ficha única com vários tokens ligados. */
+.bolsa-doc.erro-unica {
+    box-shadow: inset 0 0 0 2px #d9372e;
+}
+.bolsa-doc-alerta {
+    position: absolute; /* o aviso vermelho: só o ⚠, ao lado do selo de ficha única (os detalhes ficam na dica do mouse) */
+    top: 3px;
+    left: 22px;
+    order: 4;
+    font-size: 12px;
+    line-height: 14px;
+    font-weight: 700;
+    color: #ff6b63;
+}
+
+/* O selo de ficha ÚNICA (pedido do dono, 17/11/2026): agora usa o ícone `public/images/svgs/unique.svg` (um selo com visto) no lugar do número "1". O SVG é um contorno preto, então entra como MÁSCARA
+   (a forma dele) pintada com a cor do tema. */
+.bolsa-doc .item-unica,
+#bolsa.expandida .bolsa-doc .item-unica {
+    width: 14px;
+    height: 14px;
+    top: 3px;
+    left: 5px;
+    font-size: 0;
+    line-height: 0;
+    background: #4aa3ff;
+    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
+}
+#bolsa.expandida .bolsa-doc .item-unica {
+    width: 20px;
+    height: 20px;
+    top: 5px;
+    left: 8px;
+}
+
+/* ===== O QUE É SÓ DO MESTRE (classe `so-mestre`): some para quem não é mestre (`body.jogador`, ligada pelo main.ts). O servidor também recusa; isto só esconde. ===== */
+body.jogador .so-mestre,
+body.jogador .acao-nova {
+    display: none !important;
+}

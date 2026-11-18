@@ -1,0 +1,253 @@
+/* A BOLSA, quinta parte: as MARCAS das fichinhas e dos cartões (arquivo, selo, estrela, grupos), o chip de ficha única, o "Quem vê" dos mapas e a JANELA DO TABULEIRO. (Trecho contíguo do antigo bolsaAbas.css, que vinha até aqui.) */
+/* ===== AS MARCAS DA FICHINHA DO TOKEN, numa FAIXA no alto com posições FIXAS (pedido do dono, 17/11/2026): o símbolo da ficha (um ARQUIVO) à esquerda, a ESTRELA sempre no centro e os GRUPOS à
+   direita. A estrela não depende mais de quantos grupos há (antes ela ficava num lugar que mudava e encostava nas bolinhas). Só valem para a fichinha de TOKEN; o cartão das fichas tem as dele. ===== */
+.ficha .item-ficha-vinculo {
+    /* o ARQUIVO: o ícone `public/images/svgs/file.svg` (contorno preto) como máscara, pintado num cinza quase invisível (pedido do dono, 17/11/2026) */
+    left: 4px;
+    top: 3px;
+    width: 12px;
+    height: 12px;
+    font-size: 0;
+    line-height: 0;
+    background: rgba(201, 201, 212, 0.22); /* QUASE INVISÍVEL (pedido do dono, 17/11/2026): um cinza bem apagado, só para quem procura; antes dourado */
+    -webkit-mask: url("/images/svgs/file.svg") center / contain no-repeat;
+    mask: url("/images/svgs/file.svg") center / contain no-repeat;
+}
+/* O SELO de ficha única no token: o mesmo `unique.svg`, CINZA quase invisível como o arquivo, logo ao lado dele (pedido do dono, 17/11/2026). */
+.ficha .item-unica {
+    position: absolute;
+    left: 16px;
+    top: 3px;
+    width: 11px;
+    height: 11px;
+    background: rgba(201, 201, 212, 0.22);
+    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    pointer-events: none;
+}
+#bolsa.expandida .ficha .item-unica {
+    left: 36px;
+    top: 6px;
+    width: 20px;
+    height: 20px;
+}
+.ficha .item-estrela {
+    top: 2px;
+    left: 50%;
+    transform: translateX(-50%); /* SEMPRE no centro da faixa */
+    padding: 0 1px;
+    font-size: 14px;
+}
+.ficha .item-grupos {
+    /* As bolinhas de GRUPO ocupam só o que precisam (uma, duas ou três: cada uma a mais acrescenta um pedaço, em vez de uma área fixa para três): assim o arquivo, o selo e a estrela
+       ficam sempre no mesmo lugar e não se espremem, com 0, 1 ou 3 grupos. */
+    top: 5px;
+    right: 4px;
+}
+.ficha .item-grupos i {
+    width: 10px;
+    height: 10px;
+}
+.ficha .item-grupos i + i {
+    margin-left: -4px;
+}
+#bolsa.expandida .ficha .item-ficha-vinculo {
+    left: 10px;
+    top: 5px;
+    width: 22px;
+    height: 22px;
+}
+#bolsa.expandida .ficha .item-estrela {
+    top: 4px;
+    left: 50%;
+    padding: 0 4px;
+    font-size: 22px;
+}
+#bolsa.expandida .ficha .item-grupos {
+    top: 8px;
+    right: 12px;
+}
+
+/* O botão "Quem vê" de cada mapa (abre o menu de caixas, igual ao dos status). */
+.bolsa-mapa-quem {
+    padding: 2px 8px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 11px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+.bolsa-mapa-quem:hover,
+.bolsa-mapa-quem[aria-expanded="true"] {
+    border-color: #ffd54f;
+}
+
+/* ===== AS MARCAS DO TOPO DO CARTÃO DA FICHA, em posições FIXAS (pedido do dono, 17/11/2026): o selo de ficha única e o ⚠ à esquerda, a ESTRELA sempre no centro e os GRUPOS à direita. ===== */
+.bolsa-doc .item-estrela {
+    top: 1px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 0 2px;
+    font-size: 13px;
+}
+.bolsa-doc .item-grupos {
+    top: 4px;
+    right: 6px;
+}
+#bolsa.expandida .bolsa-doc .item-estrela {
+    top: 3px;
+    font-size: 20px;
+    padding: 0 4px;
+}
+#bolsa.expandida .bolsa-doc .item-grupos {
+    top: 6px;
+    right: 10px;
+}
+#bolsa.expandida .bolsa-doc-alerta {
+    top: 6px;
+    left: 32px;
+    font-size: 16px;
+    line-height: 18px;
+}
+
+/* O chip de FICHAS ÚNICAS (filtro): azul, com o selo `unique.svg` (o mesmo do cartão da ficha única). */
+.bolsa-chip.chip-unica {
+    --cor-grupo: #4aa3ff;
+}
+.bolsa-chip .icone-unica {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    background: #4aa3ff;
+    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+}
+
+/* O selo de ficha única no MENU de filtros da bolsa (no lugar da bolinha azul). */
+#menu-grupos .icone-unica {
+    flex: none;
+    width: 14px;
+    height: 14px;
+    background: #4aa3ff;
+    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+}
+
+/* A JANELA DO TABULEIRO (colunas, linhas, mapa de fundo, grade), FORA da caixa do chat; abre pelo ⚙ de cada mapa (ui/bolsaMapas.ts). */
+#mapas-tabuleiro {
+    position: fixed;
+    top: 64px;
+    right: calc(var(--largura-chat, 320px) + 28px);
+    z-index: 40;
+    width: 300px;
+    max-height: calc(100vh - 90px);
+    overflow-y: auto;
+    box-sizing: border-box;
+    padding: 12px 14px 14px;
+    background: rgba(34, 34, 42, 0.98);
+    border: 1px solid #3a3a45;
+    border-radius: 10px;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    font-size: 13px;
+}
+#mapas-tabuleiro[hidden] {
+    display: none;
+}
+.mapas-tabuleiro-topo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+}
+.mapas-tabuleiro-topo h1 {
+    margin: 0;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #c9c9d4;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+#mapas-tabuleiro-fechar {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    cursor: pointer;
+}
+#mapas-tabuleiro-nota {
+    margin: 0 0 10px;
+    color: #ffb74d;
+    font-size: 12px;
+    line-height: 1.4;
+}
+#mapas-tabuleiro-grade.travada {
+    opacity: 0.4;
+}
+#mapas-tabuleiro-grade {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+/* O botão ⚙ de cada mapa na lista. */
+.bolsa-mapa-config {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    cursor: pointer;
+}
+.bolsa-mapa-config:hover {
+    background: #3b3b49;
+    color: #ffd54f;
+}
+#mapas-tabuleiro-grade h2 {
+    margin: 0 0 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #9a9aa8;
+}
+
+/* Na bolsa em TELA CHEIA os tokens NÃO se arrastam para o mapa (só na bolsa do canto): sem a mãozinha de arrastar, que enganava (pedido do dono, 17/11/2026). */
+#bolsa.expandida .ficha {
+    cursor: pointer;
+}
+#bolsa-limites-salvo {
+    font-size: 12px;
+    font-weight: 600;
+    color: #4cd964;
+}
+#bolsa-limites-salvo[hidden] {
+    display: none;
+}
+/* O botão "Mover jogadores para este mapa" é VERDE (pedido do dono, 17/11/2026). */
+#bolsa-mapas-mover {
+    background: #2e7d4f;
+    border-color: #3fae6d;
+    color: #fff;
+    font-weight: 600;
+}
+#bolsa-mapas-mover:hover:not(:disabled) {
+    background: #38985f;
+}
+#bolsa-mapas-mover[hidden] {
+    display: none;
+}
+.bolsa-mapa-aqui.com-problema {
+    color: #ffb74d;
+}

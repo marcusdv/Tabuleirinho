@@ -51,7 +51,7 @@ await p.locator(`${painel} > button`, { hasText: "Add condição" }).click();
 ok("2a) 'Add condição ▾' abre a grade das 18 condições dentro do painel", (await p.locator(`${painel} .condicao-grupo`).count()) === 18);
 ok("2b) ...e o painel continua dentro da janela", dentro(await caixa(painel)));
 await p.locator(`${painel} .condicao-grupo`, { hasText: "Caído" }).first().click();
-ok("2c) clicar na condição a liga no token e fecha o painel", (await tokenDe(5)).condicoes.includes("Caido") && !(await vis(painel)));
+ok("2c) clicar na condição a liga no token e o painel CONTINUA aberto (dá para escolher várias)", (await tokenDe(5)).condicoes.includes("Caido") && (await vis(painel)));
 await p.keyboard.press("Escape");
 
 // painel da engrenagem: abre para cima a partir da engrenagem

@@ -95,7 +95,7 @@ AVISO: Mudei o layout das rolagens no offline. Ao ler isso tenha ciencia depois 
 
 ## Testes
 
-- **A FAZER (16/11/2026): ATUALIZAR `rede` e `tokens-online`.** Os dois testes são anteriores à mudança modelo × peça do token (14/11) e FALHAM sem relação com o resto: o servidor converte um token antigo que está no tabuleiro em um modelo na bolsa mais uma peça (a mensagem "Migrado: …"), o que desloca os ids; `tokens-online` ainda espera uma engrenagem com "Guardar na bolsa"/"Excluir token" (hoje é "Editar token"/"Remover do tabuleiro"). No `rede` só os passos 2, 3b e 3c falham (o resto: chat, validação, segurança e spam, passa). Decidir: reescrever pelos tokens e peças atuais, ou apagar o `tokens-online` (a parte de servidor está coberta por `tokens-servidor`).
+- **A FAZER (16/11/2026): ATUALIZAR o teste `rede`.** Anterior à mudança modelo × peça do token (14/11): só os passos 2, 3b e 3c falham (o resto passa). Reescrever pelos tokens e peças atuais. (O `tokens-online` foi APAGADO em 17/11/2026: estava desatualizado e a parte de servidor está coberta por `tokens-servidor`.)
 - **TESTES A RODAR NO FIM (o dono avisa quando; combinado em 16/11/2026):** os de ficha, que foram editados ou escritos e NÃO rodados: `fichas-abas fichas-editor fichas-janela fichas-janela-neutra fichas-online fichas-cartoes fichas-fixar fichas-celular` (uns 6 a 8 min; `fichas-online` precisa da porta 3737 livre; no Vite que só escuta em IPv6, usar `URL_TESTE=http://localhost:5173/`). Reiniciar o servidor do dono antes (`usar_cartao` e o `indice` do arrasto).
 
 ## Já feitos (podem ser apagados)
