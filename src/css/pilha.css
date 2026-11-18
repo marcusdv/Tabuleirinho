@@ -114,6 +114,9 @@
 .arrastando-caixa .alca-arrastar {
     cursor: grabbing;
 }
+#bolsa.expandida {
+    translate: none !important;
+}
 /* Cabeçalho: título à esquerda e botão de recolher à direita. */
 .cabecalho {
     display: flex;

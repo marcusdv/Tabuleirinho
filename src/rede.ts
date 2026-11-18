@@ -35,12 +35,7 @@ export function criarRede(opcoes: OpcoesRede): Rede {
     function conectar(): void {
         const protocolo = location.protocol === "https:" ? "wss" : "ws";
         // O mesmo endereço que entregou a página: no desenvolvimento o Vite repassa /ws ao servidor.
-        // O endereço leva o PAPEL e, se a mesa tiver senha, a SENHA (os dois vêm do endereço da página; o servidor confere).
-        const doEndereco = new URLSearchParams(location.search);
-        const consulta = new URLSearchParams();
-        if (doEndereco.has("papel")) consulta.set("papel", doEndereco.get("papel") ?? "");
-        if (doEndereco.has("senha")) consulta.set("senha", doEndereco.get("senha") ?? "");
-        const socket = new WebSocket(`${protocolo}://${location.host}/ws${consulta.size > 0 ? "?" + consulta.toString() : ""}`);
+        const socket = new WebSocket(`${protocolo}://${location.host}/ws${location.search.includes("papel=") ? "?papel=" + encodeURIComponent(new URLSearchParams(location.search).get("papel") ?? "") : ""}`);
         ws = socket;
 
         socket.addEventListener("open", () => {

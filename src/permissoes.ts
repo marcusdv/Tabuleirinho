@@ -40,6 +40,8 @@ export interface Permissoes {
     /** Os BANIDOS da mesa (o mestre bane na aba Jogadores): não conseguem entrar e são desconectados. O nome fica guardado só para a lista de banidos (o banimento vale pelo id). */
     banidos: { usuario: string; nome: string }[];
     limites: LimitesDaMesa;
+    /** Os FAVORITOS de cada usuário (pedido do dono, 17/11/2026): a estrela é de CADA pessoa, para ela favoritar e filtrar os próprios tokens e fichas. usuário -> ids. */
+    favoritos: Record<string, { tokens: number[]; fichas: number[] }>;
     /** id do token (modelo) -> permissões. Quem não está aqui é do mestre. */
     tokens: Record<string, PermissoesDoItem>;
     fichas: Record<string, PermissoesDoItem>;
@@ -61,6 +63,7 @@ export function permissoesVazias(): Permissoes {
         mestres: [],
         banidos: [],
         limites: { tokensPorJogador: LIMITE_PADRAO_TOKENS_POR_JOGADOR, fichasPorJogador: LIMITE_PADRAO_FICHAS_POR_JOGADOR },
+        favoritos: {},
         tokens: {},
         fichas: {},
         grupos: {},
@@ -115,6 +118,9 @@ export function limparPermissoes(bruto: unknown): Permissoes {
     const grupos: Record<string, Record<string, NivelDeAcesso>> = {};
     if (eObjeto(bruto.grupos)) for (const [id, acessos] of Object.entries(bruto.grupos)) if (/^\d{1,9}$/.test(id)) grupos[id] = limparAcessos(acessos);
     const limites = eObjeto(bruto.limites) ? bruto.limites : {};
+    const idsValidos = (v: unknown): number[] => (Array.isArray(v) ? [...new Set(v.filter((n): n is number => Number.isSafeInteger(n) && n >= 1))].slice(0, 5000) : []);
+    const favoritos: Permissoes["favoritos"] = {};
+    if (eObjeto(bruto.favoritos)) for (const [usuario, f] of Object.entries(bruto.favoritos)) if (idDeUsuarioValido(usuario) && eObjeto(f)) favoritos[usuario] = { tokens: idsValidos(f.tokens), fichas: idsValidos(f.fichas) };
     return {
         versao: 1,
         dono: idDeUsuarioValido(bruto.dono) ? bruto.dono : null,
@@ -129,6 +135,7 @@ export function limparPermissoes(bruto: unknown): Permissoes {
             tokensPorJogador: limiteValido(limites.tokensPorJogador, base.limites.tokensPorJogador),
             fichasPorJogador: limiteValido(limites.fichasPorJogador, base.limites.fichasPorJogador),
         },
+        favoritos,
         tokens: limparItens(bruto.tokens),
         fichas: limparItens(bruto.fichas),
         grupos,

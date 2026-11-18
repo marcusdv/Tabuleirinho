@@ -1,8 +1,18 @@
 /* A BOLSA, terceira parte: a aba MAPAS (a biblioteca de mapas) e a regra `so-mestre`. (Trecho CONTÍGUO do antigo bolsaAbas.css, dividido em 17/11/2026: a ORDEM dos @imports importa.) */
 /* ===== A ABA MAPAS (a biblioteca de mapas; ui/bolsaMapas.ts) ===== */
-/* A aba é um MODO À PARTE da bolsa (só a classe `aba-mapas`): o que ela ESCONDE (tokens e fichas) está em estados.css, uma camada que vence as regras da bolsa sem !important; aqui fica o painel dela. */
+/* A aba é um MODO À PARTE da bolsa (só a classe `aba-mapas`): esconde o que é de tokens e de fichas (com !important, porque outras regras da bolsa, como as da tela cheia, definem o display delas) e mostra o painel. */
 #bolsa-mapas {
     display: none;
+}
+#bolsa.aba-mapas #bolsa-conteudo,
+#bolsa.aba-mapas #bolsa-criar,
+#bolsa.aba-mapas #bolsa-busca,
+#bolsa.aba-mapas #bolsa-fichas,
+#bolsa.aba-mapas #bolsa-fichas-busca,
+#bolsa.aba-mapas #bolsa-organizar,
+#bolsa.aba-mapas #bolsa-criar-token-botao,
+#bolsa.aba-mapas #bolsa-ficha-criar-botao {
+    display: none !important;
 }
 #bolsa.aba-mapas #bolsa-mapas {
     display: flex;
@@ -214,3 +224,8 @@
     left: 8px;
 }
 
+/* ===== O QUE É SÓ DO MESTRE (classe `so-mestre`): some para quem não é mestre (`body.jogador`, ligada pelo main.ts). O servidor também recusa; isto só esconde. ===== */
+body.jogador .so-mestre,
+body.jogador .acao-nova {
+    display: none !important;
+}

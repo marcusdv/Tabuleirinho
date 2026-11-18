@@ -148,6 +148,9 @@
 }
 
 /* Bolsa EXPANDIDA: cobre quase a tela toda; só uma margem separa dela o fundo do site. */
+#chat.bolsa-aberta {
+    z-index: 35 !important; /* acima da barra e dos painéis (!important: as caixas arrastadas ganham um z-index próprio, de 11 a 16) */
+}
 /* Com a bolsa em TELA CHEIA, a barra "Dados" (que mora no pé da coluna da direita e sobe para o alto dela quando a bolsa sai da coluna) NÃO pode aparecer por cima da bolsa: era o botão solto no canto. */
 #chat.bolsa-aberta #dados {
     visibility: hidden;

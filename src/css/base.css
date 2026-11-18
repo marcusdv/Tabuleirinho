@@ -16,6 +16,10 @@ body {
     color: #e6e6ea;
 }
 
+/* O atributo "hidden" precisa vencer o display definido por outras regras. */
+[hidden] {
+    display: none !important;
+}
 
 /* O PixiJS cria o <canvas> dentro desta div, que ocupa a janela inteira.
          A barra de ferramentas e os menus flutuam POR CIMA dele (position: fixed). */
