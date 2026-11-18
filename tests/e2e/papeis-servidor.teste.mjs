@@ -415,7 +415,7 @@ try {
         const voltaCaio = await conectar("Caio", "jogador");
         ok("15d) a estrela do Caio continua (gravada por usuário) mesmo depois de o mestre tirar a dele", voltaCaio.inicial.tokens.find((t) => t.id === tokenFav.id)?.favorito === true);
         voltaCaio.ws.close();
-        ok("15e) os favoritos ficam gravados no permissoes.json", JSON.parse(readFileSync(join(dados, "permissoes.json"), "utf8")).favoritos?.u_caio?.tokens?.includes(tokenFav.id));
+        ok("15e) os favoritos ficam gravados no usuarios.json (preferências, separadas das permissões)", JSON.parse(readFileSync(join(dados, "usuarios.json"), "utf8")).usuarios?.u_caio?.favoritos?.tokens?.includes(tokenFav.id) && JSON.parse(readFileSync(join(dados, "permissoes.json"), "utf8")).favoritos === undefined);
     } else ok("15) (não foi possível criar o token de teste)", false);
     for (const c of [mestre15, caio15]) c.ws.close();
     for (const c of [mestre13, ana13, bia13]) c.ws.close();

@@ -22,6 +22,7 @@ import { mkdir, readdir, readFile, rename, stat, unlink, writeFile } from "node:
 import { dirname, join, resolve } from "node:path";
 import { ID_DE_MAPA } from "../src/protocolo.ts";
 import { fileURLToPath } from "node:url";
+import { comFormato, FORMATO_ATUAL, migrarArquivo } from "./migracoes.ts";
 
 /** A pasta de dados do servidor (fora do git). Padrão: `dados/` na raiz do projeto, ao lado de `servidor/`. */
 export const PASTA_DE_DADOS = resolve(process.env.DADOS ?? join(dirname(fileURLToPath(import.meta.url)), "..", "dados"));
@@ -61,7 +62,7 @@ export async function carregarPasta<T extends { id: number }>(
         maiorId = Math.max(maiorId, Number(achou[1]));
         try {
             if ((await stat(caminho)).size > tamanhoMax) throw new Error("arquivo grande demais");
-            const item = validar(JSON.parse(await readFile(caminho, "utf8")) as unknown);
+            const item = validar(migrarArquivo(nome, JSON.parse(await readFile(caminho, "utf8")) as unknown)); // (o arquivo passa pelas migrações de formato antes da limpeza)
             if (!item || item.id !== Number(achou[1])) throw new Error("conteúdo inválido ou id diferente do nome do arquivo");
             itens.push(item);
         } catch (falha) {
@@ -80,7 +81,7 @@ export async function gravarNaPasta(nome: NomeDaPasta, item: { id: number }): Pr
     const temporario = `${destino}.${randomUUID()}.tmp`;
     try {
         // `flush: true` manda o conteúdo de fato para o disco antes de seguir (e só então renomeamos).
-        await writeFile(temporario, JSON.stringify(item, null, 2) + "\n", { encoding: "utf8", flush: true });
+        await writeFile(temporario, JSON.stringify(comFormato(item), null, 2) + "\n", { encoding: "utf8", flush: true });
         await rename(temporario, destino);
     } catch (falha) {
         await unlink(temporario).catch(() => undefined); // não deixa lixo para trás
@@ -106,9 +107,9 @@ export interface Mesa {
 export async function carregarMesa(): Promise<Mesa | null> {
     const caminho = join(PASTA_DE_DADOS, "mesa.json");
     try {
-        const bruto = JSON.parse(await readFile(caminho, "utf8")) as Record<string, unknown>;
+        const bruto = migrarArquivo("mesa", JSON.parse(await readFile(caminho, "utf8"))) as Record<string, unknown>;
         if (!Number.isSafeInteger(bruto.colunas) || !Number.isSafeInteger(bruto.linhas)) throw new Error("conteúdo inválido");
-        return { colunas: bruto.colunas as number, linhas: bruto.linhas as number, ...(Array.isArray(bruto.status) && { status: bruto.status }), ...(Array.isArray(bruto.acoes) && { acoes: bruto.acoes }), ...(typeof bruto.valores === "object" && bruto.valores !== null && !Array.isArray(bruto.valores) && { valores: bruto.valores }), ...(bruto.exemplos === true && { exemplos: true }), ...(bruto.mapa === null || (typeof bruto.mapa === "string" && ID_DE_MAPA.test(bruto.mapa)) ? { mapa: bruto.mapa } : {}), ...(bruto.mapasDeExemplo === true && { mapasDeExemplo: true }), ...(typeof bruto.iniciativa === "object" && bruto.iniciativa !== null && { iniciativa: bruto.iniciativa }) };
+        return { colunas: bruto.colunas as number, linhas: bruto.linhas as number, ...(Array.isArray(bruto.status) && { status: bruto.status }), ...(Array.isArray(bruto.acoes) && { acoes: bruto.acoes }), ...(typeof bruto.valores === "object" && bruto.valores !== null && !Array.isArray(bruto.valores) && { valores: bruto.valores }), ...(bruto.exemplos === true && { exemplos: true }), ...(bruto.mapa === null || (typeof bruto.mapa === "string" && ID_DE_MAPA.test(bruto.mapa)) ? { mapa: bruto.mapa } : {}), ...(bruto.mapasDeExemplo === true && { mapasDeExemplo: true }), ...(typeof bruto.iniciativa === "object" && bruto.iniciativa !== null && { iniciativa: bruto.iniciativa }), ...(bruto.grade !== undefined && { grade: bruto.grade }) }; // (a GRADE faltava aqui: a grade gravada nunca era lida ao ligar; corrigido em 17/11/2026)
     } catch (falha) {
         if ((falha as NodeJS.ErrnoException).code !== "ENOENT") console.warn(`mesa.json ignorado: ${falha instanceof Error ? falha.message : "erro ao ler"}`);
         return null;
@@ -121,7 +122,7 @@ export async function gravarMesa(mesa: Mesa): Promise<void> {
     const destino = join(PASTA_DE_DADOS, "mesa.json");
     const temporario = `${destino}.${randomUUID()}.tmp`;
     try {
-        await writeFile(temporario, JSON.stringify({ colunas: mesa.colunas, linhas: mesa.linhas, ...(mesa.status !== undefined && { status: mesa.status }), ...(mesa.acoes !== undefined && { acoes: mesa.acoes }), ...(mesa.valores !== undefined && { valores: mesa.valores }), ...(mesa.exemplos === true && { exemplos: true }), ...(mesa.mapa !== undefined && { mapa: mesa.mapa }), ...(mesa.mapasDeExemplo === true && { mapasDeExemplo: true }), ...(mesa.iniciativa !== undefined && { iniciativa: mesa.iniciativa }), ...(mesa.grade !== undefined && { grade: mesa.grade }) }, null, 2) + "\n", { encoding: "utf8", flush: true });
+        await writeFile(temporario, JSON.stringify({ formato: FORMATO_ATUAL, colunas: mesa.colunas, linhas: mesa.linhas, ...(mesa.status !== undefined && { status: mesa.status }), ...(mesa.acoes !== undefined && { acoes: mesa.acoes }), ...(mesa.valores !== undefined && { valores: mesa.valores }), ...(mesa.exemplos === true && { exemplos: true }), ...(mesa.mapa !== undefined && { mapa: mesa.mapa }), ...(mesa.mapasDeExemplo === true && { mapasDeExemplo: true }), ...(mesa.iniciativa !== undefined && { iniciativa: mesa.iniciativa }), ...(mesa.grade !== undefined && { grade: mesa.grade }) }, null, 2) + "\n", { encoding: "utf8", flush: true });
         await rename(temporario, destino);
     } catch (falha) {
         await unlink(temporario).catch(() => undefined);

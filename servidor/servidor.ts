@@ -18,7 +18,7 @@
 // conferida, e os arquivos do site só saem da pasta `dist/` (nada de `../`). Nunca se usa `eval`.
 // =====================================================================
 
-import { randomInt } from "node:crypto";
+import { randomInt, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { dirname, extname, join, resolve, sep } from "node:path";
@@ -121,9 +121,15 @@ import { estaBanido, idDeUsuarioDoNome, LIMITE_MAXIMO_POR_JOGADOR, podeEditar, p
 import { adicionarDesenhoNoMapa, apagarDesenhosDoMapa, carregarDesenhos, desenhosDoMapa, gravarDesenhosPendentes } from "./desenhos.ts";
 import { carregarPermissoes, definirDono, esquecerItem, gravarPermissoes, motivoDoLimite, nivelDoUsuario, permissoes } from "./acesso.ts";
 import { lerPedido, limparApelido, type EventoDoServidor, type Jogador, type PedidoDoCliente, type RegistroDeMapa } from "../src/protocolo.ts";
-import { acharMapa, apagarMapa, definirQuemVeMapa, definirTamanhoDoMapa, lembrarTamanhoDoMapa, definirGradeDoMapa, lembrarGradeDoMapa, caminhoDoMapa, carregarMapas, criarMapasDeExemplo, guardarMapa, listaDeMapas, TIPO_MIME } from "./mapas.ts";
+import { acharMapa, apagarMapa, definirQuemVeMapa, caminhoDoMapa, carregarMapas, criarMapasDeExemplo, guardarMapa, listaDeMapas, TIPO_MIME } from "./mapas.ts";
 import { enviarBackup, instrucoesDoBackup } from "./backup.ts";
 import { apagarDaPasta, carregarMesa, carregarPasta, gravarMesa, gravarNaPasta, PASTA_DE_DADOS, type NomeDaPasta } from "./dados.ts";
+
+import { filaDeArquivos, naFilaDeArquivos } from "./fila.ts";
+import { type Conexao, podeRolar, podeEscrever, conexoes, novoIdDeConexao, listaDeJogadores, enviar, avisarTodos, erro, avisarCada } from "./conexoes.ts";
+import { mapaAtual, mapaDaConexao, mapaDoUsuario, irParaMapa, tamanhoDoMapa, gradeDoMapa, comCenaDe, definirMapaDoMestre, configDaCena, lembrarTamanhoDaCena, lembrarGradeDaCena, esquecerCena, carregarCenas } from "./cenas.ts";
+import { SEM_PERMISSAO, podeNoToken, podeNaFicha, valoresParaConexao, avisarValoresDoToken, bibliotecaParaConexao, avisarMapaDe, avisarMapaAtual, avisarJogadores, avisarMapasDefinidos, tokenParaConexao, tokenParaConexaoSemEstrela, fichaParaConexao, sincronizarVisaoDe, sincronizarVisaoDeTodos, avisarPermissoes, atualizarPapeisConectados, avisarToken, avisarFicha, valoresVisiveisPara, avisarValoresDaFicha } from "./visao.ts";
+import { carregarPreferencias, definirFavoritoDe } from "./preferencias.ts";
 
 // A pasta do site: `dist/` (o resultado de `npm run build`). Dá para trocar com a variável SITE (ex.: SITE=/outra/pasta npm run servidor).
 const PASTA_DO_SITE = resolve(process.env.SITE ?? resolve(dirname(fileURLToPath(import.meta.url)), "..", "dist"));
@@ -165,7 +171,25 @@ function veioDoProprioComputador(requisicao: IncomingMessage): boolean {
  * O PAPEL FORJADO (para testes, até existirem contas): o endereço PRECISA trazer `?papel=mestre` ou `?papel=jogador` (decisão do dono, 17/11/2026: nada de ser mestre por padrão).
  * `mestre` só vale para conexões do PRÓPRIO COMPUTADOR do servidor (quem vem de fora e pede mestre é recusado), então ninguém de fora se promove. Devolve o papel, ou o MOTIVO da recusa.
  */
+/**
+ * SENHA DA MESA (identidade mínima, 17/11/2026; opcional): ligando o servidor com `SENHA_MESA=algo npm run servidor`, quem entra DE FORA (rede ou túnel) precisa trazer `&senha=algo`
+ * no endereço. Quem está no próprio computador do servidor (o mestre) não precisa. Sem a variável, ninguém precisa (como antes). A comparação é de tempo constante.
+ */
+const SENHA_DA_MESA = process.env.SENHA_MESA ?? "";
+function senhaConfere(requisicao: IncomingMessage): boolean {
+    if (SENHA_DA_MESA === "" || veioDoProprioComputador(requisicao)) return true;
+    let enviada = "";
+    try {
+        enviada = new URL(requisicao.url ?? "/", "http://local").searchParams.get("senha") ?? "";
+    } catch {
+        return false;
+    }
+    const a = Buffer.from(enviada, "utf8");
+    const b = Buffer.from(SENHA_DA_MESA, "utf8");
+    return a.length === b.length && timingSafeEqual(a, b);
+}
 function papelDaRequisicao(requisicao: IncomingMessage): { papel: "mestre" | "jogador" } | { recusa: string } {
+    if (!senhaConfere(requisicao)) return { recusa: "Esta mesa tem SENHA: entre pelo endereço que o mestre passou (com …&senha=…)." };
     let papel: string | null = null;
     try {
         papel = new URL(requisicao.url ?? "/", "http://local").searchParams.get("papel");
@@ -318,284 +342,21 @@ async function servirSite(requisicao: IncomingMessage, resposta: ServerResponse)
 // 2) AS CONEXÕES
 // ---------------------------------------------------------------------
 
-/** Uma conexão aberta. `jogador` é null até a pessoa se apresentar (pedido "entrar"). */
-interface Conexao {
-    id: number;
-    ws: WebSocket;
-    jogador: Jogador | null;
-    inicioDaJanela: number; // para o limite de mensagens por segundo
-    mensagensNaJanela: number;
-    baldeRolagens: Balde; // LIMITE ANTI-SPAM: rolagens de dados e de fichas (as duas dividem o mesmo balde)
-    baldeChat: Balde; // LIMITE ANTI-SPAM: mensagens do chat
-    papel: "mestre" | "jogador" | null; // o papel pedido no endereço (null = faltou ou foi recusado: a conexão não entra)
-    recusa: string | null; // o motivo de a conexão ser recusada ao entrar (sem papel, por exemplo)
-    usuario: string; // o ID de usuário estável (hoje vem do apelido; depois virá da conta): é ele que as permissões usam
-    mapaVisto: string | null; // o mapa em que ESTA conexão está (cada jogador tem o seu; o mestre sempre está no `mapaAtual`). null = nenhum
-    mestre: boolean; // é o MESTRE? Por enquanto (os papéis vêm depois das cenas): quem se conecta DO PRÓPRIO COMPUTADOR do servidor (endereço 127.0.0.1). Só o mestre envia, troca e apaga mapas; o servidor confere sempre.
-}
 
-// Para os TESTES automáticos (que rolam e escrevem muito rápido): SEM_LIMITE_SPAM=1 desliga o limite anti-spam. Em uso normal fica ligado.
-const SEM_LIMITE_SPAM = process.env.SEM_LIMITE_SPAM === "1";
-const podeRolar = (c: Conexao): boolean => SEM_LIMITE_SPAM || gastar(c.baldeRolagens, RAJADA_ROLAGENS, MS_RECARGA_ROLAGEM);
-const podeEscrever = (c: Conexao): boolean => SEM_LIMITE_SPAM || gastar(c.baldeChat, RAJADA_CHAT, MS_RECARGA_CHAT);
 
-const conexoes = new Set<Conexao>();
-let proximoIdDeConexao = 1;
 
-const listaDeJogadores = (): Jogador[] => [...conexoes].flatMap((c) => (c.jogador ? [c.jogador] : []));
 
-function enviar(ws: WebSocket, evento: EventoDoServidor): void {
-    if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(evento));
-}
 
-/** Manda o evento a TODOS que já se apresentaram (inclusive quem fez o pedido: assim todos veem a mesma coisa). */
-function avisarTodos(evento: EventoDoServidor): void {
-    const texto = JSON.stringify(evento);
-    for (const c of conexoes) if (c.jogador && c.ws.readyState === WebSocket.OPEN) c.ws.send(texto);
-}
 
-const erro = (ws: WebSocket, motivo: string): void => enviar(ws, { tipo: "erro", motivo });
 
 // ---------------------------------------------------------------------
 // PERMISSÕES E VISÃO (17/11/2026; ver `src/permissoes.ts`): o servidor decide quem vê e quem faz o quê. O mestre pode tudo; o jogador só o que é dele ou foi liberado.
 // ---------------------------------------------------------------------
 
-/** O nível de `c` sobre um token. As PEÇAS do tabuleiro seguem o MODELO delas (o token da bolsa). O mestre não passa por aqui. */
-function nivelNoToken(c: Conexao, token: Token): NivelEfetivo {
-    const modelo = token.copiaDe === null ? token : buscarToken(token.copiaDe);
-    return modelo ? nivelDoUsuario("tokens", modelo.id, c.usuario, modelo.grupos) : null;
-}
-const nivelNaFicha = (c: Conexao, ficha: Ficha): NivelEfetivo => nivelDoUsuario("fichas", ficha.id, c.usuario, ficha.grupos);
 
-/** "usar" = mover e usar o clique direito do tabuleiro (leitor ou mais); "editar" = configurações (editor ou dono); "excluir" = só o dono (e o mestre). */
-function podeNoToken(c: Conexao, token: Token, acao: "usar" | "editar" | "excluir"): boolean {
-    if (c.mestre) return true;
-    const nivel = nivelNoToken(c, token);
-    return acao === "usar" ? podeLer(nivel) : acao === "editar" ? podeEditar(nivel) : podeExcluir(nivel);
-}
-/** "ler" = ver e rolar; "editar" = alterar o texto e os valores; "excluir" = só o dono (e o mestre). */
-function podeNaFicha(c: Conexao, ficha: Ficha, acao: "ler" | "editar" | "excluir"): boolean {
-    if (c.mestre) return true;
-    const nivel = nivelNaFicha(c, ficha);
-    return acao === "ler" ? podeLer(nivel) : acao === "editar" ? podeEditar(nivel) : podeExcluir(nivel);
-}
-const SEM_PERMISSAO = "Você não tem permissão para isso.";
 
-/**
- * Os valores de status de um token como `c` PODE VÊ-LOS (pedido do dono, 17/11/2026: "Quem vê" de cada status). O mestre vê todos. Para os outros, o valor de um status que ele não pode ver NÃO vai: chega
- * `{ oculto: true, atual: 0, max: 0 }` (a entrada existe só para o Dano e a Cura continuarem valendo; a interface não desenha barra nem conta para ela).
- */
-function valoresParaConexao(c: Conexao, token: Token): ValorDeStatus[] {
-    if (c.mestre) return token.valores;
-    const nivel = nivelNoToken(c, token);
-    return token.valores.map((v) => {
-        const q = token.status.find((s) => s.id === v.id)?.quemVe;
-        const ve = !q || (nivel === "dono" ? q.dono : nivel === null ? q.outros : q.leitores);
-        return ve ? v : { id: v.id, atual: 0, max: 0, oculto: true };
-    });
-}
-/** Manda a cada conexão os valores de status de um token, já filtrados pelo "Quem vê". */
-function avisarValoresDoToken(token: Token, efeito?: "dano" | "cura"): void {
-    // `efeito` (só quando uma ação acabou de ser aplicada) diz a TODOS o que animar no token (dano ou cura), mesmo para quem não vê o valor: a animação não depende dos números, então não denuncia a vida.
-    avisarCada((c) => ({ tipo: "valores_atualizados", id: token.id, valores: valoresParaConexao(c, token), ...(efeito !== undefined && { efeito }) }));
-}
-/** O mapa `id` é visível para `c`? O mestre vê todos; os outros, o que o mestre liberou (todos os jogadores, ou os listados). Sem mapa (null) todos "veem". */
-function mapaVisivelPara(c: Conexao, id: string | null): boolean {
-    if (id === null || c.mestre) return true;
-    const q = acharMapa(id)?.quemVe;
-    return !q || q.todos || q.usuarios.includes(c.usuario);
-}
-/**
- * O mapa em que `c` está AGORA (cada jogador tem o seu; pedido do dono, 17/11/2026): o mestre está sempre no `mapaAtual`; o jogador, no que ele escolheu ou para onde o mestre o levou ("Mover jogadores").
- * null = nenhum (ou um mapa que ele não pode ver: ele vê o tabuleiro vazio).
- */
-function mapaDaConexao(c: Conexao): string | null {
-    if (c.mestre) return mapaAtual;
-    return c.mapaVisto !== null && acharMapa(c.mapaVisto) && mapaVisivelPara(c, c.mapaVisto) ? c.mapaVisto : null;
-}
-/** O mapa onde cada USUÁRIO estava (para quem cai e volta continuar no mesmo mapa). */
-const mapaDoUsuario = new Map<string, string | null>();
-function irParaMapa(c: Conexao, id: string | null): void {
-    c.mapaVisto = id;
-    mapaDoUsuario.set(c.usuario, id);
-}
-/** O tamanho do tabuleiro de um mapa: o guardado nele, ou o da mesa. */
-function tamanhoDoMapa(id: string | null): { colunas: number; linhas: number } {
-    const m = id === null ? undefined : acharMapa(id);
-    return m?.colunas !== undefined && m.linhas !== undefined ? { colunas: m.colunas, linhas: m.linhas } : { colunas: estado.colunas, linhas: estado.linhas };
-}
-/** A grade (espessura e cor) de um mapa: a guardada nele, ou a da mesa. Cada mapa tem a sua (pedido do dono, 17/11/2026). */
-function gradeDoMapa(id: string | null): GradeDaMesa {
-    const m = id === null ? undefined : acharMapa(id);
-    return m?.grade ?? estado.grade;
-}
-/**
- * Roda `fazer` COM A CENA de quem pediu: o `estado` do servidor guarda um mapa e um tamanho de tabuleiro só (os do mestre); para o jogador que está em OUTRO mapa, troca por um instante o mapa, as
- * colunas e as linhas pelos dele (as peças que ele coloca nascem no mapa dele, e as posições são conferidas com o tabuleiro dele). É tudo síncrono, então ninguém vê a troca.
- */
-function comCenaDe(c: Conexao, fazer: () => void): void {
-    if (c.mestre || !c.jogador) return fazer();
-    const mapa = mapaDaConexao(c);
-    const tamanho = tamanhoDoMapa(mapa);
-    const salvo = { mapaId: estado.mapaId, colunas: estado.colunas, linhas: estado.linhas };
-    estado.mapaId = mapa;
-    estado.colunas = tamanho.colunas;
-    estado.linhas = tamanho.linhas;
-    try {
-        fazer();
-    } finally {
-        estado.mapaId = salvo.mapaId;
-        estado.colunas = salvo.colunas;
-        estado.linhas = salvo.linhas;
-    }
-}
-/** A biblioteca que `c` recebe: o mestre, tudo; os outros, só os mapas que podem ver (sem a lista de quem vê). */
-function bibliotecaParaConexao(c: Conexao): RegistroDeMapa[] {
-    if (c.mestre) return listaDeMapas();
-    // O jogador não escolhe mapas (só o mestre o move): recebe só o mapa em que está (se pode vê-lo), sem a lista de quem vê.
-    const meu = mapaDaConexao(c);
-    return listaDeMapas().filter((m) => m.id === meu).map(({ quemVe: _quemVe, ...resto }) => resto);
-}
-/** Manda a UMA conexão o mapa em que ela está (a imagem e o tamanho do tabuleiro dele) e os desenhos dele. */
-function avisarMapaDe(c: Conexao, comTamanho = true): void {
-    if (!c.jogador || c.ws.readyState !== WebSocket.OPEN) return;
-    const mapa = mapaDaConexao(c);
-    const tamanho = tamanhoDoMapa(mapa);
-    enviar(c.ws, { tipo: "mapa_definido", mapa, grade: gradeDoMapa(mapa), ...(comTamanho && { colunas: tamanho.colunas, linhas: tamanho.linhas }) });
-    // Foi levado a um mapa que NÃO pode ver: o tabuleiro vem vazio e a pessoa é avisada do motivo (pedido do dono, 17/11/2026).
-    if (!c.mestre && c.mapaVisto !== null && mapa === null) erro(c.ws, "Você não tem permissão para ver esse mapa.");
-    enviar(c.ws, { tipo: "desenhos_definidos", desenhos: desenhosDoMapa(mapa) }); // (cada mapa tem os seus desenhos)
-}
-/** Manda a quem está no mapa `id` (ou a todos, sem `id`) o mapa dele de novo. */
-function avisarMapaAtual(comTamanho: boolean, id?: string | null): void {
-    for (const c of conexoes) if (id === undefined || c.mapaVisto === id || (c.mestre && mapaAtual === id)) avisarMapaDe(c, comTamanho);
-    avisarMapasDefinidos();
-    avisarJogadores();
-}
-/** Manda a cada um a lista de quem está na mesa, marcando quem está NA CENA DELE (o mesmo mapa). */
-function avisarJogadores(): void {
-    avisarCada((c) => {
-        const meu = mapaDaConexao(c);
-        // O MESTRE também recebe o mapa de cada um (a aba Mapas mostra "jogadores aqui"); os jogadores, não (os ids dos mapas não vazam).
-        return { tipo: "jogadores", lista: [...conexoes].flatMap((x) => (x.jogador ? [{ ...x.jogador, naMinhaCena: mapaDaConexao(x) === meu, ...(c.mestre && { mapa: x.mestre ? mapaAtual : x.mapaVisto, semPermissao: !x.mestre && x.mapaVisto !== null && mapaDaConexao(x) === null }) }] : [])) };
-    });
-}
-/** Manda a cada um a biblioteca que ele pode ver. */
-function avisarMapasDefinidos(): void {
-    avisarCada((c) => ({ tipo: "mapas_definidos", mapas: bibliotecaParaConexao(c) }));
-}
-/** A estrela é de CADA usuário (`permissoes.favoritos`). */
-const ehFavoritoDe = (usuario: string, tipo: TipoDeItem, id: number): boolean => permissoes.favoritos[usuario]?.[tipo].includes(id) === true;
-function definirFavoritoDe(usuario: string, tipo: TipoDeItem, id: number, valor: boolean): void {
-    const meus = (permissoes.favoritos[usuario] ??= { tokens: [], fichas: [] });
-    meus[tipo] = valor ? [...new Set([...meus[tipo], id])] : meus[tipo].filter((x) => x !== id);
-    naFilaDeArquivos(() => gravarPermissoes());
-}
-/** O que `c` recebe sobre um token: as PEÇAS do tabuleiro todos veem; um token da BOLSA só quem tem acesso (o dono, os liberados e o mestre). Um modelo de uma peça que está no mapa vai SEM a ficha e marcado `somenteMapa` (os grupos ficam: valem para os status) (não aparece na bolsa). Quem não é mestre recebe também o `nivel` dele (a interface esconde o que ele não pode). */
-function tokenParaConexao(c: Conexao, token: Token): Token | null {
-    const visto = tokenParaConexaoSemEstrela(c, token);
-    return visto && visto.copiaDe === null ? { ...visto, favorito: ehFavoritoDe(c.usuario, "tokens", token.id) } : visto; // (a estrela é de cada pessoa)
-}
-function tokenParaConexaoSemEstrela(c: Conexao, token: Token): Token | null {
-    if (c.mestre) return token;
-    const nivel = nivelNoToken(c, token);
-    const valores = valoresParaConexao(c, token);
-    if (token.copiaDe !== null) return { ...token, valores, ...(nivel !== null && { nivel }) }; // (a peça do mapa todos veem, mesmo sem nível; os status só para quem pode vê-los)
-    if (podeLer(nivel)) return { ...token, valores, ...(nivel !== null && { nivel }) };
-    if (estado.tokens.some((p) => p.copiaDe === token.id)) return { ...token, ficha: null, favorito: false, somenteMapa: true }; // (os GRUPOS ficam: o cliente os usa para saber quais status, e portanto quais ações como Dano e Cura, valem para a peça; são só números, não revelam a ficha)
-    return null;
-}
-function fichaParaConexao(c: Conexao, ficha: Ficha): Ficha | null {
-    const visto = fichaParaConexaoSemEstrela(c, ficha);
-    return visto ? { ...visto, favorito: ehFavoritoDe(c.usuario, "fichas", ficha.id) } : null; // (a estrela é de cada pessoa)
-}
-function fichaParaConexaoSemEstrela(c: Conexao, ficha: Ficha): Ficha | null {
-    if (c.mestre) return ficha;
-    const nivel = nivelNaFicha(c, ficha);
-    return podeLer(nivel) && nivel !== null ? { ...ficha, nivel } : null;
-}
 
-/**
- * Depois de mudar o que uma pessoa pode ver (liberar, tirar a liberação, virar mestre): refaz a visão DELA dos itens indicados. Um item que ela passou a ver chega inteiro (`token_editado` /
- * `ficha_editada` fazem "criar ou trocar"); um token que deixou de ver vira só o modelo "somente mapa" (se há peça dele no mapa) ou é tirado; uma ficha que deixou de ver é tirada.
- */
-function sincronizarVisaoDe(usuario: string, idsDeTokens: number[], idsDeFichas: number[]): void {
-    for (const c of conexoes) {
-        if (!c.jogador || c.usuario !== usuario || c.ws.readyState !== WebSocket.OPEN) continue;
-        for (const id of idsDeTokens) {
-            const token = buscarToken(id);
-            if (!token) continue;
-            const visto = tokenParaConexao(c, token);
-            enviar(c.ws, visto ? { tipo: "token_editado", token: visto } : { tipo: "token_excluido", id });
-        }
-        for (const id of idsDeFichas) {
-            const ficha = estado.fichas.find((f) => f.id === id);
-            if (!ficha) continue;
-            const vista = fichaParaConexao(c, ficha);
-            if (vista) {
-                enviar(c.ws, { tipo: "ficha_editada", ficha: vista });
-                enviar(c.ws, { tipo: "valores_ficha", id, valores: valoresDaFichaComoObjeto(id) });
-            } else enviar(c.ws, { tipo: "ficha_excluida", id });
-        }
-    }
-}
-/** Igual a `sincronizarVisaoDe`, para TODOS os usuários conectados (quando os grupos de um item mudam, quem tem acesso pelo grupo ganha ou perde o item). */
-function sincronizarVisaoDeTodos(idsDeTokens: number[], idsDeFichas: number[]): void {
-    for (const usuario of new Set([...conexoes].map((c) => c.usuario))) if (usuario !== "") sincronizarVisaoDe(usuario, idsDeTokens, idsDeFichas);
-}
-/** O documento de permissões vai SÓ aos mestres (a aba "Jogadores" o mostra). */
-function avisarPermissoes(): void {
-    for (const c of conexoes) if (c.jogador && c.mestre) enviar(c.ws, { tipo: "permissoes", permissoes });
-}
-/** O mestre mudou: refaz o papel de quem estava conectado com esse usuário, a visão dele e a lista de jogadores. */
-function atualizarPapeisConectados(): void {
-    for (const c of conexoes) {
-        if (!c.jogador) continue;
-        const antes = c.mestre;
-        c.mestre = c.papel === "mestre" || temPoderDeMestre(permissoes, c.usuario);
-        c.jogador.mestre = c.mestre;
-        if (antes !== c.mestre) {
-            enviar(c.ws, { tipo: "papel", mestre: c.mestre });
-            sincronizarVisaoDe(c.usuario, estado.tokens.filter((t) => t.copiaDe === null).map((t) => t.id), estado.fichas.map((f) => f.id));
-            if (c.mestre) enviar(c.ws, { tipo: "permissoes", permissoes });
-        }
-    }
-    avisarJogadores();
-}
 
-/** Manda a cada conexão o que `montar` devolver para ela (null = não manda nada a essa). */
-function avisarCada(montar: (c: Conexao) => EventoDoServidor | null): void {
-    for (const c of conexoes) {
-        if (!c.jogador || c.ws.readyState !== WebSocket.OPEN) continue;
-        const evento = montar(c);
-        if (evento) c.ws.send(JSON.stringify(evento));
-    }
-}
-function avisarToken(tipo: "token_criado" | "token_editado" | "peca_criada", token: Token): void {
-    avisarCada((c) => {
-        const visto = tokenParaConexao(c, token);
-        return visto ? { tipo, token: visto } : null;
-    });
-}
-function avisarFicha(tipo: "ficha_criada" | "ficha_editada", ficha: Ficha): void {
-    avisarCada((c) => {
-        const vista = fichaParaConexao(c, ficha);
-        return vista ? { tipo, ficha: vista } : null;
-    });
-}
-/** Os valores atuais das variáveis que mudam, SÓ das fichas que `c` pode ver (ficha -> NOME -> valor). */
-function valoresVisiveisPara(c: Conexao): Record<string, Record<string, number>> {
-    const todos = todosOsValoresDasFichas();
-    const visiveis: Record<string, Record<string, number>> = {};
-    for (const ficha of estado.fichas) if (podeNaFicha(c, ficha, "ler") && todos[String(ficha.id)]) visiveis[String(ficha.id)] = todos[String(ficha.id)];
-    return visiveis;
-}
-/** Os valores atuais de uma ficha: quem VÊ a ficha recebe todos; os outros recebem só as barras (valores) das peças dela no tabuleiro. */
-function avisarValoresDaFicha(id: number): void {
-    const ficha = estado.fichas.find((f) => f.id === id);
-    if (ficha) avisarCada((c) => (podeNaFicha(c, ficha, "ler") ? { tipo: "valores_ficha", id, valores: valoresDaFichaComoObjeto(id) } : null));
-    for (const t of estado.tokens) if (t.ficha === id && t.copiaDe !== null && !t.guardado) avisarValoresDoToken(t);
-}
 
 /** Sorteio do SERVIDOR: `crypto.randomInt` é imprevisível e sem viés (o Math.random do navegador permitiria trapacear). */
 // (randomInt só aceita faixas MENORES que 2**48, por isso 2**47: dá 47 bits de precisão, de sobra para um d1000.)
@@ -617,12 +378,6 @@ function dentroDoLimite(c: Conexao): boolean {
 // 3) OS PEDIDOS: validar, aplicar no estado e avisar todos
 // ---------------------------------------------------------------------
 
-// Gravar e apagar arquivos envolve ESPERAR o disco. Para dois pedidos seguidos não se atropelarem (e os limites valerem), todas as
-// operações de arquivo entram numa FILA e são feitas uma de cada vez, na ordem em que chegaram.
-let filaDeArquivos: Promise<void> = Promise.resolve();
-function naFilaDeArquivos(tarefa: () => Promise<void>): void {
-    filaDeArquivos = filaDeArquivos.then(tarefa).catch((falha: unknown) => console.error("Erro ao gravar/apagar um arquivo:", falha));
-}
 
 /**
  * Cria a ficha VAZIA e o seu ARQUIVO NA HORA (não espera ninguém escrever nada: o texto vem depois, pelo editor), e só então a
@@ -832,8 +587,6 @@ async function excluirGrupoNoServidor(c: Conexao, id: number): Promise<void> {
 // (`src/exemplos.ts`). A marca `exemplos` em `dados/mesa.json` impede que voltem se o dono as apagar; SEM_EXEMPLOS=1 desliga (os testes automáticos usam isto).
 const SEM_EXEMPLOS = process.env.SEM_EXEMPLOS === "1";
 let exemplosCriados = false;
-// A BIBLIOTECA DE MAPAS (servidor/mapas.ts): `mapaAtual` é o id do mapa que todos veem (null = nenhum). Os mapas de EXEMPLO (os que vêm com o site) também entram UMA vez (marca `mapasDeExemplo` em mesa.json) e podem ser apagados.
-let mapaAtual: string | null = null;
 let mapasDeExemploCriados = false;
 async function semearExemplos(): Promise<void> {
     const exemplos = [
@@ -1030,8 +783,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             definirGradeDaMesa({ espessura: pedido.espessura, cor: pedido.cor });
             const idDaGrade = mapaAtual;
             if (idDaGrade !== null) {
-                lembrarGradeDoMapa(idDaGrade, estado.grade); // (cada mapa guarda a SUA grade)
-                naFilaDeArquivos(async () => void (await definirGradeDoMapa(idDaGrade, estado.grade)));
+                lembrarGradeDaCena(idDaGrade, estado.grade); // (cada mapa guarda a SUA grade)
                 avisarMapasDefinidos();
             }
             avisarCada((c2) => (mapaDaConexao(c2) === mapaAtual ? { tipo: "grade_definida", grade: estado.grade } : null)); // (só quem está no mapa do mestre)
@@ -1043,8 +795,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             // O tamanho do tabuleiro é do SERVIDOR (ele valida as posições com ele): limita ao permitido, puxa para dentro os tokens que ficaram fora, grava e avisa todos.
             const movidos = definirTamanhoTabuleiro(pedido.colunas, pedido.linhas);
             const idDoMapa = mapaAtual;
-            if (idDoMapa !== null) lembrarTamanhoDoMapa(idDoMapa, estado.colunas, estado.linhas);
-            if (idDoMapa !== null) naFilaDeArquivos(async () => void (await definirTamanhoDoMapa(idDoMapa, estado.colunas, estado.linhas))); // (cada mapa guarda o seu tamanho)
+            lembrarTamanhoDaCena(idDoMapa, estado.colunas, estado.linhas); // (cada cena guarda o seu tamanho)
             avisarMapasDefinidos(); // (a biblioteca leva o tamanho de cada mapa: o navegador do mestre não manda a previsão da imagem por cima do que ele configurou)
             avisarCada((c2) => (mapaDaConexao(c2) === mapaAtual ? { tipo: "tamanho_definido", colunas: estado.colunas, linhas: estado.linhas } : null)); // (só quem está no mapa do mestre; cada navegador refaz a mesma conta e puxa os tokens para dentro)
             for (const token of movidos) agendarGravacaoDoToken(token.id);
@@ -1369,13 +1120,10 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             const mapaAnterior = mapaAtual;
             if (mapaAnterior !== null && mapaAnterior !== pedido.id) {
                 const tamanhoAnterior = { colunas: estado.colunas, linhas: estado.linhas };
-                lembrarTamanhoDoMapa(mapaAnterior, tamanhoAnterior.colunas, tamanhoAnterior.linhas);
-                lembrarGradeDoMapa(mapaAnterior, estado.grade); // (o mapa que o mestre deixa guarda a grade dele)
-                const gradeAnterior = estado.grade;
-                naFilaDeArquivos(async () => void (await definirGradeDoMapa(mapaAnterior, gradeAnterior)));
-                naFilaDeArquivos(async () => void (await definirTamanhoDoMapa(mapaAnterior, tamanhoAnterior.colunas, tamanhoAnterior.linhas))); // (o mapa que o mestre deixa guarda o tamanho dele)
+                lembrarTamanhoDaCena(mapaAnterior, tamanhoAnterior.colunas, tamanhoAnterior.linhas); // (a cena que o mestre deixa guarda o tamanho e a grade dela)
+                lembrarGradeDaCena(mapaAnterior, estado.grade);
             }
-            mapaAtual = pedido.id;
+            definirMapaDoMestre(pedido.id);
             definirMapaAtual(mapaAtual);
             // A PRIMEIRA vez que a mesa ganha um mapa, as peças que já estavam no tabuleiro (colocadas sem mapa) passam a ser deste: senão sumiriam de vista.
             if (mapaAnterior === null && mapaAtual !== null) {
@@ -1387,16 +1135,15 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             } // (as peças novas nascem com o mapa que está à vista)
             // O tamanho do tabuleiro que acompanha o mapa (a previsão do mestre) é aplicado AQUI, com as mesmas regras do `definir_tamanho` (limites, tokens puxados para dentro), e vai no MESMO evento: cada
             // navegador baixa a imagem e só então troca o mapa e o tamanho, de uma vez.
-            const guardado = mapaAtual !== null ? acharMapa(mapaAtual) : undefined;
-            if (guardado?.grade) definirGradeDaMesa(guardado.grade); // (a grade deste mapa; um mapa novo, sem grade guardada, começa com a de agora)
-            else if (mapaAtual !== null) lembrarGradeDoMapa(mapaAtual, estado.grade);
+            const guardado = configDaCena(mapaAtual);
+            if (guardado.grade) definirGradeDaMesa(guardado.grade); // (a grade deste mapa; um mapa novo, sem grade guardada, começa com a de agora)
+            else lembrarGradeDaCena(mapaAtual, estado.grade);
             // O tamanho que o mestre CONFIGUROU para o mapa vale sempre (os mapas lembram as colunas e linhas); a previsão pela imagem (o pedido) só vale para um mapa SEM tamanho guardado (recém-enviado).
-            const tamanhoNovo = guardado?.colunas !== undefined && guardado.linhas !== undefined ? { colunas: guardado.colunas, linhas: guardado.linhas } : pedido.colunas !== undefined && pedido.linhas !== undefined ? { colunas: pedido.colunas, linhas: pedido.linhas } : null;
+            const tamanhoNovo = guardado.colunas !== undefined && guardado.linhas !== undefined ? { colunas: guardado.colunas, linhas: guardado.linhas } : pedido.colunas !== undefined && pedido.linhas !== undefined ? { colunas: pedido.colunas, linhas: pedido.linhas } : null;
             const comTamanho = tamanhoNovo !== null;
             const movidos = tamanhoNovo ? definirTamanhoTabuleiro(tamanhoNovo.colunas, tamanhoNovo.linhas) : [];
             const idNovo = mapaAtual;
-            if (idNovo !== null && comTamanho) lembrarTamanhoDoMapa(idNovo, estado.colunas, estado.linhas);
-            if (idNovo !== null && comTamanho) naFilaDeArquivos(async () => void (await definirTamanhoDoMapa(idNovo, estado.colunas, estado.linhas)));
+            if (comTamanho) lembrarTamanhoDaCena(idNovo, estado.colunas, estado.linhas);
             // SÓ o mestre vai para o mapa novo: os jogadores ficam onde estavam, até o mestre "mover jogadores" (pedido do dono, 17/11/2026).
             for (const x of conexoes) if (x.mestre) avisarMapaDe(x, true);
             avisarMapasDefinidos();
@@ -1425,6 +1172,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             if (!acharMapa(id)) return erro(c.ws, "Esse mapa não existe.");
             naFilaDeArquivos(async () => {
                 await apagarMapa(id);
+                esquecerCena(id); // (a configuração da cena vai junto)
                 // As peças que estavam NESSE mapa vão embora com ele (cada mapa guarda as suas); os modelos da bolsa ficam.
                 for (const p of estado.tokens.filter((t) => t.copiaDe !== null && t.mapa === id)) {
                     excluirTokenComPecas(p.id);
@@ -1435,7 +1183,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
                 const afetados = [...conexoes].filter((x) => !x.mestre && x.mapaVisto === id);
                 for (const [u, m] of mapaDoUsuario) if (m === id) mapaDoUsuario.delete(u);
                 if (mapaAtual === id) {
-                    mapaAtual = null;
+                    definirMapaDoMestre(null);
                     definirMapaAtual(null);
                     await gravarMesaAtual();
                 }
@@ -1513,7 +1261,7 @@ servidorHttp.on("upgrade", (requisicao, socket, cabeca) => {
 
 wss.on("connection", (ws, requisicao: IncomingMessage) => {
     const conexao: Conexao = {
-        id: proximoIdDeConexao++,
+        id: novoIdDeConexao(),
         ws,
         jogador: null,
         inicioDaJanela: Date.now(),
@@ -1587,6 +1335,7 @@ try {
     const mesa = await carregarMesa();
     if (mesa) definirTamanhoTabuleiro(mesa.colunas, mesa.linhas);
     await carregarPermissoes(); // (quem é dono de quê e o que foi liberado: `dados/permissoes.json`)
+    await carregarPreferencias(); // (os favoritos de cada usuário: `dados/usuarios.json`; migra do permissoes.json na 1ª vez)
     await carregarDesenhos(); // (os desenhos de cada mapa: `dados/desenhos.json`)
     const fichasLidas = await carregarPasta("fichas", fichaValida, TAMANHO_MAX_ARQUIVO_FICHA);
     const tokensLidos = await carregarPasta("tokens", tokenValido, TAMANHO_MAX_ARQUIVO_TOKEN);
@@ -1615,7 +1364,7 @@ try {
     for (const ficha of estado.fichas) sincronizarValoresDaFicha(ficha.id); // (as barras ligadas a variáveis que mudam espelham o valor atual da ficha)
     // A BIBLIOTECA DE MAPAS: lê o índice, escolhe o mapa atual (o da mesa, se ainda existe) e, UMA vez, cria os mapas de exemplo que vêm com o site.
     await carregarMapas();
-    if (mesa?.mapa !== undefined) mapaAtual = mesa.mapa !== null && acharMapa(mesa.mapa) ? mesa.mapa : null;
+    if (mesa?.mapa !== undefined) definirMapaDoMestre(mesa.mapa !== null && acharMapa(mesa.mapa) ? mesa.mapa : null);
     if (mesa?.mapasDeExemplo === true) mapasDeExemploCriados = true;
     else if (!SEM_EXEMPLOS) {
         const pastas = [join(PASTA_DO_SITE, "images", "maps"), resolve(dirname(fileURLToPath(import.meta.url)), "..", "public", "images", "maps")];
@@ -1624,15 +1373,17 @@ try {
             inicial = await criarMapasDeExemplo(pasta);
             if (inicial !== null) break;
         }
-        if (inicial !== null && mesa?.mapa === undefined) mapaAtual = inicial; // (uma mesa NOVA já abre com o mapa de exemplo)
+        if (inicial !== null && mesa?.mapa === undefined) definirMapaDoMestre(inicial); // (uma mesa NOVA já abre com o mapa de exemplo)
         mapasDeExemploCriados = true;
         await gravarMesaAtual();
         console.log(`Mapas de exemplo criados (${listaDeMapas().length}).`);
     }
     definirMapaAtual(mapaAtual);
-    if (mapaAtual !== null && acharMapa(mapaAtual)?.grade) definirGradeDaMesa(acharMapa(mapaAtual)?.grade);
-    else if (mapaAtual !== null) await definirGradeDoMapa(mapaAtual, estado.grade);
-    if (mapaAtual !== null && acharMapa(mapaAtual)?.colunas === undefined) await definirTamanhoDoMapa(mapaAtual, estado.colunas, estado.linhas); // (o mapa atual ainda sem tamanho próprio guarda o da mesa)
+    await carregarCenas(); // (o tamanho e a grade de cada cena: dados/cenas.json; migra do índice dos mapas na 1ª vez)
+    const cenaDoMestre = configDaCena(mapaAtual);
+    if (cenaDoMestre.grade) definirGradeDaMesa(cenaDoMestre.grade);
+    else lembrarGradeDaCena(mapaAtual, estado.grade);
+    if (cenaDoMestre.colunas === undefined) lembrarTamanhoDaCena(mapaAtual, estado.colunas, estado.linhas); // (o mapa atual ainda sem tamanho próprio guarda o da mesa)
     // Peças de arquivos ANTIGOS (sem o mapa gravado) passam a pertencer ao mapa que está à vista agora.
     for (const p of estado.tokens.filter((t) => t.copiaDe !== null && t.mapa === null && mapaAtual !== null)) {
         p.mapa = mapaAtual;
@@ -1665,7 +1416,8 @@ servidorHttp.listen(porta, host, () => {
     console.log(`  Mestre (só no computador do servidor): http://127.0.0.1:${porta}/?online&nome=SeuNome&papel=mestre`);
     console.log(`  Jogador (de qualquer lugar):           http://127.0.0.1:${porta}/?online&nome=Ana&papel=jogador   (pelo túnel, troque o começo pelo endereço do túnel)`);
     console.log("  No desenvolvimento, use o Vite (http://127.0.0.1:5173/?online&nome=SeuNome&papel=mestre) em duas abas, uma de cada papel.");
-    console.log("  Atrás de um túnel (cloudflared) ninguém vira mestre: o servidor reconhece o túnel e só aceita jogadores de fora.\n");
+    console.log("  Atrás de um túnel (cloudflared) ninguém vira mestre: o servidor reconhece o túnel e só aceita jogadores de fora.");
+    console.log(SENHA_DA_MESA !== "" ? "  SENHA DA MESA ligada: quem vem de fora precisa acrescentar &senha=<a senha> ao endereço.\n" : "  Dica: SENHA_MESA=algo npm run servidor pede uma senha a quem entra de fora (&senha=algo no endereço).\n");
 });
 
 process.on("SIGINT", async () => {

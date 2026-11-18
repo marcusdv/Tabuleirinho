@@ -62,7 +62,7 @@ try {
     criar(c);
     const criada = await esperarEvento(c, "ficha_criada", n);
     ok("2a) ficha_criada: id 1, 'Ficha 1', versão 1, texto vazio", criada?.ficha?.id === 1 && criada.ficha.nome === "Ficha 1" && criada.ficha.versao === 1 && criada.ficha.abas[0].texto === "", JSON.stringify(criada));
-    ok("2b) o arquivo 1.json JÁ existe no disco e bate com a ficha", existsSync(join(pastaFichas, "1.json")) && JSON.stringify(JSON.parse(readFileSync(join(pastaFichas, "1.json"), "utf8"))) === JSON.stringify(criada.ficha));
+    ok("2b) o arquivo 1.json JÁ existe no disco e bate com a ficha", existsSync(join(pastaFichas, "1.json")) && JSON.stringify((({ formato: _f, ...resto }) => resto)(JSON.parse(readFileSync(join(pastaFichas, "1.json"), "utf8")))) === JSON.stringify(criada.ficha)); // (sem o campo `formato`: é a versão do arquivo, gravada pelo servidor; ver servidor/migracoes.ts)
     ok("2c) nenhum .tmp sobrou", !readdirSync(pastaFichas).some((f) => f.endsWith(".tmp")), readdirSync(pastaFichas).join(","));
     n = c.recebidos.length;
     criar(c);

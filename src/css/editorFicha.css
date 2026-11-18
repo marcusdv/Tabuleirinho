@@ -17,8 +17,11 @@
     gap: 8px;
     /* Tamanho PADRÃO (maior que antes: 940 × 640). A pessoa pode redimensionar pela alça do canto inferior direito; o tamanho
        escolhido fica guardado no navegador (ui/editorFicha.ts) e passa a valer no lugar deste. */
-    width: min(1080px, calc(100vw - var(--largura-chat) - 40px)); /* deixa livre a coluna da direita (chat/bolsa) */
-    height: min(720px, calc(100vh - 32px));
+    /* O LUGAR e o TAMANHO que a pessoa escolhe (arrastando e pela alça) chegam por variáveis CSS que o ui/editorFicha.ts define no próprio painel; sem elas valem estes. */
+    left: var(--ficha-x, auto);
+    top: var(--ficha-y, auto);
+    width: var(--ficha-largura, min(1080px, calc(100vw - var(--largura-chat) - 40px))); /* deixa livre a coluna da direita (chat/bolsa) */
+    height: var(--ficha-altura, min(720px, calc(100vh - 32px)));
     min-width: 520px;
     min-height: 360px;
     padding: 16px 20px 14px;
@@ -35,7 +38,7 @@
     user-select: none;
     touch-action: none;
 }
-/* FICHA MINIMIZADA: só a barra do topo (o nome, o botão de restaurar e o ✕), pequena e arrastável pela tela. O tamanho guardado da janela é inline: por isso o !important. */
+/* FICHA MINIMIZADA: só a barra do topo (o nome, o botão de restaurar e o ✕), pequena e arrastável pela tela. (O que some quando minimizada está em estados.css.) */
 #editor-ficha-mini-nome {
     display: none;
     flex: 1;
@@ -47,24 +50,15 @@
     font-weight: 600;
 }
 #editor-ficha-painel.minimizada {
-    width: min(340px, calc(100vw - 24px)) !important;
-    height: auto !important;
+    width: min(340px, calc(100vw - 24px)); /* (vence o tamanho guardado porque ele agora vem por variável CSS, não por estilo inline) */
+    height: auto;
     min-width: 0;
     min-height: 0;
     padding: 8px 10px;
     gap: 0;
 }
-#editor-ficha-painel.minimizada > :not(#editor-ficha-topo) {
-    display: none !important;
-}
 #editor-ficha-painel.minimizada #editor-ficha-mini-nome {
     display: block;
-}
-#editor-ficha-painel.minimizada #editor-ficha-nao-salvo,
-#editor-ficha-painel.minimizada #editor-ficha-tipo,
-#editor-ficha-painel.minimizada #editor-ficha-fonte-menos,
-#editor-ficha-painel.minimizada #editor-ficha-fonte-mais {
-    display: none !important;
 }
 #editor-ficha-painel.arrastando #editor-ficha-topo {
     cursor: grabbing;
@@ -86,10 +80,6 @@
 #editor-ficha-painel pre,
 #editor-ficha-painel code {
     cursor: text;
-}
-#editor-ficha-painel.arrastando,
-#editor-ficha-painel.arrastando * {
-    cursor: grabbing !important;
 }
 /* "alterações não salvas": só tem texto quando há mudança pendente. Ocupa TODO o espaço livre do meio da barra (empurra os botões para a direita), que também é uma parte neutra: dá para agarrar e arrastar a janela por ali. */
 #editor-ficha-nao-salvo {
@@ -121,11 +111,12 @@
     border-color: #ffd54f;
     color: #ffd54f;
 }
-#editor-ficha-fonte-menos,
-#editor-ficha-fonte-mais {
+/* (com o #editor-ficha-ferramentas na frente: vence a regra geral `#editor-ficha-ferramentas button`, sem !important) */
+#editor-ficha-ferramentas #editor-ficha-fonte-menos,
+#editor-ficha-ferramentas #editor-ficha-fonte-mais {
     width: 30px;
-    padding: 0 !important;
-    font-size: 12px !important;
+    padding: 0;
+    font-size: 12px;
 }
 #editor-ficha-ferramentas button:disabled {
     opacity: 0.4;
@@ -160,14 +151,14 @@
         transparent 79%
     );
 }
-#editor-ficha-x {
+#editor-ficha-ferramentas #editor-ficha-x {
     width: 28px;
-    padding: 0 !important;
-    font-size: 13px !important;
+    padding: 0;
+    font-size: 13px;
 }
-#editor-ficha-x:hover {
-    border-color: #e88a8a !important;
-    color: #e88a8a !important;
+#editor-ficha-ferramentas #editor-ficha-x:hover {
+    border-color: #e88a8a;
+    color: #e88a8a;
 }
 #editor-ficha-nome,
 #editor-ficha-texto {
@@ -842,8 +833,8 @@
     gap: 16px;
     margin-bottom: 4px;
 }
-#editor-ficha-colunas h4 {
-    margin-top: 0 !important;
+#editor-ficha-lateral #editor-ficha-colunas h4 {
+    margin-top: 0; /* (vence `#editor-ficha-lateral h4:not(:first-child)`) */
 }
 /* A caixa das rolagens (o título agora é o primeiro filho dela, então a folga de cima vem daqui). */
 #editor-ficha-secao-rolagens {
@@ -885,17 +876,10 @@
 [data-secao].recolhida .secao-botao::before {
     transform: rotate(-45deg);
 }
-/* Caixa recolhida: só o título fica (peso maior que `#editor-ficha-lateral #editor-ficha-rolagens`, que força o display da lista). */
-#editor-ficha-lateral [data-secao].recolhida > :not(h4) {
-    display: none !important;
-}
 @media (prefers-reduced-motion: reduce) {
     .secao-botao::before {
         transition: none;
     }
-}
-#editor-ficha-mudam {
-    gap: 8px !important;
 }
 /* As variáveis fixas e os recursos correm em COLUNAS, como as rolagens: a ordem vai de CIMA PARA BAIXO e, quando a coluna acaba, PULA PARA A PRÓXIMA COLUNA (e não da esquerda para a direita, pulando de linha).
    O número de colunas se ajusta à largura do painel (`column-width`): as variáveis cabem 2 ou mais quando há espaço, os recursos (cartões maiores) 2 quando cabem e 1 quando o painel fica estreito. */
@@ -911,6 +895,7 @@
 }
 #editor-ficha-lateral #editor-ficha-mudam {
     display: block;
+    gap: 8px;
     column-width: 200px;
     column-gap: 8px;
     column-fill: balance;

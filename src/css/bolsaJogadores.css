@@ -3,17 +3,6 @@
 #bolsa-jogadores {
     display: none;
 }
-#bolsa.aba-jogadores #bolsa-conteudo,
-#bolsa.aba-jogadores #bolsa-criar,
-#bolsa.aba-jogadores #bolsa-busca,
-#bolsa.aba-jogadores #bolsa-fichas,
-#bolsa.aba-jogadores #bolsa-fichas-busca,
-#bolsa.aba-jogadores #bolsa-organizar,
-#bolsa.aba-jogadores #bolsa-criar-token-botao,
-#bolsa.aba-jogadores #bolsa-ficha-criar-botao,
-#bolsa.aba-jogadores #bolsa-mapas {
-    display: none !important;
-}
 #bolsa.aba-jogadores #bolsa-jogadores {
     display: flex;
     flex-direction: column;

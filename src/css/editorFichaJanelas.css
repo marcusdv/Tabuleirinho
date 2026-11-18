@@ -79,9 +79,6 @@
     #editor-ficha-corpo {
         gap: 10px;
     }
-    #editor-ficha-divisoria {
-        display: none !important;
-    }
 }
 
 /* ===== CARTÕES `(Nome)"""texto"""` ===== */
@@ -131,15 +128,15 @@
 }
 
 /* ===== CELULAR: abaixo de 700 px de largura a ficha ocupa a TELA TODA ===== */
-/* Sem arrastar, sem redimensionar, sem minimizar e sem fixar (o ✕ fecha de verdade). O texto fica em cima e o painel de variáveis, recursos e rolagens EMBAIXO dele, com rolagem própria. Os
-   `!important` vencem o lugar e o tamanho que o ui/editorFicha.ts guarda em estilo (inline) para o desktop. */
+/* Sem arrastar, sem redimensionar, sem minimizar e sem fixar (o ✕ fecha de verdade). O texto fica em cima e o painel de variáveis, recursos e rolagens EMBAIXO dele, com rolagem própria. O lugar e o
+   tamanho do desktop vêm por variáveis CSS (--ficha-x, --ficha-largura...), então esta regra, que vem depois, vence sem !important. */
 @media (max-width: 700px) {
     #editor-ficha-painel {
-        left: 0 !important;
-        top: 0 !important;
-        width: 100vw !important;
-        height: 100vh !important;
-        height: 100dvh !important; /* (a barra do navegador do celular encolhe e cresce: dvh acompanha) */
+        left: 0;
+        top: 0;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh; /* (a barra do navegador do celular encolhe e cresce: dvh acompanha) */
         min-width: 0;
         min-height: 0;
         padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
@@ -148,11 +145,6 @@
         border-radius: 0;
         box-shadow: none;
         cursor: auto;
-    }
-    #editor-ficha-fixar,
-    #editor-ficha-minimizar,
-    #editor-ficha-redimensionar {
-        display: none !important;
     }
     /* Botões de TOQUE: maiores que os do desktop. */
     #editor-ficha-ferramentas button {
