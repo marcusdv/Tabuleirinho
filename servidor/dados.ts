@@ -28,7 +28,7 @@ import { comFormato, FORMATO_ATUAL, migrarArquivo } from "./migracoes.ts";
 export const PASTA_DE_DADOS = resolve(process.env.DADOS ?? join(dirname(fileURLToPath(import.meta.url)), "..", "dados"));
 
 /** As subpastas que existem (uma por tipo de item). */
-export type NomeDaPasta = "fichas" | "tokens" | "grupos" | "pecas";
+export type NomeDaPasta = "fichas" | "tokens" | "grupos" | "pecas" | "pastas";
 
 /** O único nome de arquivo aceito: um número inteiro positivo e ".json" (ex.: "7.json"). */
 const NOME_DE_ARQUIVO = /^([1-9]\d{0,14})\.json$/;

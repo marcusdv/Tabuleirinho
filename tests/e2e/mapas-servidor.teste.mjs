@@ -2,7 +2,7 @@
 // (não precisa do Vite: sobe um servidor temporário na porta 3798, com uma pasta de dados TEMPORÁRIA, e o desliga no fim; o `dados/` do projeto não é tocado.)
 //
 // Confere: os mapas de EXEMPLO nascem uma vez; o download (tipo certo, nosniff, ids inválidos e "../" recusados); o ENVIO de PNG, JPEG e WebP (tipo e pixels lidos dos bytes); as RECUSAS (SVG, HTML, GIF, vazio,
-// imagem "bomba" de 20000 px, arquivo acima de 10 MB, e envio de um site de OUTRA origem); a troca e a exclusão do mapa pelo MESTRE (quem se conecta do próprio computador do servidor); que QUEM NÃO É o computador do
+// imagem "bomba" de 20000 px, arquivo acima de 20 MB, e envio de um site de OUTRA origem); a troca e a exclusão do mapa pelo MESTRE (quem se conecta do próprio computador do servidor); que QUEM NÃO É o computador do
 // servidor não envia, não troca e não apaga nada; e que tudo continua depois de reiniciar o servidor.
 import { spawn } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
@@ -110,11 +110,11 @@ try {
         await recusa("GIF", Buffer.from("GIF89a\x01\x00\x01\x00\x00\x00\x00;", "latin1"), 400),
         await recusa("vazio", Buffer.alloc(0), 400),
         await recusa("PNG bomba (20000×20000, arquivo de 64 bytes)", pngComTamanho(20000, 20000), 400),
-        await recusa("JPEG bomba (9000×9000)", jpeg(9000, 9000), 400),
-        await recusa("arquivo acima de 10 MB", Buffer.alloc(11 * 1048576, 1), 413),
+        await recusa("JPEG bomba (13000×13000)", jpeg(13000, 13000), 400),
+        await recusa("arquivo acima de 20 MB", Buffer.alloc(21 * 1048576, 1), 413),
     ];
-    ok("4a) SVG, HTML, GIF, vazio, 'bombas' de pixels e arquivo acima de 10 MB são RECUSADOS (400/413)", casos.every((c) => c.ok), JSON.stringify(casos.map((c) => `${c.nome}: ${c.status} ${c.erro.slice(0, 45)}`)));
-    ok("4b) a mensagem diz o motivo (tipo, pixels e megabytes)", /PNG, JPEG ou WebP/.test(casos[0].erro) && /8192/.test(casos[4].erro) && /10 MB/.test(casos[6].erro));
+    ok("4a) SVG, HTML, GIF, vazio, 'bombas' de pixels e arquivo acima de 20 MB são RECUSADOS (400/413)", casos.every((c) => c.ok), JSON.stringify(casos.map((c) => `${c.nome}: ${c.status} ${c.erro.slice(0, 45)}`)));
+    ok("4b) a mensagem diz o motivo (tipo, pixels e megabytes)", /PNG, JPEG ou WebP/.test(casos[0].erro) && /12600/.test(casos[4].erro) && /20 MB/.test(casos[6].erro));
     const deOutroSite = await requisitar("POST", "/mapas?nome=x", png, { origin: "http://site-malicioso.example" });
     ok("4c) um site de OUTRA ORIGEM não consegue enviar mapa (403)", deOutroSite.status === 403, String(deOutroSite.status));
     ok("4d) nada disso entrou na biblioteca (continuam 6 mapas)", ultimo(mestre, "mapas_definidos").mapas.length === 6, String(ultimo(mestre, "mapas_definidos").mapas.length));

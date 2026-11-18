@@ -6,7 +6,7 @@
 // Este módulo só desenha e avisa: quem manda no servidor é o `main.ts` (callbacks). Todo texto que vem do servidor (nomes) entra por `textContent`, nunca como HTML. A aba em si (a classe `aba-mapas`) é ligada pelo `ui/bolsa.ts`.
 // =====================================================================
 
-import { MAX_BYTES_MAPA } from "../config";
+import { LADO_MAPA_RECOMENDADO, LADO_MINIATURA_MAPA, MAX_BYTES_MAPA } from "../config";
 import { estado } from "../estado";
 import type { RegistroDeMapa } from "../protocolo";
 
@@ -40,12 +40,72 @@ function pegar<T extends HTMLElement>(id: string): T {
 
 const formatarMB = (bytes: number): string => `${(bytes / 1048576).toFixed(1).replace(".", ",")} MB`;
 
+// ---------------------------------------------------------------
+// MINIATURAS dos mapas (só o MESTRE as vê, só o mapa, sem ícones; pedido do dono, 18/11/2026). O navegador baixa a imagem do mapa (o servidor a entrega com cache), a REDUZ para
+// `LADO_MINIATURA_MAPA` px e guarda o resultado na memória: cada mapa é gerado uma vez. Um de cada vez (fila), para não baixar vários mapas grandes juntos.
+// ---------------------------------------------------------------
+const miniaturas = new Map<string, string>(); // id do mapa -> endereço (blob:) da miniatura pronta
+const miniaturasFalhas = new Set<string>(); // os que não deu para gerar (não insiste)
+let filaDeMiniaturas: Promise<void> = Promise.resolve();
+
+async function gerarMiniatura(id: string): Promise<string | null> {
+    try {
+        const resposta = await fetch(`/mapas/${id}`);
+        if (!resposta.ok) return null;
+        const original = await resposta.blob();
+        // createImageBitmap já decodifica REDUZIDO (não guarda a imagem enorme inteira na memória).
+        const bruto = await createImageBitmap(original);
+        const fator = Math.min(1, LADO_MINIATURA_MAPA / Math.max(bruto.width, bruto.height));
+        const largura = Math.max(1, Math.round(bruto.width * fator));
+        const altura = Math.max(1, Math.round(bruto.height * fator));
+        const pequeno = await createImageBitmap(bruto, { resizeWidth: largura, resizeHeight: altura, resizeQuality: "high" });
+        bruto.close();
+        const canvas = document.createElement("canvas");
+        canvas.width = largura;
+        canvas.height = altura;
+        canvas.getContext("2d")?.drawImage(pequeno, 0, 0);
+        pequeno.close();
+        const miniatura = await new Promise<Blob | null>((resolver) => canvas.toBlob(resolver, "image/webp", 0.8));
+        return miniatura ? URL.createObjectURL(miniatura) : null;
+    } catch {
+        return null; // (sem miniatura: o cartão continua funcionando)
+    }
+}
+
+/** Põe a miniatura do mapa `id` em `imagem` (na hora, se já está pronta; senão entra na fila). */
+function pedirMiniatura(id: string, imagem: HTMLImageElement): void {
+    const pronta = miniaturas.get(id);
+    if (pronta) {
+        imagem.src = pronta;
+        return;
+    }
+    if (miniaturasFalhas.has(id)) return;
+    filaDeMiniaturas = filaDeMiniaturas.then(async () => {
+        if (!miniaturas.has(id) && !miniaturasFalhas.has(id)) {
+            const url = await gerarMiniatura(id);
+            if (url) miniaturas.set(id, url);
+            else miniaturasFalhas.add(id);
+        }
+        const feita = miniaturas.get(id);
+        if (feita) imagem.src = feita; // (se o cartão foi refeito enquanto isso, a próxima montagem já acha no cache)
+    });
+}
+
+/** Um mapa foi apagado: sua miniatura sai da memória. */
+function esquecerMiniatura(id: string): void {
+    const url = miniaturas.get(id);
+    if (url) URL.revokeObjectURL(url);
+    miniaturas.delete(id);
+    miniaturasFalhas.delete(id);
+}
+
 export function criarBolsaMapas(opcoes: OpcoesBolsaMapas): BolsaMapas {
     const botaoEnviar = pegar<HTMLButtonElement>("bolsa-mapas-enviar");
     const campoArquivo = pegar<HTMLInputElement>("bolsa-mapas-arquivo");
     const aviso = pegar("bolsa-mapas-aviso");
     const explicacao = pegar("bolsa-mapas-explicacao");
     const lista = pegar("bolsa-mapas-lista");
+    const campoBusca = pegar<HTMLInputElement>("bolsa-mapas-busca");
     const botaoMover = pegar<HTMLButtonElement>("bolsa-mapas-mover");
     const botaoConfigurar = pegar<HTMLButtonElement>("bolsa-mapas-configurar");
     const janela = pegar("mapas-tabuleiro");
@@ -75,6 +135,7 @@ export function criarBolsaMapas(opcoes: OpcoesBolsaMapas): BolsaMapas {
         janela.hidden = true;
     }
     pegar("mapas-tabuleiro-fechar").addEventListener("click", fecharJanela);
+    pegar("mapas-tabuleiro-ok").addEventListener("click", fecharJanela); // (o OK no pé da janela)
     document.addEventListener("keydown", (e) => {
         // (Esc dentro de um campo da janela só sai do campo, como sempre; fora dele fecha a janela.)
         if (e.key === "Escape" && !janela.hidden && !(e.target instanceof HTMLInputElement)) fecharJanela();
@@ -166,6 +227,18 @@ export function criarBolsaMapas(opcoes: OpcoesBolsaMapas): BolsaMapas {
         item.className = "bolsa-mapa" + (atual ? " atual" : "");
         item.dataset.id = mapa.id;
 
+        if (ehMestre) {
+            // A MINIATURA (só o mestre): só o mapa, sem ícones nem nada por cima. Antes de ficar pronta, a caixa já tem o tamanho certo (a proporção da imagem).
+            const miniatura = document.createElement("img");
+            miniatura.className = "bolsa-mapa-miniatura";
+            miniatura.alt = ""; // (decorativa: o nome do mapa já está logo abaixo)
+            miniatura.decoding = "async";
+            miniatura.draggable = false;
+            miniatura.style.aspectRatio = `${mapa.largura} / ${mapa.altura}`;
+            pedirMiniatura(mapa.id, miniatura);
+            item.append(miniatura);
+        }
+
         const nome = document.createElement("span");
         nome.className = "bolsa-mapa-nome";
         nome.textContent = mapa.nome;
@@ -173,6 +246,12 @@ export function criarBolsaMapas(opcoes: OpcoesBolsaMapas): BolsaMapas {
         const info = document.createElement("span");
         info.className = "bolsa-mapa-info";
         info.textContent = `${mapa.largura}×${mapa.altura} px · ${formatarMB(mapa.bytes)}`;
+        if (Math.max(mapa.largura, mapa.altura) > LADO_MAPA_RECOMENDADO) {
+            // Mapa muito grande: muitos computadores o reduzem e ele pesa no desempenho. O mestre é aconselhado a excluí-lo (só um conselho).
+            info.textContent += " · ⚠ grande demais";
+            info.title = `Mapa grande demais (acima de ${LADO_MAPA_RECOMENDADO} px): recomendamos excluí-lo para não prejudicar o desempenho. Muitas placas de vídeo o reduzem.`;
+            item.classList.add("grande-demais");
+        }
 
         const acoes = document.createElement("div");
         acoes.className = "bolsa-mapa-acoes";
@@ -239,6 +318,10 @@ export function criarBolsaMapas(opcoes: OpcoesBolsaMapas): BolsaMapas {
         return item;
     }
 
+    /** Sem acento nem maiúsculas: a pesquisa acha "Caverna" digitando "caverna" ou "cáverna". */
+    const normalizar = (texto: string): string => texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    campoBusca.addEventListener("input", () => atualizar(online));
+
     function atualizar(estaOnline: boolean): void {
         online = estaOnline;
         const ehMestre = online && estado.mestre;
@@ -248,15 +331,20 @@ export function criarBolsaMapas(opcoes: OpcoesBolsaMapas): BolsaMapas {
         if (mapaDaJanela !== null && !estado.mapas.some((m) => m.id === mapaDaJanela?.id)) fecharJanela(); // (o mapa foi apagado)
         atualizarJanela();
         lista.hidden = !online;
+        campoBusca.hidden = !online || estado.mapas.length === 0; // (a pesquisa só faz sentido com mapas na biblioteca)
         explicacao.hidden = false;
         if (!online) {
             explicacao.textContent = 'Os mapas compartilhados ficam no servidor: abra o jogo no modo online (?online) para enviar mapas e escolher o de todos. Neste modo, "Escolher mapa" (na janela do tabuleiro) troca o mapa só nesta aba.';
             lista.replaceChildren();
             return;
         }
+        const busca = normalizar(campoBusca.value.trim());
+        const visiveis = busca === "" ? estado.mapas : estado.mapas.filter((m) => normalizar(m.nome).includes(busca));
         if (estado.mapas.length === 0) explicacao.textContent = ehMestre ? 'Nenhum mapa ainda. Use "+ Enviar mapa".' : "Nenhum mapa na biblioteca ainda.";
+        else if (visiveis.length === 0) explicacao.textContent = `Nenhum mapa encontrado para "${campoBusca.value.trim()}".`; // (o texto vem de quem digitou: textContent)
         else explicacao.hidden = true;
-        lista.replaceChildren(...estado.mapas.map((m) => criarLinha(m, ehMestre)));
+        for (const id of [...miniaturas.keys()]) if (!estado.mapas.some((m) => m.id === id)) esquecerMiniatura(id); // (mapas apagados)
+        lista.replaceChildren(...visiveis.map((m) => criarLinha(m, ehMestre)));
     }
 
     atualizar(false);

@@ -5,6 +5,7 @@
 // Fica na bolsa em tela cheia, ao lado da prévia do token. O componente edita uma lista em memória e avisa cada mudança (`aoMudar`); tudo entra por textContent/value.
 // =====================================================================
 
+import { criarSeletorDeCor } from "./seletorDeCor";
 import { BARRAS_NA_PREVIA_STATUS, CHAVE_STATUS_AJUDA, CORES_STATUS, MAX_CARACTERES_NOME_STATUS, MAX_CARACTERES_NOME_VARIAVEL, MAX_STATUS_TOKEN } from "../config";
 import { estado, quemVePadrao, type QuemVeStatus, type StatusNovo } from "../estado";
 import { corCss } from "./aparenciaToken";
@@ -118,8 +119,15 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
             previa.replaceChildren(vazio);
             return;
         }
-        previa.replaceChildren(
-            ...visiveis.slice(0, BARRAS_NA_PREVIA_STATUS).map((i) => {
+        // A prévia mostra as barras como no tabuleiro: as de "Posição: Em cima" ACIMA de um tokenzinho e as outras EMBAIXO dele (a mais perto do token é a 1ª de cada lado).
+        const mostradas = visiveis.slice(0, BARRAS_NA_PREVIA_STATUS);
+        const emCima = mostradas.filter((i) => i.posicao === "cima").reverse();
+        const embaixo = mostradas.filter((i) => i.posicao !== "cima");
+        const marcaDoToken = document.createElement("div");
+        marcaDoToken.className = "status-previa-token";
+        marcaDoToken.title = "O token";
+        const linhaDe = (i: (typeof itens)[number]): HTMLElement => {
+            {
                 const linha = document.createElement("div");
                 linha.className = "status-previa-linha";
                 const nome = document.createElement("span");
@@ -141,8 +149,9 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
                 }
                 linha.append(nome, barra);
                 return linha;
-            }),
-        );
+            }
+        };
+        previa.replaceChildren(...emCima.map(linhaDe), marcaDoToken, ...embaixo.map(linhaDe));
     }
     raiz.replaceChildren(cabecalho, ajuda, lista, ...(previaFora ? [] : [tituloPrevia, previa])); // (com `previaFora`, a prévia fica em outro lugar da tela)
 
@@ -288,6 +297,28 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
     }
 
     /** A célula de uma coluna de caixa de marcar (a explicação fica no cabeçalho da coluna e na dica). */
+    /** A célula "Posição": onde a barra fica no tabuleiro (embaixo ou em cima do token). Vale na hora, como os checkboxes. */
+    function celulaDePosicao(item: { posicao?: "baixo" | "cima" }): HTMLTableCellElement {
+        const td = document.createElement("td");
+        td.className = "c-posicao";
+        const campo = document.createElement("select");
+        campo.title = "Onde a barra fica no tabuleiro";
+        campo.setAttribute("aria-label", "Posição da barra no tabuleiro");
+        for (const [valor, texto] of [["baixo", "Embaixo"], ["cima", "Em cima"]] as const) {
+            const opcao = document.createElement("option");
+            opcao.value = valor;
+            opcao.textContent = texto;
+            campo.append(opcao);
+        }
+        campo.value = item.posicao === "cima" ? "cima" : "baixo";
+        campo.addEventListener("change", () => {
+            item.posicao = campo.value === "cima" ? "cima" : "baixo";
+            avisarAgora();
+        });
+        td.append(campo);
+        return td;
+    }
+
     function celulaDeCaixa(dica: string, ligado: boolean, aoMudarCampo: (v: boolean) => void): HTMLTableCellElement {
         const td = document.createElement("td");
         td.className = "status-celula-caixa";
@@ -312,6 +343,7 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
         { titulo: "Grupos", dica: "Em quais grupos de tokens este status vale", classe: "c-grupos" },
         { titulo: "Quem vê", dica: "Quem pode ver este status (o mestre sempre vê)", classe: "c-quem" },
         { titulo: "Barra", dica: "Exibir em jogo: mostra a barra deste status embaixo do token no tabuleiro", classe: "c-caixa" },
+        { titulo: "Posição", dica: "Onde a barra fica no tabuleiro: embaixo ou em cima do token", classe: "c-posicao" },
         { titulo: "Núm.", dica: "Exibir números: mostra o valor (atual/máximo, ex.: 100/100) dentro da barra", classe: "c-caixa" },
         { titulo: "Rótulo", dica: "Mostrar nome no tabuleiro: escreve o nome do status à esquerda da barra", classe: "c-caixa" },
         { titulo: "Arrasto", dica: "Subtraído por números arrastados: ao soltar o total de uma rolagem do chat num token, ele perde essa quantidade deste status (em geral o HP)", classe: "c-caixa" },
@@ -411,13 +443,16 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
                 avisarAgora();
             });
 
+            const celulaCor = celula("c-cor", cor);
+            criarSeletorDeCor({ entrada: cor }); // (a cara do seletor de cor do site; a cor continua no <input> escondido)
             linha.append(
-                celula("c-cor", cor),
+                celulaCor,
                 celula("c-nome", nome),
                 celula("c-variavel", variavel),
                 celula("c-grupos", botaoGrupos),
                 celula("c-quem", botaoQuem),
                 celulaDeCaixa("Exibir em jogo: mostra a barra deste status embaixo do token no tabuleiro", item.mostrar !== false, (v) => (item.mostrar = v)),
+                celulaDePosicao(item),
                 celulaDeCaixa("Exibir números: mostra o valor (atual/máximo, ex.: 100/100) dentro da barra", item.numeros !== false, (v) => (item.numeros = v)),
                 celulaDeCaixa("Mostrar nome no tabuleiro: escreve o nome do status à esquerda da barra", item.mostrarNome !== false, (v) => (item.mostrarNome = v)),
                 celulaDeCaixa("Subtraído por números arrastados: ao soltar o total de uma rolagem do chat num token, ele perde essa quantidade deste status (em geral o HP)", item.recebeArrasto === true, (v) => (item.recebeArrasto = v)),

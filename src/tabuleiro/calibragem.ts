@@ -2,9 +2,12 @@
 // CALIBRAGEM DA GRADE: ferramenta para descobrir quantas colunas e linhas o
 // tabuleiro precisa ter para a grade casar com a do mapa.
 //
-// Como funciona: com a ferramenta ligada, o usuário ARRASTA um retângulo sobre
+// Como funciona: com a ferramenta ligada, o usuário marca um retângulo sobre
 // uma área do mapa que cobre N x N casas desenhadas na imagem (N é digitado no
-// painel). Pela largura e altura desse retângulo, calculamos quantas casas o
+// painel) com DOIS CLIQUES (pedido do dono, 18/11/2026): o 1º clique marca um canto,
+// o retângulo acompanha o mouse, e o 2º clique marca o canto oposto e aplica.
+// (Arrastar do 1º ao 2º canto, apertando e soltando, também continua valendo.)
+// Pela largura e altura desse retângulo, calculamos quantas casas o
 // mapa inteiro tem (ver gradeParaCasar em coordenadas.ts) e aplicamos.
 //
 // Este módulo cuida do arrasto e do retângulo; o painel HTML (campo de N e as
@@ -28,21 +31,27 @@ export interface OpcoesCalibragem {
     aoMedir(colunas: number, linhas: number): void;
     /** Ao soltar: o usuário terminou a medida; aplicar estas colunas/linhas (sem limite). */
     aoAplicar(colunas: number, linhas: number): void;
+    /** O 1º clique foi CANCELADO (botão direito ou Esc): a ferramenta continua ligada para tentar de novo. */
+    aoCancelar(): void;
 }
 
 export interface Calibragem {
     /** true enquanto a ferramenta está ligada. */
     readonly ativa: boolean;
-    /** true enquanto o usuário arrasta o retângulo. */
+    /** true enquanto há um retângulo em andamento (depois do 1º clique, até o 2º). */
     readonly medindo: boolean;
     /** Liga ou desliga a ferramenta (muda o cursor e some com o retângulo). */
     definirAtiva(ativa: boolean): void;
-    /** Começa a medir (ponto na TELA). */
+    /** Apertou o botão: o 1º clique marca o 1º canto; o 2º clique marca o canto oposto e aplica (ponto na TELA). */
     comecar(ponto: PointData): void;
-    /** O mouse andou durante a medida (ponto na TELA). */
+    /** O mouse andou durante a medida, com ou sem o botão apertado (ponto na TELA). */
     arrastar(ponto: PointData): void;
-    /** Soltou o botão: termina a medida e aplica o resultado. */
+    /** Soltou o botão: se foi um ARRASTO do 1º ao 2º canto, termina a medida e aplica; se foi só o 1º clique, espera o 2º. */
     soltar(): void;
+    /** Botão direito no meio da medida: CANCELA o 1º clique (a ferramenta continua ligada). */
+    cliqueDireito(): void;
+    /** Cancela a medida em andamento (Esc). Devolve true se havia uma. */
+    cancelarMedida(): boolean;
 }
 
 export function criarCalibragem(app: Application, camera: Camera, opcoes: OpcoesCalibragem): Calibragem {
@@ -56,6 +65,7 @@ export function criarCalibragem(app: Application, camera: Camera, opcoes: Opcoes
     // Cantos do retângulo, em coordenadas do MUNDO. null = não está medindo.
     let inicio: PointData | null = null;
     let fim: PointData | null = null;
+    let primeiroApertado = false; // o botão do 1º clique ainda está apertado (se for solto sem andar, é um clique: espera o 2º)
 
     /** Largura e altura (px do mundo) da área marcada. */
     function tamanhoMarcado(): { largura: number; altura: number } {
@@ -84,7 +94,24 @@ export function criarCalibragem(app: Application, camera: Camera, opcoes: Opcoes
     function encerrarMedida(): void {
         inicio = null;
         fim = null;
+        primeiroApertado = false;
         retangulo.visible = false;
+    }
+
+    /** Cancela o 1º clique: some o retângulo e a ferramenta fica pronta para um novo 1º clique. */
+    function cancelar(): boolean {
+        if (!inicio) return false;
+        encerrarMedida();
+        opcoes.aoCancelar();
+        return true;
+    }
+
+    /** Aplica o retângulo marcado (se for grande o bastante) e termina. */
+    function concluir(): void {
+        const medida = calcular();
+        // O tabuleiro vai mudar de tamanho: o retângulo atual deixaria de fazer sentido.
+        encerrarMedida();
+        if (medida) opcoes.aoAplicar(medida.colunas, medida.linhas);
     }
 
     return {
@@ -102,8 +129,16 @@ export function criarCalibragem(app: Application, camera: Camera, opcoes: Opcoes
         },
 
         comecar(ponto) {
+            if (inicio) {
+                // O 2º clique: marca o canto oposto e aplica (um 2º clique em cima do 1º, pequeno demais, só reinicia a medida).
+                fim = camera.telaParaMundo(ponto);
+                if (calcular()) return concluir();
+                encerrarMedida();
+            }
+            // O 1º clique: marca o 1º canto; o retângulo passa a acompanhar o mouse.
             inicio = camera.telaParaMundo(ponto);
             fim = inicio;
+            primeiroApertado = true;
         },
 
         arrastar(ponto) {
@@ -114,11 +149,17 @@ export function criarCalibragem(app: Application, camera: Camera, opcoes: Opcoes
             if (medida) opcoes.aoMedir(medida.colunas, medida.linhas);
         },
 
+        cliqueDireito() {
+            cancelar();
+        },
+
+        cancelarMedida: cancelar,
+
         soltar() {
-            const medida = calcular();
-            // O tabuleiro vai mudar de tamanho: o retângulo atual deixaria de fazer sentido.
-            encerrarMedida();
-            if (medida) opcoes.aoAplicar(medida.colunas, medida.linhas);
+            if (!primeiroApertado) return; // (soltar o botão do 2º clique: já foi tratado ao apertar)
+            primeiroApertado = false;
+            // Soltou longe do 1º canto = foi um ARRASTO: já vale. Soltou no mesmo lugar = foi um clique: espera o 2º clique.
+            if (calcular()) concluir();
         },
     };
 }

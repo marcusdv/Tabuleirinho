@@ -45,6 +45,8 @@ export interface Permissoes {
     fichas: Record<string, PermissoesDoItem>;
     /** Liberação por GRUPO: id do grupo -> (id do usuário -> nível). Vale para os tokens e as fichas que estão no grupo. */
     grupos: Record<string, Record<string, NivelDeAcesso>>;
+    /** As PASTAS da bolsa: quem é o dono (null = do mestre) e a quem foi liberada. Vale para a pasta, para as pastas dentro dela e para os itens que estão nelas (pedido do dono, 17/11/2026). */
+    pastas: Record<string, PermissoesDoItem>;
 }
 
 export const LIMITE_PADRAO_TOKENS_POR_JOGADOR = 5;
@@ -64,6 +66,7 @@ export function permissoesVazias(): Permissoes {
         tokens: {},
         fichas: {},
         grupos: {},
+        pastas: {},
     };
 }
 
@@ -132,6 +135,7 @@ export function limparPermissoes(bruto: unknown): Permissoes {
         tokens: limparItens(bruto.tokens),
         fichas: limparItens(bruto.fichas),
         grupos,
+        pastas: limparItens(bruto.pastas),
     };
 }
 
@@ -142,7 +146,7 @@ export type NivelEfetivo = "dono" | NivelDeAcesso | null;
  * O nível de `usuario` sobre o item `id` do tipo `tipo`. Vale o MAIOR entre: ser o dono, a liberação do próprio item e as liberações dos GRUPOS do item
  * (`gruposDoItem`: os ids dos grupos a que ele pertence). Editor vale mais que leitor.
  */
-export function nivelNoItem(permissoes: Permissoes, tipo: TipoDeItem, id: number, usuario: string, gruposDoItem: readonly number[]): NivelEfetivo {
+export function nivelNoItem(permissoes: Permissoes, tipo: TipoDeItem, id: number, usuario: string, gruposDoItem: readonly number[], pastasDoItem: readonly number[] = []): NivelEfetivo {
     const item = permissoes[tipo][String(id)];
     if (item?.dono === usuario) return "dono";
     let nivel: NivelDeAcesso | null = item?.acessos[usuario] ?? null;
@@ -150,7 +154,28 @@ export function nivelNoItem(permissoes: Permissoes, tipo: TipoDeItem, id: number
         const doGrupo = permissoes.grupos[String(grupo)]?.[usuario];
         if (doGrupo === "editor" || (doGrupo === "leitor" && nivel === null)) nivel = doGrupo;
     }
+    // As PASTAS onde o item está (a dele e as de cima): a liberação de uma pasta vale para tudo o que está dentro; o DONO de uma pasta (um jogador que a criou) edita o que está nela.
+    const daPasta = nivelPelasPastas(permissoes, usuario, pastasDoItem);
+    if (daPasta === "editor" || (daPasta === "leitor" && nivel === null)) nivel = daPasta;
     return nivel;
+}
+
+/** O nível que as PASTAS dão (`pastas`: a pasta e as de cima): ser dono de uma delas vale como editor; senão, a maior liberação entre elas. */
+function nivelPelasPastas(permissoes: Permissoes, usuario: string, pastas: readonly number[]): NivelDeAcesso | null {
+    let nivel: NivelDeAcesso | null = null;
+    for (const id of pastas) {
+        const registro = permissoes.pastas[String(id)];
+        const daqui: NivelDeAcesso | null = registro?.dono === usuario ? "editor" : (registro?.acessos[usuario] ?? null);
+        if (daqui === "editor") return "editor";
+        if (daqui === "leitor") nivel = "leitor";
+    }
+    return nivel;
+}
+
+/** O nível de `usuario` sobre uma PASTA (`caminho`: os ids da raiz até ela, ela por último). Dono da própria pasta = "dono"; senão vale a maior liberação dela ou das de cima. */
+export function nivelNaPasta(permissoes: Permissoes, idDaPasta: number, usuario: string, caminho: readonly number[]): NivelEfetivo {
+    if (permissoes.pastas[String(idDaPasta)]?.dono === usuario) return "dono";
+    return nivelPelasPastas(permissoes, usuario, caminho);
 }
 
 /** Quem tem pelo menos o nível de LEITOR (vê, move o token, rola a ficha). */

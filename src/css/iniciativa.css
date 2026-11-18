@@ -236,3 +236,20 @@
 #iniciativa-botoes #iniciativa-limpar:hover {
     background: #4a2a2a;
 }
+/* Os ícones das CONDIÇÕES de cada personagem, entre o nome e o valor (pequenos; até caberem: o resto é cortado). */
+.iniciativa-condicoes {
+    flex: 0 1 auto;
+    display: flex;
+    gap: 1px;
+    min-width: 0;
+    overflow: hidden;
+}
+.iniciativa-condicoes img {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    object-fit: contain;
+}
+.iniciativa-condicoes:empty {
+    display: none;
+}

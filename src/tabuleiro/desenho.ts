@@ -51,6 +51,8 @@ export interface CamadaDesenho extends FerramentaDeArrasto {
     definirFerramenta(ferramenta: FerramentaDesenho | null): void;
     /** Cor (0xRRGGBB) das próximas pinturas. */
     definirCor(cor: number): void;
+    /** Opacidade (0.1 a 1; 1 = opaco) das próximas pinturas: o nível de transparência do seletor de cor. */
+    definirAlfa(alfa: number): void;
     /** Refaz todas as pinturas a partir do estado (ex.: depois de "Apagar tudo"). */
     redesenhar(): void;
 }
@@ -64,6 +66,7 @@ export function criarDesenho(camera: Camera, opcoes: OpcoesDesenho): CamadaDesen
 
     let ferramenta: FerramentaDesenho | null = null;
     let cor = COR_INICIAL_DESENHO;
+    let alfa = 1; // a opacidade das próximas pinturas (1 = opaco)
 
     // O gesto em andamento (null = nada sendo arrastado). Tudo em CASAS.
     let inicio: Ponto | null = null;
@@ -83,12 +86,12 @@ export function criarDesenho(camera: Camera, opcoes: OpcoesDesenho): CamadaDesen
             case "livre":
                 if (d.pontos.length === 1) {
                     // Um clique sem arrastar vira um pontinho.
-                    g.circle(d.pontos[0].x * T, d.pontos[0].y * T, ESPESSURA_DESENHO / 2).fill(d.cor);
+                    g.circle(d.pontos[0].x * T, d.pontos[0].y * T, ESPESSURA_DESENHO / 2).fill({ color: d.cor, alpha: d.alfa ?? 1 });
                     return;
                 }
                 g.moveTo(d.pontos[0].x * T, d.pontos[0].y * T);
                 for (const p of d.pontos.slice(1)) g.lineTo(p.x * T, p.y * T);
-                g.stroke({ width: ESPESSURA_DESENHO, color: d.cor, cap: "round", join: "round" });
+                g.stroke({ width: ESPESSURA_DESENHO, color: d.cor, alpha: d.alfa ?? 1, cap: "round", join: "round" });
                 return;
             case "elipse":
                 // ellipse(centro x, centro y, raio horizontal, raio vertical)
@@ -102,7 +105,7 @@ export function criarDesenho(camera: Camera, opcoes: OpcoesDesenho): CamadaDesen
                 break;
         }
         // Formas: só o CONTORNO na cor escolhida (sem preenchimento).
-        g.stroke({ width: ESPESSURA_DESENHO, color: d.cor, join: "round" });
+        g.stroke({ width: ESPESSURA_DESENHO, color: d.cor, alpha: d.alfa ?? 1, join: "round" });
     }
 
     function redesenhar(): void {
@@ -119,7 +122,7 @@ export function criarDesenho(camera: Camera, opcoes: OpcoesDesenho): CamadaDesen
 
         switch (ferramenta) {
             case "lapis":
-                return { tipo: "livre", cor, pontos: [...pontos] };
+                return { tipo: "livre", cor, pontos: [...pontos], ...(alfa < 1 && { alfa }) };
             case "elipse":
             case "retangulo":
             case "triangulo": {
@@ -128,7 +131,7 @@ export function criarDesenho(camera: Camera, opcoes: OpcoesDesenho): CamadaDesen
                 const largura = Math.abs(dx);
                 const altura = Math.abs(dy);
                 if (largura < minimo || altura < minimo) return null; // pequeno demais: é um clique, ou uma linha
-                return { tipo: ferramenta, cor, x: Math.min(inicio.x, fim.x), y: Math.min(inicio.y, fim.y), largura, altura };
+                return { tipo: ferramenta, cor, x: Math.min(inicio.x, fim.x), y: Math.min(inicio.y, fim.y), largura, altura, ...(alfa < 1 && { alfa }) };
             }
             default:
                 return null; // borracha não produz desenho
@@ -182,6 +185,9 @@ export function criarDesenho(camera: Camera, opcoes: OpcoesDesenho): CamadaDesen
         },
         definirCor(nova) {
             cor = nova;
+        },
+        definirAlfa(nova) {
+            alfa = nova;
         },
         redesenhar,
 

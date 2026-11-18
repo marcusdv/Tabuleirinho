@@ -22,6 +22,7 @@
 @import "./css/bolsaMapas.css" layer(componentes); /* A BOLSA, 3ª parte: a aba Mapas e a regra so-mestre. */
 @import "./css/bolsaJogadores.css" layer(componentes); /* A BOLSA, 4ª parte: a aba Jogadores. */
 @import "./css/bolsaMarcas.css" layer(componentes); /* A BOLSA, 5ª parte: marcas das fichinhas e cartões, janela do tabuleiro. */
+@import "./css/bolsaPastas.css" layer(componentes); /* A BOLSA, 6ª parte: as PASTAS (só na tela cheia) */
 @import "./css/chatCartaoFicha.css" layer(componentes); /* O CARTÃO DE FICHA no chat (os cartões `(Nome)"""texto"""`). */
 @import "./css/menuToken.css" layer(componentes); /* engrenagem e lista de ações do token, menu e balão das condições */
 @import "./css/diversos.css" layer(componentes); /* pílula online, cópia do token arrastado, menu da ficha na bolsa, recorte da imagem */
@@ -31,5 +32,8 @@
 @import "./css/barrasRolagem.css" layer(componentes); /* o visual das barras de rolagem do site */
 @import "./css/editarToken.css" layer(componentes); /* a janela "Editar token" */
 @import "./css/iniciativa.css" layer(componentes); /* a 3ª gaveta da pilha: a ordem de combate */
+@import "./css/fog.css" layer(componentes); /* o painel do Fog (só do mestre) */
+@import "./css/transparencia.css" layer(componentes); /* o controle de transparência (a grade do mapa usa o deslizante) */
+@import "./css/seletorDeCor.css" layer(componentes); /* o seletor de cor próprio, com a transparência dentro da caixa */
 @import "./css/estados.css" layer(estados); /* os modos que precisam vencer (abas da bolsa, ficha minimizada, celular...) */
 @import "./css/utilitarios.css" layer(utilitarios); /* [hidden] e o que é só do mestre */

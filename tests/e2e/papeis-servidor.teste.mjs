@@ -202,7 +202,7 @@ try {
     r = await pedir(mestre9, { tipo: "liberar", item: "tokens", id: dragao.id, usuario: "u_ana", nivel: "leitor" }, 350);
     const noAna = ana9.eventos;
     ok("9b) liberar o TOKEN como leitor manda o token à Ana NA HORA (sem recarregar)", noAna.some((e) => e.tipo === "token_editado" && e.token.id === dragao.id && e.token.nivel === "leitor" && !e.token.somenteMapa), JSON.stringify(noAna.map((e) => e.tipo)));
-    ok("9c) ...mas a FICHA ligada NÃO vai junto (token e ficha são liberados separadamente)", !noAna.some((e) => e.tipo === "ficha_editada" && e.ficha.id === fichaDragao.id));
+    ok("9c) ...e a FICHA ligada vai JUNTO, com o mesmo nível (regra de 17/11/2026: o acesso ao token vale para a ficha dele)", noAna.some((e) => e.tipo === "ficha_editada" && e.ficha.id === fichaDragao.id && e.ficha.nivel === "leitor"));
     await pedir(mestre9, { tipo: "liberar", item: "fichas", id: fichaDragao.id, usuario: "u_ana", nivel: "leitor" }, 350);
     ok("9c2) liberar a ficha à parte a entrega como leitora, NA HORA", ana9.eventos.some((e) => e.tipo === "ficha_editada" && e.ficha.id === fichaDragao.id && e.ficha.nivel === "leitor"));
     r = await pedir(ana9, { tipo: "colocar_modelo", modelo: dragao.id, col: 12, row: 12 });
@@ -215,7 +215,7 @@ try {
     r = await pedir(mestre9, { tipo: "editar_ficha", id: fichaDragao.id, versao: (ana9.eventos.filter((e) => e.tipo === "ficha_editada").at(-1)?.ficha.versao ?? 1), nome: "Dragao Ancestral" }, 350);
     ok("9g) uma edição do mestre na ficha chega AO VIVO à Ana", ana9.eventos.some((e) => e.tipo === "ficha_editada" && e.ficha.nome === "Dragao Ancestral"));
     await pedir(mestre9, { tipo: "liberar", item: "fichas", id: fichaDragao.id, usuario: "u_ana", nivel: null }, 350);
-    ok("9h) tirar a liberação da FICHA tira só a ficha (o token continua liberado)", ana9.eventos.some((e) => e.tipo === "ficha_excluida" && e.id === fichaDragao.id) && !ana9.eventos.some((e) => e.tipo === "token_editado" && e.token.id === dragao.id && e.token.somenteMapa === true));
+    ok("9h) tirar a liberação DIRETA da ficha não a tira de quem tem o TOKEN (o acesso continua vindo dele)", !ana9.eventos.slice(-6).some((e) => e.tipo === "ficha_excluida" && e.id === fichaDragao.id) && ana9.eventos.filter((e) => e.tipo === "ficha_editada" && e.ficha.id === fichaDragao.id).at(-1)?.ficha.nivel === "editor");
     r = await pedir(ana9, { tipo: "liberar", item: "tokens", id: dragao.id, usuario: "u_ana", nivel: "editor" });
     ok("9i) um jogador não libera nada (só o mestre)", soMestre(r));
     r = await pedir(mestre9, { tipo: "definir_limites", tokens: 2, fichas: 3 }, 300);
@@ -394,7 +394,7 @@ try {
         await pedir(mestre13, { tipo: "definir_quem_ve_mapa", id: mapaId, todos: false, usuarios: [] }, 300);
         const antesAviso = ana13.eventos.length;
         await pedir(mestre13, { tipo: "mover_jogadores" }, 400);
-        ok("14i) quem é movido para um mapa que não pode ver recebe o aviso 'sem permissão' e o tabuleiro vazio", ana13.eventos.slice(antesAviso).some((e) => e.tipo === "erro" && /permiss/i.test(e.motivo ?? "")) && ultimoMapa(ana13) === null);
+        ok("14i) quem é movido para um mapa que não pode ver recebe o tabuleiro vazio, marcado 'semPermissao' (o navegador mostra a faixa fixa)", ana13.eventos.slice(antesAviso).some((e) => e.tipo === "mapa_definido" && e.semPermissao === true) && ultimoMapa(ana13) === null);
         ok("14j) o mestre vê, na lista, que o Caio está nesse mapa SEM permissão", (mestre13.eventos.filter((e) => e.tipo === "jogadores").at(-1)?.lista ?? []).some((j) => j.apelido === "Caio" && j.mapa === mapaId && j.semPermissao === true));
         await pedir(mestre13, { tipo: "definir_quem_ve_mapa", id: mapaId, todos: true, usuarios: [] }, 300);
     }
@@ -419,6 +419,72 @@ try {
     } else ok("15) (não foi possível criar o token de teste)", false);
     for (const c of [mestre15, caio15]) c.ws.close();
     for (const c of [mestre13, ana13, bia13]) c.ws.close();
+    // ----- 17) PASTAS da bolsa: o jogador só vê a pasta do mestre quando ela é liberada; cria as próprias; não apaga as dos outros
+    const mestre17 = await conectar("Mestre", "mestre");
+    const caio17 = await conectar("Caio", "jogador");
+    await pedir(mestre17, { tipo: "criar_pasta", tipoDaPasta: "tokens", nome: "Monstros", pai: null }, 400);
+    const pastaM = mestre17.eventos.filter((e) => e.tipo === "pasta_definida").at(-1)?.pasta;
+    ok("17a) o mestre cria uma pasta de tokens", pastaM?.nome === "Monstros" && pastaM.tipo === "tokens");
+    ok("17b) o jogador NÃO recebe a pasta do mestre (não foi liberada)", !caio17.eventos.some((e) => e.tipo === "pasta_definida" && e.pasta.id === pastaM?.id));
+    await pedir(mestre17, { tipo: "criar_token", nome: "Lobo", cor: 0x2ecc71, corBorda: 0xffffff, tamanho: 1, imagem: null }, 500);
+    const lobo = mestre17.eventos.filter((e) => e.tipo === "token_criado").at(-1)?.token;
+    if (pastaM && lobo) {
+        await pedir(mestre17, { tipo: "mover_para_pasta", item: "tokens", ids: [lobo.id], pasta: pastaM.id }, 400);
+        ok("17c) o mestre põe o token na pasta", mestre17.eventos.filter((e) => e.tipo === "token_editado" && e.token.id === lobo.id).at(-1)?.token.pasta === pastaM.id);
+        await pedir(mestre17, { tipo: "liberar", item: "pastas", id: pastaM.id, usuario: "u_caio", nivel: "leitor" }, 500);
+        ok("17d) liberada como LEITOR, o jogador passa a ver a pasta (com o nível dele)", caio17.eventos.some((e) => e.tipo === "pasta_definida" && e.pasta.id === pastaM.id && e.pasta.nivel === "leitor"));
+        ok("17e) ...e o token que está nela (pela pasta)", caio17.eventos.some((e) => e.tipo === "token_editado" && e.token.id === lobo.id && e.token.nivel === "leitor"));
+        r = await pedir(caio17, { tipo: "excluir_pasta", id: pastaM.id }, 300);
+        ok("17f) o jogador NÃO apaga a pasta do mestre", erros(r).length === 1, JSON.stringify(r));
+        r = await pedir(caio17, { tipo: "mover_para_pasta", item: "tokens", ids: [lobo.id], pasta: null }, 300);
+        ok("17g) como LEITOR, ele não tira o token da pasta", erros(r).length === 1);
+    } else ok("17c) (preparo: pasta ou token não foram criados)", false);
+    await pedir(caio17, { tipo: "criar_pasta", tipoDaPasta: "fichas", nome: "Minhas fichas", pai: null }, 500);
+    const pastaC = caio17.eventos.filter((e) => e.tipo === "pasta_definida").at(-1)?.pasta;
+    ok("17h) o jogador cria a PRÓPRIA pasta e é o dono dela", pastaC?.nome === "Minhas fichas" && pastaC.nivel === "dono");
+    ok("17i) as pastas ficam gravadas em dados/pastas/", !!pastaC && existsSync(join(dados, "pastas", `${pastaC.id}.json`)));
+    for (const c of [mestre17, caio17]) c.ws.close();
+    // ----- 18) O ACESSO AO TOKEN VALE PARA A FICHA LIGADA (leitor lê e rola; editor edita); uma ficha compartilhada SOZINHA dá acesso só à ficha
+    const mestre18 = await conectar("Mestre", "mestre");
+    const caio18 = await conectar("Caio", "jogador");
+    const duda18 = await conectar("Duda", "jogador");
+    await pedir(mestre18, { tipo: "criar_ficha" }, 400);
+    const ficha18 = mestre18.eventos.filter((e) => e.tipo === "ficha_criada").at(-1)?.ficha;
+    await pedir(mestre18, { tipo: "editar_ficha", id: ficha18.id, versao: ficha18.versao, nome: "Ficha do Urso", abas: [{ nome: "Página 1", texto: "FOR:: 16\n(Ataque)[1d20 + FOR]" }] }, 500);
+    await pedir(mestre18, { tipo: "criar_token", nome: "Urso", cor: 0x8b5a3c, corBorda: 0xffffff, tamanho: 2, imagem: null }, 500);
+    const urso = mestre18.eventos.filter((e) => e.tipo === "token_criado").at(-1)?.token;
+    await pedir(mestre18, { tipo: "editar_token", id: urso.id, mudancas: { ficha: ficha18.id } }, 500);
+    const versaoDaFicha = mestre18.eventos.filter((e) => e.tipo === "ficha_editada" && e.ficha.id === ficha18.id).at(-1)?.ficha.versao ?? 2;
+    ok("18a) sem liberar nada, o jogador NÃO vê o token nem a ficha ligada", !caio18.eventos.some((e) => e.tipo === "ficha_editada" && e.ficha.id === ficha18.id));
+    await pedir(mestre18, { tipo: "liberar", item: "tokens", id: urso.id, usuario: "u_caio", nivel: "leitor" }, 600);
+    ok("18b) token liberado como LEITOR: ele recebe o token E a ficha ligada, como leitor", caio18.eventos.some((e) => e.tipo === "token_editado" && e.token.id === urso.id && e.token.nivel === "leitor") && caio18.eventos.some((e) => e.tipo === "ficha_editada" && e.ficha.id === ficha18.id && e.ficha.nivel === "leitor"));
+    const antesRolar = caio18.eventos.length;
+    await pedir(caio18, { tipo: "rolar_ficha", id: ficha18.id, versao: versaoDaFicha, aba: 0, indice: 0 }, 500);
+    ok("18c) como leitor da ficha (pelo token), ele ROLA os dados", caio18.eventos.slice(antesRolar).some((e) => e.tipo === "mensagem") && !caio18.eventos.slice(antesRolar).some((e) => e.tipo === "erro"), JSON.stringify(caio18.eventos.slice(antesRolar).map((e) => e.tipo)));
+    r = await pedir(caio18, { tipo: "editar_ficha", id: ficha18.id, versao: versaoDaFicha, nome: "Invadida" }, 400);
+    ok("18d) ...mas como leitor NÃO edita a ficha", erros(r).length === 1, JSON.stringify(r));
+    await pedir(mestre18, { tipo: "liberar", item: "tokens", id: urso.id, usuario: "u_caio", nivel: "editor" }, 600);
+    ok("18e) token liberado como EDITOR: a ficha ligada passa a ser dele como editor", caio18.eventos.filter((e) => e.tipo === "ficha_editada" && e.ficha.id === ficha18.id).at(-1)?.ficha.nivel === "editor");
+    await pedir(mestre18, { tipo: "editar_token", id: urso.id, mudancas: { ficha: null } }, 600);
+    ok("18f) desligando a ficha do token, ele deixa de ver a ficha (o acesso vinha do token)", caio18.eventos.some((e) => e.tipo === "ficha_excluida" && e.id === ficha18.id));
+    await pedir(mestre18, { tipo: "editar_token", id: urso.id, mudancas: { ficha: ficha18.id } }, 600);
+    await pedir(mestre18, { tipo: "liberar", item: "fichas", id: ficha18.id, usuario: "u_duda", nivel: "leitor" }, 600);
+    ok("18g) uma FICHA compartilhada sozinha: ele vê a ficha e NÃO o token", duda18.eventos.some((e) => e.tipo === "ficha_editada" && e.ficha.id === ficha18.id && e.ficha.nivel === "leitor") && !duda18.eventos.some((e) => e.tipo === "token_editado" && e.token.id === urso.id));
+    // pasta de TOKENS compartilhada: leva os tokens e as fichas ligadas; pasta de FICHAS: só as fichas
+    await pedir(mestre18, { tipo: "criar_pasta", tipoDaPasta: "tokens", nome: "Bichos", pai: null }, 400);
+    const pastaBichos = mestre18.eventos.filter((e) => e.tipo === "pasta_definida").at(-1)?.pasta;
+    await pedir(mestre18, { tipo: "mover_para_pasta", item: "tokens", ids: [urso.id], pasta: pastaBichos.id }, 400);
+    await pedir(mestre18, { tipo: "liberar", item: "tokens", id: urso.id, usuario: "u_caio", nivel: null }, 500);
+    await pedir(mestre18, { tipo: "liberar", item: "pastas", id: pastaBichos.id, usuario: "u_caio", nivel: "leitor" }, 700);
+    ok("18h) pasta de TOKENS compartilhada como leitor: o jogador recebe o token e a FICHA ligada a ele", caio18.eventos.filter((e) => e.tipo === "token_editado" && e.token.id === urso.id).at(-1)?.token.nivel === "leitor" && caio18.eventos.filter((e) => e.tipo === "ficha_editada" && e.ficha.id === ficha18.id).at(-1)?.ficha.nivel === "leitor");
+    await pedir(mestre18, { tipo: "criar_pasta", tipoDaPasta: "fichas", nome: "Livros", pai: null }, 400);
+    const pastaLivros = mestre18.eventos.filter((e) => e.tipo === "pasta_definida").at(-1)?.pasta;
+    await pedir(mestre18, { tipo: "criar_ficha" }, 400);
+    const fichaSolta = mestre18.eventos.filter((e) => e.tipo === "ficha_criada").at(-1)?.ficha;
+    await pedir(mestre18, { tipo: "mover_para_pasta", item: "fichas", ids: [fichaSolta.id], pasta: pastaLivros.id }, 400);
+    await pedir(mestre18, { tipo: "liberar", item: "pastas", id: pastaLivros.id, usuario: "u_duda", nivel: "editor" }, 700);
+    ok("18i) pasta de FICHAS compartilhada como editor: ele edita as fichas dela", duda18.eventos.filter((e) => e.tipo === "ficha_editada" && e.ficha.id === fichaSolta.id).at(-1)?.ficha.nivel === "editor");
+    for (const c of [mestre18, caio18, duda18]) c.ws.close();
     // ----- 16) BACKUP da campanha (a pasta de dados num .zip)
     const backup = await fetch(`http://127.0.0.1:${PORTA}/backup?papel=mestre`);
     const bytesDoZip = Buffer.from(await backup.arrayBuffer());

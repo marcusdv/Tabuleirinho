@@ -174,6 +174,10 @@ export function criarChat(opcoes: OpcoesChat): Chat {
     function atualizarContador(): void {
         contador.textContent = `${campo.value.length}/${MAX_CARACTERES_MENSAGEM}`;
         contador.classList.toggle("no-limite", campo.value.length >= MAX_CARACTERES_MENSAGEM);
+        // Um COMANDO de rolagem ("/r 1d20+5") muda de cor enquanto se digita: mostra que o texto vai ser CALCULADO, e não enviado como mensagem (pedido do dono, 17/11/2026).
+        const comando = /^\/r(\s|$)/i.test(campo.value);
+        campo.classList.toggle("comando-rolagem", comando);
+        campo.title = comando ? "Comando de rolagem: vai rolar e calcular (ex.: /r 2d6+3)" : "";
     }
     campo.addEventListener("input", atualizarContador);
     atualizarContador();

@@ -48,8 +48,8 @@ export async function gravarPermissoes(): Promise<void> {
 }
 
 /** O nível de `usuario` sobre um token (use o id do MODELO: as peças do tabuleiro seguem o modelo) ou uma ficha. */
-export function nivelDoUsuario(tipo: TipoDeItem, id: number, usuario: string, gruposDoItem: readonly number[]): NivelEfetivo {
-    return nivelNoItem(permissoes, tipo, id, usuario, gruposDoItem);
+export function nivelDoUsuario(tipo: TipoDeItem, id: number, usuario: string, gruposDoItem: readonly number[], pastasDoItem: readonly number[] = []): NivelEfetivo {
+    return nivelNoItem(permissoes, tipo, id, usuario, gruposDoItem, pastasDoItem);
 }
 
 /** Guarda o DONO de um item recém-criado (null = item do mestre). */

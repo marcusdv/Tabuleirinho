@@ -78,3 +78,9 @@
         display: none;
     }
 }
+
+/* Enquanto a mesa carrega, a interface toda fica escondida (só o fundo escuro aparece) e surge de uma vez, já no estado final: sem piscar nem pular. A classe "mesa-pronta" é posta pelo main.ts
+   (modo local: o app montou; online: o servidor mandou o estado inicial) ou, no pior caso, pelo script do index.html depois de 4 s. */
+body:not(.mesa-pronta) > :not(#app):not(script):not(style) {
+    visibility: hidden;
+}

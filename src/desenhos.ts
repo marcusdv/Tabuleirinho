@@ -97,8 +97,8 @@ export function distanciaEmCasas(col0: number, row0: number, col1: number, row1:
     return Math.max(Math.abs(col1 - col0), Math.abs(row1 - row0));
 }
 
-/** Texto da régua, ex.: "4 □ = 6 m" ou "3 □ = 4,5 m" (□ = casas; m = metros). */
+/** Texto da régua, ex.: "6 m = 4 □" ou "4,5 m = 3 □" (primeiro os METROS, depois as casas; pedido do dono, 17/11/2026). */
 export function textoDaDistancia(casas: number): string {
     const metros = (casas * METROS_POR_CASA).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-    return `${casas} □ = ${metros} m`;
+    return `${metros} m = ${casas} □`;
 }

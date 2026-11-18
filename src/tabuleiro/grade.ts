@@ -4,7 +4,7 @@
 // =====================================================================
 
 import { Graphics } from "pixi.js";
-import { ESPESSURA_GRADE_PADRAO, TAMANHO_CASA } from "../config";
+import { ALFA_GRADE_PADRAO, ESPESSURA_GRADE_PADRAO, TAMANHO_CASA } from "../config";
 import { estado } from "../estado";
 import type { Camera } from "./camera";
 
@@ -16,6 +16,8 @@ export interface AjustesDaGrade {
     espessura: number;
     /** Cor da linha ("#rrggbb"), ou null = automática (escura sobre um mapa, cinza sem mapa). */
     cor: string | null;
+    /** Opacidade da cor escolhida (0.1 a 1; 1 = opaca): o nível de transparência do seletor de cor da grade. Só vale com `cor` escolhida. */
+    alfa: number;
 }
 
 export interface Grade {
@@ -43,7 +45,7 @@ export function criarGrade(camera: Camera): Grade {
     camera.mundo.addChild(destaque);
 
     // Dois motivos independentes para esconder a grade: a escolha da pessoa (`ajustes.mostrar`) e a calibragem do mapa (que a esconde por um tempo).
-    let ajustes: AjustesDaGrade = { mostrar: true, espessura: ESPESSURA_GRADE_PADRAO, cor: null };
+    let ajustes: AjustesDaGrade = { mostrar: true, espessura: ESPESSURA_GRADE_PADRAO, cor: null, alfa: ALFA_GRADE_PADRAO };
     let escondidaPelaCalibragem = false;
     function aplicarVisibilidade(): void {
         // Esconder (em vez de apagar) mantém o desenho pronto: ao reexibir, nada é refeito.
@@ -73,7 +75,7 @@ export function criarGrade(camera: Camera): Grade {
         // a linha com ~1 pixel NA TELA em qualquer zoom (sem sumir nem engrossar).
         // Sobre um mapa, linhas escuras semitransparentes aparecem melhor e deixam a imagem visível.
         const largura1 = ajustes.espessura / camera.zoom; // (a espessura escolhida, em pixels da TELA)
-        if (ajustes.cor !== null) grade.stroke({ width: largura1, color: ajustes.cor, alpha: 0.85 }); // a cor escolhida pela pessoa
+        if (ajustes.cor !== null) grade.stroke({ width: largura1, color: ajustes.cor, alpha: ajustes.alfa }); // a cor escolhida pela pessoa, com a transparência escolhida
         else grade.stroke(temMapa ? { width: largura1, color: 0x000000, alpha: 0.5 } : { width: largura1, color: 0x55555f });
     }
 

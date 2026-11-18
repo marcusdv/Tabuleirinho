@@ -1,0 +1,148 @@
+/* AS PASTAS DA BOLSA (ui/pastas.ts): só na bolsa em TELA CHEIA. A barra com o caminho e o "+ Pasta" fica logo acima da grade; os ladrilhos das pastas, no começo dela. */
+#bolsa:not(.expandida) .bolsa-pastas-barra,
+#bolsa:not(.expandida) .bolsa-pasta {
+    display: none;
+}
+.bolsa-pastas-barra {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0 0 10px;
+    min-height: 30px;
+}
+.bolsa-pastas-caminho {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+}
+.bolsa-pastas-parte {
+    padding: 3px 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #9a9aa8;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+.bolsa-pastas-parte:hover {
+    color: #ffd54f;
+    border-color: #4a4a58;
+}
+.bolsa-pastas-parte.atual {
+    color: #fff;
+    font-weight: 600;
+}
+.bolsa-pastas-sep {
+    color: #5a5a68;
+}
+.bolsa-pastas-lugar {
+    flex: none;
+}
+/* O LADRILHO de uma pasta: do tamanho de um token na grade, com o ícone grande, o nome e quantos itens tem dentro. */
+.bolsa-pasta {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    padding: 10px 6px;
+    box-sizing: border-box;
+    background: #2a2a34;
+    border: 1px solid #3a3a45;
+    border-radius: 10px;
+    cursor: pointer;
+    user-select: none;
+    touch-action: none;
+}
+.bolsa-pasta:hover {
+    background: #33333f;
+    border-color: #5a5a68;
+}
+.bolsa-pasta-icone {
+    font-size: 46px;
+    line-height: 1.1;
+}
+.bolsa-pasta-nome {
+    max-width: 100%;
+    overflow: hidden;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.bolsa-pasta small {
+    font-size: 11px;
+    color: #8a8a99;
+}
+/* Onde dá para SOLTAR (um ladrilho ou uma parte do caminho) enquanto se arrasta um item ou uma pasta. */
+.bolsa-pasta.alvo-de-soltar,
+.bolsa-pastas-parte.alvo-de-soltar {
+    border-color: #ffd54f;
+    background: #3d3417;
+    color: #ffd54f;
+}
+/* O que acompanha o mouse durante o arrasto ("3 itens", "📁 Monstros"). */
+.bolsa-pasta-fantasma {
+    position: fixed;
+    z-index: 90;
+    padding: 4px 10px;
+    background: rgba(34, 34, 42, 0.96);
+    border: 1px solid #ffd54f;
+    border-radius: 8px;
+    color: #ffd54f;
+    font-size: 12px;
+    font-weight: 600;
+    pointer-events: none;
+}
+/* O campo para digitar o nome de uma pasta (nova ou renomeando). */
+.bolsa-pasta-campo {
+    width: 160px;
+    max-width: 100%;
+    height: 28px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    background: #1d1d24;
+    border: 1px solid #ffd54f;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+}
+.bolsa-pasta .bolsa-pasta-campo {
+    width: 100%;
+}
+/* O menu do botão direito de uma pasta. */
+.menu-pasta {
+    position: fixed;
+    z-index: 95;
+    display: flex;
+    flex-direction: column;
+    min-width: 200px;
+    padding: 4px;
+    background: #26262f;
+    border: 1px solid #4a4a58;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+.menu-pasta button {
+    padding: 7px 10px;
+    background: transparent;
+    border: 0;
+    border-radius: 5px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    text-align: left;
+    cursor: pointer;
+}
+.menu-pasta button:hover {
+    background: #3b3b49;
+    color: #ffd54f;
+}

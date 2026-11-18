@@ -12,8 +12,11 @@
 !/dados/pecas/.gitkeep
 /dados/mapas/*
 !/dados/mapas/.gitkeep
+/dados/pastas/*
+!/dados/pastas/.gitkeep
 /dados/mesa.json
 /dados/permissoes.json
 /dados/desenhos.json
 /dados/cenas.json
+/dados/fog.json
 /dados/usuarios.json

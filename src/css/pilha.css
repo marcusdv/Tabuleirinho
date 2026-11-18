@@ -201,11 +201,13 @@
 }
 /* Os botões da pilha da esquerda: a gaveta abre para BAIXO. Aberta ▾ (aponta para o conteúdo); recolhida ‹ (aponta para a própria barra). */
 #desenho-alternar .seta,
-#iniciativa-alternar .seta {
+#iniciativa-alternar .seta,
+#fog-alternar .seta {
     --giro: 45deg;
 }
 #desenho-alternar.recolhido .seta,
-#iniciativa-alternar.recolhido .seta {
+#iniciativa-alternar.recolhido .seta,
+#fog-alternar.recolhido .seta {
     --giro: 135deg;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -213,7 +215,8 @@
         transition: none;
     }
 }
-#iniciativa-alternar {
+#iniciativa-alternar,
+#fog-alternar {
     width: 26px;
     height: 26px;
     border: 1px solid #4a4a58;
@@ -224,7 +227,8 @@
     line-height: 1;
     cursor: pointer;
 }
-#iniciativa-alternar:hover {
+#iniciativa-alternar:hover,
+#fog-alternar:hover {
     background: #3b3b49;
 }
 

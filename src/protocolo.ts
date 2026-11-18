@@ -14,7 +14,8 @@ import { MAX_ABAS_FICHA, MAX_ACOES_MESA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_
 import { lerAcaoDaIniciativa, type AcaoDaIniciativa, type Iniciativa } from "./iniciativa.ts";
 import { idDeUsuarioValido, LIMITE_MAXIMO_POR_JOGADOR, type NivelDeAcesso, type Permissoes, type TipoDeItem } from "./permissoes.ts";
 import { limparDesenho, type Desenho, type NovoDesenho } from "./estado.ts";
-import type { AbaFicha, AcaoDaMesa, AcaoNova, Ficha, GradeDaMesa, Grupo, Mensagem, MudancasToken, StatusDoToken, StatusNovo, Token, ValorDeStatus } from "./estado.ts";
+import { limparTraco, MAX_TRACOS_FOG, type TracoDeFog } from "./fog.ts";
+import type { AbaFicha, AcaoDaMesa, AcaoNova, Ficha, GradeDaMesa, Grupo, Mensagem, MudancasToken, Pasta, StatusDoToken, StatusNovo, Token, ValorDeStatus } from "./estado.ts";
 
 /** Um jogador conectado à mesa. */
 export interface Jogador {
@@ -64,7 +65,7 @@ export type PedidoDoCliente =
     | { tipo: "aplicar_acao"; token: number; acao: number; valor: string } // aplicar uma ação (Dano, Cura...) a um token: `valor` = um número ou dados ("2d6+3"); o SERVIDOR sorteia e aplica
     | { tipo: "definir_acoes"; acoes: AcaoNova[] } // mudar as AÇÕES da mesa inteira (criar, excluir)
     | { tipo: "definir_status"; status: StatusNovo[] } // mudar os STATUS (barras) da MESA INTEIRA: vale para todos os tokens e peças; o SERVIDOR guarda e avisa todos
-    | { tipo: "definir_grade"; espessura: number; cor: string | null } // mudar a espessura e a cor da grade da MESA (só o mestre): o servidor limpa, grava e avisa todos
+    | { tipo: "definir_grade"; espessura: number; cor: string | null; alfa?: number } // mudar a espessura e a cor da grade da MESA (só o mestre): o servidor limpa, grava e avisa todos
     | { tipo: "definir_tamanho"; colunas: number; linhas: number } // mudar o tamanho do tabuleiro (trocar de mapa, botões de colunas/linhas, Alinhar mapa): o SERVIDOR é quem decide e avisa todos
     | { tipo: "colocar_modelo"; modelo: number; col: number; row: number; valores?: { id: number; atual: number }[]; condicoes?: string[] } // arrastar um token da BOLSA para o tabuleiro: o SERVIDOR cria uma PEÇA (cópia temporária); `valores`/`condicoes` só no "Desfazer" de uma remoção
     | { tipo: "enviar_mensagem"; texto: string }
@@ -84,8 +85,15 @@ export type PedidoDoCliente =
     | { tipo: "definir_mapa"; id: string | null; colunas?: number; linhas?: number } // o MESTRE troca o mapa atual (null = nenhum); o servidor confere que ele existe e avisa todos
     | { tipo: "desenhar"; desenho: NovoDesenho; ref?: string } // um desenho novo (lápis ou forma) no mapa atual; o SERVIDOR confere, dá o id e o autor e avisa todos (`ref` volta junto, para quem desenhou reconhecer o seu)
     | { tipo: "apagar_desenhos"; ids: number[] } // apagar desenhos (a borracha, o Ctrl+Z, "Apagar tudo"): o servidor apaga só os que a pessoa pode (o mestre, todos; os outros, os próprios)
-    | { tipo: "liberar"; item: TipoDeItem | "grupos"; id: number; usuario: string; nivel: NivelDeAcesso | null } // o MESTRE libera um token, uma ficha ou um GRUPO a um jogador como leitor ou editor (nivel null = tirar a liberação)
+    | { tipo: "liberar"; item: TipoDeItem | "grupos" | "pastas"; id: number; usuario: string; nivel: NivelDeAcesso | null } // o MESTRE libera um token, uma ficha ou um GRUPO a um jogador como leitor ou editor (nivel null = tirar a liberação)
     | { tipo: "definir_limites"; tokens: number; fichas: number } // o MESTRE muda os limites por jogador (configuração da mesa)
+    | { tipo: "criar_pasta"; tipoDaPasta: "tokens" | "fichas"; nome: string; pai: number | null } // PASTAS da bolsa: criar uma (o mestre, ou um jogador: vira o dono)
+    | { tipo: "editar_pasta"; id: number; nome?: string; pai?: number | null } // renomear e/ou pôr dentro de outra pasta (o dono da pasta, um editor dela ou o mestre)
+    | { tipo: "excluir_pasta"; id: number } // apagar (o que estava dentro sobe um nível; nada é apagado junto)
+    | { tipo: "mover_para_pasta"; item: "tokens" | "fichas"; ids: number[]; pasta: number | null } // pôr itens numa pasta (arrastar na bolsa); null = raiz
+    | { tipo: "fog_ativar"; mapa: string; ativo: boolean; cobrirTudo?: boolean } // o MESTRE liga/desliga o fog de um mapa (ao ligar, `cobrirTudo` o começa todo coberto)
+    | { tipo: "fog_pintar"; tracos: TracoDeFog[] } // o MESTRE pinta o fog do mapa em que está (cobre ou revela, com um pincel redondo)
+    | { tipo: "fog_preencher"; cobrir: boolean } // o MESTRE cobre ou revela o mapa inteiro
     | { tipo: "mover_jogadores" } // o MESTRE leva todos os jogadores para o mapa em que ele está
     | { tipo: "definir_quem_ve_mapa"; id: string; todos: boolean; usuarios: string[] } // o MESTRE escolhe quem vê um mapa da biblioteca (todos os jogadores, jogadores específicos ou só o mestre)
     | { tipo: "banir"; usuario: string; banir: boolean; nome?: string } // o MESTRE bane (ou desbane) um jogador da mesa: ele é desconectado e não consegue entrar de novo
@@ -95,7 +103,7 @@ export type PedidoDoCliente =
 
 /** O que o servidor AVISA aos navegadores. */
 export type EventoDoServidor =
-    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; status: StatusDoToken[]; acoes: AcaoDaMesa[]; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[]; grupos: Grupo[]; valores: Record<string, Record<string, number>>; iniciativa: Iniciativa; mestre: boolean; mapa: string | null; mapas: RegistroDeMapa[]; grade: GradeDaMesa; permissoes: Permissoes | null; desenhos: Desenho[] } // `permissoes`: o documento inteiro, SÓ para o mestre (null para os jogadores);  `grade`: a espessura e a cor da grade da mesa; `mestre`: esta conexão é a do MESTRE (por enquanto: a do computador do servidor); `mapa`: o id do mapa atual; `mapas`: a biblioteca
+    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; status: StatusDoToken[]; acoes: AcaoDaMesa[]; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[]; grupos: Grupo[]; valores: Record<string, Record<string, number>>; iniciativa: Iniciativa; mestre: boolean; mapa: string | null; mapas: RegistroDeMapa[]; grade: GradeDaMesa; permissoes: Permissoes | null; desenhos: Desenho[]; semPermissao?: boolean; pastas?: Pasta[] } // `permissoes`: o documento inteiro, SÓ para o mestre (null para os jogadores);  `grade`: a espessura e a cor da grade da mesa; `mestre`: esta conexão é a do MESTRE (por enquanto: a do computador do servidor); `mapa`: o id do mapa atual; `mapas`: a biblioteca
     | { tipo: "token_criado"; token: Token } // já gravado no disco do servidor; nasce guardado na bolsa
     | { tipo: "iniciativa_definida"; iniciativa: Iniciativa } // a ordem de combate inteira, como ficou depois de uma ação
     | { tipo: "valores_ficha"; id: number; valores: Record<string, number> } // os valores atuais das variáveis que mudam de uma ficha (NOME em MAIÚSCULAS -> valor): o SERVIDOR já limitou; cada navegador refaz as barras dos tokens dela
@@ -103,7 +111,11 @@ export type EventoDoServidor =
     | { tipo: "valores_atualizados"; id: number; valores: ValorDeStatus[]; efeito?: "dano" | "cura" } // os valores (PV...) de uma peça mudaram (uma ação foi aplicada)
     | { tipo: "acoes_definidas"; acoes: AcaoDaMesa[] } // a lista de ações da mesa mudou
     | { tipo: "status_definidos"; status: StatusDoToken[]; pecas: { id: number; valores: ValorDeStatus[] }[] } // a regra dos status mudou para todos; `pecas`: os valores (PV...) de cada peça, que o servidor já refez
-    | { tipo: "mapa_definido"; mapa: string | null; colunas?: number; linhas?: number; grade?: GradeDaMesa } // o mapa atual mudou (o id na biblioteca; null = nenhum)
+    | { tipo: "fog_definido"; ativo: boolean; colunas?: number; linhas?: number; bits?: string } // o fog do mapa em que você está (a máscara inteira, em base64; sem fog: só `ativo: false`)
+    | { tipo: "fog_pintado"; tracos: TracoDeFog[] } // pinceladas novas do mestre (cada navegador as aplica na máscara que já tem)
+    | { tipo: "pasta_definida"; pasta: Pasta } // uma pasta nova ou mudada (só chega a quem pode vê-la)
+    | { tipo: "pasta_excluida"; id: number } // a pasta sumiu (apagada, ou esta pessoa deixou de poder vê-la)
+    | { tipo: "mapa_definido"; mapa: string | null; colunas?: number; linhas?: number; grade?: GradeDaMesa; semPermissao?: boolean } // `semPermissao`: o mestre levou esta pessoa a um mapa que ela NÃO pode ver (tabuleiro vazio) // o mapa atual mudou (o id na biblioteca; null = nenhum)
     | { tipo: "mapas_definidos"; mapas: RegistroDeMapa[] } // a biblioteca mudou (enviaram ou apagaram um mapa): a lista inteira
     | { tipo: "grade_definida"; grade: GradeDaMesa } // a espessura e a cor da grade DO MAPA em que você está mudaram (já limpas)
     | { tipo: "tamanho_definido"; colunas: number; linhas: number } // o tamanho do tabuleiro mudou (já limitado ao permitido); cada navegador puxa para dentro os tokens que ficaram fora
@@ -161,7 +173,7 @@ function lerListaDeStatus(bruto: unknown): StatusNovo[] | null {
             if (!Array.isArray(x.grupos) || x.grupos.length > MAX_GRUPOS || !x.grupos.every(eInteiro)) return null; // (a lista de grupos em que o status vale; o estado.ts descarta os que não existem)
             grupos = [...(x.grupos as number[])];
         } else grupos = x.grupos;
-        lista.push({ ...(x.id !== undefined && { id: x.id }), nome: x.nome, variavel: x.variavel, cor: x.cor, ...(x.mostrar !== undefined && { mostrar: x.mostrar }), ...(x.mostrarNome !== undefined && { mostrarNome: x.mostrarNome }), ...(x.numeros !== undefined && { numeros: x.numeros }), ...(grupos !== undefined && { grupos }), ...(x.semGrupo === true && { semGrupo: true }), ...(x.recebeArrasto === true && { recebeArrasto: true }), ...(quemVe !== undefined && { quemVe }) });
+        lista.push({ ...(x.id !== undefined && { id: x.id }), nome: x.nome, variavel: x.variavel, cor: x.cor, ...(x.mostrar !== undefined && { mostrar: x.mostrar }), ...(x.mostrarNome !== undefined && { mostrarNome: x.mostrarNome }), ...(x.numeros !== undefined && { numeros: x.numeros }), ...(grupos !== undefined && { grupos }), ...(x.semGrupo === true && { semGrupo: true }), ...(x.recebeArrasto === true && { recebeArrasto: true }), ...(quemVe !== undefined && { quemVe }), ...(x.posicao === "cima" && { posicao: "cima" as const }) }); // (`posicao`: só "cima" muda algo; o resto vale embaixo)
     }
     return lista;
 }
@@ -241,7 +253,7 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             return { tipo: "apagar_desenhos", ids: [...(p.ids as number[])] };
         }
         case "liberar":
-            return (p.item === "tokens" || p.item === "fichas" || p.item === "grupos") && eInteiro(p.id) && idDeUsuarioValido(p.usuario) && (p.nivel === null || p.nivel === "leitor" || p.nivel === "editor")
+            return (p.item === "tokens" || p.item === "fichas" || p.item === "grupos" || p.item === "pastas") && eInteiro(p.id) && idDeUsuarioValido(p.usuario) && (p.nivel === null || p.nivel === "leitor" || p.nivel === "editor")
                 ? { tipo: "liberar", item: p.item, id: p.id, usuario: p.usuario, nivel: p.nivel }
                 : null;
         case "definir_limites":
@@ -254,12 +266,34 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             return idDeUsuarioValido(p.usuario) && typeof p.banir === "boolean" && (p.nome === undefined || eTexto(p.nome, 40)) ? { tipo: "banir", usuario: p.usuario, banir: p.banir, ...(p.nome !== undefined && { nome: p.nome as string }) } : null;
         case "definir_mestre":
             return idDeUsuarioValido(p.usuario) && typeof p.mestre === "boolean" ? { tipo: "definir_mestre", usuario: p.usuario, mestre: p.mestre } : null;
+        case "fog_ativar":
+            return typeof p.mapa === "string" && (ID_DE_MAPA.test(p.mapa) || p.mapa === "_") && typeof p.ativo === "boolean" && (p.cobrirTudo === undefined || typeof p.cobrirTudo === "boolean")
+                ? { tipo: "fog_ativar", mapa: p.mapa, ativo: p.ativo, ...(p.cobrirTudo !== undefined && { cobrirTudo: p.cobrirTudo }) }
+                : null;
+        case "fog_pintar": {
+            if (!Array.isArray(p.tracos) || p.tracos.length < 1 || p.tracos.length > MAX_TRACOS_FOG) return null;
+            const tracos = p.tracos.map(limparTraco);
+            return tracos.every((t) => t !== null) ? { tipo: "fog_pintar", tracos: tracos as TracoDeFog[] } : null;
+        }
+        case "fog_preencher":
+            return typeof p.cobrir === "boolean" ? { tipo: "fog_preencher", cobrir: p.cobrir } : null;
+        case "criar_pasta":
+            return (p.tipoDaPasta === "tokens" || p.tipoDaPasta === "fichas") && eTexto(p.nome, 200) && (p.pai === null || eInteiro(p.pai)) ? { tipo: "criar_pasta", tipoDaPasta: p.tipoDaPasta, nome: p.nome, pai: p.pai as number | null } : null;
+        case "editar_pasta":
+            if (!eInteiro(p.id) || (p.nome !== undefined && !eTexto(p.nome, 200)) || (p.pai !== undefined && p.pai !== null && !eInteiro(p.pai))) return null;
+            return { tipo: "editar_pasta", id: p.id, ...(p.nome !== undefined && { nome: p.nome as string }), ...(p.pai !== undefined && { pai: p.pai as number | null }) };
+        case "excluir_pasta":
+            return eInteiro(p.id) ? { tipo: "excluir_pasta", id: p.id } : null;
+        case "mover_para_pasta":
+            return (p.item === "tokens" || p.item === "fichas") && Array.isArray(p.ids) && p.ids.length >= 1 && p.ids.length <= 500 && p.ids.every((x) => eInteiro(x)) && (p.pasta === null || eInteiro(p.pasta))
+                ? { tipo: "mover_para_pasta", item: p.item, ids: [...new Set(p.ids as number[])], pasta: p.pasta as number | null }
+                : null;
         case "mover_jogadores":
             return { tipo: "mover_jogadores" };
         case "excluir_mapa":
             return typeof p.id === "string" && ID_DE_MAPA.test(p.id) ? { tipo: "excluir_mapa", id: p.id } : null;
         case "definir_grade":
-            return typeof p.espessura === "number" && Number.isFinite(p.espessura) && (p.cor === null || (typeof p.cor === "string" && p.cor.length <= 7)) ? { tipo: "definir_grade", espessura: p.espessura, cor: p.cor } : null; // (o sentido e os limites: `limparGradeDaMesa`)
+            return typeof p.espessura === "number" && Number.isFinite(p.espessura) && (p.cor === null || (typeof p.cor === "string" && p.cor.length <= 7)) ? { tipo: "definir_grade", espessura: p.espessura, cor: p.cor, ...(typeof p.alfa === "number" && Number.isFinite(p.alfa) && { alfa: p.alfa }) } : null; // (o sentido e os limites: `limparGradeDaMesa`)
         case "definir_tamanho":
             return eInteiro(p.colunas) && eInteiro(p.linhas) ? { tipo: "definir_tamanho", colunas: p.colunas, linhas: p.linhas } : null;
         case "colocar_modelo": {

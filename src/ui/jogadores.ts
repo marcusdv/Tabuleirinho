@@ -19,7 +19,7 @@ export interface OpcoesJogadores {
     /** Pergunta antes de uma ação séria (tornar mestre, banir): devolve true se a pessoa confirmou. */
     confirmar(pergunta: { titulo: string; mensagem: string; confirmar: string }): Promise<boolean>;
     /** Liberar (ou tirar a liberação de) um token, uma ficha ou um grupo para um usuário. */
-    aoLiberar(item: TipoDeItem | "grupos", id: number, usuario: string, nivel: NivelDeAcesso | null): void;
+    aoLiberar(item: TipoDeItem | "grupos" | "pastas", id: number, usuario: string, nivel: NivelDeAcesso | null): void;
 }
 
 export interface Jogadores {
@@ -28,7 +28,7 @@ export interface Jogadores {
     /** A lista de quem está conectado mudou. */
     definirConectados(lista: Jogador[], meuUsuario: string | null): void;
     /** Abre a janela "Compartilhar" de um item. */
-    compartilhar(item: TipoDeItem | "grupos", id: number, nome: string, gruposDoItem?: number[]): void;
+    compartilhar(item: TipoDeItem | "grupos" | "pastas", id: number, nome: string, gruposDoItem?: number[]): void;
     /** Os jogadores (que não são mestres) que o mestre conhece: para escolher quem vê um mapa. */
     jogadoresConhecidos(): { usuario: string; nome: string }[];
 }
@@ -61,7 +61,7 @@ export function criarJogadores(opcoes: OpcoesJogadores): Jogadores {
     let permissoes: Permissoes | null = null;
     let conectados: Jogador[] = [];
     let meuUsuario: string | null = null;
-    let aberto: { item: TipoDeItem | "grupos"; id: number; nome: string; grupos: number[] } | null = null;
+    let aberto: { item: TipoDeItem | "grupos" | "pastas"; id: number; nome: string; grupos: number[] } | null = null;
 
     /** Todos os usuários que o mestre conhece: os conectados e os que aparecem no documento (donos, liberados, mestres). */
     function conhecidos(): Conhecido[] {

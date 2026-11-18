@@ -1,0 +1,151 @@
+/* O SELETOR DE COR próprio (ui/seletorDeCor.ts): o botão com a cor e a caixa com a transparência DENTRO dela. */
+.seletor-cor-botao {
+    display: block;
+    width: 100%;
+    height: 24px;
+    margin-top: 6px;
+    padding: 3px;
+    box-sizing: border-box;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #23232d;
+    cursor: pointer;
+}
+.seletor-cor-botao:hover,
+.seletor-cor-botao[aria-expanded="true"] {
+    border-color: #ffd54f;
+}
+.seletor-cor-cara {
+    /* a cor sobre um XADREZ: a transparência escolhida aparece */
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+    background-color: #fff;
+    background-image: linear-gradient(45deg, #c8c8d0 25%, transparent 25%, transparent 75%, #c8c8d0 75%), linear-gradient(45deg, #c8c8d0 25%, transparent 25%, transparent 75%, #c8c8d0 75%);
+    background-size: 10px 10px;
+    background-position: 0 0, 5px 5px;
+}
+.seletor-cor-cara::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--cor, #ff5252);
+    opacity: var(--alfa, 1);
+}
+.seletor-cor-caixa {
+    position: fixed;
+    z-index: 80;
+    width: 220px;
+    box-sizing: border-box;
+    padding: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #23232d;
+    border: 1px solid #4a4a58;
+    border-radius: 10px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.55);
+    color: #e6e6ea;
+    font-size: 12px;
+}
+.seletor-cor-caixa[hidden] {
+    display: none;
+}
+.seletor-cor-sv {
+    position: relative;
+    height: 130px;
+    border-radius: 6px;
+    cursor: crosshair;
+    touch-action: none;
+    background-image: linear-gradient(to top, #000, transparent), linear-gradient(to right, #fff, transparent);
+}
+.seletor-cor-cursor {
+    position: absolute;
+    width: 14px;
+    height: 14px;
+    margin: -7px 0 0 -7px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+    pointer-events: none;
+}
+.seletor-cor-matiz,
+.seletor-cor-alfa {
+    width: 100%;
+    height: 12px;
+    margin: 0;
+    appearance: none;
+    border-radius: 6px;
+    cursor: pointer;
+}
+.seletor-cor-matiz {
+    background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+.seletor-cor-alfa {
+    /* da cor opaca (esquerda, 0%) até a transparente (direita), sobre o xadrez */
+    background-color: #fff;
+    background-image: linear-gradient(to right, var(--cor, #ff5252), transparent), linear-gradient(45deg, #c8c8d0 25%, transparent 25%, transparent 75%, #c8c8d0 75%), linear-gradient(45deg, #c8c8d0 25%, transparent 25%, transparent 75%, #c8c8d0 75%);
+    background-size: 100% 100%, 10px 10px, 10px 10px;
+    background-position: 0 0, 0 0, 5px 5px;
+}
+.seletor-cor-matiz::-webkit-slider-thumb,
+.seletor-cor-alfa::-webkit-slider-thumb {
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+.seletor-cor-matiz::-moz-range-thumb,
+.seletor-cor-alfa::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+.seletor-cor-linha {
+    display: flex;
+    justify-content: space-between;
+    color: #9a9aa8;
+}
+.seletor-cor-valor {
+    color: #c9c9d4;
+}
+.seletor-cor-rodape {
+    display: flex;
+}
+.seletor-cor-codigo {
+    width: 100%;
+    height: 26px;
+    box-sizing: border-box;
+    padding: 0 8px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-family: monospace;
+}
+.seletor-cor-codigo:focus {
+    outline: none;
+    border-color: #ffd54f;
+}
+/* O botão em cada lugar: a barra de cor larga é o padrão (bolsa, editor de token, grupo e Desenho); na grade ele divide a linha com o "Auto" e no editor de status é um quadradinho. */
+.controle .seletor-cor-botao {
+    flex: 1;
+    height: 28px;
+    margin-top: 0;
+}
+.editor-status .seletor-cor-botao {
+    flex: none;
+    width: 30px;
+    height: 28px;
+    margin-top: 0;
+}

@@ -119,7 +119,7 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
     montarPaleta(amostrasBorda, (nova) => {
         corBorda = nova;
         atualizarEscolha();
-    }, true); // (a paleta da borda tem "Sem borda")
+    });
     seletorCor.addEventListener("input", () => {
         cor = parseInt(seletorCor.value.slice(1), 16);
         atualizarEscolha();

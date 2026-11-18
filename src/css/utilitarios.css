@@ -12,3 +12,15 @@ body.jogador .so-mestre,
 body.jogador .acao-nova {
     display: none;
 }
+
+/* O <input type="color"> de verdade fica ESCONDIDO atrás do seletor de cor próprio (ui/seletorDeCor.ts): guarda o valor e dispara "input". Nesta camada, para vencer as regras com id de cada lugar. */
+.seletor-cor-nativo {
+    position: absolute;
+    width: 0;
+    height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    opacity: 0;
+    pointer-events: none;
+}

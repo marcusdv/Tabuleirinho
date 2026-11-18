@@ -15,7 +15,7 @@
 
 import { Assets, Container, FederatedPointerEvent, Graphics, PointData, Sprite, Text, Texture, Ticker } from "pixi.js";
 import { buscarCondicao } from "../condicoes";
-import { ALPHA_RETANGULO_SELECAO, ALTURA_BARRA_STATUS, BARRAS_DA_CURA, COR_CURA, COR_DANO, COR_SELECAO, MS_ANIMACAO_CURA, MS_ANIMACAO_DANO, FOLGA_TOKEN, ALPHA_TILE_SELECAO, LARGURA_BORDA_TOKEN, ANEIS_DA_BORDA_DANO, PROFUNDIDADE_BORDA_DANO, MAX_ICONES_CONDICAO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, TAMANHO_NUMERO_BARRA, VAO_BARRA_STATUS, VAO_BARRA_TOKEN, SEM_BORDA } from "../config";
+import { ALPHA_RETANGULO_SELECAO, ALTURA_BARRA_STATUS, BARRAS_DA_CURA, COR_CURA, COR_DANO, COR_SELECAO, MS_ANIMACAO_CURA, MS_ANIMACAO_DANO, FOLGA_TOKEN, ALPHA_TILE_SELECAO, LARGURA_BORDA_TOKEN, ANEIS_DA_BORDA_DANO, PROFUNDIDADE_BORDA_DANO, MAX_ICONES_CONDICAO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, TAMANHO_NUMERO_BARRA, VAO_BARRA_STATUS, VAO_BARRA_TOKEN } from "../config";
 import { casaMaisProxima, diametroDoIcone, posicoesNoAnel } from "../coordenadas";
 import { buscarToken, colocarToken, estado, guardarToken, naCenaAtual, podeUsarToken, statusAplicaveis, Token } from "../estado";
 import type { Camera } from "./camera";
@@ -305,11 +305,13 @@ export function criarTokens(
         view.barras.addChild(caixas);
         const raio = raioDoToken(token.size);
         const topo = raio + LARGURA_BORDA_TOKEN / 2 + VAO_BARRA_TOKEN; // logo abaixo do CÍRCULO do token, depois da borda (a raiz está no CENTRO dele)
-        let i = 0;
+        let i = 0; // (barras EMBAIXO do token, de cima para baixo)
+        let acima = 0; // (barras EM CIMA do token, empilhadas para cima: a 1ª fica colada no token; pedido do dono, 17/11/2026)
         for (const status of statusAplicaveis(token)) {
             const valor = token.valores.find((v) => v.id === status.id);
             if (!valor || valor.oculto || !status.mostrar) continue; // ("Exibir em jogo" desligado, ou um status que esta pessoa NÃO pode ver (`oculto`): o valor existe, mas a barra não é desenhada)
-            const y = topo + i * (ALTURA_BARRA_STATUS + VAO_BARRA_STATUS);
+            const emCima = status.posicao === "cima";
+            const y = emCima ? -topo - ALTURA_BARRA_STATUS - acima * (ALTURA_BARRA_STATUS + VAO_BARRA_STATUS) : topo + i * (ALTURA_BARRA_STATUS + VAO_BARRA_STATUS);
             const largura = raio * 2;
             const parte = Math.max(0, Math.min(1, valor.atual / valor.max));
             caixas.roundRect(-raio, y, largura, ALTURA_BARRA_STATUS, 3).fill({ color: 0x15151b, alpha: 0.92 }).stroke({ width: 1, color: 0x000000, alpha: 0.8 });
@@ -328,7 +330,8 @@ export function criarTokens(
             else numero.destroy();
             // O NOME do status ("HP") FORA da caixa, à esquerda dela, alinhado à direita, na cor do status. Só com "Mostrar nome no tabuleiro" ligado; um status SEM nome fica sem rótulo (só a barra).
             if (status.nome === "" || status.mostrarNome === false) {
-                i++;
+                if (emCima) acima++;
+                else i++;
                 continue;
             }
             const nome = new Text({
@@ -339,7 +342,8 @@ export function criarTokens(
             nome.scale.set(0.5);
             nome.position.set(-raio - 4, y + ALTURA_BARRA_STATUS / 2);
             view.barras.addChild(nome);
-            i++;
+            if (emCima) acima++;
+            else i++;
         }
     }
 
@@ -351,7 +355,7 @@ export function criarTokens(
         // O preenchimento fica por baixo (e aparece através das partes transparentes da imagem)...
         view.corpo.circle(0, 0, raio).fill(token.cor); // centro em (0,0): a posição da raiz é o centro
         // ...e a borda por cima de tudo, com a mesma espessura com ou sem imagem.
-        if (token.corBorda !== SEM_BORDA) view.borda.circle(0, 0, raio).stroke({ width: LARGURA_BORDA_TOKEN, color: token.corBorda }); // (SEM_BORDA: o token fica sem contorno)
+        view.borda.circle(0, 0, raio).stroke({ width: LARGURA_BORDA_TOKEN, color: token.corBorda });
     }
 
     /**

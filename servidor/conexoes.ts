@@ -23,6 +23,8 @@ export interface Conexao {
     papel: "mestre" | "jogador" | null; // o papel pedido no endereço (null = faltou ou foi recusado: a conexão não entra)
     recusa: string | null; // o motivo de a conexão ser recusada ao entrar (sem papel, por exemplo)
     usuario: string; // o ID de usuário estável (hoje vem do apelido; depois virá da conta): é ele que as permissões usam
+    desenhosVistos: string; // os ids dos desenhos que o fog deixou ver da última vez (para só reenviar a lista quando mudar)
+    pecasEscondidas: Set<number>; // as PEÇAS que o servidor já escondeu desta pessoa por causa do fog (ver `reconciliarPecas` em visao.ts)
     mapaVisto: string | null; // o mapa em que ESTA conexão está (cada jogador tem o seu; o mestre sempre está no `mapaAtual`). null = nenhum
     mestre: boolean; // é o MESTRE? Por enquanto (os papéis vêm depois das cenas): quem se conecta DO PRÓPRIO COMPUTADOR do servidor (endereço 127.0.0.1). Só o mestre envia, troca e apaga mapas; o servidor confere sempre.
 }

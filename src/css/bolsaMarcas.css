@@ -251,3 +251,7 @@
 .bolsa-mapa-aqui.com-problema {
     color: #ffb74d;
 }
+#mapas-tabuleiro-ok {
+    margin-top: 14px;
+    font-weight: 600;
+}

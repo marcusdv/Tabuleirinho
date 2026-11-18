@@ -190,3 +190,16 @@ export async function escNaFicha(p) {
 
 /** A versão em que o editor da ficha está ("Versão 3"): a tela não mostra mais o número, então vem do atributo `data-versao` do painel. */
 export const versaoDaFicha = (p) => p.getAttribute("#editor-ficha-painel", "data-versao").then((v) => "Versão " + v);
+
+/**
+ * Escolhe uma cor num seletor de cor do site como uma pessoa faria: abre a caixa do seletor (o botão que fica logo antes do campo nativo escondido), digita o código "#rrggbb" e fecha.
+ * `campo` é o seletor CSS do <input type="color"> (ex.: "#desenho-cor").
+ */
+export async function definirCor(p, campo, hex) {
+    const botao = p.locator(campo).locator("xpath=preceding-sibling::button[contains(@class,'seletor-cor-botao')][1]");
+    await botao.click();
+    const codigo = p.locator(".seletor-cor-codigo");
+    await codigo.fill(hex);
+    await codigo.press("Tab"); // (sair do campo dispara a mudança)
+    await botao.click(); // fecha a caixa
+}

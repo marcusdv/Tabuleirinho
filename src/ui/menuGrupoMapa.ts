@@ -9,7 +9,7 @@
 import { CONDICOES, urlDoIcone } from "../condicoes";
 import { limitar } from "../coordenadas";
 import { formulaDosDados } from "../dados";
-import { acoesEmComum, lerQuantia, rotuloDoStatus, statusDaAcao, type AcaoDaMesa, type Token } from "../estado";
+import { acoesEmComum, estado, lerQuantia, rotuloDoStatus, statusDaAcao, type AcaoDaMesa, type Token } from "../estado";
 
 export interface OpcoesMenuGrupoMapa {
     /** A pessoa digitou o valor de uma ação (Dano, Cura...) e apertou Enter: aplicar nestes tokens (um número ou dados). */
@@ -183,7 +183,13 @@ export function criarMenuGrupoMapa(opcoes: OpcoesMenuGrupoMapa): MenuGrupoMapa {
             if (comuns.length === 0) {
                 const nada = document.createElement("p");
                 nada.className = "grupo-vazio";
-                nada.textContent = alvos.length === 1 ? "Este token não tem status para receber dano ou cura (precisa de uma ficha com a variável do status)." : "Nenhuma ação vale para todos (algum não tem o status ou a ficha).";
+                // Sem acesso ao token (o jogador só recebe a peça, sem a ficha): o motivo é o ACESSO, e não "não tem ficha" (seria falso e repetiria o aviso de sem acesso).
+                const semAcesso = !estado.mestre && alvos.some((t) => t.somenteMapa === true);
+                nada.textContent = semAcesso
+                    ? "Você não tem acesso a este token."
+                    : alvos.length === 1
+                      ? "Este token não tem status para receber dano ou cura (precisa de uma ficha com a variável do status)."
+                      : "Nenhuma ação vale para todos (algum não tem o status ou a ficha).";
                 itens.push(nada);
             }
             itens.push(botao("Add condição ▾", () => desenharCondicoes(), alvos.length === 1 ? "Colocar ou tirar uma condição" : "Colocar uma condição em todos os selecionados"));

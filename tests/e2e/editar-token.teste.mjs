@@ -3,7 +3,7 @@
 //
 // Dois caminhos levam à mesma janela "Editar token": a ENGRENAGEM do token no MAPA (painel "Editar token") e o
 // menu da FICHA na bolsa ("Editar token…"). Tudo passa por editarToken() em estado.ts.
-import { abrirPagina, lancar, lerEstado, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, lerEstado, ok, terminar, definirCor } from "./ajuda.mjs";
 
 const navegador = await lancar();
 const p = await navegador.newPage({ viewport: { width: 1400, height: 800 } });
@@ -25,12 +25,12 @@ await p.click("#botao-editar-token");
 ok("1b) abre a janela com os valores atuais do token (nome 'Token 1') e fecha os botões do mapa", (await janelaAberta()) && (await p.inputValue("#editor-token-nome")) === "Token 1" && !(await p.locator("#acoes-token").isVisible()));
 await p.fill("#editor-token-nome", "Capitão Bruto");
 await p.click('#editor-token button[data-tamanho="2"]');
-await p.click('#editor-token-amostras .amostra[data-cor="#f1c40f"]');
-await p.click('#editor-token-amostras-borda .amostra[data-cor="#000000"]');
+await p.click('#editor-token-amostras .amostra[data-cor="#f5b83d"]');
+await p.click('#editor-token-amostras-borda .amostra[data-cor="#1f2430"]');
 ok("1c) a prévia acompanha as escolhas (2×2)", (await p.locator("#editor-token-previa small").textContent()) === "2×2");
 await p.click("#editor-token-salvar");
 const t1 = await token(1);
-ok("1d) Salvar aplica nome, tamanho, preenchimento e borda no token", t1.nome === "Capitão Bruto" && t1.size === 2 && t1.cor === 0xf1c40f && t1.corBorda === 0x000000 && !(await janelaAberta()), JSON.stringify(t1));
+ok("1d) Salvar aplica nome, tamanho, preenchimento e borda no token", t1.nome === "Capitão Bruto" && t1.size === 2 && t1.cor === 0xf5b83d && t1.corBorda === 0x1f2430 && !(await janelaAberta()), JSON.stringify(t1));
 
 // 2) Esc cancela sem mudar; nome vazio volta ao padrão
 await p.mouse.click(centroToken1.x + 32, centroToken1.y + 32, { button: "right" }); // o token agora é 2×2: o centro andou meia casa
@@ -64,7 +64,7 @@ await ficha.click({ button: "right" });
 await p.click("#menu-ficha-editar");
 await p.fill("#editor-token-nome", "Arqueira");
 await p.click('#editor-token button[data-tamanho="4"]');
-await p.locator("#editor-token-cor-borda").fill("#12ab34");
+await definirCor(p, "#editor-token-cor-borda", "#12ab34");
 await p.click("#editor-token-salvar");
 const t2 = await token(2);
 ok("3e) editar pela ficha também aplica tudo (nome, 4×4, borda #12ab34)", t2.nome === "Arqueira" && t2.size === 4 && t2.corBorda === 0x12ab34 && t2.guardado, JSON.stringify(t2));

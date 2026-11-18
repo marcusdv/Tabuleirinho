@@ -420,3 +420,40 @@
     accent-color: #ffd54f;
     cursor: pointer;
 }
+.editor-status .status-tabela .c-posicao {
+    width: 92px;
+}
+.editor-status .status-tabela .c-posicao select {
+    width: 100%;
+    height: 26px;
+    font-size: 12px;
+}
+
+/* A PRÉVIA DAS BARRAS como no tabuleiro: um tokenzinho no meio, as barras "em cima" acima dele e as outras embaixo; nome à esquerda e a barra centralizada, com a largura do token. */
+#bolsa-previa-barras {
+    height: auto;
+    min-height: 52px;
+    align-items: center;
+    justify-content: center;
+}
+#bolsa-previa-barras .status-previa-linha {
+    width: 100%;
+    justify-content: center;
+}
+#bolsa-previa-barras .status-previa-nome {
+    width: 40px;
+}
+#bolsa-previa-barras .status-previa-barra {
+    flex: none;
+    width: 110px;
+    margin-right: 46px; /* (a barra fica centralizada no tokenzinho: compensa o nome à esquerda) */
+}
+#bolsa-previa-barras .status-previa-token {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #4a4a58;
+    border: 2px solid #c9c9d4;
+    box-sizing: border-box;
+}

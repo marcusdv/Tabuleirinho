@@ -10,7 +10,7 @@
 /** O formato que esta versão do servidor grava. */
 export const FORMATO_ATUAL = 1;
 
-export type TipoDeArquivo = "fichas" | "tokens" | "pecas" | "grupos" | "mesa";
+export type TipoDeArquivo = "fichas" | "tokens" | "pecas" | "grupos" | "pastas" | "mesa";
 type Migracao = (bruto: Record<string, unknown>) => Record<string, unknown>;
 
 /** MIGRACOES[tipo][i] converte do formato i para o formato i + 1. */
@@ -19,6 +19,7 @@ const MIGRACOES: Record<TipoDeArquivo, Migracao[]> = {
     tokens: [(b) => b],
     pecas: [(b) => b],
     grupos: [(b) => b],
+    pastas: [(b) => b],
     mesa: [(b) => b],
 };
 

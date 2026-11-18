@@ -1070,9 +1070,17 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
                     bloco.append(trecho);
                 }
             };
-            // Variáveis NÃO têm formatação (nem rolagem): texto puro.
+            // Variáveis NÃO têm formatação (nem rolagem): texto puro. Se o valor é uma CONTA, o RESULTADO aparece ao lado, como no modo de edição (pedido do dono, 17/11/2026).
             if (ehLinhaDeVariavel(linha)) {
                 if (linha !== "") bloco.append(document.createTextNode(linha));
+                const analise = ultimaAnalise;
+                const variavel = analise?.variaveis.find((v) => v.aba === analise.aba && v.posConta.inicio >= deslocamento && v.posConta.inicio <= fimDaLinha);
+                if (variavel && variavel.erro === null && variavel.valor !== null && !/^\s*-?\d+\s*$/.test(variavel.conta)) {
+                    const resultado = document.createElement("span");
+                    resultado.className = "resultado-variavel";
+                    resultado.textContent = `  = ${variavel.valor}`;
+                    bloco.append(resultado);
+                }
                 return bloco;
             }
             // Título ("# ", "## ", "### ") no começo da linha: só vale se a linha começa assim.

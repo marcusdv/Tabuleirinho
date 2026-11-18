@@ -40,6 +40,7 @@ import {
     SEGUNDOS_PARA_ENTRAR,
     TAMANHO_MAX_ARQUIVO_FICHA,
     TAMANHO_MAX_ARQUIVO_GRUPO,
+    TAMANHO_MAX_ARQUIVO_PASTA,
     TAMANHO_MAX_ARQUIVO_TOKEN,
     TAMANHO_MAX_MENSAGEM_REDE,
     MAX_BYTES_MAPA,
@@ -60,6 +61,15 @@ import {
     colocarToken,
     definirFichas,
     definirGrupos,
+    definirPastas,
+    montarPasta,
+    receberPasta,
+    excluirPasta,
+    moverParaPasta,
+    podeMoverPasta,
+    pastaValida,
+    limparNomeDePasta,
+    pastaEAcima,
     aplicarAcao,
     aplicarAcaoEmVarios,
     definirCondicao,
@@ -117,18 +127,19 @@ import { ABAS_THORIN, IMAGEM_GOBLIN, NOME_GOBLIN, NOME_THORIN, TEXTO_GOBLIN } fr
 import { analisarAbas, rolarCartaoDaAnalise, rolarConta, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
 import type { ValorDeStatus } from "../src/estado.ts";
 import { gastar, novoBalde, type Balde } from "../src/limite.ts";
-import { estaBanido, idDeUsuarioDoNome, LIMITE_MAXIMO_POR_JOGADOR, podeEditar, podeExcluir, podeLer, temPoderDeMestre, type NivelEfetivo, type TipoDeItem } from "../src/permissoes.ts";
+import { estaBanido, idDeUsuarioDoNome, LIMITE_MAXIMO_POR_JOGADOR, podeEditar, podeExcluir, podeLer, temPoderDeMestre, type NivelEfetivo, type TipoDeItem, nivelNaPasta } from "../src/permissoes.ts";
 import { adicionarDesenhoNoMapa, apagarDesenhosDoMapa, carregarDesenhos, desenhosDoMapa, gravarDesenhosPendentes } from "./desenhos.ts";
 import { carregarPermissoes, definirDono, esquecerItem, gravarPermissoes, motivoDoLimite, nivelDoUsuario, permissoes } from "./acesso.ts";
 import { lerPedido, limparApelido, type EventoDoServidor, type Jogador, type PedidoDoCliente, type RegistroDeMapa } from "../src/protocolo.ts";
 import { acharMapa, apagarMapa, definirQuemVeMapa, caminhoDoMapa, carregarMapas, criarMapasDeExemplo, guardarMapa, listaDeMapas, TIPO_MIME } from "./mapas.ts";
 import { enviarBackup, instrucoesDoBackup } from "./backup.ts";
+import { ajustarFogAoTamanho, ativarFog, desativarFog, pintarFog, preencherFog, esquecerFog, carregarFog, gravarFogAgora } from "./fog.ts";
 import { apagarDaPasta, carregarMesa, carregarPasta, gravarMesa, gravarNaPasta, PASTA_DE_DADOS, type NomeDaPasta } from "./dados.ts";
 
 import { filaDeArquivos, naFilaDeArquivos } from "./fila.ts";
 import { type Conexao, podeRolar, podeEscrever, conexoes, novoIdDeConexao, listaDeJogadores, enviar, avisarTodos, erro, avisarCada } from "./conexoes.ts";
 import { mapaAtual, mapaDaConexao, mapaDoUsuario, irParaMapa, tamanhoDoMapa, gradeDoMapa, comCenaDe, definirMapaDoMestre, configDaCena, lembrarTamanhoDaCena, lembrarGradeDaCena, esquecerCena, carregarCenas } from "./cenas.ts";
-import { SEM_PERMISSAO, podeNoToken, podeNaFicha, valoresParaConexao, avisarValoresDoToken, bibliotecaParaConexao, avisarMapaDe, avisarMapaAtual, avisarJogadores, avisarMapasDefinidos, tokenParaConexao, tokenParaConexaoSemEstrela, fichaParaConexao, sincronizarVisaoDe, sincronizarVisaoDeTodos, avisarPermissoes, atualizarPapeisConectados, avisarToken, avisarFicha, valoresVisiveisPara, avisarValoresDaFicha } from "./visao.ts";
+import { SEM_PERMISSAO, podeNoToken, podeNaFicha, valoresParaConexao, avisarValoresDoToken, bibliotecaParaConexao, avisarMapaDe, avisarMapaAtual, avisarJogadores, avisarMapasDefinidos, tokenParaConexao, tokenParaConexaoSemEstrela, fichaParaConexao, sincronizarVisaoDe, sincronizarVisaoDeTodos, avisarPermissoes, atualizarPapeisConectados, avisarToken, avisarFicha, valoresVisiveisPara, avisarValoresDaFicha, semPermissaoNoMapa, pastaParaConexao, avisarPasta, avisarFogDoMapa, avisarFogPintado, desenhoOcultoPara, desenhosVisiveisPara, enviarFogDe, pecaOcultaPelaFog, reconciliarTodos } from "./visao.ts";
 import { carregarPreferencias, definirFavoritoDe } from "./preferencias.ts";
 
 // A pasta do site: `dist/` (o resultado de `npm run build`). Dá para trocar com a variável SITE (ex.: SITE=/outra/pasta npm run servidor).
@@ -299,6 +310,7 @@ async function tratarBackup(requisicao: IncomingMessage, resposta: ServerRespons
             gravarTokensSujos();
         }
         await gravarDesenhosPendentes();
+        gravarFogAgora(); // (o fog também, antes de empacotar)
         await new Promise<void>((pronto) => naFilaDeArquivos(async () => pronto())); // (espera a fila de gravação esvaziar)
         const hoje = new Date();
         const dia = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, "0")}-${String(hoje.getDate()).padStart(2, "0")}`;
@@ -404,7 +416,10 @@ async function criarFichaNoServidor(c: Conexao, idDoToken?: number): Promise<voi
     naFilaDeArquivos(() => gravarPermissoes());
     avisarPermissoes(); // (os mestres veem o dono novo na janela "Compartilhar", sem recarregar)
     avisarFicha("ficha_criada", ficha);
-    if (modelo) ligarTokenAFicha(modelo.id, ficha.id); // (a ficha nova não tem recursos, então nunca está "ocupada")
+    if (modelo) {
+        ligarTokenAFicha(modelo.id, ficha.id); // (a ficha nova não tem recursos, então nunca está "ocupada")
+        sincronizarVisaoDeTodos([modelo.id], [ficha.id]); // (quem tem acesso ao token passa a ter o mesmo acesso à ficha nova)
+    }
 }
 
 /** Liga o token da bolsa à ficha e avisa todos (o token e as peças dele), regravando os arquivos. Quem chama já conferiu a regra da ficha única. */
@@ -701,9 +716,22 @@ function publicarResultadoDeAcao(autor: string, alvo: Token, resultado: Extract<
     agendarGravacaoDoToken(alvo.id);
 }
 
+/** Quem pode EDITAR uma pasta (renomear, mover, pôr itens nela, criar pastas dentro): o mestre, o dono e quem tem nível de editor nela (ou numa pasta de cima). */
+function podeEditarPasta(c: Conexao, id: number): boolean {
+    if (c.mestre) return true;
+    const nivel = nivelNaPasta(permissoes, id, c.usuario, pastaEAcima(id));
+    return nivel === "dono" || nivel === "editor";
+}
+/** Depois de uma mudança que afeta QUEM VÊ as pastas (liberar, mover, apagar): cada um recebe de novo as pastas que vê, e os tokens e fichas que estão em pastas são reconferidos. */
+function refazerVisaoDasPastas(): void {
+    for (const pasta of estado.pastas) avisarPasta(pasta);
+    sincronizarVisaoDeTodos(estado.tokens.filter((t) => t.copiaDe === null && t.pasta != null).map((t) => t.id), estado.fichas.filter((f) => f.pasta != null).map((f) => f.id));
+}
+
 /** Trata um pedido com a CENA de quem o mandou (o mapa e o tamanho do tabuleiro dele; ver `comCenaDe`). */
 function tratar(c: Conexao, pedido: PedidoDoCliente): void {
     comCenaDe(c, () => tratarNaCena(c, pedido));
+    reconciliarTodos(); // (o fog: a peça que acabou de sair dele aparece para os jogadores e a que entrou some; sem fog em uso, não faz nada)
 }
 function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
     // Antes de tudo a pessoa precisa se apresentar.
@@ -732,7 +760,9 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
         const lembrado = mapaDoUsuario.get(c.usuario);
         c.mapaVisto = lembrado !== undefined && (lembrado === null || acharMapa(lembrado)) ? lembrado : mapaAtual;
         // Quem entra recebe o estado COMPLETO uma vez; depois só os eventos.
-        enviar(c.ws, { tipo: "estado_inicial", voce: c.jogador, colunas: tamanhoDoMapa(mapaDaConexao(c)).colunas, linhas: tamanhoDoMapa(mapaDaConexao(c)).linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, tokens: estado.tokens.flatMap((t) => tokenParaConexao(c, t) ?? []), mensagens: estado.mensagens, fichas: estado.fichas.flatMap((f) => fichaParaConexao(c, f) ?? []), grupos: estado.grupos, valores: valoresVisiveisPara(c), iniciativa: iniciativaComoObjeto(), mestre: c.mestre, mapa: mapaDaConexao(c), mapas: bibliotecaParaConexao(c), grade: gradeDoMapa(mapaDaConexao(c)), permissoes: c.mestre ? permissoes : null, desenhos: desenhosDoMapa(mapaDaConexao(c)) });
+        c.pecasEscondidas = new Set(estado.tokens.filter((t) => t.copiaDe !== null && !t.guardado && tokenParaConexao(c, t) === null).map((t) => t.id)); // (o fog esconde peças: o servidor lembra quais já escondeu)
+        enviar(c.ws, { tipo: "estado_inicial", voce: c.jogador, colunas: tamanhoDoMapa(mapaDaConexao(c)).colunas, linhas: tamanhoDoMapa(mapaDaConexao(c)).linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, tokens: estado.tokens.flatMap((t) => tokenParaConexao(c, t) ?? []), mensagens: estado.mensagens, fichas: estado.fichas.flatMap((f) => fichaParaConexao(c, f) ?? []), grupos: estado.grupos, valores: valoresVisiveisPara(c), iniciativa: iniciativaComoObjeto(), mestre: c.mestre, mapa: mapaDaConexao(c), mapas: bibliotecaParaConexao(c), grade: gradeDoMapa(mapaDaConexao(c)), permissoes: c.mestre ? permissoes : null, desenhos: desenhosVisiveisPara(c, mapaDaConexao(c)), ...(semPermissaoNoMapa(c) && { semPermissao: true }), pastas: estado.pastas.flatMap((p) => pastaParaConexao(c, p) ?? []) });
+        enviarFogDe(c);
         avisarJogadores();
         console.log(`+ ${c.jogador.apelido} entrou como ${c.mestre ? "MESTRE" : "jogador"} (${listaDeJogadores().length} na mesa)`);
         return;
@@ -752,7 +782,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             }
             colocarToken(token.id, pedido.col, pedido.row);
             // `valores`: os status temporários (se o token acabou de sair da bolsa, foram calculados agora, lendo a ficha NESTE servidor: todos veem os mesmos números)
-            avisarCada((c2) => ({ tipo: "token_colocado", id: token.id, col: pedido.col, row: pedido.row, valores: valoresParaConexao(c2, token) }));
+            avisarCada((c2) => (pecaOcultaPelaFog(c2, token) ? null : { tipo: "token_colocado", id: token.id, col: pedido.col, row: pedido.row, valores: valoresParaConexao(c2, token) })); // (sob o fog, os jogadores não recebem a posição)
             agendarGravacaoDoToken(token.id);
             return;
         }
@@ -761,7 +791,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             const alvo = buscarToken(pedido.id);
             if (!alvo) return erro(c.ws, "Esse token não existe.");
             if (!alternarCondicao(alvo.id, pedido.condicao)) return erro(c.ws, "Essa condição não existe.");
-            avisarTodos({ tipo: "condicoes_atualizadas", id: alvo.id, condicoes: alvo.condicoes });
+            avisarCada((c2) => (pecaOcultaPelaFog(c2, alvo) ? null : { tipo: "condicoes_atualizadas", id: alvo.id, condicoes: alvo.condicoes }));
             agendarGravacaoDoToken(alvo.id);
             return;
         }
@@ -780,7 +810,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
         case "definir_grade": {
             // A espessura e a cor da grade são da MESA: só o mestre as muda. O servidor limpa (limites e cor "#rrggbb"), grava em mesa.json e avisa todos.
             if (!c.mestre) return erro(c.ws, "Só o mestre pode mudar a grade.");
-            definirGradeDaMesa({ espessura: pedido.espessura, cor: pedido.cor });
+            definirGradeDaMesa({ espessura: pedido.espessura, cor: pedido.cor, alfa: pedido.alfa });
             const idDaGrade = mapaAtual;
             if (idDaGrade !== null) {
                 lembrarGradeDaCena(idDaGrade, estado.grade); // (cada mapa guarda a SUA grade)
@@ -796,6 +826,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             const movidos = definirTamanhoTabuleiro(pedido.colunas, pedido.linhas);
             const idDoMapa = mapaAtual;
             lembrarTamanhoDaCena(idDoMapa, estado.colunas, estado.linhas); // (cada cena guarda o seu tamanho)
+            if (ajustarFogAoTamanho(idDoMapa, estado.colunas, estado.linhas)) avisarFogDoMapa(idDoMapa); // (o fog acompanha o tamanho novo)
             avisarMapasDefinidos(); // (a biblioteca leva o tamanho de cada mapa: o navegador do mestre não manda a previsão da imagem por cima do que ele configurou)
             avisarCada((c2) => (mapaDaConexao(c2) === mapaAtual ? { tipo: "tamanho_definido", colunas: estado.colunas, linhas: estado.linhas } : null)); // (só quem está no mapa do mestre; cada navegador refaz a mesma conta e puxa os tokens para dentro)
             for (const token of movidos) agendarGravacaoDoToken(token.id);
@@ -843,7 +874,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             if (alvos.length !== pedido.tokens.length || alvos.some((t) => t.guardado)) return erro(c.ws, "Algum token não está no tabuleiro.");
             for (const alvo of alvos) {
                 if (!definirCondicao(alvo.id, pedido.condicao, pedido.ligar)) return erro(c.ws, "Essa condição não existe.");
-                avisarTodos({ tipo: "condicoes_atualizadas", id: alvo.id, condicoes: alvo.condicoes });
+                avisarCada((c2) => (pecaOcultaPelaFog(c2, alvo) ? null : { tipo: "condicoes_atualizadas", id: alvo.id, condicoes: alvo.condicoes }));
                 agendarGravacaoDoToken(alvo.id);
             }
             return;
@@ -929,8 +960,11 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
                 if (ocupada) return erro(c.ws, ocupada);
             }
             // editarToken aplica as MESMAS regras da criação (nome aparado, tamanho de 1 a 4, cores válidas, imagem válida).
+            const fichaAntes = alvoDaEdicao?.ficha ?? null;
             const token = editarToken(pedido.id, mudancas);
             if (!token) return erro(c.ws, "Esse token não existe.");
+            // Trocou a FICHA ligada: quem tinha acesso ao token passa a ver a nova e deixa de ver a antiga (o acesso ao token vale para a ficha ligada).
+            if (mudancas.ficha !== undefined && token.copiaDe === null && token.ficha !== fichaAntes) sincronizarVisaoDeTodos([token.id], fichaAntes === null ? [] : [fichaAntes]);
             avisarToken("token_editado", token);
             agendarGravacaoDoToken(token.id);
             if (mudancas.grupos !== undefined && token.copiaDe === null) sincronizarVisaoDeTodos([token.id], []); // (os grupos mudaram: quem tem acesso pelo grupo ganha ou perde este token)
@@ -1021,7 +1055,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             if (!c.mestre && meuMapa === null) return erro(c.ws, "Você não está em nenhum mapa.");
             const criado = adicionarDesenhoNoMapa(meuMapa, pedido.desenho, c.usuario);
             if (!criado) return erro(c.ws, "Este mapa já tem desenhos demais. Peça ao mestre para apagar alguns.");
-            avisarCada((c2) => (mapaDaConexao(c2) === meuMapa ? { tipo: "desenho_criado", desenho: criado, ...(pedido.ref !== undefined && { ref: pedido.ref }) } : null)); // (só quem vê o mapa vê o desenho)
+            avisarCada((c2) => (mapaDaConexao(c2) === meuMapa && !desenhoOcultoPara(c2, criado, meuMapa) ? { tipo: "desenho_criado", desenho: criado, ...(pedido.ref !== undefined && { ref: pedido.ref }) } : null)); // (só quem vê o mapa vê o desenho)
             return;
         }
         case "apagar_desenhos": {
@@ -1039,6 +1073,17 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             // O MESTRE libera (ou tira a liberação de) um token, uma ficha ou um GRUPO inteiro para um usuário, como leitor ou editor. Guarda em permissoes.json e refaz a visão dessa pessoa.
             if (!c.mestre) return erro(c.ws, "Só o mestre libera itens para os jogadores.");
             const { item, id, usuario, nivel } = pedido;
+            if (item === "pastas") {
+                // Liberar uma PASTA: vale para ela, para as pastas dentro dela e para os tokens/fichas que estão nelas.
+                if (!estado.pastas.some((p) => p.id === id)) return erro(c.ws, "Essa pasta não existe.");
+                const registro = (permissoes.pastas[String(id)] ??= { dono: null, acessos: {} });
+                if (nivel === null) delete registro.acessos[usuario];
+                else registro.acessos[usuario] = nivel;
+                naFilaDeArquivos(() => gravarPermissoes());
+                avisarPermissoes();
+                refazerVisaoDasPastas();
+                return;
+            }
             if (item === "grupos") {
                 if (!estado.grupos.some((g) => g.id === id)) return erro(c.ws, "Esse grupo não existe.");
                 const doGrupo = (permissoes.grupos[String(id)] ??= {});
@@ -1137,19 +1182,135 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             // navegador baixa a imagem e só então troca o mapa e o tamanho, de uma vez.
             const guardado = configDaCena(mapaAtual);
             if (guardado.grade) definirGradeDaMesa(guardado.grade); // (a grade deste mapa; um mapa novo, sem grade guardada, começa com a de agora)
-            else lembrarGradeDaCena(mapaAtual, estado.grade);
+            else if (mapaAtual !== null) {
+                // Um mapa usado pela PRIMEIRA vez começa com a grade de 1 px PRETA, para ajudar a alinhar (pedido do dono, 17/11/2026); depois vale o que o mestre configurar.
+                definirGradeDaMesa({ espessura: 1, cor: "#000000" });
+                lembrarGradeDaCena(mapaAtual, estado.grade);
+                avisarCada((c2) => (mapaDaConexao(c2) === mapaAtual ? { tipo: "grade_definida", grade: estado.grade } : null));
+            }
             // O tamanho que o mestre CONFIGUROU para o mapa vale sempre (os mapas lembram as colunas e linhas); a previsão pela imagem (o pedido) só vale para um mapa SEM tamanho guardado (recém-enviado).
             const tamanhoNovo = guardado.colunas !== undefined && guardado.linhas !== undefined ? { colunas: guardado.colunas, linhas: guardado.linhas } : pedido.colunas !== undefined && pedido.linhas !== undefined ? { colunas: pedido.colunas, linhas: pedido.linhas } : null;
             const comTamanho = tamanhoNovo !== null;
             const movidos = tamanhoNovo ? definirTamanhoTabuleiro(tamanhoNovo.colunas, tamanhoNovo.linhas) : [];
             const idNovo = mapaAtual;
             if (comTamanho) lembrarTamanhoDaCena(idNovo, estado.colunas, estado.linhas);
+            if (comTamanho && ajustarFogAoTamanho(idNovo, estado.colunas, estado.linhas)) avisarFogDoMapa(idNovo);
             // SÓ o mestre vai para o mapa novo: os jogadores ficam onde estavam, até o mestre "mover jogadores" (pedido do dono, 17/11/2026).
             for (const x of conexoes) if (x.mestre) avisarMapaDe(x, true);
             avisarMapasDefinidos();
             avisarJogadores();
             for (const token of movidos) agendarGravacaoDoToken(token.id);
             naFilaDeArquivos(() => gravarMesaAtual());
+            return;
+        }
+        case "criar_pasta": {
+            // Uma PASTA nova na bolsa. O mestre cria em qualquer lugar; um JOGADOR cria na raiz ou dentro de uma pasta onde pode editar, e vira o DONO dela.
+            if (!c.mestre && pedido.pai !== null && !podeEditarPasta(c, pedido.pai)) return erro(c.ws, "Você não pode criar pastas dentro desta pasta.");
+            const pasta = montarPasta(pedido.tipoDaPasta, pedido.nome, pedido.pai);
+            if (!pasta) return erro(c.ws, "Não foi possível criar a pasta (a pasta de cima não existe, ou o limite de pastas da mesa foi atingido).");
+            naFilaDeArquivos(async () => {
+                await gravarNaPasta("pastas", pasta);
+                receberPasta(pasta);
+                if (!c.mestre) {
+                    permissoes.pastas[String(pasta.id)] = { dono: c.usuario, acessos: {} };
+                    await gravarPermissoes();
+                    avisarPermissoes();
+                }
+                avisarPasta(pasta);
+            });
+            return;
+        }
+        case "editar_pasta": {
+            // Renomear e/ou pôr dentro de outra pasta: o mestre, o dono da pasta ou quem é editor dela. Mover leva junto tudo o que está dentro (e a permissão herdada muda: a visão é refeita).
+            const pasta = estado.pastas.find((p) => p.id === pedido.id);
+            if (!pasta || (!c.mestre && !pastaParaConexao(c, pasta))) return erro(c.ws, "Essa pasta não existe.");
+            if (!podeEditarPasta(c, pasta.id)) return erro(c.ws, "Você não pode mudar esta pasta.");
+            if (pedido.nome !== undefined) pasta.nome = limparNomeDePasta(pedido.nome);
+            const mudouDeLugar = pedido.pai !== undefined && pedido.pai !== pasta.pai;
+            if (mudouDeLugar) {
+                const destino = pedido.pai ?? null;
+                if (!podeMoverPasta(pasta.id, destino)) return erro(c.ws, "Não dá para pôr a pasta aí (dentro dela mesma, ou numa pasta de outro tipo).");
+                if (!c.mestre && destino !== null && !podeEditarPasta(c, destino)) return erro(c.ws, "Você não pode pôr pastas dentro desta pasta.");
+                pasta.pai = destino;
+            }
+            naFilaDeArquivos(() => gravarNaPasta("pastas", pasta));
+            if (mudouDeLugar) refazerVisaoDasPastas();
+            else avisarPasta(pasta);
+            return;
+        }
+        case "excluir_pasta": {
+            // Apagar uma pasta (o mestre ou o dono): o que estava dentro SOBE para a pasta de cima; nenhum token ou ficha é apagado.
+            const pasta = estado.pastas.find((p) => p.id === pedido.id);
+            if (!pasta || (!c.mestre && !pastaParaConexao(c, pasta))) return erro(c.ws, "Essa pasta não existe.");
+            if (!c.mestre && permissoes.pastas[String(pasta.id)]?.dono !== c.usuario) return erro(c.ws, "Só o dono da pasta e o mestre podem apagá-la.");
+            const mudou = excluirPasta(pasta.id);
+            if (!mudou) return;
+            delete permissoes.pastas[String(pasta.id)];
+            naFilaDeArquivos(async () => {
+                await apagarDaPasta("pastas", pasta.id);
+                for (const p of mudou.pastas) await gravarNaPasta("pastas", p);
+                for (const f of mudou.fichas) await gravarNaPasta("fichas", f);
+                await gravarPermissoes();
+            });
+            for (const t of mudou.tokens) agendarGravacaoDoToken(t.id);
+            avisarCada(() => ({ tipo: "pasta_excluida", id: pasta.id }));
+            avisarPermissoes();
+            refazerVisaoDasPastas();
+            return;
+        }
+        case "mover_para_pasta": {
+            // ARRASTAR tokens ou fichas para uma pasta (ou para a raiz). Quem não é mestre só move o que pode EDITAR, e só para uma pasta onde pode editar.
+            if (pedido.pasta !== null) {
+                const destino = estado.pastas.find((p) => p.id === pedido.pasta);
+                if (!destino || destino.tipo !== pedido.item || (!c.mestre && !pastaParaConexao(c, destino))) return erro(c.ws, "Essa pasta não existe.");
+                if (!podeEditarPasta(c, destino.id)) return erro(c.ws, "Você não pode pôr itens nesta pasta.");
+            }
+            const permitidos = pedido.ids.filter((id) => {
+                if (pedido.item === "tokens") {
+                    const t = buscarToken(id);
+                    return !!t && t.copiaDe === null && podeNoToken(c, t, "editar");
+                }
+                const f = estado.fichas.find((x) => x.id === id);
+                return !!f && podeNaFicha(c, f, "editar");
+            });
+            if (permitidos.length === 0) return erro(c.ws, SEM_PERMISSAO);
+            const mudaram = moverParaPasta(pedido.item, permitidos, pedido.pasta);
+            for (const item of mudaram) {
+                if (pedido.item === "tokens") {
+                    agendarGravacaoDoToken(item.id);
+                    avisarToken("token_editado", item as Token);
+                } else {
+                    naFilaDeArquivos(() => gravarNaPasta("fichas", item as Ficha));
+                    avisarFicha("ficha_editada", item as Ficha);
+                }
+            }
+            // (a pasta pode dar ou tirar acesso: quem passa a ver ou deixa de ver os itens recebe a atualização)
+            sincronizarVisaoDeTodos(pedido.item === "tokens" ? mudaram.map((i) => i.id) : [], pedido.item === "fichas" ? mudaram.map((i) => i.id) : []);
+            return;
+        }
+        case "fog_ativar": {
+            // O MESTRE liga ou desliga o fog de um mapa. Ao ligar, o mapa começa todo COBERTO (a menos que `cobrirTudo` seja falso) e o mestre vai revelando.
+            if (!c.mestre) return erro(c.ws, "Só o mestre mexe no fog.");
+            const idDoFog = pedido.mapa === "_" ? null : pedido.mapa;
+            if (idDoFog !== null && !acharMapa(idDoFog)) return erro(c.ws, "Esse mapa não existe.");
+            if (pedido.ativo) {
+                const tamanho = tamanhoDoMapa(idDoFog);
+                ativarFog(idDoFog, tamanho.colunas, tamanho.linhas, pedido.cobrirTudo ?? true);
+            } else desativarFog(idDoFog);
+            avisarFogDoMapa(idDoFog);
+            return;
+        }
+        case "fog_pintar": {
+            // O MESTRE pinta o fog do mapa em que está (cobre ou revela). O servidor guarda e avisa quem está nesse mapa; os jogadores nunca editam o fog.
+            if (!c.mestre) return erro(c.ws, "Só o mestre mexe no fog.");
+            if (!pintarFog(mapaAtual, pedido.tracos)) return erro(c.ws, "Ligue o fog neste mapa antes de pintar.");
+            avisarFogPintado(mapaAtual, pedido.tracos);
+            return;
+        }
+        case "fog_preencher": {
+            if (!c.mestre) return erro(c.ws, "Só o mestre mexe no fog.");
+            if (!preencherFog(mapaAtual, pedido.cobrir)) return erro(c.ws, "Ligue o fog neste mapa antes de cobrir ou revelar tudo.");
+            avisarFogDoMapa(mapaAtual);
             return;
         }
         case "mover_jogadores": {
@@ -1173,6 +1334,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             naFilaDeArquivos(async () => {
                 await apagarMapa(id);
                 esquecerCena(id); // (a configuração da cena vai junto)
+                esquecerFog(id); // (e o fog dele)
                 // As peças que estavam NESSE mapa vão embora com ele (cada mapa guarda as suas); os modelos da bolsa ficam.
                 for (const p of estado.tokens.filter((t) => t.copiaDe !== null && t.mapa === id)) {
                     excluirTokenComPecas(p.id);
@@ -1273,6 +1435,8 @@ wss.on("connection", (ws, requisicao: IncomingMessage) => {
             return "papel" in r ? { papel: r.papel, recusa: null } : { papel: null, recusa: r.recusa };
         })(),
         usuario: "",
+        desenhosVistos: "",
+        pecasEscondidas: new Set<number>(),
         mapaVisto: null,
         mestre: false, // (definido ao entrar: papel mestre OU poder de mestre guardado no permissoes.json)
     };
@@ -1341,6 +1505,8 @@ try {
     const tokensLidos = await carregarPasta("tokens", tokenValido, TAMANHO_MAX_ARQUIVO_TOKEN);
     const pecasLidas = await carregarPasta("pecas", tokenValido, TAMANHO_MAX_ARQUIVO_TOKEN);
     const gruposLidos = await carregarPasta("grupos", grupoValido, TAMANHO_MAX_ARQUIVO_GRUPO);
+    const pastasLidas = await carregarPasta("pastas", pastaValida, TAMANHO_MAX_ARQUIVO_PASTA); // as PASTAS da bolsa (dados/pastas/)
+    definirPastas(pastasLidas.itens, pastasLidas.maiorId + 1);
     // (O 2º argumento reserva os ids de arquivos IGNORADOS por estarem estragados: um item novo nunca os sobrescreve.)
     definirFichas(fichasLidas.itens, fichasLidas.maiorId + 1);
     if (mesa?.valores !== undefined) definirTodosOsValoresDasFichas(mesa.valores);
@@ -1380,6 +1546,7 @@ try {
     }
     definirMapaAtual(mapaAtual);
     await carregarCenas(); // (o tamanho e a grade de cada cena: dados/cenas.json; migra do índice dos mapas na 1ª vez)
+    await carregarFog(); // (o fog de cada mapa: dados/fog.json)
     const cenaDoMestre = configDaCena(mapaAtual);
     if (cenaDoMestre.grade) definirGradeDaMesa(cenaDoMestre.grade);
     else lembrarGradeDaCena(mapaAtual, estado.grade);
@@ -1427,6 +1594,7 @@ process.on("SIGINT", async () => {
     if (gravacaoAgendada) clearTimeout(gravacaoAgendada);
     gravarTokensSujos();
     await gravarDesenhosPendentes(); // (os últimos traços também)
+    gravarFogAgora(); // (e o fog)
     await filaDeArquivos;
     servidorHttp.close(() => process.exit(0));
     setTimeout(() => process.exit(0), 1000).unref();

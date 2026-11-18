@@ -402,3 +402,9 @@
     background: #3b3b49;
 }
 
+/* O campo do chat com um COMANDO de rolagem ("/r ..."): texto dourado e borda dourada (vai ser calculado, não enviado como texto). */
+#chat-texto.comando-rolagem {
+    color: #ffd54f;
+    border-color: #b8913a;
+    font-family: ui-monospace, monospace;
+}

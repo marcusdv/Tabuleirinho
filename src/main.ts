@@ -93,8 +93,7 @@ import {
     definirTodosOsValoresDasFichas,
     definirValoresDaFicha,
     motivoParaNaoColocar,
-    sincronizarValoresDaFicha,
-} from "./estado";
+    sincronizarValoresDaFicha, temIniciativaNaFicha, montarPasta, receberPasta, limparNomeDePasta, podeMoverPasta, excluirPasta, moverParaPasta, definirPastas } from "./estado";
 import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS, MS_RECARGA_ROLAGEM, RAJADA_ROLAGENS, SENSIBILIDADE_ZOOM_RODA, TEMPO_AVISO_MAPA_MS, TEMPO_DESFAZER_MS } from "./config";
 import { preverGrade } from "./coordenadas";
 import { gastar, novoBalde } from "./limite";
@@ -110,7 +109,7 @@ import { criarTokens } from "./tabuleiro/tokens";
 import { criarBalaoToken } from "./ui/balaoToken";
 import { criarBolsa } from "./ui/bolsa";
 import { criarBolsaMapas } from "./ui/bolsaMapas";
-import { definirBiblioteca, definirGradeDaMesa, definirMapaAtual } from "./estado";
+import { definirBiblioteca, definirGradeDaMesa, definirMapa, definirMapaAtual } from "./estado";
 import type { Desenho, NovoDesenho } from "./estado";
 import { CHAVE_VISOES, MAX_BYTES_MAPA, MAX_HISTORICO_DESENHO, MAX_TOKENS_ACAO_EM_GRUPO } from "./config";
 import { guardarPreferencia, lerPreferencia } from "./ui/preferencias";
@@ -143,6 +142,10 @@ import { criarBotaoBackup } from "./ui/backup";
 import { organizarAbasEmLinhas } from "./ui/abasEmLinhas";
 import { criarPainelDados } from "./ui/painelDados";
 import { criarPainelDesenho, type NomeFerramenta } from "./ui/painelDesenho";
+import { criarFog } from "./tabuleiro/fog";
+import { criarPainelFog } from "./ui/painelFog";
+import { aplicarSeletoresDeCor } from "./ui/seletorDeCor";
+import { mascaraDoTexto, novaMascara } from "./fog";
 import { criarStatusRede } from "./ui/statusRede";
 
 async function iniciar(): Promise<void> {
@@ -336,7 +339,7 @@ async function iniciar(): Promise<void> {
         aoMudarGrade: (ajustes) => grade.definirAjustes(ajustes),
         aoPedirGradeDaMesa: (g) => {
             if (!rede?.ativa) return false; // sem servidor: a barra aplica sozinha
-            rede.enviar({ tipo: "definir_grade", espessura: g.espessura, cor: g.cor });
+            rede.enviar({ tipo: "definir_grade", espessura: g.espessura, cor: g.cor, alfa: g.alfa });
             return true;
         },
         podeMudarGrade: () => !rede?.ativa || estado.mestre,
@@ -457,11 +460,18 @@ async function iniciar(): Promise<void> {
         confirmarLimpar: () => confirmacao.perguntar({ titulo: "Limpar a iniciativa?", mensagem: "A lista, a vez e a rodada serão apagadas para todos.", confirmar: "Limpar" }),
     });
 
-    const painelCalibragem = criarPainelCalibragem({ aoConcluir: () => ligarCalibragem(false) });
+    const painelCalibragem = criarPainelCalibragem({
+        aoConcluir: () => ligarCalibragem(false),
+        // Esc: com um 1º clique em andamento só o cancela (a ferramenta fica ligada para tentar de novo); sem ele, sai da calibragem.
+        aoEsc: () => {
+            if (!calibragem.cancelarMedida()) ligarCalibragem(false);
+        },
+    });
 
     const painelDesenho = criarPainelDesenho({
         aoEscolher: escolherFerramenta,
         aoMudarCor: (cor) => desenho.definirCor(cor),
+        aoMudarAlfa: (alfa) => desenho.definirAlfa(alfa),
         aoApagarTudo: () => apagarTodosOsDesenhos(), // (o mestre apaga todos; os outros, só os deles; Ctrl+Z desfaz)
     });
 
@@ -989,6 +999,13 @@ async function iniciar(): Promise<void> {
         fecharMenusDoToken(); // (o menu e o balão do token ficariam soltos por baixo da janela da ficha)
         balao.esconder();
         const ficha = token.ficha === null ? undefined : estado.fichas.find((f) => f.id === token.ficha);
+        // SEM ACESSO ao token (uma peça cujo modelo o servidor mandou só para o mapa): a mensagem de "sem acesso" já aparece em outro lugar; aqui NÃO se diz "não tem ficha" (seria falso e repetido).
+        if (!estado.mestre && token.somenteMapa === true) return;
+        if (!ficha && token.ficha !== null && !estado.mestre) {
+            // O token TEM ficha, mas ela não foi compartilhada com esta pessoa (o token e a ficha são liberados separados: compartilhar a pasta do token não leva a ficha).
+            aviso.mostrar(`A ficha de "${token.nome}" não foi compartilhada com você. Peça ao mestre para compartilhar a ficha (ou a pasta dela).`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            return;
+        }
         if (!ficha) {
             aviso.mostrar(`"${token.nome}" não tem ficha. Atribua uma em "Editar token".`, {
                 acao: { rotulo: "Editar token", aoClicar: () => editorToken.editar(token) },
@@ -1075,6 +1092,7 @@ async function iniciar(): Promise<void> {
             const token = definirCondicao(id, condicaoId, ligar);
             if (token) tokens.redesenhar(token);
         }
+        painelIniciativa.atualizar(); // (a iniciativa mostra as condições de cada token)
     }
 
     const balao = criarBalaoToken({
@@ -1107,7 +1125,42 @@ async function iniciar(): Promise<void> {
         },
         aoEditar: (token) => editorToken.editar(token),
         aoAbrirFichaDoToken: (token) => abrirFichaDoToken(token),
+        aoRecolherPecas: (modelo) => {
+            // Só as peças deste token no mapa (cena) em que estou: as de outros mapas ficam onde estão.
+            const pecas = estado.tokens.filter((t) => t.copiaDe === modelo && !t.guardado && t.mapa === estado.mapaId);
+            if (pecas.length === 0) return void aviso.mostrar("Nenhuma peça deste token está neste mapa.", { duracaoMs: 2500 });
+            removerVarios(pecas); // (já avisa quantas saíram, com "Desfazer", e respeita as permissões)
+        },
         aoCompartilhar: (item, id, nome) => jogadores.compartilhar(item, id, nome, item === "tokens" ? buscarToken(id)?.grupos : item === "fichas" ? estado.fichas.find((f) => f.id === id)?.grupos : undefined),
+        // PASTAS da bolsa (ui/pastas.ts): online, o SERVIDOR confere (permissões) e avisa; no modo local, muda o estado aqui mesmo.
+        aoCriarPasta: (tipo, nome, pai) => {
+            if (rede?.ativa) return void rede.enviar({ tipo: "criar_pasta", tipoDaPasta: tipo, nome, pai });
+            const pasta = montarPasta(tipo, nome, pai);
+            if (pasta) receberPasta(pasta);
+            atualizarListasDaBolsa();
+        },
+        aoRenomearPasta: (pasta, nome) => {
+            if (rede?.ativa) return void rede.enviar({ tipo: "editar_pasta", id: pasta.id, nome });
+            pasta.nome = limparNomeDePasta(nome);
+            atualizarListasDaBolsa();
+        },
+        aoMoverPasta: (pasta, pai) => {
+            if (rede?.ativa) return void rede.enviar({ tipo: "editar_pasta", id: pasta.id, pai });
+            if (podeMoverPasta(pasta.id, pai)) pasta.pai = pai;
+            atualizarListasDaBolsa();
+        },
+        aoExcluirPasta: (pasta) =>
+            void confirmacao.perguntar({ titulo: "Excluir pasta?", mensagem: `A pasta "${pasta.nome}" será apagada. O que está dentro dela (pastas, tokens e fichas) NÃO é apagado: sobe para a pasta de cima.`, confirmar: "Excluir pasta" }).then((sim) => {
+                if (!sim) return;
+                if (rede?.ativa) return void rede.enviar({ tipo: "excluir_pasta", id: pasta.id });
+                excluirPasta(pasta.id);
+                atualizarListasDaBolsa();
+            }),
+        aoMoverParaPasta: (tipo, ids, pasta) => {
+            if (rede?.ativa) return void rede.enviar({ tipo: "mover_para_pasta", item: tipo, ids, pasta });
+            moverParaPasta(tipo, ids, pasta);
+            atualizarListasDaBolsa();
+        },
         // "Tirar"/"Botar" da caixa "Tokens da ficha": online o servidor confere a regra da ficha única; no modo local vale na hora.
         aoLigarFicha: (token, idFicha) => {
             if (rede?.ativa) {
@@ -1211,6 +1264,7 @@ async function iniciar(): Promise<void> {
         bolsa.atualizar();
         barra.aplicarGradeDaMesa(estado.grade);
         bolsaMapas.atualizar(!!rede?.ativa);
+        fog.atualizar(); // (o fog é translúcido para o mestre e opaco para os jogadores)
         if (!estado.mestre && bolsaEstaNaAbaDoMestre()) bolsa.escolherAba("tokens"); // (se estava numa aba que só o mestre tem, volta para Tokens)
     }
     function bolsaEstaNaAbaDoMestre(): boolean {
@@ -1218,6 +1272,15 @@ async function iniciar(): Promise<void> {
         return ligada?.classList.contains("so-mestre") === true;
     }
 
+    /** A faixa FIXA "sem permissão para ver este mapa" (fica até o mestre levar a pessoa a um mapa que ela pode ver). */
+    const mostrarSemPermissao = (ligado: boolean): void => {
+        (document.getElementById("aviso-sem-permissao") as HTMLElement).hidden = !ligado;
+    };
+    /** Refaz as duas listas da bolsa (tokens e fichas): as pastas mudaram. */
+    const atualizarListasDaBolsa = (): void => {
+        bolsa.atualizar();
+        bolsa.atualizarFichas();
+    };
     let listaDeJogadores: Jogador[] = []; // (a última lista que o servidor mandou: o mestre sabe o mapa de cada um)
     const bolsaMapas = criarBolsaMapas({
         aoEnviar: (arquivo) => void enviarMapaAoServidor(arquivo),
@@ -1273,6 +1336,14 @@ async function iniciar(): Promise<void> {
     let versaoDoMapa = 0;
     let depoisDoMapa: (() => void) | null = null; // (só quem pediu a troca tem algo a fazer depois: ajustar a visão e dizer a previsão de colunas e linhas)
     async function trocarMapa(id: string | null, colunas?: number, linhas?: number, depois?: (() => void) | null): Promise<void> {
+        try {
+            await trocarMapaDeVerdade(id, colunas, linhas, depois);
+        } finally {
+            // Online, a interface (escondida desde que a página abriu: ver "mesa-pronta") só aparece quando o PRIMEIRO mapa do servidor já está na tela: assim o mapa nunca "troca" à vista.
+            document.body.classList.add("mesa-pronta");
+        }
+    }
+    async function trocarMapaDeVerdade(id: string | null, colunas?: number, linhas?: number, depois?: (() => void) | null): Promise<void> {
         const minha = ++versaoDoMapa;
         if (id !== null) {
             aviso.mostrar("Carregando o mapa…", { duracaoMs: 180000 }); // (fica até a imagem chegar: é escondido logo abaixo)
@@ -1304,6 +1375,14 @@ async function iniciar(): Promise<void> {
         bolsaMapas.atualizar(rede?.ativa === true); // (o selo "Atual" só passa para o mapa novo quando ele já está na tela)
         visaoRestaurada = guardarVisaoLigado && restaurarVisaoDoMapa(id); // (a câmera volta onde estava neste mapa, se já esteve nele)
         depois?.();
+        avisarSeMapaFoiReduzido();
+    }
+
+    /** O mapa grande demais para a placa de vídeo deste computador foi REDUZIDO ao carregar: avisa (só a nitidez muda; as colunas, as linhas e as casas continuam as mesmas). */
+    function avisarSeMapaFoiReduzido(): void {
+        const r = mapa.reducao();
+        if (!r) return;
+        aviso.mostrar(`Mapa reduzido de ${r.de.largura}×${r.de.altura} para ${r.para.largura}×${r.para.altura} px para caber na placa de vídeo deste computador. As casas e os tokens não mudam: só a nitidez. Mapas grandes demais pesam no desempenho: recomendamos excluí-los da aba Mapas (o mestre faz isso) e usar uma imagem menor.`, { duracaoMs: 14000 });
     }
 
     /** O MESTRE escolheu um mapa da biblioteca: o pedido leva o tamanho previsto pela imagem (colunas × linhas, como ao escolher um arquivo); o servidor avisa todos com o mapa e o tamanho JUNTOS, e cada navegador troca quando a imagem chegar. */
@@ -1339,6 +1418,13 @@ async function iniciar(): Promise<void> {
             if (!resposta.ok || !corpo || typeof corpo.id !== "string") return dizer(corpo?.erro ?? `O servidor recusou a imagem (erro ${resposta.status}).`, true);
             dizer(`"${corpo.nome}" enviado.`);
             usarMapaDaBiblioteca(corpo);
+            // "Este mapa terá fog?" (pré-selecionado como SIM; pedido do dono): o fog do mapa novo começa todo coberto, e o mestre vai revelando. O pedido vai DEPOIS do `definir_mapa` (o servidor
+            // aplica o tamanho do mapa primeiro, e a máscara nasce do tamanho certo). Cancelar = o mapa fica sem fog (dá para ligar depois, no painel Fog).
+            void confirmacao
+                .perguntar({ titulo: "Este mapa terá fog?", mensagem: `Com fog, "${corpo.nome}" começa todo coberto e os jogadores só veem o que você revelar (e nem recebem as peças e os desenhos sob a névoa).\nCancelar deixa o mapa sem fog; dá para ligar depois no painel "Fog".`, confirmar: "Sim, com fog" })
+                .then((sim) => {
+                    if (sim && rede?.ativa) rede.enviar({ tipo: "fog_ativar", mapa: corpo.id, ativo: true, cobrirTudo: true });
+                });
         } catch {
             dizer("Não foi possível enviar: sem conexão com o servidor.", true);
         }
@@ -1350,6 +1436,55 @@ async function iniciar(): Promise<void> {
         confirmar: () => confirmacao.perguntar({ titulo: "Baixar o backup da campanha?", mensagem: "Será baixado um arquivo .zip com TODOS os dados da campanha: fichas, tokens, grupos, mapas (com as imagens), desenhos e permissões. Pode ser grande.", confirmar: "Baixar backup" }),
         avisar: (texto) => mostrarAvisoDoMapa(texto),
     });
+
+    // O FOG (névoa): a camada fica por cima do mapa, da grade e dos desenhos e por baixo dos tokens (por isso é criada aqui, antes deles). O pincel é uma ferramenta de arrasto, só do mestre.
+    const fog = criarFog(camera, {
+        aoPintar: (tracos) => {
+            if (rede?.ativa) rede.enviar({ tipo: "fog_pintar", tracos }); // (aqui já foi pintado na hora; o servidor guarda e avisa os outros)
+        },
+    });
+    /** Liga ou desliga o fog do mapa (depois de o mestre confirmar). Online, o servidor confirma e avisa; no modo local, é feito aqui (ligar coloca um fog novo, todo coberto; desligar o remove). */
+    function aplicarLigarFog(ativo: boolean): void {
+        if (rede?.ativa) return void rede.enviar({ tipo: "fog_ativar", mapa: estado.mapaId ?? "_", ativo, cobrirTudo: true });
+        estado.fog = { ativo, mascara: ativo ? novaMascara(estado.colunas, estado.linhas, true) : null };
+        if (!ativo && ferramentaAtual.startsWith("fog-")) escolherFerramenta("mover");
+        fog.atualizar();
+        painelFog.atualizar();
+        sincronizarPincelComABarra();
+    }
+    const painelFog = criarPainelFog({
+        aoAlternar: (ativo) => {
+            // Ligar ou desligar o fog muda o que TODOS veem: pede confirmação (pedido do dono, 18/11/2026). Cancelando, a caixinha volta ao que era.
+            const pergunta = ativo
+                ? { titulo: "Ligar o fog neste mapa?", mensagem: "O mapa começa todo coberto: os jogadores só veem o que você revelar (e nem recebem as peças e os desenhos sob a névoa).", confirmar: "Ligar o fog" }
+                : { titulo: "Desligar o fog neste mapa?", mensagem: "Os jogadores passam a ver o mapa, as peças e os desenhos todos.\nAo ligar de novo, o mapa volta todo coberto.", confirmar: "Desligar o fog" };
+            void confirmacao.perguntar(pergunta).then((sim) => (sim ? aplicarLigarFog(ativo) : painelFog.atualizar()));
+        },
+        aoEscolher: (modo) => escolherFerramenta(modo === null ? "mover" : modo === "cobrir" ? "fog-cobrir" : "fog-revelar"),
+        aoEscolherForma: (forma) => fog.definirForma(forma),
+        aoEscolherAlinhamento: (a) => fog.definirAlinhamento(a),
+        aoMudarRaio: (x, y) => fog.definirRaio(x, y),
+    });
+    // Ao ABRIR a barra do Fog (com o fog ligado), o pincel REVELAR já fica escolhido; ao fechá-la, volta a Mover (pedido do dono, 18/11/2026).
+    const caixaDoFog = document.getElementById("fog");
+    let fogEstavaAberto = false;
+    const sincronizarPincelComABarra = (): void => {
+        const aberto = !!caixaDoFog && !caixaDoFog.classList.contains("recolhida");
+        if (aberto && estado.fog.ativo && !ferramentaAtual.startsWith("fog-")) escolherFerramenta("fog-revelar");
+        if (!aberto && fogEstavaAberto && ferramentaAtual.startsWith("fog-")) escolherFerramenta("mover");
+        fogEstavaAberto = aberto;
+    };
+    if (caixaDoFog) new MutationObserver(sincronizarPincelComABarra).observe(caixaDoFog, { attributes: true, attributeFilter: ["class"] });
+    // O contorno do pincel acompanha o mouse ANTES de clicar (o mestre vê o formato e o tamanho que vai pintar).
+    const pontoNoCanvas = (e: PointerEvent): { x: number; y: number } => {
+        const r = app.canvas.getBoundingClientRect();
+        return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+    app.canvas.addEventListener("pointermove", (e) => fog.pairar(pontoNoCanvas(e)));
+    app.canvas.addEventListener("pointerleave", () => fog.pairar(null));
+    // Enquanto o mestre configura o mapa (janela do tabuleiro: colunas, linhas, grade), a névoa some, para ele ver o mapa limpo.
+    const janelaDoTabuleiro = document.getElementById("mapas-tabuleiro");
+    if (janelaDoTabuleiro) new MutationObserver(() => fog.ocultar(!janelaDoTabuleiro.hidden)).observe(janelaDoTabuleiro, { attributes: true, attributeFilter: ["hidden"] });
 
     const tokens = criarTokens(camera, grade, texturas, {
         sobreBolsa: (ponto) => {
@@ -1394,7 +1529,12 @@ async function iniciar(): Promise<void> {
                 // O cartão de baixo continua como sempre ("Remover do tabuleiro" = a confirmação); o MENU ao lado do token oferece o que todos podem receber: dano, cura e condição em área.
                 mostrarAvisoDaSelecao(escolhidos); // (o cartão já está lá desde a seleção; se a pessoa o fechou com um clique, volta)
                 const ancora = tokens.ancoraNaTela(token.id);
-                if (ancora && escolhidos.length <= MAX_TOKENS_ACAO_EM_GRUPO) menuGrupo.abrir(ancora.x + ancora.largura + 8, ancora.y, escolhidos);
+                // Com VÁRIOS selecionados, o mestre também pode ROLAR A INICIATIVA de todos: cada um rola a SUA (a rolagem "Iniciativa" da própria ficha), separada. Só aparece se TODOS têm essa rolagem.
+                const extrasDeVarios =
+                    estado.mestre && escolhidos.every(temIniciativaNaFicha)
+                        ? [{ texto: `Rolar iniciativa (${escolhidos.length})`, dica: "Cada token selecionado rola a iniciativa da própria ficha e entra na ordem de combate", aoClicar: () => escolhidos.forEach((t, i) => window.setTimeout(() => adicionarTokenNaIniciativa(t.id), i * 80)) }]
+                        : [];
+                if (ancora && escolhidos.length <= MAX_TOKENS_ACAO_EM_GRUPO) menuGrupo.abrir(ancora.x + ancora.largura + 8, ancora.y, escolhidos, extrasDeVarios);
                 return;
             }
             menu.abrir(token.id); // (a engrenagem de configuração, em cima do token)
@@ -1410,6 +1550,7 @@ async function iniciar(): Promise<void> {
     const calibragem = criarCalibragem(app, camera, {
         casas: () => painelCalibragem.casas(),
         aoMedir: (colunas, linhas) => painelCalibragem.mostrarMedida(colunas, linhas),
+        aoCancelar: () => painelCalibragem.reiniciarTexto(),
         aoAplicar: (colunas, linhas) => {
             mudarTamanho(colunas, linhas); // limita a MIN/MAX_CASAS
             ligarCalibragem(false); // ao SOLTAR já vale: a calibragem se conclui sozinha (a grade volta na hora; para refazer, ligue "Alinhar mapa" de novo)
@@ -1419,7 +1560,7 @@ async function iniciar(): Promise<void> {
     // A régua fica por cima de tudo (inclusive dos tokens).
     const regua = criarRegua(camera, { aoMedir: (texto) => painelDesenho.mostrarDistancia(texto) });
 
-    ativarInteracao(app, camera, tokens, [calibragem, desenho, regua], {
+    ativarInteracao(app, camera, tokens, [calibragem, desenho, regua, fog], {
         aoClicarNoFundo: () => fecharMenusDoToken(),
         aoIniciarPan: () => {
             fecharMenusDoToken();
@@ -1510,6 +1651,7 @@ async function iniciar(): Promise<void> {
         }
         grade.desenhar(); // 3) a grade se adapta (fundo e cor das linhas dependem de haver mapa)
         barra.atualizar();
+        avisarSeMapaFoiReduzido(); // (por último: o aviso da redução não pode ser coberto pelo da previsão de colunas e linhas)
     }
 
     // O aviso da previsão (o cartão do canto, ver ui/aviso.ts).
@@ -1532,6 +1674,8 @@ async function iniciar(): Promise<void> {
         balao.esconder();
         desenho.definirFerramenta(DE_DESENHO.includes(nome) ? (nome as FerramentaDesenho) : null);
         regua.definirAtiva(nome === "regua");
+        fog.definirModo(nome === "fog-cobrir" ? "cobrir" : nome === "fog-revelar" ? "revelar" : null);
+        painelFog.marcar(nome === "fog-cobrir" ? "cobrir" : nome === "fog-revelar" ? "revelar" : null);
         tokens.definirInterativo(nome === "mover"); // desenhando ou medindo, o arrasto não deve pegar tokens
         app.stage.cursor = nome === "mover" ? "default" : "crosshair";
         painelDesenho.marcar(nome);
@@ -1560,6 +1704,7 @@ async function iniciar(): Promise<void> {
         if (!token) return;
         tokens.redesenhar(token); // 2) desenho: o anel de ícones é refeito
         menu.atualizar(); // o painel marca/desmarca a condição
+        painelIniciativa.atualizar(); // (a iniciativa mostra as condições de cada token)
     }
 
     // Ao abrir, ajusta o zoom para o tabuleiro inteiro caber na janela (em telas
@@ -1571,6 +1716,8 @@ async function iniciar(): Promise<void> {
     guardarVisaoLigado = true;
 
     // O mapa carrega por último: o tabuleiro já aparece e a imagem entra quando chegar.
+    // Online, o mapa é o do SERVIDOR (ele manda no `estado_inicial`): não se carrega o mapa de fábrica antes, senão ele aparece e logo é trocado (a página "piscava").
+    if (new URLSearchParams(location.search).has("online")) definirMapa(null);
     await mapa.carregar();
 
     criarRedimensionadorDaColuna(); // a alça de tamanho da coluna da direita (chat e bolsa)
@@ -1615,6 +1762,7 @@ async function iniciar(): Promise<void> {
                         alvo.condicoes = [...evento.condicoes];
                         tokens.redesenhar(alvo); // os ícones (e o X do Morto) são refeitos
                         menu.atualizar();
+                        painelIniciativa.atualizar(); // (a iniciativa mostra as condições de cada token)
                     }
                     return;
                 }
@@ -1689,13 +1837,16 @@ async function iniciar(): Promise<void> {
                     jogadores.definirPermissoes(evento.permissoes);
                     aplicarPapel();
                     barra.aplicarGradeDaMesa(definirGradeDaMesa(evento.grade)); // a espessura e a cor da grade também são da mesa (depois do `mestre`: os controles dependem dele)
+                    definirPastas(evento.pastas ?? []); // (as PASTAS da bolsa que esta pessoa vê)
                     definirBiblioteca(evento.mapas);
                     void trocarMapa(evento.mapa); // (baixa a imagem e só então a põe; até lá o mapa de antes continua à vista)
+                    mostrarSemPermissao(evento.semPermissao === true);
                     return;
                 }
                 case "mapa_definido": {
                     const depois = depoisDoMapa; // (só quem pediu a troca)
                     depoisDoMapa = null;
+                    mostrarSemPermissao(evento.semPermissao === true);
                     if (evento.grade) barra.aplicarGradeDaMesa(definirGradeDaMesa(evento.grade)); // (cada mapa tem a sua grade: espessura e cor)
                     void trocarMapa(evento.mapa, evento.colunas, evento.linhas, depois);
                     return;
@@ -1718,6 +1869,27 @@ async function iniciar(): Promise<void> {
                 case "grupo_criado":
                     receberGrupo(evento.grupo);
                     bolsa.grupoCriado(evento.grupo);
+                    return;
+                case "fog_definido": {
+                    // O fog do mapa em que estou (a máscara inteira): liga a camada ou a desliga.
+                    const mascara = evento.ativo ? mascaraDoTexto(evento.colunas ?? 0, evento.linhas ?? 0, evento.bits) : null;
+                    estado.fog = { ativo: evento.ativo && mascara !== null, mascara };
+                    if (!estado.fog.ativo && ferramentaAtual.startsWith("fog-")) escolherFerramenta("mover");
+                    fog.atualizar();
+                    painelFog.atualizar();
+                    sincronizarPincelComABarra(); // (o fog acabou de ser ligado com a barra aberta: já escolhe o Revelar)
+                    return;
+                }
+                case "fog_pintado":
+                    fog.aplicarTracos(evento.tracos);
+                    return;
+                case "pasta_definida":
+                    receberPasta(evento.pasta);
+                    atualizarListasDaBolsa();
+                    return;
+                case "pasta_excluida":
+                    estado.pastas = estado.pastas.filter((p) => p.id !== evento.id);
+                    atualizarListasDaBolsa();
                     return;
                 case "grupo_editado":
                     receberGrupo(evento.grupo);
@@ -1847,6 +2019,7 @@ async function iniciar(): Promise<void> {
             aoMudarConexao: (conectada) => {
                 status.mostrarConexao(conectada);
                 if (!conectada) {
+                    document.body.classList.add("mesa-pronta"); // (sem servidor não há estado a esperar: mostra a tela, com o aviso de "sem conexão")
                     bolsa.fichaRecusada("Sem conexão com o servidor. Tente de novo quando voltar.");
                     bolsa.tokenRecusado("Sem conexão com o servidor. Tente de novo quando voltar.");
                     editorFicha.recusada("Sem conexão com o servidor. Tente de novo quando voltar.");
@@ -1881,7 +2054,10 @@ async function iniciar(): Promise<void> {
     }
 
     // O app terminou de montar a interface: o painel de Desenho e o de Dados (cujo conteúdo é criado por aqui) deixam de ficar escondidos.
+    aplicarSeletoresDeCor(); // todos os seletores de cor do site ganham a mesma cara (a caixa com o quadrado de cor, o matiz e o código)
     document.body.classList.add("app-pronta");
+    // Local: a mesa já está pronta (não há servidor a esperar), e a interface aparece de uma vez. Online: espera o `estado_inicial` (ver `aplicarEventoDoServidor`).
+    if (!new URLSearchParams(location.search).has("online")) document.body.classList.add("mesa-pronta");
 
     // SÓ no modo de desenvolvimento (npm run dev; some na versão final): deixa os testes automáticos
     // (tests/e2e) saberem quando a página está pronta e lerem o estado e a câmera direto, em vez de

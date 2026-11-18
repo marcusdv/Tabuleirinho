@@ -4,17 +4,20 @@
 // "Apagar tudo". A marcação e o CSS ficam no index.html.
 // =====================================================================
 
+import { criarSeletorDeCor } from "./seletorDeCor";
 import { COR_INICIAL_DESENHO, CORES_FIXAS_DESENHO, CORES_RECENTES_INICIAIS } from "../config";
 import { estado } from "../estado";
 
-export type NomeFerramenta = "mover" | "regua" | "lapis" | "borracha" | "elipse" | "retangulo" | "triangulo";
+export type NomeFerramenta = "mover" | "regua" | "lapis" | "borracha" | "elipse" | "retangulo" | "triangulo" | "fog-cobrir" | "fog-revelar"; // (os dois "fog-" são os pincéis do painel do Fog)
 
 export interface OpcoesPainelDesenho {
     /** O usuário escolheu uma ferramenta. */
     aoEscolher(ferramenta: NomeFerramenta): void;
     /** O usuário escolheu uma cor (0xRRGGBB). */
     aoMudarCor(cor: number): void;
-    /** O usuário confirmou "Apagar tudo". */
+    /** Mudou o nível de transparência: a opacidade (0.1 a 1) das próximas pinturas. */
+    aoMudarAlfa(alfa: number): void;
+    /** O usuário clicou em "Apagar tudo" (sem confirmação; Ctrl+Z desfaz). */
     aoApagarTudo(): void;
 }
 
@@ -90,9 +93,12 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
     function escolherCor(cor: number): void {
         corAtual = cor;
         seletor.value = corCss(cor);
+        seletorCor.atualizar();
         renderizarAmostras(); // só muda o destaque: escolher NÃO reordena a pilha
         opcoes.aoMudarCor(cor);
     }
+    // O seletor de cor próprio: o NÍVEL DE TRANSPARÊNCIA fica DENTRO da caixa dele (pedido do dono, 18/11/2026). O <input type="color"> continua guardando a cor.
+    const seletorCor = criarSeletorDeCor({ entrada: seletor, alfa: 1, aoMudarAlfa: (alfa) => opcoes.aoMudarAlfa(alfa) });
     seletor.addEventListener("input", () => {
         corAtual = parseInt(seletor.value.slice(1), 16);
         renderizarAmostras();
@@ -110,13 +116,12 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
     }
 
     seletor.value = corCss(corAtual);
+    seletorCor.atualizar();
     renderizarAmostras();
     opcoes.aoMudarCor(corAtual);
 
-    // --- Apagar tudo (pede confirmação: não dá para desfazer) ---
-    apagarTudo.addEventListener("click", () => {
-        if (window.confirm("Apagar todas as pinturas do mapa?")) opcoes.aoApagarTudo();
-    });
+    // --- Apagar tudo: SEM caixa de confirmação (pedido do dono, 17/11/2026); dá para desfazer com Ctrl+Z ---
+    apagarTudo.addEventListener("click", () => opcoes.aoApagarTudo());
 
     // (Abrir e fechar o painel é da PILHA de barras: ver ui/pilha.ts.)
 

@@ -1,0 +1,133 @@
+/* O painel do FOG (4ª barra da pilha da esquerda, só do mestre; ui/painelFog.ts). */
+#fog-ativo-rotulo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+#fog-ativo {
+    margin: 0;
+    accent-color: #ffd54f;
+}
+#fog-botoes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+#fog-botoes .botao-largo {
+    margin: 0;
+}
+#fog-raio {
+    flex: 1;
+    min-width: 0;
+    accent-color: #ffd54f;
+}
+#fog-formas {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+}
+#fog-formas .botao-largo {
+    margin: 0;
+    padding: 4px 0;
+    justify-content: center;
+}
+#fog .conteudo h2 .fog-unidade {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+}
+#fog-raio-valor {
+    color: #ffd54f;
+}
+.fog-raio-linha {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+#fog-raio-menos,
+#fog-altura-menos,
+#fog-altura-mais,
+#fog-raio-mais {
+    width: 26px;
+    height: 26px;
+    flex: none;
+    padding: 0;
+    border: 1px solid #3a3a48;
+    border-radius: 6px;
+    background: #23232d;
+    color: #e6e6ee;
+    font-size: 16px;
+    line-height: 1;
+    cursor: pointer;
+}
+#fog-raio-menos:hover,
+#fog-altura-menos:hover,
+#fog-altura-mais:hover,
+#fog-raio-mais:hover {
+    border-color: #ffd54f;
+}
+#fog-tamanhos {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    margin-top: 6px;
+}
+#fog-tamanhos button {
+    padding: 3px 0;
+    border: 1px solid #3a3a48;
+    border-radius: 6px;
+    background: #23232d;
+    color: #c9c9d4;
+    font-size: 11px;
+    cursor: pointer;
+}
+#fog-tamanhos button:hover {
+    border-color: #ffd54f;
+}
+#fog-tamanhos button.ativo {
+    border-color: #ffd54f;
+    color: #ffd54f;
+}
+#fog-alinhamento {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+}
+#fog-alinhamento .botao-largo {
+    margin: 0;
+}
+#fog-formas button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+#fog-altura {
+    flex: 1;
+    min-width: 0;
+    accent-color: #ffd54f;
+}
+#fog-altura-valor {
+    color: #ffd54f;
+}
+#fog-proporcional {
+    margin: 8px 0 0;
+}
+#fog-previa {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 112px;
+    height: 112px;
+    margin: 0 auto;
+    overflow: hidden;
+    border: 1px solid #3a3a48;
+    border-radius: 8px;
+    background: #17171f;
+}
+#fog-previa-texto {
+    margin-top: 4px;
+    text-align: center;
+    font-size: 11px;
+    color: #9a9aa8;
+}

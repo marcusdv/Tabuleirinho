@@ -10,7 +10,15 @@
     flex: 1 1 auto;
     min-height: 0;
     gap: 8px;
-    overflow-y: auto; /* o painel INTEIRO rola (a lista de mapas e, embaixo, as configurações do tabuleiro) */
+    overflow: hidden; /* a barra do topo (botões e pesquisa) fica FIXA; só a lista rola (#bolsa-mapas-rolagem) */
+}
+#bolsa-mapas-rolagem {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    overflow-y: auto;
 }
 #bolsa-mapas-barra {
     flex: none;
@@ -19,8 +27,7 @@
     gap: 6px;
 }
 #bolsa-mapas-enviar {
-    width: auto;
-    align-self: flex-start;
+    width: 100%; /* (a caixa toda, como os outros botões da barra: "Mover jogadores" e "Configurar o tabuleiro") */
 }
 #bolsa-mapas-aviso {
     margin: 0;
@@ -214,3 +221,34 @@
     left: 8px;
 }
 
+
+/* Na bolsa em TELA CHEIA, as abas Mapas e Jogadores ocupam a LARGURA TODA (antes ficavam presas na 1ª coluna da grade, a de 300 px da criação de token), e os mapas viram uma grade de cartões. */
+#bolsa.expandida #bolsa-mapas,
+#bolsa.expandida #bolsa-jogadores {
+    grid-column: 1 / -1;
+}
+#bolsa.expandida #bolsa-mapas-lista {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    align-content: start;
+    gap: 10px;
+}
+
+/* Em cada cartão de mapa a fileira de botões usa a LARGURA TODA: o menu "Quem vê" estica e o resto fica do tamanho do conteúdo. */
+.bolsa-mapa-acoes .bolsa-mapa-quem {
+    flex: 1 1 auto;
+}
+/* Mapa grande demais (acima de LADO_MAPA_RECOMENDADO): o texto de tamanho fica em âmbar, para chamar a atenção do mestre. */
+.bolsa-mapa.grande-demais .bolsa-mapa-info {
+    color: #ffb74d;
+}
+/* A MINIATURA do mapa no cartão (só o mestre): só a imagem, sem ícones; a proporção vem do próprio mapa (style="aspect-ratio"), com altura máxima. */
+.bolsa-mapa-miniatura {
+    display: block;
+    width: 100%;
+    max-height: 110px;
+    margin-bottom: 4px;
+    object-fit: cover;
+    border-radius: 6px;
+    background: #1d1d25; /* (até a imagem chegar) */
+}

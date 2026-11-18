@@ -8,8 +8,10 @@
 import { MAX_CASAS, MIN_CASAS } from "../config";
 
 export interface OpcoesPainelCalibragem {
-    /** O usuário quer sair da calibragem (botão Concluir ou tecla Esc). */
+    /** O usuário quer sair da calibragem (o botão "Cancelar"). */
     aoConcluir(): void;
+    /** Esc: cancela o 1º clique em andamento (para tentar de novo) ou, sem ele, sai da calibragem. */
+    aoEsc(): void;
 }
 
 export interface PainelCalibragem {
@@ -17,7 +19,9 @@ export interface PainelCalibragem {
     fechar(): void;
     /** Quantas casas (por lado) o retângulo cobre, conforme o campo (sempre um inteiro >= 1). */
     casas(): number;
-    /** Mensagem enquanto o usuário arrasta (valores brutos da medida). */
+    /** Volta ao texto inicial (o 1º clique foi cancelado). */
+    reiniciarTexto(): void;
+    /** Mensagem enquanto o usuário mede, entre o 1º e o 2º clique (valores brutos da medida). */
     mostrarMedida(colunas: number, linhas: number): void;
     /** Mensagem depois de aplicar (valores brutos; os usados já vêm limitados). */
     mostrarAplicado(colunasBrutas: number, linhasBrutas: number, colunas: number, linhas: number): void;
@@ -32,7 +36,7 @@ export function criarPainelCalibragem(opcoes: OpcoesPainelCalibragem): PainelCal
     const campo = pegar<HTMLInputElement>("calibragem-casas");
     const resultado = pegar("calibragem-resultado");
 
-    const TEXTO_INICIAL = "Arraste sobre o mapa.";
+    const TEXTO_INICIAL = "Clique num canto da área e depois no canto oposto.";
 
     function casas(): number {
         const n = Math.floor(Number(campo.value));
@@ -50,9 +54,9 @@ export function criarPainelCalibragem(opcoes: OpcoesPainelCalibragem): PainelCal
     campo.addEventListener("input", () => (eco.textContent = String(casas())));
 
     pegar("calibragem-concluir").addEventListener("click", opcoes.aoConcluir);
-    // Esc também sai (só enquanto o painel está aberto).
+    // Esc: se há um 1º clique em andamento, só o CANCELA (para tentar de novo); senão, sai da calibragem (só enquanto o painel está aberto).
     document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && !painel.hidden) opcoes.aoConcluir();
+        if (e.key === "Escape" && !painel.hidden) opcoes.aoEsc();
     });
 
     return {
@@ -65,12 +69,17 @@ export function criarPainelCalibragem(opcoes: OpcoesPainelCalibragem): PainelCal
         },
         casas,
 
+        /** Volta ao texto inicial (o 1º clique foi cancelado). */
+        reiniciarTexto() {
+            resultado.textContent = TEXTO_INICIAL;
+        },
+
         mostrarMedida(colunas, linhas) {
             resultado.textContent = `Medindo: ${colunas} colunas × ${linhas} linhas${aviso(colunas, linhas)}`;
         },
 
         mostrarAplicado(colunasBrutas, linhasBrutas, colunas, linhas) {
-            resultado.textContent = `Aplicado: ${colunas} colunas × ${linhas} linhas${aviso(colunasBrutas, linhasBrutas)}. Arraste de novo para refazer.`;
+            resultado.textContent = `Aplicado: ${colunas} colunas × ${linhas} linhas${aviso(colunasBrutas, linhasBrutas)}. Clique de novo para refazer.`;
         },
     };
 }

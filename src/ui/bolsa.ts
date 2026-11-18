@@ -35,11 +35,12 @@ import {
     CHAVE_ORDEM_TOKENS,
     MAX_GRUPOS,
 } from "../config";
-import { estado, fichaDeJogador, podeConfigurarToken, podeEditarFicha, podeExcluirFicha, podeExcluirToken, fichaUnicaComVariosTokens, modelosDaFicha, motivoFichaOcupada, quantosModelos, type Ficha, type Grupo, type StatusNovo, type Token } from "../estado";
+import { estado, fichaDeJogador, podeConfigurarToken, podeEditarFicha, podeExcluirFicha, podeExcluirToken, fichaUnicaComVariosTokens, modelosDaFicha, motivoFichaOcupada, quantosModelos, type Ficha, type Grupo, type Pasta, type StatusNovo, type Token } from "../estado";
 import { criarEditorGrupo } from "./editorGrupo";
 import { criarTokensDaFicha } from "./tokensDaFicha";
 import { criarEditorStatus } from "./editorStatus";
 import { corCss, escolherArquivo, marcarEscolhida, montarPaleta, pintarDisco } from "./aparenciaToken";
+import { criarPastasDaBolsa } from "./pastas";
 import { guardarPreferencia, lerPreferencia } from "./preferencias";
 
 /** O que a área "Criar token" pede ao criar. */
@@ -103,9 +104,17 @@ export interface OpcoesBolsa {
     /** "Botar"/"Tirar" na caixa "Tokens da ficha": liga o token à ficha (`idFicha`) ou desfaz a ligação (`null`). Online o servidor confere (ficha única com token = recusa). */
     aoLigarFicha(token: Token, idFicha: number | null): void;
     /** "Compartilhar…" (só o mestre): abre a janela de liberações de um token, uma ficha ou um grupo. */
-    aoCompartilhar(item: "tokens" | "fichas" | "grupos", id: number, nome: string): void;
+    aoCompartilhar(item: "tokens" | "fichas" | "grupos" | "pastas", id: number, nome: string): void;
+    /** PASTAS da bolsa em tela cheia (ver ui/pastas.ts): criar, renomear, pôr dentro de outra, apagar e pôr itens numa pasta. */
+    aoCriarPasta(tipo: "tokens" | "fichas", nome: string, pai: number | null): void;
+    aoRenomearPasta(pasta: Pasta, nome: string): void;
+    aoMoverPasta(pasta: Pasta, pai: number | null): void;
+    aoExcluirPasta(pasta: Pasta): void;
+    aoMoverParaPasta(tipo: "tokens" | "fichas", ids: number[], pasta: number | null): void;
     /** Duplo clique (ou Enter) num token da bolsa: abrir a ficha atribuída a ele (sem ficha, quem trata avisa). */
     aoAbrirFichaDoToken(token: Token): void;
+    /** O botão "recolher" da fichinha: tirar do tabuleiro TODAS as peças deste token (modelo). */
+    aoRecolherPecas(modelo: number): void;
     /**
      * O usuário clicou em "Criar ficha" (a ficha nasce VAZIA, com o arquivo criado na hora). Modo local: devolve a ficha criada (ou null se não coube). Online: o pedido vai ao
      * servidor e devolve "enviada"; a ficha só existe quando o servidor a grava e avisa (`bolsa.fichaSalva`), ou recusa
@@ -171,6 +180,18 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     const bolsa = pegar("bolsa");
     const coluna = pegar("chat"); // a COLUNA da direita (chat e bolsa): a tela cheia escurece o fundo por uma classe dela
     const itens = pegar("bolsa-itens");
+    // Os FILTROS (ordem, favoritos, grupos): na bolsa em TELA CHEIA eles ficam logo ACIMA da grade, nas abas Tokens E Fichas (o mesmo layout nas duas; pedido do dono, 17/11/2026);
+    // na bolsa do canto, no lugar de sempre (o topo).
+    const caixaDeFiltros = pegar("bolsa-organizar");
+    const lugarDoOrganizar = { pai: caixaDeFiltros.parentElement as HTMLElement, depois: caixaDeFiltros.nextSibling };
+    function posicionarOrganizar(): void {
+        const juntoDosTokens = expandida && !bolsa.classList.contains("aba-mapas") && !bolsa.classList.contains("aba-jogadores");
+        // (logo ANTES do aviso de lista vazia, que vem antes da grade: os filtros ficam acima dos dois)
+        const grade = pastas.barra(aba === "fichas" ? "fichas" : "tokens"); // (os filtros ficam logo acima da barra das pastas, que fica acima da grade)
+        if (juntoDosTokens && caixaDeFiltros.nextElementSibling !== grade) grade.before(caixaDeFiltros);
+        else if (!juntoDosTokens && caixaDeFiltros.parentElement !== lugarDoOrganizar.pai) lugarDoOrganizar.pai.insertBefore(caixaDeFiltros, lugarDoOrganizar.depois);
+        caixaDeFiltros.classList.toggle("junto-dos-tokens", juntoDosTokens);
+    }
     const vazia = pegar("bolsa-vazia");
     const botaoGerenciar = pegar<HTMLButtonElement>("bolsa-gerenciar"); // o ⤢ do alto: abre a tela cheia
     const botaoCriarToken = pegar<HTMLButtonElement>("bolsa-criar-token-botao"); // o "+ Criar token" da linha da pesquisa (abre a tela cheia)
@@ -195,6 +216,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     const menuEditar = pegar<HTMLButtonElement>("menu-ficha-editar");
     const menuFichaDoToken = pegar<HTMLButtonElement>("menu-ficha-ficha"); // "Abrir ficha" (se o token tem uma) ou "Criar ficha" (se não tem)
     const menuExcluir = pegar<HTMLButtonElement>("menu-ficha-excluir");
+    const menuRecolher = pegar<HTMLButtonElement>("menu-ficha-recolher"); // "Recolher do tabuleiro": tira as peças deste token que estão NESTE mapa
     const menuDoc = pegar("menu-doc");
     const menuDocAbrir = pegar<HTMLButtonElement>("menu-doc-abrir");
     const menuDocExcluir = pegar<HTMLButtonElement>("menu-doc-excluir");
@@ -203,6 +225,27 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     const menuDocTokens = pegar<HTMLButtonElement>("menu-doc-tokens");
     const fichasVazia = pegar("bolsa-fichas-vazia");
     const listaFichas = pegar("bolsa-fichas-lista");
+    // As PASTAS (só na tela cheia; ver ui/pastas.ts): a barra (caminho + "+ Pasta") fica logo acima de cada grade, antes do aviso de lista vazia.
+    const pastas = criarPastasDaBolsa({
+        aoCriar: (tipo, nome, pai) => opcoes.aoCriarPasta(tipo, nome, pai),
+        aoRenomear: (pasta, nome) => opcoes.aoRenomearPasta(pasta, nome),
+        aoMoverPasta: (pasta, pai) => opcoes.aoMoverPasta(pasta, pai),
+        aoExcluir: (pasta) => opcoes.aoExcluirPasta(pasta),
+        aoMoverItens: (tipo, ids, pasta) => {
+            selecao[tipo].ids = new Set(); // (os itens saem da vista: a seleção deles não fica pendurada)
+            opcoes.aoMoverParaPasta(tipo, ids, pasta);
+        },
+        aoCompartilhar: (pasta) => opcoes.aoCompartilhar("pastas", pasta.id, pasta.nome),
+        ehMestre: () => estado.mestre,
+        aoMudarPasta: () => {
+            atualizar();
+            atualizarFichas();
+        },
+    });
+    pegar("bolsa-vazia").before(pastas.barra("tokens"));
+    fichasVazia.before(pastas.barra("fichas"));
+    /** Os itens que vão junto num arrasto: os selecionados, se este está entre eles; senão, só ele. */
+    const idsDoArrasto = (tipo: "tokens" | "fichas", id: number): number[] => (selecao[tipo].ids.has(id) ? [...selecao[tipo].ids] : [id]);
     const botaoCriarFicha = pegar<HTMLButtonElement>("bolsa-ficha-criar-botao");
     const avisoFicha = pegar("bolsa-ficha-aviso");
     const listaAbas = pegar("bolsa-abas");
@@ -291,8 +334,13 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         const busca = normalizar(campoBusca.value.trim());
         bolsa.classList.toggle("buscando", busca !== ""); // pesquisando, a prévia grande some e os resultados sobem
         const visiveis = organizar(busca === "" ? guardados : guardados.filter((t) => normalizar(`${t.nome} ${t.size}x${t.size}`).includes(busca)), "tokens", (t) => t.ficha !== null && fichaDeJogador(t.ficha)); // (o filtro de fichas únicas: o token pertence a uma ficha única)
-        visiveisTokens = visiveis;
-        vazia.hidden = visiveis.length > 0;
+        // Na TELA CHEIA (e sem pesquisa), só o que está na PASTA aberta, com as pastas dela no começo da grade.
+        const comPastas = expandida && busca === "";
+        const ladrilhos = comPastas ? pastas.ladrilhos("tokens", "div") : [];
+        const naPasta = comPastas ? pastas.filtrar("tokens", visiveis) : visiveis;
+        pastas.atualizarBarra("tokens");
+        visiveisTokens = naPasta;
+        vazia.hidden = naPasta.length > 0 || ladrilhos.length > 0;
         vazia.textContent =
             guardados.length > 0
                 ? busca !== ""
@@ -306,7 +354,8 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         botaoCriar.title = cheia ? `Limite de ${MAX_TOKENS} tokens na mesa` : "";
 
         itens.replaceChildren(
-            ...visiveis.map((token) => {
+            ...ladrilhos,
+            ...naPasta.map((token) => {
                 const ficha = document.createElement("button");
                 ficha.className = "ficha";
                 ficha.dataset.id = String(token.id);
@@ -364,6 +413,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                     if (selecao.tokens.ids.size > 1) abrirMenuSelecao(e.clientX, e.clientY);
                     else abrirMenuFicha(token, e.clientX, e.clientY);
                 });
+                if (comPastas) pastas.ligarArrastoDoItem(ficha, "tokens", () => idsDoArrasto("tokens", token.id)); // (tela cheia: arrastar para uma pasta)
                 return ficha;
             }),
         );
@@ -869,6 +919,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     function aoClicarItem(id: number, e: MouseEvent, abrirItem: () => void): void {
         // O clique que sobra depois de ARRASTAR (um token saindo da bolsa, por exemplo) não é um clique de verdade.
         if (e.detail > 0 && Math.hypot(e.clientX - pontoDoAperto.x, e.clientY - pontoDoAperto.y) > 4) return;
+        if (pastas.engolirClique()) return; // (acabou de soltar o item numa pasta)
         const s = selDaAba();
         // Selecionar VÁRIOS itens (Ctrl, Shift) só vale na bolsa em TELA CHEIA (pedido do dono); na do canto cada clique seleciona um item só.
         const soma = expandida && (e.ctrlKey || e.metaKey);
@@ -931,7 +982,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
      */
     function ligarRetangulo(lista: HTMLElement, seletor: string): void {
         lista.addEventListener("pointerdown", (e) => {
-            if (!expandida || e.button !== 0 || (e.target as HTMLElement).closest(seletor)) return; // só na tela cheia, e só no vazio (os itens têm o clique deles)
+            if (!expandida || e.button !== 0 || (e.target as HTMLElement).closest(`${seletor}, .bolsa-pasta`)) return; // só na tela cheia, e só no vazio (os itens têm o clique deles)
             const caixa = lista.getBoundingClientRect();
             if (e.clientX - caixa.left >= lista.clientWidth) return; // a barra de rolagem é da barra de rolagem
             e.preventDefault(); // sem selecionar texto da página enquanto arrasta
@@ -1020,6 +1071,11 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         // O que a pessoa pode fazer com ESTE token (o servidor confere de novo): sem permissão, o item some do menu (pedido do dono, 17/11/2026).
         const temFicha = token.ficha !== null && estado.fichas.some((f) => f.id === token.ficha);
         menuEditar.hidden = !podeConfigurarToken(token);
+        // "Recolher do tabuleiro": só as peças deste token no mapa em que estou (as de outros mapas ficam); apagado se não há nenhuma aqui.
+        const quantas = estado.tokens.filter((t) => t.copiaDe === token.id && !t.guardado && t.mapa === estado.mapaId).length;
+        menuRecolher.disabled = quantas === 0;
+        menuRecolher.textContent = quantas > 1 ? `Recolher do tabuleiro (${quantas})` : "Recolher do tabuleiro";
+        menuRecolher.title = quantas === 0 ? "Este token não tem peça neste mapa" : `Tira do tabuleiro ${quantas === 1 ? "a peça" : `as ${quantas} peças`} deste token que estão NESTE mapa (as de outros mapas ficam)`;
         menuExcluir.hidden = !podeExcluirToken(token);
         menuFichaDoToken.hidden = !temFicha && !podeConfigurarToken(token); // ("Criar ficha" é configurar o token; "Abrir ficha" qualquer um que vê a ficha)
         for (const id of ["menu-ficha-favorito", "menu-ficha-grupos", "menu-ficha-compartilhar"]) pegar<HTMLButtonElement>(id).hidden = !estado.mestre; // (favoritos, grupos e liberações: do mestre)
@@ -1034,6 +1090,11 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         const token = tokenDoMenu;
         fecharMenuFicha();
         if (token) opcoes.aoEditar(token);
+    });
+    menuRecolher.addEventListener("click", () => {
+        const token = tokenDoMenu;
+        fecharMenuFicha();
+        if (token) opcoes.aoRecolherPecas(token.id);
     });
     menuExcluir.addEventListener("click", () => {
         const token = tokenDoMenu;
@@ -1261,6 +1322,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         aviso.textContent = "";
         atualizar(); // os textos mudam com a bolsa aberta
         atualizarFichas();
+        posicionarOrganizar();
         botaoFechar.focus();
     }
 
@@ -1281,6 +1343,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         campoBuscaFichas.value = "";
         atualizar();
         atualizarFichas();
+        posicionarOrganizar();
         botaoGerenciar.focus();
     }
 
@@ -1307,6 +1370,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         }
         aplicarSelecao(); // a barra de ações e o destaque são da aba aberta
         renderizarChips(); // a ordem e os filtros também são de cada aba
+        posicionarOrganizar();
     }
 
     /**
@@ -1317,6 +1381,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         fecharMenuFicha();
         bolsa.classList.remove("aba-fichas", "aba-mapas", "aba-jogadores");
         bolsa.classList.add(`aba-${qual}`);
+        posicionarOrganizar();
         for (const botao of botoesAba) {
             const ligada = botao.dataset.aba === qual;
             botao.setAttribute("aria-selected", String(ligada));
@@ -1365,12 +1430,17 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         // A pesquisa da aba Fichas (um campo só dela) filtra as fichas pelo nome (ignora maiúsculas e acentos).
         const busca = normalizar(campoBuscaFichas.value.trim());
         const visiveis = organizar(busca === "" ? fichas : fichas.filter((f) => normalizar(f.nome).includes(busca)), "fichas", (f) => ehTokenUnico(f)); // (o filtro de fichas únicas)
-        visiveisFichas = visiveis;
-        fichasVazia.hidden = visiveis.length > 0;
+        const comPastas = expandida && busca === "";
+        const ladrilhos = comPastas ? pastas.ladrilhos("fichas", "li") : [];
+        const naPasta = comPastas ? pastas.filtrar("fichas", visiveis) : visiveis;
+        pastas.atualizarBarra("fichas");
+        visiveisFichas = naPasta;
+        fichasVazia.hidden = naPasta.length > 0 || ladrilhos.length > 0;
         fichasVazia.textContent =
             fichas.length > 0 ? (busca !== "" ? `Nenhuma ficha encontrada para "${campoBuscaFichas.value.trim()}".` : "Nenhuma ficha neste filtro.") : "Nenhuma ficha ainda.";
         listaFichas.replaceChildren(
-            ...visiveis.map((ficha) => {
+            ...ladrilhos,
+            ...naPasta.map((ficha) => {
                 const doc = document.createElement("li");
                 doc.className = "bolsa-doc" + (idsFichasAbertas.includes(ficha.id) ? " aberta" : "");
                 doc.dataset.id = String(ficha.id);
@@ -1444,6 +1514,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                     doc.title += " · ⚠ Ficha única com vários tokens ligados: deixe só um (clique direito: Tokens da ficha)";
                 }
                 doc.title += dicaDosGrupos(ficha);
+                if (comPastas) pastas.ligarArrastoDoItem(doc, "fichas", () => idsDoArrasto("fichas", ficha.id)); // (tela cheia: arrastar para uma pasta)
                 return doc;
             }),
         );
@@ -1574,7 +1645,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     montarPaleta(amostrasBorda, (cor) => {
         corBordaEscolhida = cor;
         atualizarEscolha();
-    }, true); // (a paleta da borda tem "Sem borda")
+    });
     atualizarEscolha();
     atualizar();
     atualizarFichas();

@@ -729,3 +729,11 @@
     margin: 0;
     padding: 0 14px;
 }
+
+/* Os filtros na bolsa em TELA CHEIA, aba Tokens: logo acima da grade de tokens (ui/bolsa.ts os muda de lugar). */
+#bolsa-organizar.junto-dos-tokens {
+    order: 0; /* (no topo ele tem `order: 6`; aqui segue a ordem do HTML: logo antes da grade) */
+    flex: none;
+    margin: 4px 0 10px;
+    flex-wrap: wrap;
+}

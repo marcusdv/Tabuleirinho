@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Tabuleirinho</title>
-      <script type="module" crossorigin src="/assets/index-Cr18j0Li.js"></script>
+      <script type="module" crossorigin src="/assets/index-XG_U0Re7.js"></script>
       <link rel="modulepreload" crossorigin href="/assets/CanvasPool-cZm-qJ09.js">
       <link rel="modulepreload" crossorigin href="/assets/Filter-CBWLFxHX.js">
       <link rel="modulepreload" crossorigin href="/assets/canvasUtils-D8Fc3Bye.js">
@@ -14,7 +14,7 @@
       <link rel="modulepreload" crossorigin href="/assets/getTextureBatchBindGroup-CPM2N5IT.js">
       <link rel="modulepreload" crossorigin href="/assets/GraphicsContext-DtkgRzau.js">
       <link rel="modulepreload" crossorigin href="/assets/getTexelRangeRects-fmak5Y5p.js">
-      <link rel="stylesheet" crossorigin href="/assets/index-SzqTW9Tr.css">
+      <link rel="stylesheet" crossorigin href="/assets/index-BAhUFq0f.css">
     </head>
     <body>
         <div id="app"></div>
@@ -57,7 +57,7 @@
                                 aria-pressed="true"
                                 title="Mover tokens e a visão (Esc)"
                             >
-                                Mover
+                                <span class="ferramenta-icone" aria-hidden="true">✥</span><span class="ferramenta-nome">Mover</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -65,7 +65,7 @@
                                 aria-pressed="false"
                                 title="Medir a distância (1 casa = 1,5 m). Para medir curvas: com o botão esquerdo apertado, clique com o direito para fixar um ponto"
                             >
-                                Régua
+                                <span class="ferramenta-icone" aria-hidden="true">📏</span><span class="ferramenta-nome">Régua</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -73,7 +73,7 @@
                                 aria-pressed="false"
                                 title="Desenhar à mão livre"
                             >
-                                ✎ Lápis
+                                <span class="ferramenta-icone" aria-hidden="true">✎</span><span class="ferramenta-nome">Lápis</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -81,7 +81,7 @@
                                 aria-pressed="false"
                                 title="Apagar o desenho que ela tocar"
                             >
-                                ⌫ Borracha
+                                <span class="ferramenta-icone" aria-hidden="true">⌫</span><span class="ferramenta-nome">Borracha</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -89,7 +89,7 @@
                                 aria-pressed="false"
                                 title="Elipse: arraste de um canto ao oposto da caixa (só contorno)"
                             >
-                                ◯ Elipse
+                                <span class="ferramenta-icone" aria-hidden="true">◯</span><span class="ferramenta-nome">Elipse</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -97,7 +97,7 @@
                                 aria-pressed="false"
                                 title="Retângulo: arraste de um canto ao oposto (só contorno)"
                             >
-                                ▭ Retângulo
+                                <span class="ferramenta-icone" aria-hidden="true">▭</span><span class="ferramenta-nome">Retângulo</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -105,7 +105,7 @@
                                 aria-pressed="false"
                                 title="Triângulo: arraste os cantos da caixa dele (só contorno)"
                             >
-                                △ Triângulo
+                                <span class="ferramenta-icone" aria-hidden="true">△</span><span class="ferramenta-nome">Triângulo</span>
                             </button>
                         </div>
                         <div id="regua-resultado" hidden></div>
@@ -167,6 +167,74 @@
                     </section>
                 </div>
             </aside>
+
+            <!-- O FOG (4ª barra da pilha; SÓ DO MESTRE): liga o fog do mapa, o pincel para cobrir e revelar, o tamanho dele e "cobrir/revelar tudo". Ids usados no ui/painelFog.ts. -->
+            <aside id="fog" class="caixa-pilha so-mestre">
+                <div class="cabecalho">
+                    <h1>Fog</h1>
+                    <button id="fog-alternar" title="Recolher o fog" aria-expanded="true"><span class="seta" aria-hidden="true">▴</span></button>
+                </div>
+                <div class="conteudo">
+                    <section>
+                        <label id="fog-ativo-rotulo" title="Liga a névoa neste mapa: os jogadores só veem o que você revelar (e nem recebem as peças e os desenhos que estão sob o fog)">
+                            <input type="checkbox" id="fog-ativo" /> Fog neste mapa
+                        </label>
+                    </section>
+                    <section id="fog-ferramentas">
+                        <h2>Pincel</h2>
+                        <div id="fog-botoes">
+                            <button type="button" class="botao-largo" data-fog="revelar" aria-pressed="false" title="Pinta para REVELAR o mapa (arraste sobre o tabuleiro; Esc volta a Mover)">Revelar</button>
+                            <button type="button" class="botao-largo" data-fog="cobrir" aria-pressed="false" title="Pinta para COBRIR de novo (arraste sobre o tabuleiro; Esc volta a Mover)">Cobrir</button>
+                        </div>
+                    </section>
+                    <section>
+                        <h2>Prévia</h2>
+                        <div id="fog-previa" title="Como o pincel vai pintar (o formato e as proporções; o tamanho em casas aparece embaixo)"></div>
+                        <div id="fog-previa-texto"></div>
+                    </section>
+                    <section>
+                        <h2>Revelar</h2>
+                        <div id="fog-alinhamento">
+                            <button type="button" class="botao-largo ativo" data-alinhamento="livre" aria-pressed="true" title="Livre: o pincel pinta onde o mouse estiver (com o formato e o tamanho escolhidos)">Livre</button>
+                            <button type="button" class="botao-largo" data-alinhamento="casa" aria-pressed="false" title="Por casa: o pincel cobre casas INTEIRAS da grade, com o formato escolhido (círculo, quadrado ou triângulo) dentro da caixa de casas; o tamanho vira o lado em casas">Por casa</button>
+                            <button type="button" class="botao-largo" data-alinhamento="area" aria-pressed="false" title="Área: aperte, ARRASTE uma caixa sobre o mapa e solte: o formato escolhido (círculo, quadrado ou triângulo) que cabe nela é revelado (ou coberto)">Área</button>
+                        </div>
+                    </section>
+                    <section>
+                        <h2>Formato</h2>
+                        <div id="fog-formas">
+                            <button type="button" class="botao-largo ativo" data-forma="circulo" aria-pressed="true" aria-label="Círculo" title="Pincel redondo"><span class="ferramenta-icone" aria-hidden="true">◯</span></button>
+                            <button type="button" class="botao-largo" data-forma="quadrado" aria-pressed="false" aria-label="Quadrado" title="Pincel quadrado"><span class="ferramenta-icone" aria-hidden="true">▭</span></button>
+                            <button type="button" class="botao-largo" data-forma="triangulo" aria-pressed="false" aria-label="Triângulo" title="Pincel triangular (a ponta para cima)"><span class="ferramenta-icone" aria-hidden="true">△</span></button>
+                        </div>
+                    </section>
+                    <section>
+                        <h2>Largura <span id="fog-raio-valor">2</span> <span class="fog-unidade">casas</span></h2>
+                        <div class="fog-raio-linha">
+                            <button type="button" id="fog-raio-menos" aria-label="Diminuir a largura" title="Diminuir a largura">−</button>
+                            <input type="range" id="fog-raio" min="0.5" max="20" step="0.5" value="2" aria-label="Largura do pincel (metade, em casas)" />
+                            <button type="button" id="fog-raio-mais" aria-label="Aumentar a largura" title="Aumentar a largura">+</button>
+                        </div>
+                        <h2>Altura <span id="fog-altura-valor">2</span> <span class="fog-unidade">casas</span></h2>
+                        <div class="fog-raio-linha">
+                            <button type="button" id="fog-altura-menos" aria-label="Diminuir a altura" title="Diminuir a altura">−</button>
+                            <input type="range" id="fog-altura" min="0.5" max="20" step="0.5" value="2" aria-label="Altura do pincel (metade, em casas)" />
+                            <button type="button" id="fog-altura-mais" aria-label="Aumentar a altura" title="Aumentar a altura">+</button>
+                        </div>
+                        <button type="button" id="fog-proporcional" class="botao-largo ativo" aria-pressed="true" title="Ligado: largura e altura mudam juntas (pincel proporcional). Desligue para escolher cada uma">🔗 Proporcional</button>
+                        <div id="fog-tamanhos">
+                            <button type="button" data-raio="0.5">0,5</button>
+                            <button type="button" data-raio="1">1</button>
+                            <button type="button" data-raio="2">2</button>
+                            <button type="button" data-raio="3">3</button>
+                            <button type="button" data-raio="5">5</button>
+                            <button type="button" data-raio="8">8</button>
+                            <button type="button" data-raio="12">12</button>
+                            <button type="button" data-raio="20">20</button>
+                        </div>
+                    </section>
+                </div>
+            </aside>
         </div>
 
         <!-- A JANELA DO TABULEIRO (colunas, linhas, mapa de fundo, grade): fora da caixa do chat; abre pelo botão ⚙ de cada mapa na aba Mapas (só o mestre). Ids usados no ui/barra.ts e ui/bolsaMapas.ts. -->
@@ -185,7 +253,7 @@
                                 id="colunas-valor"
                                 type="number"
                                 min="5"
-                                max="100"
+                                max="256"
                                 step="1"
                                 value="18"
                                 aria-label="Número de colunas"
@@ -203,7 +271,7 @@
                                 id="linhas-valor"
                                 type="number"
                                 min="5"
-                                max="100"
+                                max="256"
                                 step="1"
                                 value="10"
                                 aria-label="Número de linhas"
@@ -269,7 +337,11 @@
                         </button>
                     </section>
             </div>
+            <button id="mapas-tabuleiro-ok" type="button" class="botao-largo" title="Fechar as configurações do tabuleiro">OK</button>
         </div>
+
+        <!-- A FAIXA de "sem permissão": fica FIXA no alto do tabuleiro enquanto o mestre deixar esta pessoa num mapa que ela não pode ver (main.ts). -->
+        <div id="aviso-sem-permissao" role="status" hidden>🔒 Você não tem permissão para ver este mapa. Aguarde o mestre.</div>
 
         <!-- A COLUNA da direita (altura toda): no alto, as ABAS "Chat" e "Bolsa"; embaixo, o painel da aba escolhida. O chat e a bolsa têm o MESMO tamanho
              (o da coluna). A classe `aba-bolsa` do #chat diz qual está à vista. Ids usados no ui/lateral.ts, ui/chat.ts e ui/bolsa.ts. -->
@@ -397,10 +469,14 @@
                         <button id="bolsa-mapas-mover" type="button" class="botao-largo so-mestre" hidden title="Leva todos os jogadores para o mapa em que você está agora">Mover jogadores para este mapa</button>
                         <button id="bolsa-mapas-configurar" type="button" class="botao-largo so-mestre" hidden title="Abre as configurações do tabuleiro (colunas, linhas, mapa de fundo, grade)">⚙ Configurar o tabuleiro</button>
                         <input type="file" id="bolsa-mapas-arquivo" accept="image/png,image/jpeg,image/webp" hidden />
+                        <input type="search" id="bolsa-mapas-busca" placeholder="Pesquisar mapa…" aria-label="Pesquisar mapa" autocomplete="off" hidden />
                         <p id="bolsa-mapas-aviso" aria-live="polite"></p>
                     </div>
-                    <p id="bolsa-mapas-explicacao"></p>
-                    <ul id="bolsa-mapas-lista"></ul>
+                    <!-- SÓ ESTA parte rola (a barra de cima, com os botões e a pesquisa, fica FIXA no topo): com muitos mapas, a lista rola sozinha. -->
+                    <div id="bolsa-mapas-rolagem">
+                        <p id="bolsa-mapas-explicacao"></p>
+                        <ul id="bolsa-mapas-lista"></ul>
+                    </div>
                 </section>
                 <!-- Aba JOGADORES (só do mestre): quem está na mesa, o papel de cada um e a configuração da mesa (limites por jogador). Ids usados no ui/jogadores.ts. -->
                 <section id="bolsa-jogadores" role="tabpanel" aria-label="Jogadores" aria-labelledby="bolsa-aba-jogadores">
@@ -462,7 +538,7 @@
             <div
                 id="painel-calibragem"
                 hidden
-                title="Dica: o botão direito (ou o do meio) do mouse move a visão enquanto você calibra."
+                title="Dica: clique num canto da área e depois no canto oposto. O botão direito ou o Esc cancela o 1º clique para tentar de novo; o botão do meio move a visão."
             >
                 <h2>Alinhar mapa</h2>
                 <p>
@@ -503,6 +579,7 @@
         <!-- Menu do clique direito numa ficha da bolsa. Ids usados no ui/bolsa.ts. -->
         <div id="menu-ficha" hidden role="menu">
             <button id="menu-ficha-editar" role="menuitem">Editar token…</button>
+            <button id="menu-ficha-recolher" role="menuitem">Recolher do tabuleiro</button>
             <button id="menu-ficha-ficha" role="menuitem">Criar ficha</button>
             <button id="menu-ficha-favorito" role="menuitem">Favoritar</button>
             <button id="menu-ficha-grupos" role="menuitem">Grupos…</button>
@@ -637,9 +714,9 @@
         <div id="editor-imagem" hidden role="dialog" aria-modal="true" aria-labelledby="editor-imagem-titulo">
             <div class="editor-imagem-painel">
                 <h3 id="editor-imagem-titulo">Recortar imagem</h3>
-                <p class="editor-imagem-ajuda">Arraste a imagem para posicionar e use a roda do mouse (ou o controle) para o zoom: afaste para mostrar a imagem inteira, aproxime para focar num detalhe. O que ficar dentro do círculo vira o token, e o espaço vazio herda a cor de preenchimento.</p>
+                <p class="editor-imagem-ajuda">Arraste a imagem para posicionar e use a roda do mouse (ou o controle) para o zoom: aproxime para focar num detalhe. O que ficar dentro do círculo vira o token (a imagem sempre preenche o círculo inteiro, até a borda).</p>
                 <canvas id="editor-imagem-tela"></canvas>
-                <label class="editor-imagem-zoom">Zoom <input type="range" id="editor-imagem-zoom" min="0.2" max="6" step="0.01" value="1" /></label>
+                <label class="editor-imagem-zoom">Zoom <input type="range" id="editor-imagem-zoom" min="1" max="6" step="0.01" value="1" /></label>
                 <p id="editor-imagem-aviso" aria-live="polite"></p>
                 <div class="editor-imagem-botoes">
                     <button id="editor-imagem-cancelar">Cancelar</button>
@@ -994,10 +1071,11 @@ Dano: <span class="trecho cartao-formula">[8d6]</span> de fogo (metade se passar
                     if (el) el.classList.add("recolhido");
                 }
                 // A PILHA de barras (ui/pilha.ts): a ordem guardada (`order` do CSS) e quais gavetas estavam abertas (sem escolha guardada: nenhuma).
-                var padraoPilha = ["ferramentas-desenho", "iniciativa"];
+                var padraoPilha = ["ferramentas-desenho", "iniciativa", "fog"];
                 var barrasPilha = {
                     "ferramentas-desenho": { chave: "tabuleirinho.desenho.recolhido", seta: "#desenho-alternar" },
                     iniciativa: { chave: "tabuleirinho.iniciativa.recolhida", seta: "#iniciativa-alternar" },
+                    fog: { chave: "tabuleirinho.fog.recolhido", seta: "#fog-alternar" },
                 };
                 var guardadaPilha = (ler("tabuleirinho.pilha.ordem") || "").split(",");
                 var ordemPilha = guardadaPilha.length === padraoPilha.length && padraoPilha.every(function (id) { return guardadaPilha.indexOf(id) >= 0; }) ? guardadaPilha : padraoPilha;
@@ -1015,6 +1093,9 @@ Dano: <span class="trecho cartao-formula">[8d6]</span> de fogo (metade se passar
                 });
                 // Libera os painéis escondidos até o app montar (ver o CSS "app-pronta"), mesmo se o app falhar.
                 setTimeout(function () { document.body.classList.add("app-pronta"); }, 3000);
+                // A interface toda fica ESCONDIDA (só o fundo escuro) até a mesa estar pronta (ver o CSS "mesa-pronta": modo local = o app montou; online = o servidor mandou o estado inicial),
+                // para a página não "piscar" nem pular enquanto carrega. Se algo travar ou o servidor não responder, este limite de tempo mostra a tela mesmo assim.
+                setTimeout(function () { document.body.classList.add("mesa-pronta"); }, 4000);
                 marcar("bolsa", "aba-fichas", ler("tabuleirinho.bolsa.aba") === "fichas");
                 // A aba da coluna da direita ("Chat" ou "Bolsa"): sem escolha guardada, a BOLSA (a mesma regra do src/ui/lateral.ts).
                 var abaLateral = ler("tabuleirinho.lateral.aba") === "chat" ? "chat" : "bolsa";

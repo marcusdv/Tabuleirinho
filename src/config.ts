@@ -7,6 +7,7 @@
 export const CHAVE_VISOES = "tabuleirinho.camera.visoes"; // JSON { [id do mapa]: { z: zoom, x, y } }: o zoom e a posição da câmera em cada mapa, para voltar como estava
 export const CHAVE_ABA_BOLSA = "tabuleirinho.bolsa.aba"; // "tokens" ou "fichas": a última aba escolhida na bolsa
 export const CHAVE_INICIATIVA_RECOLHIDA = "tabuleirinho.iniciativa.recolhida"; // "1" = a gaveta da Iniciativa está recolhida
+export const CHAVE_FOG_RECOLHIDO = "tabuleirinho.fog.recolhido"; // "1" = a gaveta do Fog está recolhida
 // --- INICIATIVA (a ordem de combate; ver iniciativa.ts) ---
 export const MAX_ENTRADAS_INICIATIVA = 60; // quantos personagens cabem na ordem
 export const MAX_CARACTERES_NOME_INICIATIVA = 24; // o nome de uma entrada (de uma pessoa temporária ou de um token)
@@ -43,7 +44,7 @@ export const TAMANHO_CASA = 64; // lado de cada casa, em pixels (no zoom 100%)
 // Limites do tamanho do tabuleiro (em casas) pela barra de ferramentas.
 // O mínimo tem que ser >= TAMANHO_MAX_TOKEN, senão um token não caberia.
 export const MIN_CASAS = 5;
-export const MAX_CASAS = 100;
+export const MAX_CASAS = 256; // (era 100; pedido do dono, 18/11/2026: mapas de até 12600 px cabem com casas de 50 px = 252 casas)
 
 // --- PREVER colunas e linhas de um mapa pelo TAMANHO da imagem (coordenadas.ts: `preverGrade`) ---
 // Muitos mapas prontos são feitos com um número FIXO de pixels por quadrado (70 px é o padrão do Roll20, 50 e 100 px também são comuns). Se a largura e a
@@ -53,6 +54,7 @@ export const TOLERANCIA_PX_GRADE = 2; // quantos pixels a imagem pode "sobrar/fa
 export const TEMPO_AVISO_MAPA_MS = 9000; // quanto tempo o aviso da previsão fica na tela
 // --- Ajustes da GRADE (barra "Tabuleiro": mostrar/esconder, espessura da linha e cor). Online, a ESPESSURA e a COR são da MESA (vêm do servidor, `dados/mesa.json`; só o mestre muda); "mostrar/esconder" é de cada pessoa. Sem servidor, tudo fica no navegador. Depois serão da CENA. ---
 export const CHAVE_GRADE = "tabuleirinho.grade"; // JSON no navegador: { mostrar, espessura, cor } (online só o `mostrar` vale; o resto vem do servidor)
+export const ALFA_GRADE_PADRAO = 0.85; // opacidade da linha da grade quando a pessoa escolhe a COR (1 = opaco; o "nível de transparência" do seletor de cor da grade muda isto)
 export const ESPESSURA_GRADE_PADRAO = 1; // px NA TELA (a linha é desenhada com a espessura dividida pelo zoom, então não muda ao dar zoom)
 export const ESPESSURA_GRADE_MIN = 0; // 0 px = SEM grade (pedido do dono: para quem prefere jogar sem as linhas)
 export const ESPESSURA_GRADE_MAX = 4;
@@ -74,12 +76,12 @@ export const ESPESSURA_DESENHO = 4; // espessura do traço, em pixels do MUNDO (
 export const RAIO_BORRACHA = 14; // raio da borracha, em pixels de TELA (não muda com o zoom)
 export const DISTANCIA_MIN_PONTO = 3; // o lápis só grava um novo ponto a cada tantos pixels do mundo
 export const TAMANHO_MIN_FORMA = 6; // formas menores que isto (pixels do mundo) são cliques e não viram desenho
-export const COR_INICIAL_DESENHO = 0xff5252;
+export const COR_INICIAL_DESENHO = 0xff5a5f; // (paleta viva de 17/11/2026: coral-vermelho)
 // Cores prontas do painel de desenho (além do seletor de cor livre).
 // As amostras são: uma PILHA das últimas cores usadas (a mais recente primeiro), que começa com estas,
 // seguida de duas cores FIXAS (branco e preto). A pilha tem sempre o mesmo tamanho: ao entrar uma
 // cor nova, a mais antiga sai.
-export const CORES_RECENTES_INICIAIS = [0xff5252, 0xff9800, 0xffd54f, 0x4caf50, 0x29b6f6, 0x7e57c2];
+export const CORES_RECENTES_INICIAIS = [0xff5a5f, 0xff9f43, 0xffd23f, 0x7ed957, 0x3ec7e0, 0x9b7bff]; // (cores vivas, que aparecem bem sobre o mapa; pedido do dono, 17/11/2026)
 export const CORES_FIXAS_DESENHO = [0xffffff, 0x000000];
 
 // --- Chat ---
@@ -143,9 +145,9 @@ export const MAX_CARACTERES_NOME_STATUS = 12;
 /** O status que todo token novo tem: a barra de vida "HP", que lê a variável PV:: da ficha atribuída ao token. */
 export const STATUS_PADRAO_NOME = "HP";
 export const STATUS_PADRAO_VARIAVEL = "PV";
-export const COR_STATUS_HP = 0x2ecc71;
+export const COR_STATUS_HP = 0x4cd17a;
 /** As cores oferecidas ao criar um status novo (a próxima que ainda não está em uso). */
-export const CORES_STATUS = [0x2ecc71, 0x3498db, 0xe67e22, 0x9b59b6, 0xf1c40f, 0xe74c3c];
+export const CORES_STATUS = [0x4cd17a, 0x4f8cff, 0xff9f43, 0xb05ce8, 0xf5b83d, 0xe5484d];
 /** A barra no tabuleiro: altura e vão entre uma barra e a próxima (em pixels do mundo, antes do zoom). */
 export const ALTURA_BARRA_STATUS = 8; // barras FINAS (já foram 14 e 10; pedido do dono): o número "100/100" ainda cabe DENTRO dela, com a letra pequena
 export const TAMANHO_NUMERO_BARRA = 13; // tamanho da letra do número e do nome da barra (era 16; o texto é feito com o dobro e reduzido à metade, então fica nítido)
@@ -181,12 +183,17 @@ export const MS_RECARGA_ROLAGEM = 1000; // ...e depois vale 1 rolagem a cada tan
 export const RAJADA_CHAT = 5; // quantas mensagens de chat de uma vez...
 export const MS_RECARGA_CHAT = 2000; // ...e depois vale 1 mensagem a cada tanto
 export const MAX_GRUPOS = 50; // quantos grupos (de tokens e fichas) a mesa aceita
+export const MAX_PASTAS = 300; // quantas PASTAS (de tokens e de fichas, somadas) a mesa aceita
+export const MAX_CARACTERES_NOME_PASTA = 40;
+export const TAMANHO_MAX_ARQUIVO_PASTA = 4 * 1024; // bytes: o arquivo de uma pasta é pequeno (id, nome, tipo, pai)
 export const MAX_CARACTERES_NOME_GRUPO = 20; // nome do grupo (aparado e cortado a isto)
-export const COR_INICIAL_GRUPO = 0x3498db; // a cor sugerida ao criar um grupo (as amostras são as de CORES_TOKEN)
+export const COR_INICIAL_GRUPO = 0x4f8cff; // a cor sugerida ao criar um grupo (as amostras são as de CORES_TOKEN)
 export const TAMANHO_MAX_ARQUIVO_GRUPO = 4096; // bytes: ao ligar, o servidor ignora arquivos de grupo maiores que isto
 // --- A BIBLIOTECA DE MAPAS (imagens que o MESTRE envia ao servidor; todos veem o mapa atual) ---
-export const MAX_BYTES_MAPA = 10 * 1024 * 1024; // bytes: o servidor RECUSA uma imagem de mapa maior que isto (10 MB), antes mesmo de lê-la inteira
-export const MAX_LADO_MAPA = 8192; // pixels: o lado maior de um mapa (lido no cabeçalho da imagem); acima disto muitas placas de vídeo não conseguem desenhar a textura, e uma imagem pequena em bytes pode ter bilhões de pixels
+export const MAX_BYTES_MAPA = 20 * 1024 * 1024; // bytes: o servidor RECUSA uma imagem de mapa maior que isto (20 MB; antes 10 MB, pedido do dono, 18/11/2026), antes mesmo de lê-la inteira
+export const LADO_MAPA_RECOMENDADO = 8192; // pixels: acima disto o mapa é "grande demais": muitas placas de vídeo o reduzem e ele pesa no desempenho; a aba Mapas recomenda excluir (só um aviso, o limite de verdade é o de baixo)
+export const LADO_MINIATURA_MAPA = 320; // pixels: o maior lado da miniatura de um mapa na aba Mapas (só o mestre a vê; o navegador a gera reduzindo a imagem que baixou)
+export const MAX_LADO_MAPA = 12600; // pixels: o lado maior de um mapa (lido no cabeçalho da imagem); acima disto muitas placas de vídeo não conseguem desenhar a textura, e uma imagem pequena em bytes pode ter bilhões de pixels
 export const MAX_MAPAS = 40; // quantos mapas a biblioteca guarda
 export const MAX_BYTES_TOTAL_MAPAS = 400 * 1024 * 1024; // bytes: a soma de todos os mapas guardados (o disco do dono do servidor não enche por abuso)
 export const MAX_CARACTERES_NOME_MAPA = 40; // o nome que se dá a um mapa (só texto)
@@ -221,23 +228,22 @@ export const QUALIDADE_IMAGEM_TOKEN = 0.85; // qualidade do WebP (0 a 1): menor 
 export const MAX_CARACTERES_IMAGEM_TOKEN = 150_000; // tamanho máximo do texto da miniatura ("data:image/webp;base64,...")
 export const LARGURA_BORDA_TOKEN = 3; // espessura (px) da borda do token (a mesma com ou sem imagem)
 export const COR_BORDA_INICIAL_TOKEN = 0xffffff; // cor da borda marcada ao abrir a bolsa (branco, como sempre foi)
-/** O valor especial de `corBorda` que quer dizer "SEM BORDA" (pedido do dono, 17/11/2026): o token é desenhado sem o contorno. */
-export const SEM_BORDA = -1;
-export const LADO_MAX_EDICAO_IMAGEM = 2048; // fotos maiores são reduzidas ao abrir o editor (poupa memória)
+export const LADO_MAX_EDICAO_IMAGEM = 2450; // fotos maiores são reduzidas ao abrir o editor (poupa memória)
 export const VISAO_RECORTE = 320; // lado (px) da área do editor de recorte
 export const DIAMETRO_RECORTE = 280; // diâmetro (px) do círculo de recorte dentro dessa área
 // Zoom do recorte: 1 = a imagem mal cobre o círculo. Abaixo de 1 a imagem fica MENOR que o círculo (sobra espaço
 // vazio em volta, que sai transparente e herda o preenchimento do token); acima de 1 aproxima.
-export const ZOOM_MIN_RECORTE = 0.2;
+export const ZOOM_MIN_RECORTE = 1; // (era 0.2: afastar deixava a imagem MENOR que o círculo, com uma moldura da cor do token; agora a imagem sempre PREENCHE o token até a borda, pedido do dono, 17/11/2026)
 export const ZOOM_MAX_RECORTE = 6;
 
 // --- Bolsa expandida: criação de tokens ---
-// Paleta de cores do token: as coloridas primeiro; branco e preto, fixos, por último.
+// Paleta de cores do token (e dos grupos): cores VIVAS e harmônicas (pedido do dono, 17/11/2026: "cores mais interessantes"): carmim, coral, âmbar, lima, esmeralda, turquesa,
+// azul, índigo, violeta e magenta; branco e grafite, fixos, por último.
 export const CORES_TOKEN = [
-    0xe74c3c, 0xf39c12, 0xf1c40f, 0x2ecc71, 0x1abc9c, 0x3498db,
-    0x9b59b6, 0xf098fb, 0x8d6e63, 0x95a5a6, 0xffffff, 0x000000,
+    0xe5484d, 0xff7a45, 0xf5b83d, 0x9bd448, 0x2fc28a, 0x1fb5c9,
+    0x4f8cff, 0x7c6cf6, 0xb05ce8, 0xf06aa8, 0xffffff, 0x1f2430,
 ];
-export const COR_INICIAL_TOKEN = 0x3498db; // cor marcada ao abrir a bolsa
+export const COR_INICIAL_TOKEN = 0x4f8cff; // cor marcada ao abrir a bolsa (azul)
 export const TAMANHO_INICIAL_TOKEN = 1; // tamanho marcado ao abrir a bolsa (1 = 1×1)
 
 // --- Ícones de condições (desenhados em anel na borda do token) ---

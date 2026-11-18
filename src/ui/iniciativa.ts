@@ -17,6 +17,7 @@ import { VALOR_MAX_INICIATIVA } from "../config";
 import { buscarToken } from "../estado";
 import { iniciativa, type AcaoDaIniciativa } from "../iniciativa";
 import { pintarDisco } from "./aparenciaToken";
+import { CONDICOES, urlDoIcone } from "../condicoes";
 
 export interface OpcoesIniciativa {
     /** A pessoa pediu uma ação na ordem de combate (o `main.ts` manda ao servidor, ou aplica aqui no modo local). */
@@ -65,6 +66,7 @@ export function criarIniciativa(opcoes: OpcoesIniciativa): PainelIniciativa {
     const botaoCancelar = pegar<HTMLButtonElement>("modal-iniciativa-cancelar");
     let abrirNaProxima: "nome" | "valor" | null = null; // o próximo personagem que aparecer abre a janelinha de edição com o foco neste campo
     let idsAntes = new Set<number>();
+    let vezAntes: number | null = null; // (para a lista ROLAR até quem tem a vez, quando ela muda)
     let idDoMenu: number | null = null;
     let idEmEdicao: number | null = null;
 
@@ -279,11 +281,27 @@ export function criarIniciativa(opcoes: OpcoesIniciativa): PainelIniciativa {
                 e.preventDefault();
                 abrirMenu(entrada.id, e.clientX, e.clientY);
             });
-            item.append(disco, nome, valor);
+            // As CONDIÇÕES do token (os mesmos ícones do tabuleiro), ao lado do nome; o nome da condição fica na dica do mouse do ícone (pedido do dono, 17/11/2026).
+            const condicoes = document.createElement("span");
+            condicoes.className = "iniciativa-condicoes";
+            for (const id of token?.condicoes ?? []) {
+                const icone = document.createElement("img");
+                icone.src = urlDoIcone(id);
+                icone.alt = "";
+                icone.draggable = false;
+                icone.title = CONDICOES.find((c) => c.id === id)?.nome ?? id;
+                condicoes.append(icone);
+            }
+            item.append(disco, nome, condicoes, valor);
             ligarArrasto(item, entrada.id);
             novos.push(item);
         });
         lista.replaceChildren(...novos);
+        // A VEZ mudou (Próximo turno, Retornar): a lista rola até quem tem a vez agora, para ele ficar à vista (pedido do dono, 17/11/2026).
+        if (iniciativa.vez !== vezAntes) {
+            vezAntes = iniciativa.vez;
+            lista.querySelector<HTMLElement>(".iniciativa-item.vez")?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+        }
         // Acabou de acrescentar alguém ("+ Criatura", "Adicionar à iniciativa"): a janelinha de edição dele abre, com o foco no campo certo.
         if (abrirNaProxima) {
             const novo = iniciativa.entradas.find((e) => !idsAntes.has(e.id));

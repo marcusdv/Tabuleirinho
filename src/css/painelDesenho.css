@@ -33,12 +33,12 @@
 #lista-ferramentas .botao-largo {
     margin: 0;
     height: 28px;
-    text-align: left;
     padding: 0 10px;
 }
 #desenho-amostras {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
+    padding: 0 3px;
     gap: 6px;
 }
 .amostra {
@@ -46,7 +46,7 @@
     border-radius: 5px;
     padding: 0;
     cursor: pointer;
-    border: 1px solid #5a5a68;
+    border: 0px solid #5a5a68;
 }
 .amostra.escolhida {
     outline: 2px solid #ffd54f;
@@ -67,6 +67,9 @@
     font-size: 12px;
     color: #ffd54f;
 }
+#desenho-amostras + .seletor-cor-botao {
+    margin-top: 8px; /* a barra de "outra cor" respira em relação às amostras */
+}
 #desenho-apagar-tudo {
     margin-top: 0;
     border-color: #7a3a3a;
@@ -76,3 +79,24 @@
     background: #4a2a2a;
 }
 
+/* As FERRAMENTAS em GRADE DE ÍCONES (pedido do dono, 17/11/2026: o painel ficava alto demais com 7 botões em fila): só o símbolo de cada uma; o nome continua na dica do
+   mouse (title) e para leitores de tela (o texto fica escondido só na tela). */
+#lista-ferramentas {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+}
+#lista-ferramentas .botao-largo {
+    margin: 0;
+    height: 32px;
+    padding: 0;
+    font-size: 16px;
+}
+#lista-ferramentas .ferramenta-nome {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}

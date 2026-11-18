@@ -8,7 +8,7 @@ const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 800 } });
 const erros = [];
 p.on("pageerror", (e) => erros.push(String(e)));
-p.on("dialog", (d) => d.accept()); // (o "Apagar tudo" pergunta antes)
+p.on("dialog", (d) => d.accept()); // (o "Apagar tudo" já NÃO pergunta; fica por garantia)
 await abrirPagina(p, "", { gaveta: "desenho" });
 await recolherDados(p);
 

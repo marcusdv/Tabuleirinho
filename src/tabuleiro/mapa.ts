@@ -27,8 +27,10 @@ export interface Mapa {
      * Devolve null se deu certo, ou o texto do problema (e o mapa atual continua).
      */
     carregarArquivo(arquivo: File): Promise<string | null>;
-    /** O tamanho ORIGINAL (em pixels) da imagem carregada agora, ou null se não há mapa. */
+    /** O tamanho ORIGINAL (em pixels) da imagem carregada agora, ou null se não há mapa. (Mesmo que a imagem tenha sido REDUZIDA para caber na placa de vídeo, o tamanho dito aqui é o do arquivo.) */
     tamanhoDaImagem(): { largura: number; altura: number } | null;
+    /** Se a imagem do mapa atual foi REDUZIDA porque a placa de vídeo deste computador não aceita uma textura tão grande: de que tamanho para qual (senão, null). */
+    reducao(): { de: { largura: number; altura: number }; para: { largura: number; altura: number } } | null;
 }
 
 /**
@@ -39,6 +41,25 @@ export interface Mapa {
 function limiteDeTextura(): number {
     const gl = document.createElement("canvas").getContext("webgl");
     return gl ? (gl.getParameter(gl.MAX_TEXTURE_SIZE) as number) : 4096;
+}
+
+/**
+ * Se a imagem é maior do que a placa de vídeo deste computador aceita como textura, devolve uma cópia REDUZIDA (mesma proporção; o maior lado = o limite da placa); senão, null.
+ * Só a nitidez muda: o mapa é esticado sobre o tabuleiro inteiro, então as colunas, as linhas e as casas continuam as mesmas.
+ */
+function reduzirParaAPlaca(textura: Texture): Texture | null {
+    const limite = limiteDeTextura();
+    const maior = Math.max(textura.width, textura.height);
+    if (maior <= limite) return null;
+    const fator = limite / maior;
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.floor(textura.width * fator));
+    canvas.height = Math.max(1, Math.floor(textura.height * fator));
+    const contexto = canvas.getContext("2d");
+    if (!contexto) return null;
+    contexto.imageSmoothingQuality = "high";
+    contexto.drawImage(textura.source.resource as CanvasImageSource, 0, 0, canvas.width, canvas.height);
+    return Texture.from(canvas);
 }
 
 export function criarMapa(camera: Camera): Mapa {
@@ -54,6 +75,26 @@ export function criarMapa(camera: Camera): Mapa {
         // é isso que faz a imagem acompanhar o tabuleiro.
         imagem.width = estado.colunas * TAMANHO_CASA;
         imagem.height = estado.linhas * TAMANHO_CASA;
+    }
+
+    let tamanhoOriginal: { largura: number; altura: number } | null = null; // o tamanho do ARQUIVO da imagem de agora (antes de qualquer redução)
+    let reduzida: ReturnType<Mapa["reducao"]> = null;
+    let texturaReduzida: Texture | null = null; // a cópia reduzida de agora (é nossa: precisa ser destruída ao trocar)
+
+    /** Põe `textura` (já carregada de `url`) no mapa, reduzindo-a antes se a placa de vídeo não a aceitar. Devolve a textura que ficou em uso. */
+    async function usarTextura(textura: Texture, url: string): Promise<Texture> {
+        const original = { largura: textura.width, altura: textura.height };
+        const menor = reduzirParaAPlaca(textura);
+        const usar = menor ?? textura;
+        if (menor) await Assets.unload(url).catch(() => undefined); // (o original enorme sai da memória: só a cópia reduzida fica)
+        usar.source.autoGenerateMipmaps = true; // (mipmaps: sem eles a imagem serrilha quando o zoom a reduz bastante)
+        imagem.texture = usar;
+        const anterior = texturaReduzida;
+        texturaReduzida = menor;
+        anterior?.destroy(true);
+        tamanhoOriginal = original;
+        reduzida = menor ? { de: original, para: { largura: menor.width, altura: menor.height } } : null;
+        return usar;
     }
 
     let urlDaBiblioteca: string | null = null; // o mapa da biblioteca que está carregado agora (para liberar o anterior ao trocar)
@@ -72,14 +113,13 @@ export function criarMapa(camera: Camera): Mapa {
             // O endereço de um mapa da biblioteca (/mapas/<id>) não tem extensão (.png): diz-se ao PixiJS qual leitor usar. Enquanto a imagem nova baixa, a antiga continua à vista.
             const textura = await Assets.load<Texture>(/\.(png|jpe?g|webp)$/i.test(url) ? url : { src: url, loadParser: "loadTextures" });
             if (!aindaVale()) return false; // (outra troca chegou enquanto esta baixava: esta já não vale)
-            // Mipmaps: sem eles a imagem serrilha quando o zoom a reduz bastante.
-            textura.source.autoGenerateMipmaps = true;
-            imagem.texture = textura;
+            const antes = urlDaBiblioteca;
+            const reduziu = (await usarTextura(textura, url)) !== textura; // (a imagem grande demais para a placa de vídeo é reduzida aqui)
             ajustar();
             imagem.visible = true;
-            // A imagem de um mapa anterior da biblioteca (até 10 MB) sai da memória da placa de vídeo.
-            if (urlDaBiblioteca !== null && urlDaBiblioteca !== url) await Assets.unload(urlDaBiblioteca).catch(() => undefined);
-            urlDaBiblioteca = url.startsWith("/mapas/") ? url : null;
+            // A imagem de um mapa anterior da biblioteca (até 20 MB) sai da memória da placa de vídeo.
+            if (antes !== null && antes !== url) await Assets.unload(antes).catch(() => undefined);
+            urlDaBiblioteca = url.startsWith("/mapas/") && !reduziu ? url : null;
             return true;
         } catch (erro) {
             // Imagem faltando não deve impedir o tabuleiro de abrir.
@@ -100,19 +140,11 @@ export function criarMapa(camera: Camera): Mapa {
             // O endereço blob: não tem extensão (.png), então dizemos ao PixiJS qual leitor usar.
             const textura = await Assets.load<Texture>({ src: url, loadParser: "loadTextures" });
 
-            const limite = limiteDeTextura();
-            if (textura.width > limite || textura.height > limite) {
-                await Assets.unload(url);
-                URL.revokeObjectURL(url);
-                return `Imagem grande demais (${textura.width}×${textura.height}). Este computador aceita até ${limite}×${limite} px.`;
-            }
-
-            textura.source.autoGenerateMipmaps = true;
-            imagem.texture = textura;
+            await usarTextura(textura, url); // (grande demais para a placa de vídeo deste computador? é reduzida: só a nitidez muda)
 
             // Deu certo: libera o mapa temporário anterior (se havia) e passa a usar este.
             if (urlTemporaria) {
-                await Assets.unload(urlTemporaria);
+                await Assets.unload(urlTemporaria).catch(() => undefined); // (se a imagem foi reduzida, o original já tinha saído da memória)
                 URL.revokeObjectURL(urlTemporaria);
             }
             urlTemporaria = url;
@@ -128,8 +160,8 @@ export function criarMapa(camera: Camera): Mapa {
     }
 
     function tamanhoDaImagem(): { largura: number; altura: number } | null {
-        return imagem.visible ? { largura: imagem.texture.width, altura: imagem.texture.height } : null; // (a textura guarda o tamanho original; o Sprite é esticado)
+        return imagem.visible ? tamanhoOriginal : null; // (o tamanho do ARQUIVO, mesmo que a textura em uso tenha sido reduzida; o Sprite é esticado sobre o tabuleiro)
     }
 
-    return { ajustar, carregar, carregarDe, carregarArquivo, tamanhoDaImagem };
+    return { ajustar, carregar, carregarDe, carregarArquivo, tamanhoDaImagem, reducao: () => reduzida };
 }

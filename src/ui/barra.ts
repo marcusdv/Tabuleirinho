@@ -7,6 +7,7 @@ import {
     CHAVE_GRADE,
     ESPESSURA_GRADE_MAX,
     ESPESSURA_GRADE_MIN,
+    ALFA_GRADE_PADRAO,
     ESPESSURA_GRADE_PADRAO,
     MAX_CASAS,
     MIN_CASAS,
@@ -21,6 +22,7 @@ import { estado } from "../estado";
 import type { Camera } from "../tabuleiro/camera";
 import type { GradeDaMesa } from "../estado";
 import type { AjustesDaGrade } from "../tabuleiro/grade";
+import { criarControleTransparencia } from "./controleTransparencia";
 
 export interface OpcoesBarra {
     /** Pediu para adicionar/remover colunas e/ou linhas do tabuleiro. */
@@ -145,6 +147,10 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
         pegar<HTMLButtonElement>("grade-espessura-menos").disabled = ajustesGrade.espessura <= ESPESSURA_GRADE_MIN;
         pegar<HTMLButtonElement>("grade-espessura-mais").disabled = ajustesGrade.espessura >= ESPESSURA_GRADE_MAX;
         campoCorGrade.value = ajustesGrade.cor ?? "#000000";
+        transparenciaGrade?.definir(ajustesGrade.alfa);
+        transparenciaGrade?.definirCor(ajustesGrade.cor ?? "#000000");
+        transparenciaGrade?.elemento.toggleAttribute("inert", ajustesGrade.cor === null || !opcoes.podeMudarGrade()); // (sem cor escolhida, a grade é automática: não há o que tornar transparente)
+        transparenciaGrade?.elemento.classList.toggle("apagado", ajustesGrade.cor === null);
         pegar("grade-cor-auto").classList.toggle("escolhido", ajustesGrade.cor === null);
         // A espessura e a cor são da MESA: online só o mestre as muda (os outros veem o que o mestre escolheu). "Esconder grade" é de cada pessoa e fica sempre livre.
         const pode = opcoes.podeMudarGrade();
@@ -160,9 +166,9 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
         campoCorGrade.title = dicaDoMestre;
     }
     function mudarGrade(mudancas: Partial<AjustesDaGrade>): void {
-        const daMesa = "espessura" in mudancas || "cor" in mudancas;
+        const daMesa = "espessura" in mudancas || "cor" in mudancas || "alfa" in mudancas;
         // Espessura e cor, online: pede ao servidor e espera ele avisar todos (nada muda aqui antes disso).
-        if (daMesa && opcoes.aoPedirGradeDaMesa({ espessura: mudancas.espessura ?? ajustesGrade.espessura, cor: "cor" in mudancas ? (mudancas.cor ?? null) : ajustesGrade.cor })) return;
+        if (daMesa && opcoes.aoPedirGradeDaMesa({ espessura: mudancas.espessura ?? ajustesGrade.espessura, cor: "cor" in mudancas ? (mudancas.cor ?? null) : ajustesGrade.cor, alfa: mudancas.alfa ?? ajustesGrade.alfa })) return;
         ajustesGrade = { ...ajustesGrade, ...mudancas };
         mostrarAjustesDaGrade();
         guardarPreferencia(CHAVE_GRADE, JSON.stringify(ajustesGrade));
@@ -171,6 +177,9 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
     botaoMostrarGrade.addEventListener("click", () => mudarGrade({ mostrar: !ajustesGrade.mostrar }));
     pegar("grade-espessura-menos").addEventListener("click", () => mudarGrade({ espessura: Math.max(ESPESSURA_GRADE_MIN, ajustesGrade.espessura - PASSO_ESPESSURA_GRADE) }));
     pegar("grade-espessura-mais").addEventListener("click", () => mudarGrade({ espessura: Math.min(ESPESSURA_GRADE_MAX, ajustesGrade.espessura + PASSO_ESPESSURA_GRADE) }));
+    // O NÍVEL DE TRANSPARÊNCIA da cor da grade (logo abaixo do seletor de cor; pedido do dono, 18/11/2026).
+    const transparenciaGrade = criarControleTransparencia({ alfa: ajustesGrade.alfa, aoMudar: (alfa) => mudarGrade({ alfa }) });
+    (campoCorGrade.parentElement ?? campoCorGrade).insertAdjacentElement("afterend", transparenciaGrade.elemento); // (numa linha própria, abaixo do seletor e do "Auto")
     campoCorGrade.addEventListener("input", () => mudarGrade({ cor: campoCorGrade.value })); // (o navegador só devolve "#rrggbb")
     pegar("grade-cor-auto").addEventListener("click", () => mudarGrade({ cor: null }));
     mostrarAjustesDaGrade();
@@ -183,7 +192,7 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
         marcarCalibragem,
         ajustesDaGrade: () => ajustesGrade,
         aplicarGradeDaMesa(grade) {
-            ajustesGrade = { ...ajustesGrade, espessura: grade.espessura, cor: grade.cor }; // (vale só nesta sessão: não vai para o armazenamento do navegador)
+            ajustesGrade = { ...ajustesGrade, espessura: grade.espessura, cor: grade.cor, alfa: grade.alfa }; // (vale só nesta sessão: não vai para o armazenamento do navegador)
             mostrarAjustesDaGrade();
             opcoes.aoMudarGrade(ajustesGrade);
         },
@@ -193,7 +202,7 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
 
 /** Lê os ajustes da grade guardados; qualquer coisa estranha (ou nada guardado) volta ao padrão. */
 function lerAjustesDaGrade(): AjustesDaGrade {
-    const padrao: AjustesDaGrade = { mostrar: true, espessura: ESPESSURA_GRADE_PADRAO, cor: null };
+    const padrao: AjustesDaGrade = { mostrar: true, espessura: ESPESSURA_GRADE_PADRAO, cor: null, alfa: ALFA_GRADE_PADRAO };
     try {
         const lido: unknown = JSON.parse(lerPreferencia(CHAVE_GRADE) ?? "null");
         if (typeof lido !== "object" || lido === null) return padrao;
@@ -202,6 +211,7 @@ function lerAjustesDaGrade(): AjustesDaGrade {
             mostrar: typeof mostrar === "boolean" ? mostrar : padrao.mostrar,
             espessura: typeof espessura === "number" && espessura >= ESPESSURA_GRADE_MIN && espessura <= ESPESSURA_GRADE_MAX ? espessura : padrao.espessura,
             cor: typeof cor === "string" && /^#[0-9a-fA-F]{6}$/.test(cor) ? cor : null,
+            alfa: padrao.alfa, // (a transparência vem da MESA, não do armazenamento do navegador)
         };
     } catch {
         return padrao;

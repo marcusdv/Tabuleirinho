@@ -7,7 +7,7 @@
 // fichinha em cima da bolsa NÃO pode abri-la (o navegador dispara um "click" nesse caso) e o botão
 // Fechar não pode reabri-la (o mesmo clique subia até a bolsa).
 import { PNG } from "pngjs";
-import { abrirPagina, lancar, lerEstado, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, lerEstado, ok, terminar, definirCor } from "./ajuda.mjs";
 
 const navegador = await lancar();
 const p = await navegador.newPage({ viewport: { width: 1400, height: 800 } });
@@ -44,12 +44,12 @@ ok("1c) a área 'Criar token' e o botão Fechar aparecem", (await p.locator("#bo
 // 2) criar um token 3×3 vermelho
 const antes = (await tokens()).length;
 await p.click('button[data-tamanho="3"]');
-await p.click('#bolsa-amostras .amostra[data-cor="#e74c3c"]');
+await p.click('#bolsa-amostras .amostra[data-cor="#e5484d"]');
 await p.click("#bolsa-criar-botao");
 const depois = await tokens();
 const novo = depois[depois.length - 1];
 ok("2a) criou 1 token novo", depois.length === antes + 1, `${antes} -> ${depois.length}`);
-ok("2b) com o tamanho 3×3, a cor vermelha, e já GUARDADO na bolsa", novo.size === 3 && novo.cor === 0xe74c3c && novo.guardado === true, JSON.stringify(novo));
+ok("2b) com o tamanho 3×3, a cor vermelha, e já GUARDADO na bolsa", novo.size === 3 && novo.cor === 0xe5484d && novo.guardado === true, JSON.stringify(novo));
 ok("2c) o id é novo (não repete nenhum)", new Set(depois.map((t) => t.id)).size === depois.length);
 ok("2d) aparece 1 fichinha 3×3 na lista", (await p.locator(".ficha").count()) === 1);
 ok("2e) a prévia mostra o tamanho escolhido", (await p.locator("#bolsa-previa small").textContent()) === "3×3");
@@ -59,7 +59,7 @@ ok("2g) a ficha mostra o nome", (await p.locator(".ficha .ficha-nome").first().t
 
 // 3) cor livre (seletor), tamanho 1×1 e NOME digitado (Enter cria; o campo limpa; corta em 20; HTML vira texto)
 await p.click('button[data-tamanho="1"]');
-await p.locator("#bolsa-cor").fill("#12ab34");
+await definirCor(p, "#bolsa-cor", "#12ab34");
 await p.locator("#bolsa-nome").fill("<b>Goblin Arqueiro Chefe do Bando</b>");
 ok("3a) o campo de nome corta em 20 caracteres", (await p.locator("#bolsa-nome").inputValue()).length === 20);
 await p.keyboard.press("Enter");
@@ -141,23 +141,23 @@ await p.mouse.move(tela.x + 160, tela.y + 160);
 await p.mouse.wheel(0, -300);
 ok("9d) a roda do mouse dá zoom no recorte", Number(await p.locator("#editor-imagem-zoom").inputValue()) > 1);
 await p.mouse.wheel(0, 6000);
-ok("9d2) dá para AFASTAR bem (zoom out até 0,2): a imagem pode ficar menor que o círculo", Number(await p.locator("#editor-imagem-zoom").inputValue()) === 0.2, await p.locator("#editor-imagem-zoom").inputValue());
+ok("9d2) afastar PARA no zoom 1: a imagem sempre preenche o círculo até a borda (pedido do dono, 17/11/2026)", Number(await p.locator("#editor-imagem-zoom").inputValue()) === 1, await p.locator("#editor-imagem-zoom").inputValue());
 await p.click("#editor-imagem-usar");
 ok("9e) 'Usar imagem' fecha o editor e o botão vira 'Trocar imagem…'", !(await editorAberto()) && (await p.locator("#bolsa-imagem-escolher").textContent()) === "Trocar imagem…");
 ok("9f) a prévia mostra a imagem", await p.locator("#bolsa-previa .disco").evaluate((e) => e.classList.contains("com-imagem")));
 
 await p.locator("#bolsa-nome").fill("Com foto");
-await p.click('#bolsa-amostras .amostra[data-cor="#f1c40f"]'); // preenchimento amarelo
-await p.click('#bolsa-amostras-borda .amostra[data-cor="#e74c3c"]'); // borda vermelha
+await p.click('#bolsa-amostras .amostra[data-cor="#f5b83d"]'); // preenchimento amarelo
+await p.click('#bolsa-amostras-borda .amostra[data-cor="#e5484d"]'); // borda vermelha
 await p.click("#bolsa-criar-botao");
 const comFoto = (await tokens()).find((t) => t.nome === "Com foto");
-ok("9g) o token nasce com a imagem (miniatura WebP pequena), o preenchimento amarelo e a borda vermelha", comFoto?.imagem?.startsWith("data:image/webp") && comFoto.imagem.length < 60000 && comFoto.cor === 0xf1c40f && comFoto.corBorda === 0xe74c3c, `${comFoto?.imagem?.length} caracteres`);
+ok("9g) o token nasce com a imagem (miniatura WebP pequena), o preenchimento amarelo e a borda vermelha", comFoto?.imagem?.startsWith("data:image/webp") && comFoto.imagem.length < 60000 && comFoto.cor === 0xf5b83d && comFoto.corBorda === 0xe5484d, `${comFoto?.imagem?.length} caracteres`);
 ok("9h) depois de criar, o formulário volta a 'sem imagem' (e as cores escolhidas continuam)", (await p.locator("#bolsa-imagem-escolher").textContent()) === "Escolher imagem…" && (await tokens()).length > 0);
 
 const fichaFoto = p.locator(".ficha", { hasText: "Com foto" });
 ok("9i) a ficha mostra a imagem", await fichaFoto.locator(".disco").evaluate((e) => e.classList.contains("com-imagem")));
 await fichaFoto.click({ button: "right" });
-ok("9j) clique direito na ficha abre o menu com 'Editar token…', 'Criar ficha' (ou 'Abrir ficha'), 'Favoritar', 'Grupos…', 'Compartilhar…' (só o mestre) e 'Excluir token' (trocar/remover a imagem fica SÓ dentro de Editar token)", (await p.locator("#menu-ficha").isVisible()) && (await p.locator("#menu-ficha button:visible").allTextContents()).join("|") === "Editar token…|Criar ficha|Favoritar|Grupos…|Compartilhar…|Excluir token");
+ok("9j) clique direito na ficha abre o menu com 'Editar token…', 'Recolher do tabuleiro', 'Criar ficha' (ou 'Abrir ficha'), 'Favoritar', 'Grupos…', 'Compartilhar…' (só o mestre) e 'Excluir token' (trocar/remover a imagem fica SÓ dentro de Editar token)", (await p.locator("#menu-ficha").isVisible()) && (await p.locator("#menu-ficha button:visible").allTextContents()).join("|") === "Editar token…|Recolher do tabuleiro|Criar ficha|Favoritar|Grupos…|Compartilhar…|Excluir token");
 await p.click("#menu-ficha-editar"); // a imagem agora se troca DENTRO do Editar token
 await escolherArquivo("#editor-token-imagem", outraFoto);
 await editorPronto();
@@ -192,8 +192,8 @@ await p.click("#editor-imagem-cancelar");
 
 // 10) as duas cores são independentes, e a borda padrão é branca
 await p.locator("#bolsa-nome").fill("Duas cores");
-await p.locator("#bolsa-cor").fill("#112233");
-await p.locator("#bolsa-cor-borda").fill("#aabbcc");
+await definirCor(p, "#bolsa-cor", "#112233");
+await definirCor(p, "#bolsa-cor-borda", "#aabbcc");
 const previaDisco = await p.locator("#bolsa-previa .disco").evaluate((e) => ({ fundo: getComputedStyle(e).backgroundColor, borda: getComputedStyle(e).borderTopColor }));
 ok("10a) a prévia usa o preenchimento e a borda escolhidos, cada um na sua cor", previaDisco.fundo === "rgb(17, 34, 51)" && previaDisco.borda === "rgb(170, 187, 204)", JSON.stringify(previaDisco));
 const prevAntes = (await p.locator("#bolsa-previa .disco").boundingBox()).width;
