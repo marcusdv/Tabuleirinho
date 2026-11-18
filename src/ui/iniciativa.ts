@@ -86,7 +86,7 @@ export function criarIniciativa(opcoes: OpcoesIniciativa): PainelIniciativa {
         opcoes.aoAcao({ acao: "rodada", rodada: Math.max(0, Math.min(9999, n)) });
     });
     campoRodada.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") campoRodada.blur();
+        if (e.key === "Enter" && !e.isComposing) campoRodada.blur();
     });
     botaoCriatura.addEventListener("click", () => {
         abrirNaProxima = "nome";
@@ -112,7 +112,7 @@ export function criarIniciativa(opcoes: OpcoesIniciativa): PainelIniciativa {
         if (e.key === "Escape") {
             e.stopPropagation(); // só a janelinha fecha
             fecharEdicao();
-        } else if (e.key === "Enter" && (e.target === campoNome || e.target === campoValor)) {
+        } else if (e.key === "Enter" && !e.isComposing && (e.target === campoNome || e.target === campoValor)) {
             e.preventDefault();
             salvarEdicao();
         }

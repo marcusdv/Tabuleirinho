@@ -650,7 +650,7 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
             window.setTimeout(() => campo.setSelectionRange(campo.value.length, campo.value.length), 0);
         });
         campo.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") campo.blur(); // (Enter e clicar fora aplicam do mesmo jeito: pelo "blur" logo abaixo)
+            if (e.key === "Enter" && !e.isComposing) campo.blur(); // (Enter e clicar fora aplicam do mesmo jeito: pelo "blur" logo abaixo)
         });
         // A conta escrita no campo: só números e + − * / (a divisão arredonda para baixo); os pontos de milhar ("1.250 - 50") são tirados antes. Campo vazio: nada a calcular.
         const lerCampo = (): Resultado<number> | null => {
@@ -949,7 +949,7 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
             campoTexto.focus();
         };
         campo.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
+            if (e.key === "Enter" && !e.isComposing) {
                 e.preventDefault();
                 concluir(true);
             } else if (e.key === "Escape") {

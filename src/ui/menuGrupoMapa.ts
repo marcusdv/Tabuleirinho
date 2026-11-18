@@ -127,7 +127,7 @@ export function criarMenuGrupoMapa(opcoes: OpcoesMenuGrupoMapa): MenuGrupoMapa {
         };
         campo.addEventListener("input", atualizar);
         campo.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
+            if (e.key === "Enter" && !e.isComposing) {
                 e.preventDefault();
                 aplicar();
             }

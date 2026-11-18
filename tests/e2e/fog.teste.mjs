@@ -2,6 +2,10 @@
 // Pedido do dono (17/11/2026): só o MESTRE edita o fog: um painel "Fog" (liga o fog do mapa, pincel de revelar/cobrir com tamanho, cobrir/revelar tudo); a camada cobre o mapa e some
 // quando se desliga; o jogador não vê o painel. (A parte de rede, peças e desenhos escondidos é testada no `fog-servidor`.)
 import { abrirPagina, lancar, ok, recolherDados, terminar } from "./ajuda.mjs";
+import { ESCALA_DO_PINCEL } from "../../src/config.ts";
+
+// Os deslizantes de largura e altura andam pela ESCALA do pincel (0,5; 1; ... 8; 10; 12; 15; 20): o valor do campo é a POSIÇÃO nela, não o tamanho. Este ajudante põe um tamanho pela posição.
+const posicao = (tamanho) => String(ESCALA_DO_PINCEL.indexOf(tamanho));
 
 const nav = await lancar();
 const p = await nav.newPage({ viewport: { width: 1400, height: 900 } });
@@ -47,7 +51,7 @@ ok("3b) arrastar com o pincel REVELA o trecho pintado", (await coberto(9.5, 4.5)
 ok("3c) ...e o resto continua coberto", (await coberto(1, 1)) === true && (await coberto(16, 8)) === true);
 
 // tamanho do pincel
-await p.fill("#fog-raio", "5");
+await p.fill("#fog-raio", posicao(5));
 ok("4a) o tamanho do pincel aparece no painel", (await p.locator("#fog-raio-valor").innerText()) === "5");
 await p.click('#fog-botoes button[data-fog="cobrir"]');
 const c1 = casa(9, 5);
@@ -57,9 +61,9 @@ ok("4b) o pincel de COBRIR (raio 5) fecha de novo, e um raio maior cobre uma ár
 
 // botões de tamanho (+ e −), tamanhos prontos e formatos
 await p.click("#fog-raio-mais");
-ok("4c) o botão + aumenta o tamanho em 0,5", (await p.locator("#fog-raio-valor").innerText()) === "5,5");
+ok("4c) o botão + aumenta o tamanho UM PASSO da escala (5 → 6)", (await p.locator("#fog-raio-valor").innerText()) === "6");
 await p.click("#fog-raio-menos"); await p.click("#fog-raio-menos");
-ok("4d) o botão − diminui", (await p.locator("#fog-raio-valor").innerText()) === "4,5");
+ok("4d) o botão − diminui um passo da escala (6 → 5 → 4)", (await p.locator("#fog-raio-valor").innerText()) === "4");
 await p.click('#fog-tamanhos button[data-raio="12"]');
 ok("4e) os tamanhos prontos valem (12) e o escolhido fica destacado", (await p.locator("#fog-raio-valor").innerText()) === "12" && (await p.locator('#fog-tamanhos button[data-raio="12"].ativo').count()) === 1);
 await cobrirTudo();
@@ -82,10 +86,10 @@ ok("4m0) a PRÉVIA do pincel existe no painel e mostra o tamanho (1 × 1 depois 
 await p.click('#fog-alinhamento button[data-alinhamento="livre"]');
 await p.click("#fog-proporcional");
 await p.click('#fog-tamanhos button[data-raio="1"]');
-await p.fill("#fog-altura", "4");
+await p.fill("#fog-altura", posicao(4));
 ok("4m) sem 'Proporcional', largura e altura são independentes (1 × 4)", (await p.locator("#fog-raio-valor").innerText()) === "1" && (await p.locator("#fog-altura-valor").innerText()) === "4");
 await p.click("#fog-altura-mais");
-ok("4n) o + da altura só mexe na altura", (await p.locator("#fog-altura-valor").innerText()) === "4,5" && (await p.locator("#fog-raio-valor").innerText()) === "1");
+ok("4n) o + da altura só mexe na altura (4 → 5, um passo da escala)", (await p.locator("#fog-altura-valor").innerText()) === "5" && (await p.locator("#fog-raio-valor").innerText()) === "1");
 await p.click('#fog-formas button[data-forma="quadrado"]');
 await cobrirTudo();
 // (clicar no pincel que já está ligado o DESLIGA: só clica se o Revelar não estiver selecionado)

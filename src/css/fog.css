@@ -92,8 +92,29 @@
 }
 #fog-alinhamento {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, 1fr); /* os 3 botões (Livre, Por casa, Arrastar) numa linha só */
     gap: 4px;
+}
+#fog-alinhamento .botao-largo {
+    padding-inline: 0;
+    min-width: 0;
+    font-size: 11px;
+    justify-content: center;
+    white-space: nowrap; /* "Por casa" não quebra em duas linhas */
+}
+/* Revelar (borracha) e Cobrir (pincel): só o ÍCONE, os dois do mesmo tamanho, lado a lado e centralizados (o nome fica na dica e no aria-label). */
+#fog-botoes .botao-largo {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
+    height: 36px;
+    padding: 0;
+}
+#fog-botoes .icone-svg {
+    width: 20px;
+    height: 20px;
+    vertical-align: baseline;
 }
 #fog-alinhamento .botao-largo {
     margin: 0;
@@ -111,21 +132,86 @@
     color: #ffd54f;
 }
 #fog-proporcional {
-    margin: 8px 0 0;
+    margin: 8px 0 0; /* logo abaixo da prévia */
+}
+/* A prévia (112 × 112) no meio; a ALTURA é o deslizante vertical à direita dela e a LARGURA, o horizontal embaixo. */
+#fog-previa-grade {
+    /* FLUIDA: a prévia (quadrada) ocupa o que sobra ao lado da coluna da altura, então nunca passa da largura do painel */
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 22px;
+    gap: 6px 4px;
+}
+#fog-altura-coluna {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-height: 0;
+    contain: size; /* a coluna não pode esticar a linha (o deslizante vertical tem uma altura própria): quem manda na altura é a prévia */
+}
+#fog-altura-coluna button {
+    width: 22px;
+    height: 22px;
+    flex: none;
+    padding: 0;
+    border: 1px solid #3a3a48;
+    border-radius: 6px;
+    background: #23232d;
+    color: #e6e6ee;
+    font-size: 15px;
+    line-height: 1;
+    cursor: pointer;
+}
+#fog-altura-coluna button:hover {
+    border-color: #ffd54f;
+}
+#fog-altura {
+    /* vertical (o maior valor em cima): o próprio <input type="range"> nativo, só girado pela direção da escrita (mantém teclado, toque e acessibilidade) */
+    writing-mode: vertical-lr;
+    direction: rtl;
+    flex: 1;
+    width: 18px;
+    min-height: 0;
+    margin: 0;
+}
+#fog-largura-linha {
+    grid-column: 1 / span 2;
+}
+/* PLANO B (navegador antigo, que não gira o deslizante; a classe vem do ui/painelFog.ts): a altura vira uma SEGUNDA linha horizontal, embaixo da largura, com − à esquerda e + à direita. */
+#fog-previa-grade.altura-deitada #fog-altura-coluna {
+    grid-column: 1 / span 2;
+    grid-row: 3;
+    flex-direction: row-reverse; /* (no HTML o + vem primeiro: de lado, o − fica à esquerda) */
+    gap: 4px;
+    contain: none; /* (deitada, ela é uma linha comum: a altura vem dos botões) */
+}
+#fog-previa-grade.altura-deitada #fog-altura {
+    writing-mode: horizontal-tb;
+    direction: ltr;
+    flex: 1;
+    width: auto;
+    min-width: 0;
 }
 #fog-previa {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 112px;
-    height: 112px;
-    margin: 0 auto;
+    box-sizing: border-box;
+    width: 100%;
+    aspect-ratio: 1; /* sempre quadrada, do tamanho que o painel deixar */
+    margin: 0;
     overflow: hidden;
     border: 1px solid #3a3a48;
     border-radius: 8px;
     background: #17171f;
 }
+#fog-previa svg {
+    display: block;
+    width: 100%; /* o desenho (feito em 112 × 112) escala junto com a prévia */
+    height: 100%;
+}
 #fog-previa-texto {
+    white-space: nowrap; /* "4 × 4 casas" nunca quebra em duas linhas */
     margin-top: 4px;
     text-align: center;
     font-size: 11px;

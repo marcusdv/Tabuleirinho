@@ -1300,7 +1300,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     }
     botaoCriar.addEventListener("click", criar);
     campoNome.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") criar(); // Enter no campo de nome cria o token
+        if (e.key === "Enter" && !e.isComposing) criar(); // Enter no campo de nome cria o token (o Enter que só confirma uma composição de texto/IME é ignorado)
     });
 
     // ---------------------------------------------------------------

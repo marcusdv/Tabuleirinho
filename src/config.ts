@@ -8,6 +8,12 @@ export const CHAVE_VISOES = "tabuleirinho.camera.visoes"; // JSON { [id do mapa]
 export const CHAVE_ABA_BOLSA = "tabuleirinho.bolsa.aba"; // "tokens" ou "fichas": a última aba escolhida na bolsa
 export const CHAVE_INICIATIVA_RECOLHIDA = "tabuleirinho.iniciativa.recolhida"; // "1" = a gaveta da Iniciativa está recolhida
 export const CHAVE_FOG_RECOLHIDO = "tabuleirinho.fog.recolhido"; // "1" = a gaveta do Fog está recolhida
+/**
+ * A ESCALA do tamanho do pincel do Fog (pedido do dono, 18/11/2026): os deslizantes de largura e altura andam por ESTA lista, e não de forma linear: os tamanhos pequenos (que mais se
+ * usam) ficam juntos e bem espaçados no começo, e no fim ela salta bastante. Cada valor é a METADE do lado, em casas (0,5 = 1 casa de lado). Precisa estar em ordem crescente, ter
+ * todos os "tamanhos prontos" do painel (0,5; 1; 2; 3; 5; 8; 12; 20) e terminar em `RAIO_MAX_FOG` (src/fog.ts).
+ */
+export const ESCALA_DO_PINCEL: readonly number[] = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 5, 6, 8, 10, 12, 15, 20];
 // --- INICIATIVA (a ordem de combate; ver iniciativa.ts) ---
 export const MAX_ENTRADAS_INICIATIVA = 60; // quantos personagens cabem na ordem
 export const MAX_CARACTERES_NOME_INICIATIVA = 24; // o nome de uma entrada (de uma pessoa temporária ou de um token)

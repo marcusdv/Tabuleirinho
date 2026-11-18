@@ -10,7 +10,7 @@
 import { Container, Graphics, Sprite, Texture, type PointData } from "pixi.js";
 import { TAMANHO_CASA } from "../config";
 import { estado } from "../estado";
-import { pintarTraco, RAIO_MAX_FOG, RAIO_MIN_FOG, SUB_FOG, type FormaDeFog, type MascaraDeFog, type TracoDeFog } from "../fog";
+import { casasDaForma, contornoDasCasas, pintarTraco, RAIO_MAX_FOG, RAIO_MIN_FOG, SUB_FOG, type FormaDeFog, type MascaraDeFog, type TracoDeFog } from "../fog";
 import type { Camera } from "./camera";
 import type { FerramentaDeArrasto } from "./ferramenta";
 
@@ -160,7 +160,7 @@ export function criarFog(camera: Camera, opcoes: OpcoesFog): FogDoTabuleiro {
             if (chave === ultimaCasa) return;
             ultimaCasa = chave;
         }
-        const traco: TracoDeFog = { x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, raio: p.raio, raioY: p.raioY, cobrir: modo === "cobrir", forma: p.forma };
+        const traco: TracoDeFog = { x: Math.round(p.x * 100) / 100, y: Math.round(p.y * 100) / 100, raio: p.raio, raioY: p.raioY, cobrir: modo === "cobrir", forma: p.forma, ...(alinhamento === "casa" && { casas: true }) }; // (por casa, o círculo e o triângulo são feitos de casas inteiras)
         pintarTraco(mascara, traco);
         lote.push(traco);
         pedirDesenho();
@@ -177,11 +177,21 @@ export function criarFog(camera: Camera, opcoes: OpcoesFog): FogDoTabuleiro {
         const cy = p.y * TAMANHO_CASA;
         const r = p.raio * TAMANHO_CASA;
         const ry = p.raioY * TAMANHO_CASA;
-        if (p.forma === "quadrado") anel.rect(cx - r, cy - ry, 2 * r, 2 * ry);
-        else if (p.forma === "triangulo") anel.poly([cx, cy - ry, cx + r, cy + ry, cx - r, cy + ry]);
-        else anel.ellipse(cx, cy, r, ry);
         const cor = modo === "cobrir" ? 0xff7a45 : 0xffd23f;
-        anel.fill({ color: cor, alpha: 0.12 }).stroke({ width: 2 / Math.max(camera.zoom, 0.2), color: cor, alpha: 0.95 });
+        const largura = 2 / Math.max(camera.zoom, 0.2);
+        if (alinhamento === "casa" && p.forma !== "quadrado") {
+            // Por casa: o preenchimento mostra as CASAS que serão pintadas (a mesma conta que o servidor faz) e o traço é só o contorno de FORA (sem as linhas entre as casas).
+            const fileiras = casasDaForma(p.forma, p.x, p.y, p.raio, p.raioY);
+            for (const f of fileiras) anel.rect(f.col * TAMANHO_CASA, f.row * TAMANHO_CASA, f.largura * TAMANHO_CASA, TAMANHO_CASA);
+            anel.fill({ color: cor, alpha: 0.12 });
+            for (const s of contornoDasCasas(fileiras)) anel.moveTo(s.x1 * TAMANHO_CASA, s.y1 * TAMANHO_CASA).lineTo(s.x2 * TAMANHO_CASA, s.y2 * TAMANHO_CASA);
+            anel.stroke({ width: largura, color: cor, alpha: 0.95, cap: "square" }); // (ponta quadrada: as quinas se encontram sem falha)
+        } else {
+            if (p.forma === "quadrado") anel.rect(cx - r, cy - ry, 2 * r, 2 * ry);
+            else if (p.forma === "triangulo") anel.poly([cx, cy - ry, cx + r, cy + ry, cx - r, cy + ry]);
+            else anel.ellipse(cx, cy, r, ry);
+            anel.fill({ color: cor, alpha: 0.12 }).stroke({ width: largura, color: cor, alpha: 0.95 });
+        }
         anel.visible = true;
     }
 

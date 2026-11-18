@@ -120,7 +120,7 @@ export function criarPainelDados(opcoes: OpcoesPainelDados): void {
         };
         campo.addEventListener("change", confirmar);
         campo.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
+            if (e.key === "Enter" && !e.isComposing) {
                 confirmar();
                 campo.blur();
             }

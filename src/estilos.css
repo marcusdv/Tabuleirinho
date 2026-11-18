@@ -32,6 +32,7 @@
 @import "./css/barrasRolagem.css" layer(componentes); /* o visual das barras de rolagem do site */
 @import "./css/editarToken.css" layer(componentes); /* a janela "Editar token" */
 @import "./css/iniciativa.css" layer(componentes); /* a 3ª gaveta da pilha: a ordem de combate */
+@import "./css/iconesSvg.css" layer(componentes); /* os ícones SVG do dono (pincel e borracha), pintados com a cor do botão */
 @import "./css/fog.css" layer(componentes); /* o painel do Fog (só do mestre) */
 @import "./css/transparencia.css" layer(componentes); /* o controle de transparência (a grade do mapa usa o deslizante) */
 @import "./css/seletorDeCor.css" layer(componentes); /* o seletor de cor próprio, com a transparência dentro da caixa */

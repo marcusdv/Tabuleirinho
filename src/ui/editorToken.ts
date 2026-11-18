@@ -99,7 +99,7 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
             e.stopPropagation();
             if (painelAberto()) return fecharPainel(); // o 1º Esc fecha só o menu da ficha
             fechar();
-        } else if (e.key === "Enter" && document.activeElement === campoNome) {
+        } else if (e.key === "Enter" && !e.isComposing && document.activeElement === campoNome) {
             e.preventDefault();
             salvar();
         }
@@ -190,7 +190,7 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
     function montarLista(): void {
         const busca = simplificar(campoBuscaFicha.value.trim());
         const doToken = token?.copiaDe ?? token?.id ?? null;
-        const todas = [...estado.fichas].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR") || a.id - b.id);
+        const todas = estado.fichas.toSorted((a, b) => a.nome.localeCompare(b.nome, "pt-BR") || a.id - b.id);
         const itens: HTMLLIElement[] = [];
         const novoItem = (rotulo: string, id: number | null, apagado: string | null): HTMLLIElement => {
             const li = document.createElement("li");
@@ -223,7 +223,7 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
     botaoFicha.addEventListener("click", () => (painelAberto() ? fecharPainel() : abrirPainel()));
     campoBuscaFicha.addEventListener("input", montarLista); // a lista é filtrada a cada letra
     campoBuscaFicha.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
+        if (e.key === "Enter" && !e.isComposing) {
             e.preventDefault();
             e.stopPropagation();
             listaFichas.querySelector<HTMLElement>("li[role=option]:not([aria-disabled])")?.click(); // Enter escolhe o primeiro que sobrou

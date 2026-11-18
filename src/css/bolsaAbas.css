@@ -532,10 +532,11 @@
 }
 .bolsa-doc-nome {
     grid-row: 2; /* (mesmo sem tokens, o nome fica na METADE DE BAIXO) */
-    /* a metade de baixo do cartão (sempre 50%: os tokens ocupam a de cima): o texto COMEÇA NO TOPO dessa metade, sempre na mesma altura, e as linhas novas descem (pedido do dono, 17/11/2026; antes ficava encostado na base) */
+    /* a metade de baixo do cartão (sempre 50%: os tokens ocupam a de cima): o texto fica CENTRALIZADO VERTICALMENTE nela, com uma linha ou com quatro (pedido do dono, 18/11/2026; VALE MAIS que
+       o de 17/11/2026, que o começava no topo da metade) */
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
+    justify-content: center;
     align-self: stretch;
     min-height: 0;
     overflow: hidden;
@@ -641,7 +642,7 @@
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding: 22px 4px 6px; /* uma FAIXA em cima para as marcas (arquivo, estrela e grupos); a moldura redonda do token fica logo abaixo dela */
+    padding: 17px 4px 6px; /* uma FAIXA baixinha em cima para as marcas (arquivo, estrela e grupos); o token fica COLADO nela, com 1 a 2 px de folga (pedido do dono, 18/11/2026: era 22 px; com 15 px a estrela encostava) e o nome ganha o espaço de baixo */
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
@@ -657,7 +658,7 @@
     /* O TOKEN usa todo o espaço da miniatura (pedido do dono, 17/11/2026: sem o círculo de fundo em volta dele). O MESMO tamanho e formato para todo token, 1×1 ou 4×4
        (`flex: none` e `aspect-ratio`: nunca é espremido nem vira oval quando a coluna é estreita; o tamanho fica na dica do mouse). */
     flex: none;
-    width: min(66px, 100%);
+    width: min(56px, 100%); /* (um pouquinho menor, pedido do dono, 18/11/2026: na bolsa do canto a coluna já o limitava a 59 px, então o teto de 66 px nem aparecia; agora são 56 px) */
     height: auto;
     aspect-ratio: 1;
     border-radius: 50%;

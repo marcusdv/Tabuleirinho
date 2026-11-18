@@ -497,7 +497,7 @@ export function criarTokens(
      * do mesmo tamanho mantêm a ordem original.)
      */
     function reordenar(): void {
-        for (const token of [...estado.tokens].sort((a, b) => b.size - a.size)) {
+        for (const token of estado.tokens.toSorted((a, b) => b.size - a.size)) {
             const view = views.get(token.id);
             if (view) mundo.addChild(view.raiz); // re-adicionar move para o topo
         }

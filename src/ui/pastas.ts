@@ -117,7 +117,7 @@ export function criarPastasDaBolsa(opcoes: OpcoesPastasDaBolsa): PastasDaBolsa {
         };
         campo.addEventListener("keydown", (e) => {
             e.stopPropagation();
-            if (e.key === "Enter") terminar(true);
+            if (e.key === "Enter" && !e.isComposing) terminar(true);
             if (e.key === "Escape") terminar(false);
         });
         campo.addEventListener("blur", () => terminar(true));

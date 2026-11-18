@@ -1,7 +1,8 @@
 // Testes RÁPIDOS do núcleo do fog (máscara, pincel, texto). Rodar: npm run test:unidade
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cobertoEm, limparTraco, mascaraDoTexto, mascaraParaTexto, novaMascara, pintarTraco, preencherMascara } from "../../src/fog.ts";
+import { ESCALA_DO_PINCEL } from "../../src/config.ts";
+import { casasDaForma, cobertoEm, contornoDasCasas, RAIO_MAX_FOG, limparTraco, mascaraDoTexto, mascaraParaTexto, novaMascara, pintarTraco, preencherMascara } from "../../src/fog.ts";
 
 test("a máscara nasce toda coberta ou toda revelada", () => {
     assert.equal(cobertoEm(novaMascara(10, 8, true), 3.5, 2.5), true);
@@ -80,4 +81,49 @@ test("o pincel pode ter largura e altura diferentes", () => {
     assert.equal(cobertoEm(e, 5, 6.8), true, "...e baixa");
     assert.equal(limparTraco({ x: 1, y: 1, raio: 2, cobrir: true, forma: "retangulo" }), null, "o retângulo exige a altura");
     assert.equal(limparTraco({ x: 1, y: 1, raio: 50, raioY: 40, cobrir: true, forma: "retangulo" })?.raio, 50);
+});
+
+const total = (f: { largura: number }[]): number => f.reduce((soma, x) => soma + x.largura, 0);
+
+test("por casa: o círculo é feito de casas inteiras (4 × 4 perde os 4 cantos, como no D&D)", () => {
+    assert.equal(total(casasDaForma("circulo", 5, 5, 2)), 12);
+    const m = novaMascara(10, 10, true);
+    pintarTraco(m, { x: 5, y: 5, raio: 2, cobrir: false, forma: "circulo", casas: true });
+    assert.equal(cobertoEm(m, 3.5, 3.5), true, "o canto continua coberto");
+    // a casa (4, 3) é revelada INTEIRA: os quatro cantinhos dela
+    for (const [x, y] of [[4.01, 3.01], [4.99, 3.01], [4.01, 3.99], [4.99, 3.99]]) assert.equal(cobertoEm(m, x, y), false);
+    assert.equal(cobertoEm(m, 3.01, 4.5), false, "a casa do meio da borda entra inteira");
+    assert.equal(cobertoEm(m, 2.99, 4.5), true, "a casa vizinha, de fora da caixa, não é tocada");
+});
+
+test("por casa: o contorno tem só as linhas de FORA (sem as que separam as casas)", () => {
+    const comprimento = (s: { x1: number; y1: number; x2: number; y2: number }): number => Math.abs(s.x2 - s.x1) + Math.abs(s.y2 - s.y1);
+    // círculo 2 × 2 (4 casas): só o quadrado de fora, 4 segmentos de 2 casas (e nenhuma linha de dentro)
+    const pequeno = contornoDasCasas(casasDaForma("circulo", 5, 5, 1));
+    assert.equal(pequeno.length, 4);
+    assert.deepEqual(pequeno.map(comprimento), [2, 2, 2, 2]);
+    // círculo 4 × 4 (12 casas, sem os cantos): o contorno mede o mesmo que o do quadrado 4 × 4, 16 lados de casa
+    const medio = contornoDasCasas(casasDaForma("circulo", 5, 5, 2));
+    assert.equal(medio.reduce((soma, s) => soma + comprimento(s), 0), 16);
+    // uma casa só: 4 lados
+    assert.equal(contornoDasCasas([{ col: 0, row: 0, largura: 1 }]).length, 4);
+});
+
+test("a escala do pincel: crescente, com os tamanhos prontos, termina no raio máximo e salta mais no fim", () => {
+    const e = ESCALA_DO_PINCEL;
+    assert.ok(e.every((v, i) => i === 0 || v > e[i - 1]), "em ordem crescente");
+    assert.equal(e[e.length - 1], RAIO_MAX_FOG, "o último valor é o raio máximo do pincel");
+    for (const pronto of [0.5, 1, 2, 3, 5, 8, 12, 20]) assert.ok(e.includes(pronto), `o tamanho pronto ${pronto} está na escala`);
+    assert.ok(e[e.length - 1] - e[e.length - 2] > e[1] - e[0], "o passo do fim é maior que o do começo");
+    for (const v of e) assert.ok(limparTraco({ x: 1, y: 1, raio: v, cobrir: true })?.raio === v, `o servidor aceita o raio ${v}`);
+});
+
+test("por casa: o triângulo 5 × 3 é uma pirâmide de 1, 3 e 5 casas (ponta em cima)", () => {
+    assert.deepEqual(casasDaForma("triangulo", 5.5, 5.5, 2.5, 1.5).map((f) => f.largura), [1, 3, 5]);
+});
+
+test("por casa: sobre o servidor, a marca 'casas' vale só para círculo e triângulo", () => {
+    assert.equal(limparTraco({ x: 5, y: 5, raio: 2, cobrir: true, forma: "circulo", casas: true })?.casas, true);
+    assert.equal(limparTraco({ x: 5, y: 5, raio: 2, cobrir: true, forma: "circulo" })?.casas, undefined);
+    assert.equal(limparTraco({ x: 5, y: 5, raio: 2, raioY: 2, cobrir: true, forma: "retangulo", casas: true })?.casas, undefined);
 });

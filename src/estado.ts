@@ -386,7 +386,7 @@ export function receberFicha(ficha: Ficha): void {
 
 /** Troca todas as fichas pela lista que o servidor mandou ao entrar na mesa (ou pela que foi lida dos arquivos ao ligar o servidor). */
 export function definirFichas(lista: Ficha[], proximoIdMinimo = 1): void {
-    estado.fichas = [...lista].sort((a, b) => a.id - b.id);
+    estado.fichas = lista.toSorted((a, b) => a.id - b.id);
     proximoIdFicha = estado.fichas.reduce((maior, f) => Math.max(maior, f.id + 1), proximoIdMinimo);
 }
 
@@ -746,7 +746,7 @@ export function receberPasta(pasta: Pasta): void {
 
 /** Troca a lista inteira (ao ligar o servidor, ou o `estado_inicial`). Pastas cujo pai não existe vão para a raiz. */
 export function definirPastas(lista: Pasta[], proximoIdMinimo = 1): void {
-    estado.pastas = [...lista].sort((a, b) => a.id - b.id);
+    estado.pastas = lista.toSorted((a, b) => a.id - b.id);
     for (const p of estado.pastas) if (p.pai !== null && !estado.pastas.some((o) => o.id === p.pai)) p.pai = null;
     proximoIdPasta = estado.pastas.reduce((maior, p) => Math.max(maior, p.id + 1), proximoIdMinimo);
 }
@@ -792,7 +792,7 @@ export function receberGrupo(grupo: Grupo): void {
 
 /** Troca todos os grupos pela lista que o servidor mandou ao entrar (ou pela lida dos arquivos). */
 export function definirGrupos(lista: Grupo[], proximoIdMinimo = 1): void {
-    estado.grupos = [...lista].sort((a, b) => a.id - b.id);
+    estado.grupos = lista.toSorted((a, b) => a.id - b.id);
     proximoIdGrupo = estado.grupos.reduce((maior, g) => Math.max(maior, g.id + 1), proximoIdMinimo);
 }
 

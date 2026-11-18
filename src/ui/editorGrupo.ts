@@ -76,7 +76,7 @@ export function criarEditorGrupo(): EditorGrupo {
         if (e.target === janela) fechar(); // o fundo escurecido
     });
     campoNome.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") salvar();
+        if (e.key === "Enter" && !e.isComposing) salvar();
     });
     document.addEventListener(
         "keydown",

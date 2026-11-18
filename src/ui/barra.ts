@@ -112,7 +112,7 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
         }
         campo.addEventListener("change", aplicar);
         campo.addEventListener("keydown", (e) => {
-            if (e.key === "Enter") {
+            if (e.key === "Enter" && !e.isComposing) {
                 aplicar();
                 campo.blur(); // devolve o foco: atalhos e o mouse voltam ao tabuleiro
             }

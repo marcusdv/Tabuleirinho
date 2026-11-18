@@ -4,7 +4,8 @@
 // =====================================================================
 
 import { estado } from "../estado";
-import { RAIO_MAX_FOG, type FormaDeFog } from "../fog";
+import { ESCALA_DO_PINCEL } from "../config";
+import { casasDaForma, contornoDasCasas, type FormaDeFog } from "../fog";
 
 export type ModoDoPincel = "cobrir" | "revelar";
 
@@ -47,20 +48,36 @@ export function criarPainelFog(opcoes: OpcoesPainelFog): PainelFog {
     const predefinidos = [...document.querySelectorAll<HTMLButtonElement>("#fog-tamanhos button")];
     const menos = pegar<HTMLButtonElement>("fog-raio-menos");
     const mais = pegar<HTMLButtonElement>("fog-raio-mais");
-    const PASSO = 0.5;
-    const raioMax = Math.min(Number(raio.max), RAIO_MAX_FOG);
+    const ESCALA = ESCALA_DO_PINCEL;
 
     ativo.addEventListener("change", () => opcoes.aoAlternar(ativo.checked));
     const altura = pegar<HTMLInputElement>("fog-altura");
     const alturaValor = pegar("fog-altura-valor");
     const proporcional = pegar<HTMLButtonElement>("fog-proporcional");
     let juntos = true; // largura e altura mudam juntas (padrão)
-    const limitar = (v: number): number => Math.min(raioMax, Math.max(Number(raio.min), v));
+    // Os deslizantes guardam só a POSIÇÃO na escala (0 a N−1); o tamanho de verdade (a metade do lado, em casas) fica nestas duas variáveis.
+    let larguraAtual = 2;
+    let alturaAtual = 2;
+    for (const campo of [raio, altura]) {
+        campo.min = "0";
+        campo.max = String(ESCALA.length - 1);
+        campo.step = "1";
+    }
+    /** A posição, na escala, do valor mais perto de `v`. */
+    const indiceDe = (v: number): number => {
+        let melhor = 0;
+        for (let i = 1; i < ESCALA.length; i++) if (Math.abs(ESCALA[i] - v) < Math.abs(ESCALA[melhor] - v)) melhor = i;
+        return melhor;
+    };
+    /** O valor válido (da escala) mais perto de `v`. */
+    const limitar = (v: number): number => ESCALA[indiceDe(v)];
+    /** Um passo para cima (+1) ou para baixo (−1) NA ESCALA (nos pequenos o passo é fino; nos grandes, grande). */
+    const passo = (v: number, direcao: 1 | -1): number => ESCALA[Math.min(ESCALA.length - 1, Math.max(0, indiceDe(v) + direcao))];
     const texto = (v: number): string => String(v).replace(".", ",");
     /** Redesenha a PRÉVIA: o formato do pincel, na proporção largura × altura (o maior lado ocupa o quadradinho). Por casa vira um retângulo de casas inteiras; em "Área" mostra uma caixa tracejada. */
     function desenharPrevia(): void {
-        const larg = Number(raio.value);
-        const alt = Number(altura.value);
+        const larg = larguraAtual;
+        const alt = alturaAtual;
         const porCasa = modoDeRevelar === "casa";
         const nx = porCasa ? Math.max(1, Math.round(larg * 2)) : larg * 2;
         const ny = porCasa ? Math.max(1, Math.round(alt * 2)) : alt * 2;
@@ -91,7 +108,25 @@ export function criarPainelFog(opcoes: OpcoesPainelFog): PainelFog {
         grade.setAttribute("stroke-width", "1");
         svg.appendChild(grade);
         let figura: SVGElement;
-        if (formaAtual === "circulo") {
+        let contorno: SVGElement | null = null; // (por casa: o traço é um desenho à parte, só com o contorno de FORA)
+        if (porCasa && formaAtual !== "quadrado") {
+            // Por casa: o círculo e o triângulo são feitos de CASAS inteiras (a mesma conta do pincel e do servidor), com só o contorno externo (sem as linhas entre as casas).
+            figura = document.createElementNS(NS, "path");
+            const ccx = nx % 2 === 1 ? 0.5 : 0; // (lado ímpar: o centro é o meio de uma casa; par: o canto entre casas)
+            const ccy = ny % 2 === 1 ? 0.5 : 0;
+            const fileiras = casasDaForma(formaAtual, ccx, ccy, nx / 2, ny / 2);
+            let d = "";
+            for (const f of fileiras) d += `M${cx + (f.col - ccx) * escala} ${cy + (f.row - ccy) * escala}h${f.largura * escala}v${escala}h${-f.largura * escala}z`;
+            figura.setAttribute("d", d);
+            let traco = "";
+            for (const s of contornoDasCasas(fileiras)) traco += `M${cx + (s.x1 - ccx) * escala} ${cy + (s.y1 - ccy) * escala}L${cx + (s.x2 - ccx) * escala} ${cy + (s.y2 - ccy) * escala}`;
+            contorno = document.createElementNS(NS, "path");
+            contorno.setAttribute("d", traco);
+            contorno.setAttribute("fill", "none");
+            contorno.setAttribute("stroke", cor);
+            contorno.setAttribute("stroke-width", "2");
+            contorno.setAttribute("stroke-linecap", "square"); // (as quinas se encontram sem falha)
+        } else if (formaAtual === "circulo") {
             figura = document.createElementNS(NS, "ellipse");
             figura.setAttribute("cx", String(cx));
             figura.setAttribute("cy", String(cy));
@@ -109,9 +144,10 @@ export function criarPainelFog(opcoes: OpcoesPainelFog): PainelFog {
         }
         figura.setAttribute("fill", cor);
         figura.setAttribute("fill-opacity", "0.25");
-        figura.setAttribute("stroke", cor);
+        figura.setAttribute("stroke", contorno ? "none" : cor);
         figura.setAttribute("stroke-width", "2");
         svg.appendChild(figura);
+        if (contorno) svg.appendChild(contorno);
         if (emArea) {
             // Na Área, a caixa arrastada aparece tracejada em volta do formato.
             const caixa = document.createElementNS(NS, "rect");
@@ -127,14 +163,20 @@ export function criarPainelFog(opcoes: OpcoesPainelFog): PainelFog {
         }
         previa.replaceChildren(svg);
         const casas = (v: number): string => String(v).replace(".", ",");
-        previaTexto.textContent = modoDeRevelar === "area" ? "Arraste uma caixa no mapa (o formato cabe nela)" : `${casas(porCasa ? nx : nx)} × ${casas(porCasa ? ny : ny)} casas`;
+        // (no Puxar a caixa vem do arrasto no mapa: sem texto de dica embaixo da prévia)
+        previaTexto.textContent = modoDeRevelar === "area" ? "" : `${casas(porCasa ? nx : nx)} × ${casas(porCasa ? ny : ny)} casas`;
     }
     /** Põe a largura e a altura (já limitadas) nos campos, nos números e no pincel. */
     function pôrTamanho(largura: number, alto: number): void {
         const l = limitar(largura);
         const a = limitar(alto);
-        raio.value = String(l);
-        altura.value = String(a);
+        larguraAtual = l;
+        alturaAtual = a;
+        raio.value = String(indiceDe(l));
+        altura.value = String(indiceDe(a));
+        // (o valor do campo é só a posição na escala: quem usa leitor de tela ouve o tamanho de verdade, em casas)
+        raio.setAttribute("aria-valuetext", `${texto(l * 2)} casas de largura`);
+        altura.setAttribute("aria-valuetext", `${texto(a * 2)} casas de altura`);
         raioValor.textContent = texto(l);
         alturaValor.textContent = texto(a);
         for (const b of predefinidos) b.classList.toggle("ativo", Number(b.dataset.raio) === l && l === a);
@@ -142,20 +184,20 @@ export function criarPainelFog(opcoes: OpcoesPainelFog): PainelFog {
         desenharPrevia();
     }
     /** Mudou a LARGURA (ou a ALTURA) para `v`: com "Proporcional" ligado a outra acompanha. */
-    const mudouLargura = (v: number): void => pôrTamanho(v, juntos ? v : Number(altura.value));
-    const mudouAltura = (v: number): void => pôrTamanho(juntos ? v : Number(raio.value), v);
-    raio.addEventListener("input", () => mudouLargura(Number(raio.value)));
-    altura.addEventListener("input", () => mudouAltura(Number(altura.value)));
-    menos.addEventListener("click", () => mudouLargura(Number(raio.value) - PASSO));
-    mais.addEventListener("click", () => mudouLargura(Number(raio.value) + PASSO));
-    pegar("fog-altura-menos").addEventListener("click", () => mudouAltura(Number(altura.value) - PASSO));
-    pegar("fog-altura-mais").addEventListener("click", () => mudouAltura(Number(altura.value) + PASSO));
+    const mudouLargura = (v: number): void => pôrTamanho(v, juntos ? v : alturaAtual);
+    const mudouAltura = (v: number): void => pôrTamanho(juntos ? v : larguraAtual, v);
+    raio.addEventListener("input", () => mudouLargura(ESCALA[Number(raio.value)]));
+    altura.addEventListener("input", () => mudouAltura(ESCALA[Number(altura.value)]));
+    menos.addEventListener("click", () => mudouLargura(passo(larguraAtual, -1)));
+    mais.addEventListener("click", () => mudouLargura(passo(larguraAtual, 1)));
+    pegar("fog-altura-menos").addEventListener("click", () => mudouAltura(passo(alturaAtual, -1)));
+    pegar("fog-altura-mais").addEventListener("click", () => mudouAltura(passo(alturaAtual, 1)));
     for (const b of predefinidos) b.addEventListener("click", () => pôrTamanho(Number(b.dataset.raio), Number(b.dataset.raio))); // (os tamanhos prontos valem para os dois)
     proporcional.addEventListener("click", () => {
         juntos = !juntos;
         proporcional.classList.toggle("ativo", juntos);
         proporcional.setAttribute("aria-pressed", String(juntos));
-        if (juntos) pôrTamanho(Number(raio.value), Number(raio.value)); // (ao religar, a altura volta a igualar a largura)
+        if (juntos) pôrTamanho(larguraAtual, larguraAtual); // (ao religar, a altura volta a igualar a largura)
     });
     const alinhamentos = [...document.querySelectorAll<HTMLButtonElement>("#fog-alinhamento button")];
     for (const b of alinhamentos) {
@@ -187,7 +229,17 @@ export function criarPainelFog(opcoes: OpcoesPainelFog): PainelFog {
         // Clicar no pincel que já está ligado o desliga (volta a Mover), como nas outras ferramentas.
         b.addEventListener("click", () => opcoes.aoEscolher(atual === b.dataset.fog ? null : (b.dataset.fog as ModoDoPincel)));
     }
-    pôrTamanho(Number(raio.value), Number(altura.value));
+    pôrTamanho(larguraAtual, alturaAtual);
+
+    // O deslizante da ALTURA é vertical (o próprio <input type="range"> girado por `writing-mode`). Se o navegador for antigo e não girar, ele ficaria DEITADO dentro de uma coluna
+    // estreita: nesse caso a altura vira uma segunda linha horizontal, embaixo da largura (a classe `altura-deitada` refaz o encaixe no css/fog.css).
+    const testeVertical = document.createElement("input");
+    testeVertical.type = "range";
+    testeVertical.style.cssText = "writing-mode:vertical-lr;position:absolute;left:-9999px;visibility:hidden"; // (só para medir; sai logo)
+    document.body.appendChild(testeVertical);
+    const giraSozinho = testeVertical.offsetHeight > testeVertical.offsetWidth;
+    testeVertical.remove();
+    pegar("fog-previa-grade").classList.toggle("altura-deitada", !giraSozinho);
 
     function atualizar(): void {
         ativo.checked = estado.fog.ativo;

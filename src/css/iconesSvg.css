@@ -1,0 +1,20 @@
+/* ÍCONES SVG do dono (pasta `public/images/svgs/`): pincel e borracha. Cada um é uma MÁSCARA pintada com a cor do texto do botão (`currentColor`), então o ícone acompanha o
+   estado do botão (cinza normal, dourado quando ligado) sem mexer no arquivo. É o mesmo jeito do selo da ficha única (`unique.svg`). Uso: <span class="icone-svg icone-pincel"></span>. */
+.icone-svg {
+    display: inline-block;
+    width: 1.15em;
+    height: 1.15em;
+    flex: none;
+    vertical-align: -0.2em;
+    background: currentColor;
+    -webkit-mask: center / contain no-repeat;
+    mask: center / contain no-repeat;
+}
+.icone-pincel {
+    -webkit-mask-image: url("/images/svgs/pincel.svg");
+    mask-image: url("/images/svgs/pincel.svg");
+}
+.icone-borracha {
+    -webkit-mask-image: url("/images/svgs/borracha.svg");
+    mask-image: url("/images/svgs/borracha.svg");
+}

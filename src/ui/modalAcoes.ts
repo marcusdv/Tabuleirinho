@@ -101,7 +101,7 @@ export function criarModalAcoes(opcoes: OpcoesModalAcoes): ModalAcoes {
         if (e.key === "Escape") {
             e.stopPropagation();
             fechar();
-        } else if (e.key === "Enter" && document.activeElement === campoNome) {
+        } else if (e.key === "Enter" && !e.isComposing && document.activeElement === campoNome) {
             e.preventDefault();
             adicionar();
         }

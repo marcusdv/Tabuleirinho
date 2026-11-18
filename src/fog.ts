@@ -38,6 +38,15 @@ export interface TracoDeFog {
     forma?: FormaDeFog;
     /** A METADE da altura (e `raio` é a metade da largura): o pincel pode ser mais largo que alto (elipse, retângulo, triângulo achatado). Sem ela, a altura é igual à largura. */
     raioY?: number;
+    /** POR CASA (pedido do dono, 18/11/2026): a forma é feita de casas INTEIRAS, como os gabaritos de área de RPG (entra a casa cujo CENTRO está dentro do círculo ou do triângulo). Só vale com `x`/`y` alinhados à grade. */
+    casas?: boolean;
+}
+
+/** Uma fileira de casas seguidas: a primeira casa (col, row) e quantas são. */
+export interface FileiraDeCasas {
+    col: number;
+    row: number;
+    largura: number;
 }
 
 const largura = (m: MascaraDeFog): number => m.colunas * SUB_FOG;
@@ -74,8 +83,97 @@ function dentroDaForma(forma: FormaDeFog | undefined, dx: number, dy: number, r:
     return (dx * dx) / (r * r) + (dy * dy) / (ry * ry) <= 1; // (círculo, ou elipse se a altura for diferente)
 }
 
+/**
+ * A forma feita de CASAS INTEIRAS: centro (x, y) e metades (raio, raioY), tudo em casas. Entra a casa cujo CENTRO cai dentro da forma (a regra dos gabaritos de D&D: um círculo de 4 × 4
+ * casas perde os 4 cantos). Devolve fileiras de casas seguidas, de cima para baixo (poucas para desenhar, e é o que o servidor e o navegador pintam).
+ */
+export function casasDaForma(forma: FormaDeFog | undefined, x: number, y: number, raio: number, raioY: number = raio): FileiraDeCasas[] {
+    const fileiras: FileiraDeCasas[] = [];
+    for (let row = Math.floor(y - raioY); row < Math.ceil(y + raioY); row++) {
+        let atual: FileiraDeCasas | null = null;
+        for (let col = Math.floor(x - raio); col < Math.ceil(x + raio); col++) {
+            if (!dentroDaForma(forma, col + 0.5 - x, row + 0.5 - y, raio, raioY)) {
+                atual = null;
+            } else if (atual) {
+                atual.largura++;
+            } else {
+                atual = { col, row, largura: 1 };
+                fileiras.push(atual);
+            }
+        }
+    }
+    return fileiras;
+}
+
+/** Um pedaço reto (horizontal ou vertical) do contorno de uma forma de casas, em casas. */
+export interface SegmentoDeContorno {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+}
+
+/**
+ * O CONTORNO EXTERNO de uma forma de casas (pedido do dono, 18/11/2026: sem as linhas de dentro): só os lados de casa que dão para FORA da forma, com os que estão em linha juntados
+ * num segmento só. Um círculo de 2 × 2 casas devolve 4 segmentos (o quadrado de fora), e não as linhas que separam as casas.
+ */
+export function contornoDasCasas(fileiras: readonly FileiraDeCasas[]): SegmentoDeContorno[] {
+    const tem = new Set<string>();
+    for (const f of fileiras) for (let c = f.col; c < f.col + f.largura; c++) tem.add(`${c},${f.row}`);
+    const horizontais = new Map<number, number[]>(); // y -> os x (casas) que têm um lado de fora nessa altura
+    const verticais = new Map<number, number[]>(); // x -> os y (casas) que têm um lado de fora nessa coluna
+    const somar = (mapa: Map<number, number[]>, chave: number, valor: number): void => {
+        const lista = mapa.get(chave);
+        if (lista) lista.push(valor);
+        else mapa.set(chave, [valor]);
+    };
+    for (const f of fileiras) {
+        for (let c = f.col; c < f.col + f.largura; c++) {
+            if (!tem.has(`${c},${f.row - 1}`)) somar(horizontais, f.row, c); // (lado de cima)
+            if (!tem.has(`${c},${f.row + 1}`)) somar(horizontais, f.row + 1, c); // (lado de baixo)
+            if (!tem.has(`${c - 1},${f.row}`)) somar(verticais, c, f.row); // (lado esquerdo)
+            if (!tem.has(`${c + 1},${f.row}`)) somar(verticais, c + 1, f.row); // (lado direito)
+        }
+    }
+    const segmentos: SegmentoDeContorno[] = [];
+    const juntar = (mapa: Map<number, number[]>, horizontal: boolean): void => {
+        for (const [fixo, lista] of mapa) {
+            lista.sort((a, b) => a - b);
+            let inicio = lista[0];
+            let fim = lista[0];
+            const fechar = (): void => {
+                segmentos.push(horizontal ? { x1: inicio, y1: fixo, x2: fim + 1, y2: fixo } : { x1: fixo, y1: inicio, x2: fixo, y2: fim + 1 });
+            };
+            for (let i = 1; i < lista.length; i++) {
+                if (lista[i] === fim + 1) fim = lista[i];
+                else {
+                    fechar();
+                    inicio = fim = lista[i];
+                }
+            }
+            fechar();
+        }
+    };
+    juntar(horizontais, true);
+    juntar(verticais, false);
+    return segmentos;
+}
+
+/** Pinta (ou limpa) as casas INTEIRAS da forma, sem cortar nenhuma ao meio. Casas fora do tabuleiro são ignoradas. */
+function pintarCasas(m: MascaraDeFog, t: TracoDeFog): void {
+    for (const f of casasDaForma(t.forma, t.x, t.y, t.raio, t.raioY ?? t.raio)) {
+        if (f.row < 0 || f.row >= m.linhas) continue;
+        const col0 = Math.max(0, f.col);
+        const col1 = Math.min(m.colunas, f.col + f.largura);
+        for (let py = f.row * SUB_FOG; py < (f.row + 1) * SUB_FOG; py++) {
+            for (let px = col0 * SUB_FOG; px < col1 * SUB_FOG; px++) pôrBit(m, px, py, t.cobrir);
+        }
+    }
+}
+
 /** Aplica uma pincelada (círculo, quadrado ou triângulo). Pontos fora do tabuleiro são ignorados. */
 export function pintarTraco(m: MascaraDeFog, t: TracoDeFog): void {
+    if (t.casas) return pintarCasas(m, t);
     const cx = t.x * SUB_FOG;
     const cy = t.y * SUB_FOG;
     const r = t.raio * SUB_FOG;
@@ -115,6 +213,7 @@ export function limparTraco(bruto: unknown): TracoDeFog | null {
     const saida: TracoDeFog = { x: Math.round(t.x * 100) / 100, y: Math.round(t.y * 100) / 100, raio: lado(t.raio), cobrir: t.cobrir, forma };
     if (forma === "retangulo" && !n(t.raioY)) return null;
     if (n(t.raioY)) saida.raioY = lado(t.raioY);
+    if (t.casas === true && forma !== "retangulo") saida.casas = true; // (a caixa arrastada da "Área" não é por casa)
     return saida;
 }
 

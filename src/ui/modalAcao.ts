@@ -84,7 +84,7 @@ export function criarModalAcao(): ModalAcao {
         if (e.key === "Escape") {
             e.stopPropagation(); // só este modal fecha (o menu do token e a bolsa por baixo ficam como estão)
             fechar();
-        } else if (e.key === "Enter" && document.activeElement === campo) {
+        } else if (e.key === "Enter" && !e.isComposing && document.activeElement === campo) {
             e.preventDefault();
             aplicar();
         }

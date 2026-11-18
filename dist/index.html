@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Tabuleirinho</title>
-      <script type="module" crossorigin src="/assets/index-XG_U0Re7.js"></script>
+      <script type="module" crossorigin src="/assets/index-DkpibxTx.js"></script>
       <link rel="modulepreload" crossorigin href="/assets/CanvasPool-cZm-qJ09.js">
       <link rel="modulepreload" crossorigin href="/assets/Filter-CBWLFxHX.js">
       <link rel="modulepreload" crossorigin href="/assets/canvasUtils-D8Fc3Bye.js">
@@ -14,7 +14,7 @@
       <link rel="modulepreload" crossorigin href="/assets/getTextureBatchBindGroup-CPM2N5IT.js">
       <link rel="modulepreload" crossorigin href="/assets/GraphicsContext-DtkgRzau.js">
       <link rel="modulepreload" crossorigin href="/assets/getTexelRangeRects-fmak5Y5p.js">
-      <link rel="stylesheet" crossorigin href="/assets/index-BAhUFq0f.css">
+      <link rel="stylesheet" crossorigin href="/assets/index-CsKQ8H2L.css">
     </head>
     <body>
         <div id="app"></div>
@@ -37,7 +37,7 @@
             <div id="atalhos-rapidos" class="controle">
                 <button type="button" data-atalho="regua" aria-pressed="false" title="Régua (clique de novo para voltar a Mover)">📏</button>
                 <button type="button" data-atalho="lapis" aria-pressed="false" title="Lápis (clique de novo para voltar a Mover)">✎</button>
-                <button type="button" data-atalho="borracha" aria-pressed="false" title="Borracha (clique de novo para voltar a Mover)">⌫</button>
+                <button type="button" data-atalho="borracha" aria-pressed="false" title="Borracha (clique de novo para voltar a Mover)" aria-label="Borracha"><span class="icone-svg icone-borracha" aria-hidden="true"></span></button>
             </div>
 
             <!-- Painel de desenho (1ª barra da pilha): ferramentas, cor e "Apagar tudo". Ids usados no ui/painelDesenho.ts. -->
@@ -81,7 +81,7 @@
                                 aria-pressed="false"
                                 title="Apagar o desenho que ela tocar"
                             >
-                                <span class="ferramenta-icone" aria-hidden="true">⌫</span><span class="ferramenta-nome">Borracha</span>
+                                <span class="ferramenta-icone" aria-hidden="true"><span class="icone-svg icone-borracha"></span></span><span class="ferramenta-nome">Borracha</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -180,24 +180,41 @@
                             <input type="checkbox" id="fog-ativo" /> Fog neste mapa
                         </label>
                     </section>
+                    <section>
+                        <h2>Prévia</h2>
+                        <!-- A prévia no meio: a ALTURA é o deslizante vertical à direita dela e a LARGURA o horizontal embaixo; o "Proporcional" fica logo abaixo. -->
+                        <div id="fog-previa-grade">
+                            <div id="fog-previa" title="Como o pincel vai pintar (o formato e as proporções; o tamanho em casas aparece embaixo)"></div>
+                            <div id="fog-altura-coluna">
+                                <button type="button" id="fog-altura-mais" aria-label="Aumentar a altura" title="Aumentar a altura">+</button>
+                                <input type="range" id="fog-altura" min="0" max="14" step="1" value="3" aria-label="Altura do pincel (metade, em casas)" />
+                                <button type="button" id="fog-altura-menos" aria-label="Diminuir a altura" title="Diminuir a altura">−</button>
+                            </div>
+                            <div id="fog-largura-linha" class="fog-raio-linha">
+                                <button type="button" id="fog-raio-menos" aria-label="Diminuir a largura" title="Diminuir a largura">−</button>
+                                <input type="range" id="fog-raio" min="0" max="14" step="1" value="3" aria-label="Largura do pincel (metade, em casas)" />
+                                <button type="button" id="fog-raio-mais" aria-label="Aumentar a largura" title="Aumentar a largura">+</button>
+                            </div>
+                        </div>
+                        <div id="fog-previa-texto"></div>
+                        <!-- ESCONDIDO de propósito (pedido do dono: o texto "N × M casas" acima já diz o tamanho). Os números ficam no DOM porque o painelFog.ts os atualiza e os testes e2e os leem. -->
+                        <div id="fog-medidas" hidden>Larg. <span id="fog-raio-valor">2</span> · Alt. <span id="fog-altura-valor">2</span></div>
+                        <button type="button" id="fog-proporcional" class="botao-largo ativo" aria-pressed="true" title="Ligado: largura e altura mudam juntas (pincel proporcional). Desligue para escolher cada uma">🔗 Proporcional</button>
+                    </section>
+                    <!-- A borracha (Revelar) e o pincel (Cobrir): logo ACIMA dos modos (Livre, Casa, Puxar). -->
                     <section id="fog-ferramentas">
                         <h2>Pincel</h2>
                         <div id="fog-botoes">
-                            <button type="button" class="botao-largo" data-fog="revelar" aria-pressed="false" title="Pinta para REVELAR o mapa (arraste sobre o tabuleiro; Esc volta a Mover)">Revelar</button>
-                            <button type="button" class="botao-largo" data-fog="cobrir" aria-pressed="false" title="Pinta para COBRIR de novo (arraste sobre o tabuleiro; Esc volta a Mover)">Cobrir</button>
+                            <button type="button" class="botao-largo" data-fog="revelar" aria-pressed="false" aria-label="Revelar (borracha)" title="Borracha: pinta para REVELAR o mapa (arraste sobre o tabuleiro; Esc volta a Mover)"><span class="icone-svg icone-borracha" aria-hidden="true"></span></button>
+                            <button type="button" class="botao-largo" data-fog="cobrir" aria-pressed="false" aria-label="Cobrir (pincel)" title="Pincel: pinta para COBRIR de novo (arraste sobre o tabuleiro; Esc volta a Mover)"><span class="icone-svg icone-pincel" aria-hidden="true"></span></button>
                         </div>
-                    </section>
-                    <section>
-                        <h2>Prévia</h2>
-                        <div id="fog-previa" title="Como o pincel vai pintar (o formato e as proporções; o tamanho em casas aparece embaixo)"></div>
-                        <div id="fog-previa-texto"></div>
                     </section>
                     <section>
                         <h2>Revelar</h2>
                         <div id="fog-alinhamento">
                             <button type="button" class="botao-largo ativo" data-alinhamento="livre" aria-pressed="true" title="Livre: o pincel pinta onde o mouse estiver (com o formato e o tamanho escolhidos)">Livre</button>
-                            <button type="button" class="botao-largo" data-alinhamento="casa" aria-pressed="false" title="Por casa: o pincel cobre casas INTEIRAS da grade, com o formato escolhido (círculo, quadrado ou triângulo) dentro da caixa de casas; o tamanho vira o lado em casas">Por casa</button>
-                            <button type="button" class="botao-largo" data-alinhamento="area" aria-pressed="false" title="Área: aperte, ARRASTE uma caixa sobre o mapa e solte: o formato escolhido (círculo, quadrado ou triângulo) que cabe nela é revelado (ou coberto)">Área</button>
+                            <button type="button" class="botao-largo" data-alinhamento="casa" aria-pressed="false" title="Casa (por casa): o círculo e o triângulo são feitos de casas INTEIRAS da grade, como os gabaritos de área de RPG (entra a casa cujo centro cai dentro do formato); o tamanho vira o lado em casas">Casa</button>
+                            <button type="button" class="botao-largo" data-alinhamento="area" aria-pressed="false">Puxar</button>
                         </div>
                     </section>
                     <section>
@@ -209,19 +226,7 @@
                         </div>
                     </section>
                     <section>
-                        <h2>Largura <span id="fog-raio-valor">2</span> <span class="fog-unidade">casas</span></h2>
-                        <div class="fog-raio-linha">
-                            <button type="button" id="fog-raio-menos" aria-label="Diminuir a largura" title="Diminuir a largura">−</button>
-                            <input type="range" id="fog-raio" min="0.5" max="20" step="0.5" value="2" aria-label="Largura do pincel (metade, em casas)" />
-                            <button type="button" id="fog-raio-mais" aria-label="Aumentar a largura" title="Aumentar a largura">+</button>
-                        </div>
-                        <h2>Altura <span id="fog-altura-valor">2</span> <span class="fog-unidade">casas</span></h2>
-                        <div class="fog-raio-linha">
-                            <button type="button" id="fog-altura-menos" aria-label="Diminuir a altura" title="Diminuir a altura">−</button>
-                            <input type="range" id="fog-altura" min="0.5" max="20" step="0.5" value="2" aria-label="Altura do pincel (metade, em casas)" />
-                            <button type="button" id="fog-altura-mais" aria-label="Aumentar a altura" title="Aumentar a altura">+</button>
-                        </div>
-                        <button type="button" id="fog-proporcional" class="botao-largo ativo" aria-pressed="true" title="Ligado: largura e altura mudam juntas (pincel proporcional). Desligue para escolher cada uma">🔗 Proporcional</button>
+                        <h2>Tamanhos prontos</h2>
                         <div id="fog-tamanhos">
                             <button type="button" data-raio="0.5">0,5</button>
                             <button type="button" data-raio="1">1</button>
