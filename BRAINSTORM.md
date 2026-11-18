@@ -2,7 +2,7 @@
 
 > Documento vivo para anotar ideias do site. Preencha à vontade; o que está em "Decisões já tomadas" foi combinado, o resto ainda é ideia ou pergunta.
 
-> **Índice por assunto:** 1. Ideia central · Decisões já tomadas · 2. Público · 3. Funcionalidades · 4. Páginas / telas · 5. Visual e tom · 6. Tecnologia · 7. Conteúdo · 8. Perguntas em aberto · 9. Próximos passos · PAPÉIS E PERMISSÕES (decididos em 17/11/2026; ainda NÃO feitos)
+> **Índice por assunto:** 1. Ideia central · Decisões já tomadas · 2. Público · 3. Funcionalidades · 4. Páginas / telas · 5. Visual e tom · 6. Tecnologia · 7. Conteúdo · 8. Perguntas em aberto · 9. Próximos passos · PAPÉIS E PERMISSÕES (decididos em 17/11/2026; a FASE 1 está FEITA, o que falta está no `TODO.md`)
 
 ## 1. Ideia central
 
@@ -320,7 +320,7 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 - **Ideias que combinam:** o mestre "mostrar" uma nota na hora a todos (abre a janela para cada um); imagem dentro da nota; pesquisa e pastas; diário próprio de cada jogador.
 - **Em aberto:** onde fica a aba (coluna da direita ou bolsa); se os jogadores podem criar notas; edição simultânea; ligação com as cenas (uma nota anexada a uma cena) e com os tokens (a nota de um personagem). Registrado também em `TODO.md`.
 
-### CENAS (vários mapas/telas) e TOKENS como MODELO × PEÇA (conversa de 14/11/2026; NADA implementado)
+### CENAS (vários mapas/telas) e TOKENS como MODELO × PEÇA (conversa de 14/11/2026; FEITO EM PARTE: o mapa, a grade e o tamanho por mapa, os desenhos e o fog por mapa; faltam as peças por cena e a barra de cenas, ver `TODO.md`)
 
 - **Cena** = um mapa com o que é dele: imagem, colunas/linhas, desenhos e as **peças** (tokens colocados) que estão nele; chat, fichas, grupos e a bolsa (biblioteca) continuam da MESA. Cada cena é um **documento do servidor** (`dados/cenas/<id>.json`; imagens numa pasta própria, nome gerado pelo servidor, tipo e tamanho limitados). **Pré-requisito:** o mapa, o tamanho do tabuleiro e os desenhos hoje só existem no navegador de quem os fez; as cenas obrigam a sincronizá-los (isso já era trabalho pendente). Só a cena que está à vista carrega a imagem (as outras liberam a textura).
 - **Quem controla (decidido pelo dono):** o **mestre** decide. Ele pode **abrir outra cena** (para preparar, sem os jogadores a verem) e **chamar os jogadores**: um AVISO no chat com um botão "Ir para a cena X" (cada jogador clica e entra). Variante a decidir: "Levar todos" (força a troca) além de "Chamar". Depende dos **papéis** (mestre × jogador), que ainda não existem.
@@ -494,7 +494,7 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 - **Iniciativa — ajustes do dono, versão básica feita (14/11/2026):** a caixa começa em modo de edição ('+ Criatura', 'Limpar', 'Confirmar'); só depois de 'Confirmar' aparecem a rodada e o 'Próximo turno'; a lista não tem campos (botão direito: Editar… e Remover); nome padrão 'Criatura'; 'Limpar' no lugar de 'Reset'; arrastar o dado do chat para a caixa sempre acrescenta alguém novo (com o ícone do token, se a rolagem veio de uma ficha aberta por um token); o destaque/foco de quem tem a vez no tabuleiro foi CANCELADO. Ver `CLAUDE.md`.
 - **Fog no mapa (14/11/2026, pedido do dono):** o mestre terá ferramentas para limpar e adicionar fog. Na tela de várias cenas, ao adicionar um mapa, pergunta-se sobre o fog (pré-selecionado como sim; dá para desmarcar). Ver `CLAUDE.md`, item "FOG NO MAPA".
 
-## PAPÉIS E PERMISSÕES (decididos em 17/11/2026; ainda NÃO feitos)
+## PAPÉIS E PERMISSÕES (decididos em 17/11/2026; a FASE 1 está FEITA, o que falta está no `TODO.md`)
 - **Ordem (decisão do dono):** primeiro o **motor de papéis**, testado com identidades FORJADAS (`?papel=mestre|jogador&nome=...`); o banco, as contas e o login ficam para o FIM. Por isso toda regra usa um **id de usuário estável**, para trocar a identidade depois sem refazer as permissões.
 - **Para testes, o papel é OBRIGATÓRIO no endereço:** ninguém é mestre por padrão nem por vir do `127.0.0.1`; quem não diz o papel entra como **jogador** (interpretação do Claude: o mais seguro; a confirmar). Vale também no modo local.
 - **Papéis:** o **mestre** controla tudo e pode dar o poder de mestre a outro jogador; existe uma **aba "Jogadores"** (lista, papel, liberações) e uma aba de **configuração da mesa** dentro do jogo (limites e opções do servidor).
