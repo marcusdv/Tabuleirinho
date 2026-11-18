@@ -15,7 +15,7 @@
 
 import { Assets, Container, FederatedPointerEvent, Graphics, PointData, Sprite, Text, Texture, Ticker } from "pixi.js";
 import { buscarCondicao } from "../condicoes";
-import { ALPHA_RETANGULO_SELECAO, ALTURA_BARRA_STATUS, BARRAS_DA_CURA, COR_CURA, COR_DANO, COR_SELECAO, MS_ANIMACAO_CURA, MS_ANIMACAO_DANO, FOLGA_TOKEN, ALPHA_TILE_SELECAO, LARGURA_BORDA_TOKEN, ANEIS_DA_BORDA_DANO, PROFUNDIDADE_BORDA_DANO, MAX_ICONES_CONDICAO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, TAMANHO_NUMERO_BARRA, VAO_BARRA_STATUS, VAO_BARRA_TOKEN } from "../config";
+import { ALPHA_RETANGULO_SELECAO, ALTURA_BARRA_STATUS, BARRAS_DA_CURA, COR_CURA, COR_DANO, COR_SELECAO, MS_ANIMACAO_CURA, MS_ANIMACAO_DANO, FOLGA_TOKEN, ALPHA_TILE_SELECAO, LARGURA_BORDA_TOKEN, ANEIS_DA_BORDA_DANO, PROFUNDIDADE_BORDA_DANO, MAX_ICONES_CONDICAO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, TAMANHO_NUMERO_BARRA, VAO_BARRA_STATUS, VAO_BARRA_TOKEN, SEM_BORDA } from "../config";
 import { casaMaisProxima, diametroDoIcone, posicoesNoAnel } from "../coordenadas";
 import { buscarToken, colocarToken, estado, guardarToken, naCenaAtual, podeUsarToken, statusAplicaveis, Token } from "../estado";
 import type { Camera } from "./camera";
@@ -351,7 +351,7 @@ export function criarTokens(
         // O preenchimento fica por baixo (e aparece através das partes transparentes da imagem)...
         view.corpo.circle(0, 0, raio).fill(token.cor); // centro em (0,0): a posição da raiz é o centro
         // ...e a borda por cima de tudo, com a mesma espessura com ou sem imagem.
-        view.borda.circle(0, 0, raio).stroke({ width: LARGURA_BORDA_TOKEN, color: token.corBorda });
+        if (token.corBorda !== SEM_BORDA) view.borda.circle(0, 0, raio).stroke({ width: LARGURA_BORDA_TOKEN, color: token.corBorda }); // (SEM_BORDA: o token fica sem contorno)
     }
 
     /**

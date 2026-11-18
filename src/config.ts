@@ -221,6 +221,8 @@ export const QUALIDADE_IMAGEM_TOKEN = 0.85; // qualidade do WebP (0 a 1): menor 
 export const MAX_CARACTERES_IMAGEM_TOKEN = 150_000; // tamanho máximo do texto da miniatura ("data:image/webp;base64,...")
 export const LARGURA_BORDA_TOKEN = 3; // espessura (px) da borda do token (a mesma com ou sem imagem)
 export const COR_BORDA_INICIAL_TOKEN = 0xffffff; // cor da borda marcada ao abrir a bolsa (branco, como sempre foi)
+/** O valor especial de `corBorda` que quer dizer "SEM BORDA" (pedido do dono, 17/11/2026): o token é desenhado sem o contorno. */
+export const SEM_BORDA = -1;
 export const LADO_MAX_EDICAO_IMAGEM = 2048; // fotos maiores são reduzidas ao abrir o editor (poupa memória)
 export const VISAO_RECORTE = 320; // lado (px) da área do editor de recorte
 export const DIAMETRO_RECORTE = 280; // diâmetro (px) do círculo de recorte dentro dessa área

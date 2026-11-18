@@ -373,7 +373,7 @@
 }
 /* o token selecionado: a moldura REDONDA ganha o fundo de seleção e o aro dourado (a caixinha do token é um círculo) */
 #bolsa .ficha.selecionada .disco {
-    box-shadow: 0 0 0 6px #46425a, 0 0 0 8px #ffd54f;
+    box-shadow: 0 0 0 3px #ffd54f; /* o selecionado: um aro DOURADO colado no token */
 }
 #bolsa-retangulo {
     position: fixed;
@@ -654,17 +654,21 @@
     touch-action: none;
 }
 .ficha .disco {
-    width: 54px; /* o ícone tem o MESMO tamanho para todo token, 1×1 ou 4×4 (o tamanho fica na dica do mouse) */
-    height: 54px;
+    /* O TOKEN usa todo o espaço da miniatura (pedido do dono, 17/11/2026: sem o círculo de fundo em volta dele). O MESMO tamanho e formato para todo token, 1×1 ou 4×4
+       (`flex: none` e `aspect-ratio`: nunca é espremido nem vira oval quando a coluna é estreita; o tamanho fica na dica do mouse). */
+    flex: none;
+    width: min(66px, 100%);
+    height: auto;
+    aspect-ratio: 1;
     border-radius: 50%;
     border: 2px solid #fff;
     box-sizing: border-box;
     margin-bottom: 4px;
-    /* a CAIXINHA redonda: um aro escuro em volta do token (a cor da antiga caixa), com um fio de borda por fora */
-    box-shadow: 0 0 0 6px #2f2f3a, 0 0 0 7px #4a4a58;
+    transition: transform 120ms ease, filter 120ms ease;
 }
 .ficha:hover .disco {
-    box-shadow: 0 0 0 6px #3b3b49, 0 0 0 7px #5a5a6a;
+    transform: scale(1.05); /* (passar o mouse: o token cresce um pouco) */
+    filter: brightness(1.08);
 }
 /* Nome do token na ficha (pedido do dono, 17/11/2026: igual em TODOS os tamanhos da bolsa, e igual ao do cartão da ficha): até DUAS linhas, centralizado, com quebra bonita (`text-wrap: pretty`) e "…"
    só se passar de duas (o nome inteiro está na dica do mouse). Antes, na média e na tela cheia era uma linha só. */

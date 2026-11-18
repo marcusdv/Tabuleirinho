@@ -9,6 +9,7 @@ import type { RegistroDeMapa } from "./protocolo.ts";
 import {
     COLUNAS_INICIAIS,
     COR_BORDA_INICIAL_TOKEN,
+    SEM_BORDA,
     LINHAS_INICIAIS,
     MAPA_INICIAL,
     MAX_CARACTERES_MENSAGEM,
@@ -909,7 +910,7 @@ export function montarToken(
         col: 0,
         row: 0, // só valem quando o token for colocado no mapa
         cor: limitar(Math.round(cor), 0, 0xffffff),
-        corBorda: limitar(Math.round(corBorda), 0, 0xffffff),
+        corBorda: corBorda === SEM_BORDA ? SEM_BORDA : limitar(Math.round(corBorda), 0, 0xffffff), // (SEM_BORDA = o token sem contorno)
         size: limitar(Math.round(size), TAMANHO_MIN_TOKEN, TAMANHO_MAX_TOKEN) as TamanhoToken,
         condicoes: [],
         guardado: true,
@@ -1092,7 +1093,7 @@ export function tokenValido(bruto: unknown): Token | null {
     const t = bruto as Record<string, unknown>;
     const inteiro = (valor: unknown): valor is number => typeof valor === "number" && Number.isSafeInteger(valor);
     const cor = (valor: unknown): valor is number => inteiro(valor) && valor >= 0 && valor <= 0xffffff;
-    if (!inteiro(t.id) || t.id < 1 || !inteiro(t.col) || !inteiro(t.row) || !cor(t.cor) || !cor(t.corBorda)) return null;
+    if (!inteiro(t.id) || t.id < 1 || !inteiro(t.col) || !inteiro(t.row) || !cor(t.cor) || !(cor(t.corBorda) || t.corBorda === SEM_BORDA)) return null;
     if (!inteiro(t.size) || t.size < TAMANHO_MIN_TOKEN || t.size > TAMANHO_MAX_TOKEN) return null;
     if (typeof t.nome !== "string" || t.nome.trim() === "" || t.nome.length > MAX_CARACTERES_NOME_TOKEN) return null;
     if (t.imagem !== null && (typeof t.imagem !== "string" || !imagemValida(t.imagem))) return null;
@@ -1510,7 +1511,7 @@ export function editarToken(id: number, mudancas: MudancasToken): Token | null {
     if (!token) return null;
     if (mudancas.nome !== undefined) token.nome = limparNomeToken(mudancas.nome) || `Token ${token.id}`;
     if (mudancas.cor !== undefined) token.cor = limitar(Math.round(mudancas.cor), 0, 0xffffff);
-    if (mudancas.corBorda !== undefined) token.corBorda = limitar(Math.round(mudancas.corBorda), 0, 0xffffff);
+    if (mudancas.corBorda !== undefined) token.corBorda = mudancas.corBorda === SEM_BORDA ? SEM_BORDA : limitar(Math.round(mudancas.corBorda), 0, 0xffffff);
     if (mudancas.imagem !== undefined && (mudancas.imagem === null || imagemValida(mudancas.imagem))) token.imagem = mudancas.imagem;
     if (mudancas.favorito !== undefined) token.favorito = mudancas.favorito === true;
     if (mudancas.grupos !== undefined) token.grupos = limparGrupos(mudancas.grupos);

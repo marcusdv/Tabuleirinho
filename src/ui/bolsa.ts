@@ -1574,7 +1574,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     montarPaleta(amostrasBorda, (cor) => {
         corBordaEscolhida = cor;
         atualizarEscolha();
-    });
+    }, true); // (a paleta da borda tem "Sem borda")
     atualizarEscolha();
     atualizar();
     atualizarFichas();

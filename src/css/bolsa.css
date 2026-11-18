@@ -232,16 +232,11 @@
 }
 #bolsa.expandida .ficha .disco {
     /* O MESMO tamanho para todo token (antes crescia com o tamanho do token). */
-    width: 84px;
-    height: 84px;
+    width: min(100px, 100%);
     margin-bottom: 6px;
-    box-shadow: 0 0 0 8px #2f2f3a, 0 0 0 9px #4a4a58;
-}
-#bolsa.expandida .ficha:hover .disco {
-    box-shadow: 0 0 0 8px #3b3b49, 0 0 0 9px #5a5a6a;
 }
 #bolsa.expandida .ficha.selecionada .disco {
-    box-shadow: 0 0 0 8px #46425a, 0 0 0 10px #ffd54f;
+    box-shadow: 0 0 0 4px #ffd54f;
 }
 #bolsa.expandida .ficha small {
     font-size: 12px;
@@ -504,4 +499,9 @@
 #bolsa-backup:disabled {
     opacity: 0.6;
     cursor: progress;
+}
+
+/* A amostra "SEM BORDA" da paleta da borda: um quadradinho escuro riscado em vermelho na diagonal. */
+.amostra.sem-borda {
+    background: linear-gradient(135deg, transparent 0 44%, #d94a3d 44% 56%, transparent 56%), #26262f;
 }
