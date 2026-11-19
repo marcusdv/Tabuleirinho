@@ -21,3 +21,8 @@
 /dados/fog.json
 /dados/condicoes.json
 /dados/usuarios.json
+
+# Dependências e site gerado: NÃO vão para o git (cada pessoa roda `npm install` e `npm run build`). O que se DISTRIBUI será outro: um pacote com o `dist` e uma `dados/` com arquivos iniciais de boas-vindas (ver TODO.md, "PACOTE DE DOWNLOAD"). Ignorar só vale para arquivos que ainda NÃO estão no git:
+# o que já foi versionado antes (ver TODO.md, "HIGIENE DO GIT") continua versionado até sair do índice com `git rm -r --cached`.
+/node_modules/
+/dist/

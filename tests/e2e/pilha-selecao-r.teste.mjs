@@ -103,7 +103,7 @@ await p.evaluate(() => {
     t.semear([]);
 });
 await p.waitForTimeout(300);
-ok("7a) o token de ficha única mostra o selo na bolsa", (await p.locator("#bolsa-itens .ficha .item-unica").count()) >= 1);
+ok("7a) o token de ficha única mostra o ícone da ficha em DOURADO na bolsa (e não há mais o selo separado)", (await p.locator("#bolsa-itens .ficha .item-ficha-vinculo.unica").count()) >= 1 && (await p.locator("#bolsa-itens .ficha .item-unica").count()) === 0);
 await p.click("#bolsa-filtro-grupos");
 const itens = await p.locator("#menu-grupos > *").evaluateAll((es) => es.map((e) => (e.tagName === "HR" ? "—" : e.textContent.trim())));
 ok("7b) no menu a ordem termina em: Fichas únicas, Mostrar todos, Novo grupo (embaixo dos grupos)", /De ficha única/.test(itens.at(-4) ?? "") && /Mostrar todos/.test(itens.at(-3) ?? ""), itens.join(" | "));

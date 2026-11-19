@@ -257,7 +257,9 @@ Coisas que o site deve oferecer ou dizer para facilitar a vida de quem monta a m
 - **Ordenar fichas pela data de ALTERAÇÃO** (hoje é a de criação) e mostrar "alterada há 3 dias" na dica.
 - **Aviso de limite:** quando a mesa se aproxima de `MAX_TOKENS`/`MAX_FICHAS`/`MAX_GRUPOS`, mostrar quantos restam.
 
-### Novas abas da bolsa: GRUPOS e CONDIÇÕES customizadas (pedido do dono; NÃO feito, anotado para depois)
+### Novas abas da bolsa: GRUPOS e CONDIÇÕES customizadas (a aba CONDIÇÕES está FEITA em parte desde 19/11/2026; a aba GRUPOS e o resto, não)
+
+- **ATUALIZAÇÃO (19/11/2026): o que JÁ existe e o que MUDOU em relação ao texto abaixo.** A aba **Condições** existe na bolsa em tela cheia (só o mestre; ver `docs/historico.md`): criar, editar e excluir condições da mesa, com **nome**, **texto do balão** (descrição) e **ícone = imagem recortada e comprimida num "print" de 256 px** (o mesmo editor dos tokens). **Decisões que valem MAIS que o texto abaixo:** as **18 de fábrica NÃO foram apagadas**: viraram editáveis e excluíveis (**menos o Morto**, que o jogo usa para o X vermelho), com "Restaurar as de fábrica"; **só o mestre** edita (valendo para a mesa toda); a lista fica num arquivo só, `dados/condicoes.json` (e não um arquivo por condição). **Ainda NÃO feito (ideias abaixo):** a aba **Grupos**; **cor de fundo** e **borda** da condição; os **efeitos** por cima do token; a **biblioteca de ícones SVG**; o pacote inicial importável; reordenar. Hoje os ícones ficam no **rodapé do tile** (não mais no anel).
 
 - **Aba "Grupos":** um lugar na bolsa para **editar os grupos** (criar, renomear, trocar a cor, excluir, e ver quantos tokens e fichas há em cada um), em vez de só pelo clique direito no chip. As abas da bolsa passam a ser **Tokens, Fichas, Grupos e Condições**.
 - **Aba "Condições": condições CUSTOMIZADAS, compartilhadas pela MESA TODA** (decisão do dono). **As condições de fábrica de hoje (as 18, com ícone e descrição) serão APAGADAS do app**: o catálogo passa a ser só o que o mestre e os usuários criarem. Cada condição teria nome, descrição, ícone e, talvez, um visual especial (como o X do "Morto").

@@ -2,7 +2,7 @@
 /* ===== AS MARCAS DA FICHINHA DO TOKEN, numa FAIXA no alto com posições FIXAS (pedido do dono, 17/11/2026): o símbolo da ficha (um ARQUIVO) à esquerda, a ESTRELA sempre no centro e os GRUPOS à
    direita. A estrela não depende mais de quantos grupos há (antes ela ficava num lugar que mudava e encostava nas bolinhas). Só valem para a fichinha de TOKEN; o cartão das fichas tem as dele. ===== */
 .ficha .item-ficha-vinculo {
-    /* o ARQUIVO: o ícone `public/images/svgs/arquivo.svg` (contorno preto) como máscara, pintado num cinza quase invisível (pedido do dono, 17/11/2026) */
+    /* o ARQUIVO: o ícone `public/images/svgs/arquivo.svg` (contorno preto) como máscara, pintado num cinza quase invisível (pedido do dono, 17/11/2026); em DOURADO nas fichas únicas (`.unica`, abaixo) */
     left: 4px;
     top: 3px;
     width: 12px;
@@ -13,23 +13,9 @@
     -webkit-mask: url("/images/svgs/arquivo.svg") center / contain no-repeat;
     mask: url("/images/svgs/arquivo.svg") center / contain no-repeat;
 }
-/* O SELO de ficha única no token: o mesmo `unico.svg`, CINZA quase invisível como o arquivo, logo ao lado dele (pedido do dono, 17/11/2026). */
-.ficha .item-unica {
-    position: absolute;
-    left: 16px;
-    top: 3px;
-    width: 11px;
-    height: 11px;
-    background: rgba(201, 201, 212, 0.22);
-    -webkit-mask: url("/images/svgs/unico.svg") center / contain no-repeat;
-    mask: url("/images/svgs/unico.svg") center / contain no-repeat;
-    pointer-events: none;
-}
-#bolsa.expandida .ficha .item-unica {
-    left: 36px;
-    top: 6px;
-    width: 20px;
-    height: 20px;
+/* Ficha ÚNICA (de jogador): o mesmo arquivo, em DOURADO e bem visível (pedido do dono, 19/11/2026; antes um selo cinza ao lado do arquivo). As fichas normais ficam com o cinza apagado. */
+.ficha .item-ficha-vinculo.unica {
+    background: #ffd54f;
 }
 .ficha .item-estrela {
     top: 2px;
