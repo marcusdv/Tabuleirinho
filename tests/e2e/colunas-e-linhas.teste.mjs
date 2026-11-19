@@ -22,7 +22,7 @@ await p.screenshot({ path: `${S}/n1_digitado.png` });
 await digitar("#colunas-valor", "3");
 ok("4) abaixo do mínimo (3) -> limitado a 5", (await v("#colunas-valor")) === "5", await v("#colunas-valor"));
 await digitar("#linhas-valor", "500");
-ok("5) acima do máximo (500) -> limitado a 100", (await v("#linhas-valor")) === "100", await v("#linhas-valor"));
+ok("5) acima do máximo (500) -> limitado a 256 (o máximo desde 18/11/2026; era 100)", (await v("#linhas-valor")) === "256", await v("#linhas-valor"));
 
 await digitar("#colunas-valor", "", "Enter");
 ok("6) campo vazio + Enter -> volta ao valor atual (5)", (await v("#colunas-valor")) === "5", await v("#colunas-valor"));

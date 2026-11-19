@@ -1,0 +1,21 @@
+/* O botão MOVER da régua (main.ts, `moverPelaRegua`): aparece junto da ponta da régua depois de medir a partir de um token que a pessoa pode usar. */
+#regua-mover {
+    position: fixed;
+    z-index: 22;
+    padding: 5px 16px;
+    border: 1px solid #ffd54f;
+    border-radius: 14px;
+    background: #4a4430;
+    color: #ffd54f;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+#regua-mover:hover {
+    background: #5a5238;
+}
+#regua-mover[hidden] {
+    display: none;
+}

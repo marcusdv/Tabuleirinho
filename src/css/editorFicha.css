@@ -915,9 +915,19 @@
 /* As ROLAGENS da página: DUAS por linha (cada uma é uma caixa clicável com o nome e a fórmula calculada). Seletor com mais peso que `#editor-ficha-lateral ul` (coluna única). */
 #editor-ficha-lateral #editor-ficha-rolagens {
     display: block;
-    columns: 2;
+    columns: 2 110px; /* no MÁXIMO 2 colunas, cada uma com no MÍNIMO 110 px de largura: num painel estreito vira 1 coluna, em vez de espremer os botões */
     column-gap: 5px;
     column-fill: balance;
+}
+/* Nome e cálculo de um botão de rolagem: UMA linha só, com reticências se não couber (o ícone do dado fica no começo). O texto inteiro está na dica do mouse. */
+#editor-ficha-lateral #editor-ficha-rolagens li.rolagem .nome,
+#editor-ficha-lateral #editor-ficha-rolagens li.rolagem .valor {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    overflow-wrap: normal;
+    white-space: nowrap;
+    text-overflow: ellipsis;
 }
 
 #editor-ficha-lateral #editor-ficha-rolagens li.rolagem {
@@ -934,6 +944,56 @@
 
 #editor-ficha-lateral #editor-ficha-rolagens li.rolagem {
     min-width: 0; /* o texto comprido quebra dentro da caixa em vez de alargar a coluna */
+}
+/* O TÍTULO de um grupo de rolagens (o "# Perícias" mais próximo acima delas no texto): ocupa a largura toda (cruza as duas colunas), com um espaço em cima que separa um grupo do outro. */
+#editor-ficha-lateral #editor-ficha-rolagens li.titulo-grupo {
+    column-span: all;
+    list-style: none;
+    margin: 0 0 5px;
+    padding: 0 2px 3px;
+    border-bottom: 1px solid #3b3b49;
+    font-size: 0.78em;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #9a9aab;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis; /* um título comprido não quebra o painel: termina em reticências (o título inteiro está na dica do mouse) */
+}
+#editor-ficha-lateral #editor-ficha-rolagens li.titulo-grupo.depois-de-grupo {
+    margin-top: 14px; /* o intervalo entre um grupo e o seguinte (o primeiro título não precisa) */
+}
+/* A caixa do CÁLCULO de uma rolagem, que aparece NA HORA ao passar o mouse no botão dela na leitura (o `title` do navegador demora). Fica acima das janelas de ficha (50 a 55). */
+#editor-ficha-dica-rolagem {
+    position: fixed;
+    z-index: 58;
+    max-width: min(360px, calc(100vw - 16px));
+    box-sizing: border-box;
+    padding: 6px 9px;
+    background: #1f1f28;
+    border: 1px solid #55556a;
+    border-radius: 6px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    color: #e6e6ea;
+    font-size: 0.9em;
+    line-height: 1.4;
+    pointer-events: none; /* só mostra: nunca rouba o mouse do botão (senão ela piscaria) */
+    overflow-wrap: anywhere;
+}
+#editor-ficha-dica-rolagem .dica-nome {
+    font-weight: 700;
+    color: #ffb86b;
+}
+#editor-ficha-dica-rolagem .dica-escrita {
+    color: #b39ddb;
+}
+#editor-ficha-dica-rolagem .dica-conta {
+    color: #ffd54f;
+    font-variant-numeric: tabular-nums;
+}
+#editor-ficha-dica-rolagem .dica-erro {
+    color: #e88a8a;
 }
 /* Uma variável que MUDA: nome, − campo +, a barra (só quando o intervalo é pequeno) e os limites. */
 #editor-ficha-lateral li.muda {
@@ -1026,13 +1086,14 @@
 }
 /* Os blocos de exemplo da janela de INSTRUÇÕES da bolsa (a que abre pelo botão "Instruções" da aba Fichas). */
 #ajuda-fichas pre {
-    margin: 0 0 4px;
-    padding: 6px 8px;
-    background: #2f2f3a;
-    border-radius: 5px;
+    margin: 0 0 8px;
+    padding: 12px 16px;
+    background: #2a2a34;
+    border: 1px solid #3a3a48;
+    border-radius: 8px;
     font: inherit;
-    font-size: 11.5px;
-    line-height: 1.55;
+    font-size: 13.5px;
+    line-height: 1.7;
     color: #e6e6ea;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -1057,9 +1118,10 @@
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
-    width: min(660px, calc(100vw - 24px));
-    max-height: calc(100vh - 24px);
-    padding: 16px 20px 14px;
+    width: min(1080px, calc(100vw - 32px)); /* (era 660 px: a janela ocupa bem mais da tela; pedido do dono, 19/11/2026) */
+    height: calc(100vh - 32px);
+    max-height: calc(100vh - 32px);
+    padding: 22px 30px 18px;
     background: #22222a;
     border: 1px solid #3a3a45;
     border-radius: 12px;
@@ -1074,8 +1136,8 @@
 }
 #ajuda-fichas-painel h3 {
     margin: 0;
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 22px;
+    font-weight: 700;
 }
 /* O botão de COPIAR todo o texto das instruções (pedido do dono). */
 #ajuda-fichas-copiar {
@@ -1091,34 +1153,95 @@
     border-color: #66bb6a;
 }
 #ajuda-fichas-corpo ul {
-    margin: 0 0 8px;
-    padding-left: 18px;
+    margin: 0 0 12px;
+    padding-left: 22px;
 }
 #ajuda-fichas-corpo li {
-    margin: 0 0 3px;
+    margin: 0 0 5px;
 }
 #ajuda-fichas-corpo {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding-right: 6px;
-    font-size: 13px;
-    line-height: 1.55;
+    padding-right: 12px;
+    font-size: 14.5px;
+    line-height: 1.65;
     color: #c9c9d4;
+    scroll-behavior: smooth;
 }
+/* O TÍTULO de cada PARTE: grande, em destaque, com uma barra dourada e uma LINHA DIVISÓRIA acima separando-o da parte anterior (pedido do dono, 19/11/2026). */
 #ajuda-fichas-corpo h4 {
-    margin: 14px 0 6px;
-    font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: #9a9aa8;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 44px 0 14px;
+    padding-top: 28px;
+    border-top: 2px solid #44445a;
+    font-size: 22px;
+    font-weight: 700;
+    line-height: 1.25;
+    color: #f2f2f6;
+    scroll-margin-top: 6px;
+}
+#ajuda-fichas-corpo h4::before {
+    content: "";
+    flex: none;
+    width: 6px;
+    height: 1.15em;
+    border-radius: 3px;
+    background: #ffd54f;
 }
 #ajuda-fichas-corpo h4:first-child {
     margin-top: 0;
+    padding-top: 0;
+    border-top: 0;
+}
+/* Um SUBTÍTULO dentro de uma parte (ex.: "Regras das variáveis de recurso"). */
+#ajuda-fichas-corpo h5 {
+    margin: 26px 0 8px;
+    padding-bottom: 5px;
+    border-bottom: 1px dashed #4a4a60;
+    font-size: 16px;
+    font-weight: 700;
+    color: #ffd54f;
 }
 #ajuda-fichas-corpo p {
-    margin: 0 0 8px;
+    margin: 0 0 10px;
+}
+/* O ÍNDICE do alto: um botão por parte, para ir direto a ela. */
+#ajuda-fichas-indice {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid #3a3a45;
+}
+#ajuda-fichas-indice button {
+    padding: 5px 12px;
+    border: 1px solid #4a4a58;
+    border-radius: 14px;
+    background: #2f2f3a;
+    color: #e6e6ea;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+}
+#ajuda-fichas-indice button:hover {
+    border-color: #ffd54f;
+    color: #ffd54f;
+}
+/* As DICAS das instruções: uma frase curta com "Dica:" em dourado e, logo abaixo, um bloco de código com o exemplo (pedido do dono, 19/11/2026: os blocos de código separados são bons para dicas). */
+#ajuda-fichas-corpo .ajuda-dica {
+    margin: 20px 0 6px;
+    color: #c9c9d4;
+}
+#ajuda-fichas-corpo .ajuda-dica + pre {
+    border-left: 4px solid #ffd54f; /* o exemplo de uma DICA ganha uma barra dourada à esquerda */
+}
+#ajuda-fichas-corpo .ajuda-dica b {
+    color: #ffd54f;
 }
 /* O RODAPÉ: a frase (em minúsculo, como o dono pediu) e o botão Fechar. */
 #ajuda-fichas-rodape {

@@ -22,6 +22,9 @@ export interface OpcoesMenuGrupoMapa {
 export interface ExtraDoPainel {
     texto: string;
     dica?: string;
+    /** A classe do ícone SVG do item (ex.: "icone-emanacao"); com `comX`, um ✕ vermelho aparece no canto do ícone ("remover"). */
+    icone?: string;
+    comX?: boolean;
     aoClicar(): void;
 }
 
@@ -137,10 +140,19 @@ export function criarMenuGrupoMapa(opcoes: OpcoesMenuGrupoMapa): MenuGrupoMapa {
         campo.focus();
     }
 
-    /** A grade das condições: as que TODOS já têm ficam marcadas (clicar nelas desliga de todos); as outras ligam em todos. */
+    /**
+     * A grade das condições: as que TODOS já têm ficam marcadas (clicar nelas desliga de todos); as outras ligam em todos.
+     * A ORDEM (pedido do dono, 19/11/2026): o "Morto" SEMPRE em primeiro (acesso rápido), depois as condições LIGADAS (as escolhidas sobem), depois as outras, cada grupo na ordem da lista da mesa.
+     * Ao ligar ou desligar uma condição a grade se reordena na hora.
+     */
     function desenharCondicoes(): void {
         const grade = document.createElement("div");
         grade.className = "grade-condicoes-grupo";
+        const itensDaGrade: { id: string; botao: HTMLButtonElement; posicao: number }[] = [];
+        const reordenar = (): void => {
+            const peso = (i: { id: string; botao: HTMLButtonElement }): number => (i.id === "Morto" ? 0 : i.botao.classList.contains("ativa") ? 1 : 2);
+            grade.append(...itensDaGrade.toSorted((a, b) => peso(a) - peso(b) || a.posicao - b.posicao).map((i) => i.botao)); // (anexar de novo só MOVE os botões que já existem)
+        };
         for (const condicao of CONDICOES) {
             let todosTem = alvos.every((t) => t.condicoes.includes(condicao.id)); // (muda a cada clique: a caixa FICA ABERTA para escolher várias condições)
             const b = document.createElement("button");
@@ -161,9 +173,11 @@ export function criarMenuGrupoMapa(opcoes: OpcoesMenuGrupoMapa): MenuGrupoMapa {
                 opcoes.aoCondicao(condicao.id, todosTem, alvos);
                 b.classList.toggle("ativa", todosTem);
                 b.title = dicaDe();
+                reordenar(); // (a escolhida sobe; a que saiu desce)
             });
-            grade.append(b);
+            itensDaGrade.push({ id: condicao.id, botao: b, posicao: itensDaGrade.length });
         }
+        reordenar();
         menu.querySelector(".grade-condicoes-grupo")?.remove();
         menu.append(grade);
         caber();
@@ -194,12 +208,29 @@ export function criarMenuGrupoMapa(opcoes: OpcoesMenuGrupoMapa): MenuGrupoMapa {
             }
             itens.push(botao("Add condição ▾", () => desenharCondicoes(), alvos.length === 1 ? "Colocar ou tirar uma condição" : "Colocar uma condição em todos os selecionados"));
             for (const extra of extras) {
-                itens.push(
-                    botao(extra.texto, () => {
-                        fechar();
-                        extra.aoClicar();
-                    }, extra.dica ?? ""),
-                );
+                const item = botao(extra.texto, () => {
+                    fechar();
+                    extra.aoClicar();
+                }, extra.dica ?? "");
+                if (extra.icone) {
+                    // Com ícone: o símbolo (e, se for o caso, um ✕ no canto dele) vem antes do texto.
+                    const caixa = document.createElement("span");
+                    caixa.className = "extra-icone";
+                    const icone = document.createElement("span");
+                    icone.className = `icone-svg ${extra.icone}`;
+                    icone.setAttribute("aria-hidden", "true");
+                    caixa.append(icone);
+                    if (extra.comX) {
+                        const x = document.createElement("span");
+                        x.className = "extra-x";
+                        x.textContent = "✕";
+                        x.setAttribute("aria-hidden", "true");
+                        caixa.append(x);
+                    }
+                    item.classList.add("com-icone");
+                    item.replaceChildren(caixa, document.createTextNode(extra.texto)); // (o texto entra como TEXTO)
+                }
+                itens.push(item);
             }
             menu.replaceChildren(...itens);
             menu.hidden = false;

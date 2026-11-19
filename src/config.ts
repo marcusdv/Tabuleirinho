@@ -18,10 +18,16 @@ export const ESCALA_DO_PINCEL: readonly number[] = [0.5, 1, 1.5, 2, 2.5, 3, 3.5,
 export const MAX_ENTRADAS_INICIATIVA = 60; // quantos personagens cabem na ordem
 export const MAX_CARACTERES_NOME_INICIATIVA = 24; // o nome de uma entrada (de uma pessoa temporária ou de um token)
 export const VALOR_MAX_INICIATIVA = 1000; // o valor da iniciativa vai de -1000 a 1000
-export const CHAVE_ORDEM_PILHA = "tabuleirinho.pilha.ordem"; // a ordem das barras da pilha (Desenho/Ferramentas), ex.: "barra,ferramentas-desenho"; vazio = a de fábrica
 export const CHAVE_COR_DESENHO = "tabuleirinho.desenho.cor"; // a cor de desenho escolhida, "#rrggbb": lembrada ao recarregar (e é a cor do lápis, das formas, da régua e do ping)
 export const CHAVE_ALFA_DESENHO = "tabuleirinho.desenho.alfa"; // o nível de opacidade (0.1 a 1) escolhido junto com a cor
 export const CHAVE_DESENHO_RECOLHIDO = "tabuleirinho.desenho.recolhido"; // "1" = o painel de Desenho está recolhido
+export const CHAVE_AREA_RECOLHIDA = "tabuleirinho.area.recolhida"; // "1" = a barra de Área está recolhida
+export const CHAVE_AREA_ALFA = "tabuleirinho.area.alfa"; // a opacidade do preenchimento das áreas (lembrada ao recarregar)
+export const CHAVE_AREA_COR = "tabuleirinho.area.cor"; // a cor das áreas, "#rrggbb": a paleta da Área é PRÓPRIA, separada da do Desenho (lembrada ao recarregar)
+export const CHAVE_AREA_RECENTES = "tabuleirinho.area.recentes"; // as cores recentes da paleta da Área, "#rrggbb,#rrggbb,...": lembradas ao recarregar (a cor escolhida volta MARCADA na paleta)
+export const COR_INICIAL_AREA = 0x42a5f5; // a cor de abertura das áreas (azul: diferente do vermelho do desenho)
+export const CHAVE_AREA_FORMA = "tabuleirinho.area.forma"; // a forma de área escolhida por último (lembrada ao recarregar)
+export const CHAVE_AREA_TAMANHO = "tabuleirinho.area.casas."; // + a forma (ex.: "...casas.cone"): o tamanho, em casas, que a pessoa escolheu por último para cada forma
 /** SELEÇÃO de tokens no tabuleiro: a cor e a espessura do anel dos selecionados e as cores do retângulo de seleção (Ctrl + arrastar). */
 /** ANIMAÇÕES de vida no token: a piscada vermelha do DANO e a piscada verde da CURA (com barrinhas que sobem). Durações em ms. */
 export const MS_ANIMACAO_DANO = 380;
@@ -77,10 +83,50 @@ export const MAPA_INICIAL: string | null = "/images/maps/caverna.png";
 
 // --- Régua ---
 export const METROS_POR_CASA = 1.5; // cada casa do tabuleiro vale 1,5 m (5 pés do livro)
-export const RAJADA_PINGS = 5; // LIMITE ANTI-SPAM dos pings (pedido do dono: "5 por segundo"): quantos pings cabem de uma vez...
-export const MS_RECARGA_PING = 200; // ...e depois vale 1 ping a cada tanto (= 5 por segundo). A Riot não publica o limite do League of Legends; este é o do dono
+export const RAJADA_PINGS = 3; // LIMITE ANTI-SPAM dos pings: quantos cabem de uma vez... (19/11/2026: o dono achou que "5 por segundo" parecia SEM limite; apertado para 3 de rajada)
+// --- MOVER O TOKEN PELA RÉGUA (19/11/2026): o token desliza pelo caminho medido, com uma paradinha em cada ponto fixado com o botão direito ---
+export const MS_DESLIZE_PADRAO = 240; // quanto dura o deslize de um token quando a posição dele muda por fora (outro jogador o moveu)
+export const MS_POR_CASA_DO_DESLIZE = 130; // andando pela régua: quanto tempo cada casa de distância leva...
+export const MS_DESLIZE_MIN = 220; // ...nunca menos que isto (um trecho curto ainda se vê)...
+export const MS_DESLIZE_MAX = 900; // ...nem mais que isto (um trecho longo não demora demais)
+export const MS_PAUSA_NO_PONTO_DA_REGUA = 450; // a paradinha em cada ponto fixado (botão direito) antes de seguir
+export const MS_MIN_ENTRE_PINGS = 250; // INTERVALO MÍNIMO entre um ping e o seguinte (19/11/2026: "um mini delay de um ping a outro"): um ping logo depois de outro é ignorado em silêncio e não gasta a rajada
+export const MS_PAGINA_PARADA = 700; // se a tela ficou sem desenhar quadros por mais que isto (alt-tab, aba oculta, janela minimizada), os pings que chegam NÃO são mostrados (senão, ao voltar, apareceriam todos de uma vez)
+export const MS_RECARGA_PING = 500; // ...e depois vale 1 ping a cada meio segundo (= 2 por segundo, sustentado). Quem passa disso é ignorado no servidor e AVISADO ("Calma!"). A Riot não publica o limite do League of Legends.
 export const MS_ENTRE_ENVIOS_REGUA = 30; // o servidor ignora uma atualização da régua de quem acabou de mandar outra (o navegador manda a cada MS_ENVIO_REGUA)
 export const MS_ENVIO_REGUA = 70; // com a régua à vista, o navegador a manda aos outros no máximo a cada tanto (e sempre manda o último estado)
+// --- ÁREAS DE EFEITO (19/11/2026; geometria em areas.ts, desenho em tabuleiro/formaDeArea.ts, ferramenta em tabuleiro/area.ts, painel em ui/painelArea.ts) ---
+/** As formas de área, na ordem em que aparecem no painel e no menu. `circulo` é a ESFERA do livro (o cilindro, visto de cima, é o mesmo círculo). */
+export const FORMAS_DE_AREA = ["cone", "linha", "circulo", "cubo", "emanacao"] as const;
+/** Os dados de cada forma: o nome, o que o tamanho significa (o rótulo do campo), a dica e os tamanhos PRONTOS (em metros: os do livro, em múltiplos de 1,5 m). `padrao` é o tamanho inicial, em casas. */
+export const DADOS_DAS_FORMAS_DE_AREA: Record<(typeof FORMAS_DE_AREA)[number], { nome: string; medida: string; dica: string; padrao: number; prontos: number[] }> = {
+    cone: { nome: "Cone", medida: "Comprimento", dica: "Cone: abre em leque de 90° a partir de um ponto; na ortogonal vira um losango e na diagonal um triângulo (a diagonal conta 1,5 casa). Clique na ponta (num canto ele sai na diagonal, no meio da borda sai de frente) e depois na direção.", padrao: 3, prontos: [4.5, 9, 13.5, 18] },
+    linha: { nome: "Linha", medida: "Comprimento", dica: "Linha reta de 1 casa (1,5 m) de largura; na diagonal alcança menos casas. Relâmpago, Sopro em linha. Clique no começo e depois na direção.", padrao: 6, prontos: [9, 18, 30] },
+    circulo: { nome: "Esfera", medida: "Raio", dica: "Esfera (burst): octógono ao redor do centro; o tamanho é o RAIO. Bola de Fogo, Nuvem Fétida. Clique no centro (num cruzamento ou no meio de uma casa).", padrao: 4, prontos: [1.5, 3, 6, 9, 12] },
+    cubo: { nome: "Cubo", medida: "Lado", dica: "Cubo (quadrado): o tamanho é o LADO. Onda Trovejante, Fúria dos Relâmpagos. Clique onde ele encosta e depois na direção.", padrao: 3, prontos: [1.5, 3, 4.5, 6, 9] },
+    emanacao: { nome: "Emanação", medida: "Alcance", dica: "Emanação: sai do corpo de uma criatura em todas as direções até o alcance (auras, como a Aura de Proteção); o corpo também é pintado. Clique na criatura: o token sob o mouse define o tamanho do corpo.", padrao: 2, prontos: [1.5, 3, 4.5, 9] },
+};
+/** As ÁREAS RÁPIDAS do menu do botão direito (Área ▸): um clique escolhe a forma E o tamanho de uma só vez (os mais clássicos do livro; o tamanho é em metros). */
+export const AREAS_RAPIDAS: { nome: string; forma: (typeof FORMAS_DE_AREA)[number]; metros: number }[] = [
+    { nome: "Bola de Fogo", forma: "circulo", metros: 6 }, // esfera de 6 m de raio (20 pés)
+    { nome: "Mãos Flamejantes", forma: "cone", metros: 4.5 }, // cone de 4,5 m (15 pés)
+    { nome: "Relâmpago", forma: "linha", metros: 30 }, // linha de 30 m (100 pés)
+    { nome: "Onda Trovejante", forma: "cubo", metros: 4.5 }, // cubo de 4,5 m (15 pés)
+    { nome: "Aura de 3 m", forma: "emanacao", metros: 3 }, // emanação de 3 m (10 pés)
+];
+/** A EMANAÇÃO DO TOKEN (19/11/2026): um token pode emanar uma área semitransparente (uma aura) a partir do corpo dele, que o acompanha. O maior alcance (em casas), os limites da transparência e os valores de abertura. */
+export const MAX_EMANACAO_TOKEN = 20; // 30 m
+export const ALFA_MIN_EMANACAO = 0.01; // a transparência vai de 99% (quase invisível)...
+export const ALFA_MAX_EMANACAO = 1; // ...até 0% (opaca)
+export const EMANACAO_INICIAL_TOKEN = { casas: 2, cor: 0x42a5f5, alfa: 0.25 }; // ao ligar a emanação num token: 3 m, azul, bem leve
+export const MAX_TAMANHO_AREA = 40; // o maior tamanho de uma área, em casas (60 m)
+export const MAX_TAMANHO_DA_CRIATURA_NA_AREA = 4; // o corpo de uma emanação vai de 1×1 a 4×4 casas (como os tokens)
+export const ALFA_PREENCHIMENTO_AREA = 0.34; // a opacidade de abertura das casas pintadas de uma área (a pessoa a muda no painel, de ALFA_MIN_AREA a ALFA_MAX_AREA)
+export const ALFA_MIN_AREA = 0.01; // a mais transparente (99% de transparência)
+export const ALFA_MAX_AREA = 1; // a mais opaca (0% de transparência)
+export const ALFA_PREVIA_AREA = 0.5; // a das casas de uma área ainda sendo posicionada (um pouco mais forte, para se ver bem)
+export const ESPESSURA_CONTORNO_AREA = 3; // a linha em volta da área, em pixels do mundo (cresce com o zoom, como os desenhos)
+export const PX_MIN_ARRASTO_AREA = 8; // soltar o botão depois de andar pelo menos isto (px da tela) já FIXA a área (arrastar e soltar); soltar antes, espera o 2º clique
 // Os TIPOS DE PING. O "comum" é só um ponto (na cor do desenho de quem pinga); os especiais têm um SÍMBOLO (um SVG de `public/images/svgs/pings/`), um NOME, uma COR fixa e uma dica.
 // Para criar um tipo novo: o SVG na pasta + uma entrada aqui (e, se quiser na roda, uma linha em `LADOS_DA_RODA_DE_PING`, em ui/rodaPing.ts). O menu, a roda e o mapa se montam desta tabela.
 export const FORMAS_ESPECIAIS_DE_PING = ["sumiu", "perigo", "avancar", "ajuda", "agrupar", "alvo", "atacar", "recuar", "armadilha", "investigar", "tesouro", "cura"] as const; // (a ORDEM é a do submenu)

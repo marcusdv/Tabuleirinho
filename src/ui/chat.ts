@@ -278,7 +278,7 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             if (linha === null) linha = novaLinha();
             comecoDeLinha = false;
             const resultado = document.createElement("span");
-            resultado.className = "chat-cartao-resultado " + pedaco.tipo;
+            resultado.className = "chat-cartao-resultado " + pedaco.tipo + (pedaco.efeito ? ` efeito-${pedaco.efeito}` : ""); // ({cura}: o número dentro de um coração; {dano}: com a espada)
             // Só o TOTAL aparece (o cálculo não): a fórmula e o que saiu em cada dado ficam na dica do mouse.
             const total = document.createElement("b");
             total.textContent = String(pedaco.total);
@@ -348,8 +348,9 @@ export function criarChat(opcoes: OpcoesChat): Chat {
             detalhe.title = r.detalhe;
 
             const total = document.createElement("div");
-            total.className = "chat-total";
+            total.className = "chat-total" + (r.efeito ? ` efeito-${r.efeito}` : ""); // ({cura}: o número dentro de um coração verde; {dano}: com a espada ao lado)
             total.textContent = String(r.total);
+            if (r.efeito) total.title = r.efeito === "cura" ? "Cura: arraste este número até uma criatura para curá-la" : "Dano: arraste este número até uma criatura para ferí-la";
             tornarTotalArrastavel(total, mensagem.id);
 
             // A bandeja com os dados de cada termo; a conta (com o que saiu) e o TOTAL grande ficam no rodapé.

@@ -23,4 +23,8 @@ export interface FerramentaDeArrasto {
      * A régua usa isso para fixar um ponto e continuar medindo (distâncias com curvas).
      */
     cliqueDireito?(): void;
+    /**
+     * OPCIONAL. O mouse andou SEM nenhum botão apertado, com a ferramenta ligada (ponto na TELA). A ferramenta de área usa isso para mostrar um "fantasma" da área junto ao cursor.
+     */
+    passar?(ponto: PointData): void;
 }

@@ -3,6 +3,7 @@
 // Todas as medidas estão em CASAS, como no estado.
 // =====================================================================
 
+import { casasDaArea, conjuntoDeCasas, chaveDaCasa, type DadosDaArea } from "./areas.ts";
 import { METROS_POR_CASA } from "./config.ts";
 import type { Desenho, Ponto } from "./estado.ts";
 
@@ -40,7 +41,7 @@ const LADOS_DA_ELIPSE = 64;
  * O CONTORNO de uma forma, como uma lista de vértices que se fecha no primeiro.
  * Para a elipse é uma aproximação com vários lados, boa o bastante para a borracha.
  */
-function contornoDaForma(d: Extract<Desenho, { largura: number }>): Ponto[] {
+function contornoDaForma(d: Extract<Desenho, { tipo: "elipse" | "retangulo" | "triangulo" }>): Ponto[] {
     switch (d.tipo) {
         case "retangulo":
             return [
@@ -73,6 +74,8 @@ const MEIA_ESPESSURA = 0.04;
 export function desenhoAtingido(d: Desenho, p: Ponto, folga: number): boolean {
     const alcance = folga + MEIA_ESPESSURA;
 
+    if (d.tipo === "area") return areaAtingida(d, p, alcance);
+
     if (d.tipo === "livre") {
         if (d.pontos.length === 1) return Math.hypot(p.x - d.pontos[0].x, p.y - d.pontos[0].y) <= alcance;
         for (let i = 1; i < d.pontos.length; i++) {
@@ -97,8 +100,34 @@ export function distanciaEmCasas(col0: number, row0: number, col1: number, row1:
     return Math.max(Math.abs(col1 - col0), Math.abs(row1 - row0));
 }
 
-/** Texto da régua, ex.: "6 m = 4 □" ou "4,5 m = 3 □" (primeiro os METROS, depois as casas; pedido do dono, 17/11/2026). */
+/** Texto da régua em DUAS linhas (pedido do dono, 19/11/2026): os METROS e, na linha de baixo, os quadrados ("6 m" + quebra + "4 quadrados"; "1 quadrado" no singular). Na TELA a segunda linha usa o símbolo do quadrado em vez da palavra. */
 export function textoDaDistancia(casas: number): string {
-    const metros = (casas * METROS_POR_CASA).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
-    return `${metros} m = ${casas} □`;
+    return `${metrosDaDistancia(casas)} m\n${casas} ${casas === 1 ? "quadrado" : "quadrados"}`;
+}
+
+/** Os metros de uma distância em casas, formatados como no livro em português ("6", "4,5"). O rótulo da tela mostra os quadrados com o SÍMBOLO do quadrado (ver tabuleiro/rotuloDeMedida.ts); o texto acima serve aos testes e à leitura. */
+export const metrosDaDistancia = (casas: number): string => (casas * METROS_POR_CASA).toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+
+/** A medida de uma ÁREA, no mesmo texto da régua ("6 m" e "4 quadrados" em duas linhas) (mostrada só enquanto a área é posicionada; depois de fixada, some). */
+export const textoDaArea = (area: DadosDaArea): string => textoDaDistancia(area.casas);
+
+/** As casas de cada área, guardadas (a borracha pergunta isto a cada movimento do mouse). A chave é o próprio objeto do desenho: se ele for trocado, a conta é refeita. */
+const casasGuardadas = new WeakMap<object, Set<number>>();
+function conjuntoDaArea(d: DadosDaArea): Set<number> {
+    let conjunto = casasGuardadas.get(d);
+    if (!conjunto) casasGuardadas.set(d, (conjunto = conjuntoDeCasas(casasDaArea(d))));
+    return conjunto;
+}
+/** A borracha (centro `p`, alcance `folga`, em casas) toca numa casa pintada desta área? (A área é PREENCHIDA: tocar dentro dela a apaga.) */
+function areaAtingida(d: DadosDaArea, p: Ponto, folga: number): boolean {
+    const conjunto = conjuntoDaArea(d);
+    for (let row = Math.floor(p.y - folga); row <= Math.floor(p.y + folga); row++) {
+        for (let col = Math.floor(p.x - folga); col <= Math.floor(p.x + folga); col++) {
+            if (!conjunto.has(chaveDaCasa(col, row))) continue;
+            const dx = Math.max(col - p.x, 0, p.x - (col + 1));
+            const dy = Math.max(row - p.y, 0, p.y - (row + 1));
+            if (Math.hypot(dx, dy) <= folga) return true;
+        }
+    }
+    return false;
 }

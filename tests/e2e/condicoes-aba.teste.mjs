@@ -89,6 +89,7 @@ await p.fill("#bolsa-condicoes-busca", "amaldi");
 await p.waitForTimeout(200);
 ok("6a) a pesquisa filtra pelo nome (sem acento e sem maiúsculas)", (await p.locator(".condicao-item").count()) === 1);
 await p.fill("#bolsa-condicoes-busca", "");
+await p.evaluate(() => document.activeElement?.blur()); // (o foco no campo de pesquisa faria o Q virar texto: o atalho é ignorado em campos)
 await p.keyboard.press("q");
 await p.waitForTimeout(500);
 ok("6b) fechar a bolsa em tela cheia estando na aba Condições volta à aba de Tokens", (await p.evaluate(() => document.querySelector('#bolsa-abas [aria-selected="true"]')?.dataset.aba)) === "tokens");

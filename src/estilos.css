@@ -26,6 +26,7 @@
 @import "./css/chatCartaoFicha.css" layer(componentes); /* O CARTÃO DE FICHA no chat (os cartões `(Nome)"""texto"""`). */
 @import "./css/condicoes.css" layer(componentes); /* a aba Condições da bolsa em tela cheia e a janela de criar/editar uma condição */
 @import "./css/rodaPing.css" layer(componentes); /* a roda de pings (Shift + arrastar) */
+@import "./css/reguaMover.css" layer(componentes); /* o botão Mover da régua */
 @import "./css/menuMapa.css" layer(componentes); /* o menu do botão direito no vazio do mapa (Ping, Régua, Borracha, fog) */
 @import "./css/menuToken.css" layer(componentes); /* engrenagem e lista de ações do token, menu e balão das condições */
 @import "./css/diversos.css" layer(componentes); /* pílula online, cópia do token arrastado, menu da ficha na bolsa, recorte da imagem */
@@ -37,6 +38,7 @@
 @import "./css/iniciativa.css" layer(componentes); /* a 3ª gaveta da pilha: a ordem de combate */
 @import "./css/iconesSvg.css" layer(componentes); /* os ícones SVG do dono (pincel e borracha), pintados com a cor do botão */
 @import "./css/fog.css" layer(componentes); /* o painel do Fog (só do mestre) */
+@import "./css/area.css" layer(componentes); /* o painel de ÁREA (cone, linha, esfera, cubo, emanação) */
 @import "./css/transparencia.css" layer(componentes); /* o controle de transparência (a grade do mapa usa o deslizante) */
 @import "./css/seletorDeCor.css" layer(componentes); /* o seletor de cor próprio, com a transparência dentro da caixa */
 @import "./css/estados.css" layer(estados); /* os modos que precisam vencer (abas da bolsa, ficha minimizada, celular...) */

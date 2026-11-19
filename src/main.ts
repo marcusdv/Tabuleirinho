@@ -41,6 +41,7 @@ import {
     receberDesenho,
     definirDesenhos,
     podeApagarDesenho,
+    naCenaAtual,
     criarToken,
     duplicarToken,
     criarPeca,
@@ -59,6 +60,8 @@ import {
     pecasDoModelo,
     motivoFichaOcupada,
     podeUsarToken,
+    posicaoValida,
+    moverToken,
     restaurarEstadoDaPeca,
     montarGrupo,
     receberGrupo,
@@ -68,6 +71,7 @@ import {
     marcarFicha,
     estado,
     type Ficha,
+    type Mensagem,
     type Grupo,
     type AcaoNova,
     type StatusNovo,
@@ -89,15 +93,17 @@ import {
     aplicarResultado,
     frasePraChatDeDano,
     totalDaRolagem,
+    efeitoDaRolagem,
     statusDaAcao,
     rotuloDoStatus,
     definirTodosOsValoresDasFichas,
     definirValoresDaFicha,
     motivoParaNaoColocar,
     sincronizarValoresDaFicha, temIniciativaNaFicha, montarPasta, receberPasta, limparNomeDePasta, podeMoverPasta, excluirPasta, moverParaPasta, definirPastas } from "./estado";
-import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, COR_INICIAL_DESENHO, LINHAS_INICIAIS, MS_RECARGA_PING, MS_RECARGA_ROLAGEM, RAJADA_PINGS, RAJADA_ROLAGENS, SENSIBILIDADE_ZOOM_RODA, TEMPO_AVISO_MAPA_MS, TEMPO_DESFAZER_MS } from "./config";
+import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, COR_INICIAL_DESENHO, LINHAS_INICIAIS, MS_DESLIZE_MAX, MS_DESLIZE_MIN, MS_DESLIZE_PADRAO, MS_PAUSA_NO_PONTO_DA_REGUA, MS_POR_CASA_DO_DESLIZE, MS_MIN_ENTRE_PINGS, MS_PAGINA_PARADA, MS_RECARGA_PING, MS_RECARGA_ROLAGEM, RAJADA_PINGS, RAJADA_ROLAGENS, SENSIBILIDADE_ZOOM_RODA, TEMPO_AVISO_MAPA_MS, TEMPO_DESFAZER_MS } from "./config";
+import { distanciaEmCasas } from "./desenhos";
 import { preverGrade } from "./coordenadas";
-import { gastar, novoBalde } from "./limite";
+import { gastar, novoBalde, paginaParada, passouOIntervalo } from "./limite";
 import { criarCalibragem } from "./tabuleiro/calibragem";
 import { criarCamera } from "./tabuleiro/camera";
 import { criarDesenho, type FerramentaDesenho } from "./tabuleiro/desenho";
@@ -110,7 +116,11 @@ import { criarMapa } from "./tabuleiro/mapa";
 import { criarRegua } from "./tabuleiro/regua";
 import { criarPings } from "./tabuleiro/pings";
 import { criarReguasDosOutros } from "./tabuleiro/reguasDosOutros";
-import { criarMenuMapa } from "./ui/menuMapa";
+import { criarFerramentaDeArea } from "./tabuleiro/area";
+import { criarAreasDosOutros } from "./tabuleiro/areasDosOutros";
+import { areaDaEmanacao, casasDaArea, casasParaMetros, chaveDaCasa, conjuntoDeCasas, type DadosDaArea, type EmanacaoDoToken } from "./areas";
+import { criarPainelArea } from "./ui/painelArea";
+import { criarMenuMapa, ICONE_DA_FORMA, type ItemSobOPonto } from "./ui/menuMapa";
 import { criarRodaPing } from "./ui/rodaPing";
 import { criarAtalhos } from "./ui/atalhos";
 import { criarTokens } from "./tabuleiro/tokens";
@@ -119,7 +129,7 @@ import { criarBolsa } from "./ui/bolsa";
 import { criarBolsaMapas } from "./ui/bolsaMapas";
 import { definirBiblioteca, definirGradeDaMesa, definirMapa, definirMapaAtual } from "./estado";
 import type { Desenho, NovoDesenho } from "./estado";
-import { CHAVE_VISOES, MAX_BYTES_MAPA, MAX_CONDICOES, MAX_HISTORICO_DESENHO, MAX_TOKENS_ACAO_EM_GRUPO, MS_ENVIO_REGUA, TAMANHO_CASA } from "./config";
+import { ALFA_MAX_EMANACAO, DADOS_DAS_FORMAS_DE_AREA, ALFA_MIN_EMANACAO, CHAVE_VISOES, MAX_BYTES_MAPA, MAX_CONDICOES, MAX_EMANACAO_TOKEN, MAX_HISTORICO_DESENHO, MAX_TOKENS_ACAO_EM_GRUPO, MS_ENVIO_REGUA, TAMANHO_CASA } from "./config";
 import { guardarPreferencia, lerPreferencia } from "./ui/preferencias";
 import { criarEditorImagem } from "./ui/editorImagem";
 import { analisarAbas, rolarCartaoDaAnalise, rolarConta, rolarDaAnalise } from "./formulas";
@@ -234,6 +244,7 @@ async function iniciar(): Promise<void> {
     function aposMudarDesenhos(): void {
         desenho.redesenhar();
         painelDesenho.atualizar();
+        painelArea.atualizar(); // ("Limpar áreas" só vale com áreas no mapa)
     }
 
     /** Guarda um desenho novo no estado (online: com id temporário) e o envia ao servidor. `atrasoMs` espaça o envio quando vários são criados de uma vez (desfazer um "apagar tudo"). */
@@ -322,6 +333,16 @@ async function iniciar(): Promise<void> {
     function apagarTodosOsDesenhos(): void {
         apagandoAgora = null;
         apagarComHistorico(estado.desenhos.filter(podeApagarAqui));
+        apagandoAgora = null;
+        aposMudarDesenhos();
+    }
+
+    /** Esta pessoa pode apagar alguma ÁREA do mapa? (o mestre apaga todas; os outros, só as que fizeram) */
+    const haAreasParaLimpar = (): boolean => estado.desenhos.some((d) => d.tipo === "area" && podeApagarAqui(d));
+    /** "Limpar áreas": apaga as áreas do mapa que esta pessoa pode apagar (as outras pinturas ficam). É UMA ação do histórico: Ctrl+Z traz todas de volta. */
+    function limparAreas(): void {
+        apagandoAgora = null;
+        apagarComHistorico(estado.desenhos.filter((d) => d.tipo === "area" && podeApagarAqui(d)));
         apagandoAgora = null;
         aposMudarDesenhos();
     }
@@ -773,12 +794,12 @@ async function iniciar(): Promise<void> {
         }
         const total = totalDaRolagem(idDaMensagem, indice, dado);
         if (total === null) return;
-        const resultado = aplicarResultado(token, total);
+        const resultado = aplicarResultado(token, total, efeitoDaRolagem(idDaMensagem, indice)); // ({cura} soma ao HP; {dano} ou sem etiqueta tira)
         if (!resultado.ok) {
             aviso.mostrar(resultado.erro, { duracaoMs: TEMPO_AVISO_MAPA_MS });
             return;
         }
-        tokens.redesenhar(token, "dano"); // a barra muda na hora (e a peça pisca: dano, sempre)
+        tokens.redesenhar(token, resultado.efeito === "aumentar" ? "cura" : "dano"); // a barra muda na hora (e a peça pisca em verde na cura e em vermelho no dano)
         if (resultado.fichaAlterada !== undefined) aplicarValoresDaFicha(resultado.fichaAlterada); // (ficha Token Único: as barras e o painel da ficha acompanham)
         adicionarMensagem(AUTOR_PROVISORIO, frasePraChatDeDano(token, resultado));
         chat.atualizar();
@@ -1074,10 +1095,33 @@ async function iniciar(): Promise<void> {
     });
     fecharPainelDeAcoes = () => menuGrupo.fechar();
 
-    /** O que um token só ganha no fim do painel de ações (só o mestre: a iniciativa e a criação de ações são dele). */
+    /** Liga (ou, com `null`, desliga) a emanação do MODELO de um token: online o servidor confere, grava e avisa todos; no modo local, aqui. */
+    function definirEmanacaoDoModelo(modelo: Token, emanacao: EmanacaoDoToken | null): void {
+        if (rede?.ativa) return void rede.enviar({ tipo: "editar_token", id: modelo.id, mudancas: { emanacao } });
+        const token = editarToken(modelo.id, { emanacao });
+        if (!token) return;
+        tokens.redesenhar(token);
+        for (const peca of pecasDoModelo(token.id)) tokens.redesenhar(peca);
+    }
+    /** O que um token só ganha no fim do painel de ações: "Remover emanação" (quem pode configurar o token) e, só para o mestre, a iniciativa e a criação de ações. */
     function extrasDoPainel(token: Token): ExtraDoPainel[] {
-        if (!estado.mestre) return [];
+        const extras: ExtraDoPainel[] = [];
+        const modelo = token.copiaDe !== null ? buscarToken(token.copiaDe) : token;
+        if (token.emanacao && modelo) { // (qualquer pessoa pode tirar a emanação de qualquer token: pedido do dono, 19/11/2026)
+            extras.push({
+                texto: "Remover emanação",
+                dica: "O token deixa de emanar a área em volta dele",
+                icone: "icone-emanacao", // (o símbolo da emanação, com um ✕ no canto)
+                comX: true,
+                aoClicar: () => {
+                    definirEmanacaoDoModelo(modelo, null);
+                    aviso.mostrar(`"${modelo.nome}" parou de emanar.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+                },
+            });
+        }
+        if (!estado.mestre) return extras;
         return [
+            ...extras,
             { texto: "Adicionar à iniciativa", dica: "Põe este token na ordem de combate (a caixa Iniciativa, na pilha da esquerda)", aoClicar: () => adicionarTokenNaIniciativa(token.id) },
             { texto: "+ Nova ação", dica: "Criar ou excluir ações (valem para todos os tokens)", aoClicar: () => modalAcoes.abrir() },
         ];
@@ -1643,6 +1687,18 @@ async function iniciar(): Promise<void> {
     const pings = criarPings(app, camera, pontoVisivelNoMapa);
     const reguasDosOutros = criarReguasDosOutros(camera);
 
+    // --- MOVER O TOKEN PELA RÉGUA (pedido do dono, 19/11/2026) ---
+    // Medindo a partir de um token que a pessoa pode usar (leitor, editor, dono ou mestre), a régua o SELECIONA; ao soltar, o botão "Mover" aparece junto da ponta e leva o token pelo caminho medido,
+    // DESLIZANDO e com uma PARADINHA em cada ponto fixado com o botão direito, até o ponto final. As declarações ficam aqui no alto porque a régua as usa assim que nasce.
+    let tokenDaRegua: Token | null = null; // o token de onde a última medida começou (nenhum, se começou fora de um token que se pode usar)
+    let caminhoDaRegua: { col: number; row: number }[] | null = null; // o caminho que ficou na tela depois de soltar (o 1º vértice é onde a medida começou)
+    let movendoPelaRegua = false;
+    const deslizeAgendado = new Map<number, number>(); // id do token -> quanto deve durar o próximo deslize dele (só a régua usa; os outros movimentos usam MS_DESLIZE_PADRAO)
+    const botaoMover = document.getElementById("regua-mover") as HTMLButtonElement;
+    const esconderBotaoMover = (): void => {
+        botaoMover.hidden = true;
+    };
+
     // A SUA régua também vai aos outros: no máximo a cada MS_ENVIO_REGUA (com o estado mais novo no fim) e só quando mudou; "sumiu" (null) vai na hora.
     let reguaPendente: { col: number; row: number }[] | null = null;
     let reguaUltimoEnvio = JSON.stringify([null, COR_INICIAL_DESENHO]);
@@ -1656,6 +1712,10 @@ async function iniciar(): Promise<void> {
         if (rede?.ativa) rede.enviar({ tipo: "regua", caminho: reguaPendente, cor: corDoDesenho });
     }
     function compartilharRegua(vertices: { col: number; row: number }[] | null): void {
+        if (vertices === null) {
+            esconderBotaoMover(); // (a medida sumiu: o botão Mover também)
+            caminhoDaRegua = null;
+        }
         reguaPendente = vertices ? vertices.map(({ col, row }) => ({ col, row })) : null;
         if (reguaPendente === null) {
             window.clearTimeout(reguaTemporizador);
@@ -1669,12 +1729,158 @@ async function iniciar(): Promise<void> {
             enviarReguaAgora();
         }, Math.max(0, reguaEnviadaEm + MS_ENVIO_REGUA - performance.now()));
     }
-    const regua = criarRegua(camera, { aoMudarCaminho: compartilharRegua });
+    const regua = criarRegua(camera, {
+        aoMudarCaminho: compartilharRegua,
+        aoComecar: (casa) => {
+            // O token que ocupa a casa onde a medida começou (o menor, se há vários; só os que a pessoa pode usar): ele é SELECIONADO.
+            esconderBotaoMover();
+            tokenDaRegua = estado.tokens
+                .filter((t) => naCenaAtual(t) && podeUsarToken(t) && casa.col >= t.col && casa.col < t.col + t.size && casa.row >= t.row && casa.row < t.row + t.size)
+                .sort((a, b) => a.size - b.size)[0] ?? null;
+            if (tokenDaRegua) tokens.selecionar(tokenDaRegua.id);
+        },
+        aoSoltar: (vertices) => {
+            caminhoDaRegua = vertices && vertices.length >= 2 ? vertices.map(({ col, row }) => ({ col, row })) : null;
+            if (!tokenDaRegua || !caminhoDaRegua || movendoPelaRegua) return;
+            botaoMover.title = `Mover "${tokenDaRegua.nome}" pelo caminho da régua (para um instante em cada ponto fixado com o botão direito)`;
+            botaoMover.hidden = false;
+        },
+    });
+    // O botão Mover fica junto da ponta da régua (acompanha a câmera: arrastar a tela ou mudar o zoom o leva junto).
+    app.ticker.add(() => {
+        if (botaoMover.hidden || !caminhoDaRegua) return;
+        const ponta = caminhoDaRegua[caminhoDaRegua.length - 1];
+        const p = camera.mundoParaTela((ponta.col + 0.5) * TAMANHO_CASA, (ponta.row + 0.5) * TAMANHO_CASA);
+        const caixa = app.canvas.getBoundingClientRect();
+        botaoMover.style.left = `${Math.max(4, Math.min(caixa.left + p.x - botaoMover.offsetWidth / 2, window.innerWidth - botaoMover.offsetWidth - 4))}px`;
+        botaoMover.style.top = `${Math.max(4, Math.min(caixa.top + p.y + 24, window.innerHeight - botaoMover.offsetHeight - 4))}px`;
+    });
+    const esperar = (ms: number): Promise<void> => new Promise((resolver) => setTimeout(resolver, ms));
+    /**
+     * "Mover": leva o token pelo caminho da régua. Cada vértice do caminho (os pontos fixados e o final) é um destino: o token anda o mesmo deslocamento que a medida (o ponto onde se começou a medir pode ser
+     * qualquer casa do bloco dele). Ele DESLIZA até cada destino e PARA um instante nos pontos fixados. Se algum destino sai do tabuleiro, nada se move.
+     * Online, cada trecho é um pedido ao servidor (que confere a permissão e avisa todos: todos veem o token deslizar); no modo local, é aqui.
+     */
+    async function moverPelaRegua(): Promise<void> {
+        const caminho = caminhoDaRegua;
+        const alvo = tokenDaRegua ? buscarToken(tokenDaRegua.id) : undefined;
+        if (movendoPelaRegua || !alvo || !caminho || caminho.length < 2 || !naCenaAtual(alvo) || !podeUsarToken(alvo)) return;
+        const destinos: { col: number; row: number; pontoFixado: boolean }[] = [];
+        let anterior = { col: alvo.col, row: alvo.row };
+        for (let i = 1; i < caminho.length; i++) {
+            const col = alvo.col + (caminho[i].col - caminho[0].col);
+            const row = alvo.row + (caminho[i].row - caminho[0].row);
+            if (col === anterior.col && row === anterior.row) continue; // (um ponto repetido: não há o que andar)
+            if (!posicaoValida(alvo, col, row)) return void aviso.mostrar(`O caminho sai do tabuleiro: "${alvo.nome}" não cabe lá.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            destinos.push({ col, row, pontoFixado: i < caminho.length - 1 });
+            anterior = { col, row };
+        }
+        if (destinos.length === 0) return;
+        movendoPelaRegua = true;
+        esconderBotaoMover();
+        let de = { col: alvo.col, row: alvo.row };
+        for (const destino of destinos) {
+            const ms = Math.min(MS_DESLIZE_MAX, Math.max(MS_DESLIZE_MIN, distanciaEmCasas(de.col, de.row, destino.col, destino.row) * MS_POR_CASA_DO_DESLIZE));
+            deslizeAgendado.set(alvo.id, ms);
+            if (rede?.ativa) rede.enviar({ tipo: "colocar_token", id: alvo.id, col: destino.col, row: destino.row });
+            else {
+                moverToken(alvo.id, destino.col, destino.row);
+                tokens.aplicarPosicao(alvo, ms);
+            }
+            de = destino;
+            await esperar(ms + (destino.pontoFixado ? MS_PAUSA_NO_PONTO_DA_REGUA : 0) + (rede?.ativa ? 80 : 0)); // (a paradinha só nos pontos fixados; no destino final não há o que esperar)
+            if (!buscarToken(alvo.id) || !naCenaAtual(alvo)) break; // (o token saiu do tabuleiro no meio do caminho)
+        }
+        deslizeAgendado.delete(alvo.id);
+        movendoPelaRegua = false;
+        regua.limpar(); // (a medida some; a ferramenta continua ligada)
+    }
+    botaoMover.addEventListener("click", () => void moverPelaRegua());
     regua.definirCor(corDoDesenho);
     aplicarCorNaRegua = (cor) => regua.definirCor(cor);
 
+    // --- ÁREAS DE EFEITO: a ferramenta, a prévia dos outros e o painel. A sua prévia vai aos outros pelo mesmo caminho da régua (no máximo a cada MS_ENVIO_REGUA, sempre com o estado mais novo; "sumiu" vai na hora). ---
+    const areasDosOutros = criarAreasDosOutros(camera);
+    let areaPendente: DadosDaArea | null = null;
+    let areaUltimoEnvio = JSON.stringify([null, 0, 0]);
+    let areaEnviadaEm = 0;
+    let areaTemporizador = 0;
+    function enviarAreaAgora(): void {
+        const alfa = painelArea.alfa;
+        const corDaArea = painelArea.cor; // (a Área tem a PRÓPRIA cor, separada da do Desenho)
+        const json = JSON.stringify([areaPendente, corDaArea, alfa]);
+        if (json === areaUltimoEnvio) return;
+        areaUltimoEnvio = json;
+        areaEnviadaEm = performance.now();
+        if (rede?.ativa) rede.enviar({ tipo: "area_previa", area: areaPendente, cor: corDaArea, alfa });
+    }
+    function compartilharArea(area: DadosDaArea | null): void {
+        areaPendente = area ? { ...area } : null;
+        if (areaPendente === null) {
+            window.clearTimeout(areaTemporizador);
+            areaTemporizador = 0;
+            enviarAreaAgora();
+            return;
+        }
+        if (areaTemporizador) return; // (já há um envio marcado: ele leva o estado mais novo)
+        areaTemporizador = window.setTimeout(() => {
+            areaTemporizador = 0;
+            enviarAreaAgora();
+        }, Math.max(0, areaEnviadaEm + MS_ENVIO_REGUA - performance.now()));
+    }
+    const ferramentaDeArea = criarFerramentaDeArea(camera, {
+        aoMudarPrevia: compartilharArea,
+        aoAdicionar: (novo) => {
+            const criado = guardarDesenho(novo); // (a área fixada é um desenho comum: servidor, fog, borracha e Ctrl+Z valem para ela)
+            empilharDesfazer({ tipo: "criou", id: criado.id });
+            aposMudarDesenhos();
+            painelArea.usarCor(novo.cor); // (a cor entra na pilha das recentes da ÁREA)
+        },
+        // A emanação sai do corpo inteiro da criatura: o token à vista no mapa atual (`naCenaAtual`, a mesma regra do desenho dos tokens) que ocupa a casa; se há mais de um, o menor.
+        corpoEm: (col, row) => {
+            const peca = estado.tokens
+                .filter((t) => naCenaAtual(t) && col >= t.col && col < t.col + t.size && row >= t.row && row < t.row + t.size)
+                .sort((a, b) => a.size - b.size)[0];
+            return peca ? { id: peca.id, col: peca.col, row: peca.row, size: peca.size } : null;
+        },
+        // A emanação sobre um TOKEN: ele passa a emanar (um modelo da bolsa manda: as peças copiam, como no "Editar token"); clicar de novo com os mesmos valores desliga.
+        aoEmanarToken: (idDoToken, emanacao) => {
+            const clicado = buscarToken(idDoToken);
+            const alvo = clicado && clicado.copiaDe !== null ? buscarToken(clicado.copiaDe) : clicado;
+            if (!clicado || !alvo) return;
+            const nova: EmanacaoDoToken = { casas: Math.min(MAX_EMANACAO_TOKEN, emanacao.casas), cor: emanacao.cor, alfa: Math.min(ALFA_MAX_EMANACAO, Math.max(ALFA_MIN_EMANACAO, emanacao.alfa)) };
+            const atual = alvo.emanacao;
+            const igual = !!atual && atual.casas === nova.casas && atual.cor === nova.cor && Math.abs(atual.alfa - nova.alfa) < 0.005;
+            definirEmanacaoDoModelo(alvo, igual ? null : nova);
+            aviso.mostrar(igual ? `"${alvo.nome}" parou de emanar.` : `"${alvo.nome}" agora emana ${casasParaMetros(nova.casas).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m. Clique de novo para parar.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        },
+    });
+    const painelArea = criarPainelArea({
+        aoEscolherForma: (forma) => {
+            if (ferramentaAtual === "area" && painelArea.forma === forma) return void escolherFerramenta("mover"); // (clicar na forma que já está ligada desliga)
+            painelArea.definirForma(forma);
+            escolherFerramenta("area");
+        },
+        aoMudarForma: (forma) => ferramentaDeArea.definirForma(forma),
+        aoMudarTamanho: (casas) => ferramentaDeArea.definirTamanho(casas),
+        aoMudarAlfa: (alfa) => ferramentaDeArea.definirAlfa(alfa),
+        aoMudarCor: (cor) => ferramentaDeArea.definirCor(cor),
+        aoLimpar: () => limparAreas(),
+    });
+    // O mouse saiu do mapa: o "fantasma" da área some.
+    app.canvas.addEventListener("pointerleave", () => ferramentaDeArea.esconderFantasma());
+
     // LIMITE de pings: o mesmo "balde que enche aos poucos" do servidor (até RAJADA_PINGS de uma vez, depois 1 a cada MS_RECARGA_PING = 5 por segundo); aqui só para AVISAR a pessoa (o servidor é quem manda).
     const baldeDePings = novoBalde(RAJADA_PINGS);
+    let ultimoPingEm = 0; // quando foi o último ping seu (o mini delay entre pings)
+
+    // PÁGINA PARADA (alt-tab, aba oculta, janela minimizada): o desenho do mapa para, mas a rede continua entregando; sem isto, ao voltar apareceriam TODOS os pings que aconteceram enquanto a pessoa estava fora
+    // (pedido do dono, 19/11/2026: "que ele perca os pings que aconteceram"). Os pings que chegam com a tela parada são descartados.
+    let ultimoQuadroEm = performance.now();
+    app.ticker.add(() => {
+        ultimoQuadroEm = performance.now();
+    });
+    const telaParada = (): boolean => paginaParada(document.hidden, performance.now() - ultimoQuadroEm, MS_PAGINA_PARADA);
 
     /** Um clique na caixa de um personagem da INICIATIVA: faz um ping (comum) em cima da peça dele no tabuleiro, para todos acharem de quem é a vez. Se a peça não está neste mapa, só avisa. */
     function pingarNoToken(tokenId: number): void {
@@ -1686,7 +1892,9 @@ async function iniciar(): Promise<void> {
 
     /** Faz um ping no ponto (col, row) (em casas, com fração): online o SERVIDOR repassa a quem está na cena (e o seu volta por ele); no modo local, só você vê. */
     function pingar(col: number, row: number, forma: FormaDePing): void {
+        if (!passouOIntervalo(ultimoPingEm, MS_MIN_ENTRE_PINGS)) return; // o "mini delay" entre um ping e o seguinte: ignorado em silêncio (o servidor repete a regra)
         if (!gastar(baldeDePings, RAJADA_PINGS, MS_RECARGA_PING)) return void aviso.mostrar("Calma! Você está pingando rápido demais.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        ultimoPingEm = Date.now();
         if (rede?.ativa) rede.enviar({ tipo: "ping", col, row, forma, cor: corDoDesenho });
         else pings.mostrar(col, row, forma, corDoDesenho, "Você");
     }
@@ -1697,10 +1905,59 @@ async function iniciar(): Promise<void> {
     const menuMapa = criarMenuMapa({
         aoPingar: (col, row, forma) => pingar(col, row, forma),
         aoEscolher: (ferramenta) => escolherFerramenta(ferramenta),
+        // Área: forma e tamanho de uma vez (as áreas rápidas), só a forma (o tamanho guardado) ou, sem forma, a última usada.
+        aoEscolherArea: (forma, casas) => {
+            if (forma) painelArea.definirForma(forma);
+            if (casas !== null) painelArea.definirTamanho(casas);
+            escolherFerramenta("area");
+        },
+        aoLimparAreas: () => limparAreas(),
+        haAreasParaLimpar,
+        tamanhoDaArea: (forma) => `${casasParaMetros(painelArea.tamanhoDe(forma)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m`,
         fogAtivo: () => estado.fog.ativo,
     });
 
-    ativarInteracao(app, camera, tokens, [calibragem, desenho, regua, fog], {
+    /**
+     * O que o clique direito no ponto (col, row) (em casas) pode REMOVER: as ÁREAS desenhadas que cobrem aquela casa (só as que esta pessoa pode apagar; a de cima primeiro) e a EMANAÇÃO (aura) dos tokens que
+     * cobre aquela casa (qualquer pessoa tira a emanação de qualquer token). Cada um vira um item "Remover área" / "Remover emanação" (com o símbolo da forma e um ✕); com várias, o texto diz qual.
+     */
+    function itensSobOPonto(col: number, row: number): ItemSobOPonto[] {
+        const chave = chaveDaCasa(Math.floor(col), Math.floor(row));
+        const itens: ItemSobOPonto[] = [];
+        const areas = estado.desenhos.filter((d) => d.tipo === "area" && podeApagarAqui(d) && conjuntoDeCasas(casasDaArea(d)).has(chave)).toReversed();
+        for (const d of areas) {
+            if (d.tipo !== "area") continue;
+            const nome = DADOS_DAS_FORMAS_DE_AREA[d.forma].nome;
+            itens.push({
+                texto: areas.length === 1 ? "Remover área" : `Remover área (${nome} ${casasParaMetros(d.casas).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m)`,
+                dica: `Apaga esta área de efeito (${nome}); Ctrl+Z desfaz`,
+                icone: ICONE_DA_FORMA[d.forma],
+                aoClicar: () => {
+                    apagandoAgora = null;
+                    apagarComHistorico([d]);
+                    apagandoAgora = null;
+                    aposMudarDesenhos();
+                },
+            });
+        }
+        const emanando = estado.tokens.filter((t) => naCenaAtual(t) && t.emanacao && conjuntoDeCasas(casasDaArea(areaDaEmanacao(t, t.emanacao))).has(chave));
+        for (const t of emanando) {
+            const modelo = t.copiaDe !== null ? buscarToken(t.copiaDe) : t;
+            if (!modelo) continue;
+            itens.push({
+                texto: emanando.length === 1 ? "Remover emanação" : `Remover emanação de ${t.nome}`,
+                dica: `"${t.nome}" deixa de emanar a área em volta dele`,
+                icone: ICONE_DA_FORMA.emanacao,
+                aoClicar: () => {
+                    definirEmanacaoDoModelo(modelo, null);
+                    aviso.mostrar(`"${modelo.nome}" parou de emanar.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+                },
+            });
+        }
+        return itens;
+    }
+
+    ativarInteracao(app, camera, tokens, [calibragem, desenho, regua, ferramentaDeArea, fog], {
         aoClicarNoFundo: () => fecharMenusDoToken(),
         aoIniciarPan: () => {
             emPan = true;
@@ -1735,7 +1992,7 @@ async function iniciar(): Promise<void> {
             balao.esconder();
             const mundo = camera.telaParaMundo(ponto);
             const caixa = app.canvas.getBoundingClientRect();
-            menuMapa.abrir(ponto.x + caixa.left, ponto.y + caixa.top, mundo.x / TAMANHO_CASA, mundo.y / TAMANHO_CASA);
+            menuMapa.abrir(ponto.x + caixa.left, ponto.y + caixa.top, mundo.x / TAMANHO_CASA, mundo.y / TAMANHO_CASA, itensSobOPonto(mundo.x / TAMANHO_CASA, mundo.y / TAMANHO_CASA));
         },
     });
 
@@ -1747,6 +2004,8 @@ async function iniciar(): Promise<void> {
         grade.desenhar();
         regua.redesenhar(); // o tamanho do texto e da linha, na tela, depende do zoom
         reguasDosOutros.redesenhar();
+        ferramentaDeArea.redesenhar(); // (o rótulo da medida da área também)
+        areasDosOutros.redesenhar();
         menuMapa.fechar();
         fecharMenusDoToken();
         balao.esconder();
@@ -1847,6 +2106,8 @@ async function iniciar(): Promise<void> {
         balao.esconder();
         desenho.definirFerramenta(DE_DESENHO.includes(nome) ? (nome as FerramentaDesenho) : null);
         regua.definirAtiva(nome === "regua");
+        ferramentaDeArea.definirAtiva(nome === "area");
+        painelArea.marcar(nome === "area");
         fog.definirModo(nome === "fog-cobrir" ? "cobrir" : nome === "fog-revelar" ? "revelar" : null);
         painelFog.marcar(nome === "fog-cobrir" ? "cobrir" : nome === "fog-revelar" ? "revelar" : null);
         tokens.definirInterativo(nome === "mover"); // desenhando ou medindo, o arrasto não deve pegar tokens
@@ -1910,7 +2171,14 @@ async function iniciar(): Promise<void> {
     // ATALHOS de uma tecla só (a lista completa está em docs/atalhos.md): R liga e desliga a régua; Q abre e fecha a bolsa em tela cheia.
     criarAtalhos({
         aoAlternarRegua: () => escolherFerramenta(ferramentaAtual === "regua" ? "mover" : "regua"),
-        aoAlternarBolsa: () => (bolsa.expandida ? bolsa.fechar() : bolsa.abrir()),
+        aoAlternarArea: () => escolherFerramenta(ferramentaAtual === "area" ? "mover" : "area"),
+        aoAlternarBolsa: () => {
+            if (bolsa.expandida) return bolsa.fechar();
+            // Com a aba "Chat" à frente (ou a coluna minimizada) a bolsa ficaria aberta mas ESCONDIDA: traz a aba "Bolsa" para a frente antes de abrir.
+            lateral.escolher("bolsa");
+            lateral.minimizar(false);
+            bolsa.abrir();
+        },
     });
 
     // SELEÇÃO por teclado: Delete remove os tokens selecionados (sem confirmar; o aviso oferece "Desfazer") e Esc tira a seleção. Só vale com o foco no tabuleiro (não digitando num campo,
@@ -1977,7 +2245,11 @@ async function iniciar(): Promise<void> {
                     return;
                 }
                 case "ping":
+                    if (evento.seu !== true && telaParada()) return; // (a tela estava parada, em alt-tab: o ping se perde; os seus próprios sempre aparecem)
                     pings.mostrar(evento.col, evento.row, evento.forma, evento.cor, evento.apelido);
+                    return;
+                case "area_previa":
+                    areasDosOutros.atualizar(evento.usuario, evento.apelido, evento.area, evento.cor, evento.alfa);
                     return;
                 case "regua":
                     reguasDosOutros.atualizar(evento.usuario, evento.apelido, evento.caminho, evento.cor);
@@ -1995,6 +2267,7 @@ async function iniciar(): Promise<void> {
                     if (evento.condicoes) void condicoesMudaram(evento.condicoes); // (as condições da mesa: o mestre pode ter criado, editado ou excluído)
                     pings.limpar();
                     reguasDosOutros.limpar();
+                    areasDosOutros.limpar();
                     // O tamanho do tabuleiro também é do SERVIDOR (dados/mesa.json): aplica antes dos tokens (a posição deles é conferida com ele).
                     const tamanhoMudou = evento.colunas !== estado.colunas || evento.linhas !== estado.linhas;
                     definirTamanhoTabuleiro(evento.colunas, evento.linhas);
@@ -2043,6 +2316,7 @@ async function iniciar(): Promise<void> {
                 case "mapa_definido": {
                     pings.limpar(); // (os pings e as réguas dos outros eram do mapa de antes)
                     reguasDosOutros.limpar();
+                    areasDosOutros.limpar();
                     const depois = depoisDoMapa; // (só quem pediu a troca)
                     depoisDoMapa = null;
                     mostrarSemPermissao(evento.semPermissao === true);
@@ -2147,7 +2421,7 @@ async function iniciar(): Promise<void> {
                     if (!token) return;
                     colocarToken(token.id, evento.col, evento.row);
                     if (evento.valores) token.valores = evento.valores.map((v) => ({ ...v })); // os números do SERVIDOR valem (não os que este navegador calcularia)
-                    tokens.aplicarPosicao(token);
+                    tokens.aplicarPosicao(token, deslizeAgendado.get(token.id) ?? MS_DESLIZE_PADRAO); // (o token DESLIZA até o lugar novo: o movimento de outra pessoa, ou o da régua, não "pula")
                     bolsa.atualizar();
                     return;
                 }
@@ -2231,7 +2505,7 @@ async function iniciar(): Promise<void> {
     // começando se familiarizar com o texto das fichas (`src/exemplos.ts`). No modo LOCAL isto vale toda vez que a página abre (o modo local não guarda nada); online é o SERVIDOR que
     // as cria, uma vez (`servidor/servidor.ts`). Ficam de fora dos testes automáticos (o navegador deles se diz automatizado: eles contam fichas e tokens e esperam a mesa vazia).
     if (!rede && !navigator.webdriver) {
-        void import("./exemplos").then(({ ABAS_THORIN, IMAGEM_GOBLIN, NOME_GOBLIN, NOME_THORIN, TEXTO_GOBLIN }) => {
+        void import("./exemplos").then(({ ABAS_THORIN, IMAGEM_GOBLIN, NOME_CLERIGA, NOME_GOBLIN, NOME_THORIN, TEXTO_CLERIGA, TEXTO_GOBLIN }) => {
             const ficha = criarFicha();
             if (!ficha) return;
             ficha.nome = NOME_GOBLIN;
@@ -2245,6 +2519,14 @@ async function iniciar(): Promise<void> {
                 fichaJogador.abas = ABAS_THORIN.map((a) => ({ ...a }));
                 const tokenJogador = criarToken(0x2a4a7a, 1, NOME_THORIN, null, 0xffd54f, fichaJogador.id);
                 if (tokenJogador) tokens.adicionar(tokenJogador);
+            }
+            // A CLÉRIGA AURORA: o token que CURA (rolagens com a etiqueta {cura}; ver src/exemplos.ts), para testar arrastar o número do chat até uma criatura.
+            const fichaCleriga = criarFicha();
+            if (fichaCleriga) {
+                fichaCleriga.nome = NOME_CLERIGA;
+                fichaCleriga.abas[0].texto = TEXTO_CLERIGA;
+                const tokenCleriga = criarToken(0xf1c40f, 1, NOME_CLERIGA, null, 0xffffff, fichaCleriga.id);
+                if (tokenCleriga) tokens.adicionar(tokenCleriga);
             }
             bolsa.atualizarFichas();
             bolsa.atualizar();
@@ -2264,7 +2546,13 @@ async function iniciar(): Promise<void> {
     if (import.meta.env.DEV) {
         (window as unknown as Record<string, unknown>).__tabuleirinho = {
             pronto: true,
+            pingsNaTela: () => pings.naTela, // (só para os testes: quantos pings estão na tela agora)
             setasDePing: () => pings.setasVisiveis, // (só para os testes: quantas setas de ping estão à vista)
+            previaDaArea: () => ferramentaDeArea.previa, // (só para os testes: a área que acompanha o mouse agora, com a direção)
+            mensagemDeTeste: (m: Mensagem) => { receberMensagem(m); chat.atualizar(); }, // (só para os testes: põe uma mensagem pronta no chat, ex.: uma rolagem de ficha com a etiqueta {cura})
+            selecionadosIds: () => tokens.selecionados.map((t) => t.id), // (só para os testes: os tokens selecionados agora)
+            posicaoDoDesenhoDoToken: (id: number) => tokens.posicaoDoDesenho(id), // (só para os testes: onde o desenho do token está agora; durante um deslize difere do estado)
+            textoDaArea: () => ferramentaDeArea.texto, // (só para os testes: a medida da área que está sendo posicionada)
             distanciaDaRegua: () => regua.texto, // (só para os testes: o texto da medida da régua; ela não aparece mais no painel Desenho)
             atrasoRolagemMs: ATRASO_ROLAGEM_MS, // (os testes zeram: tests/e2e/ajuda.mjs `abrirPagina`)
             // Só para os testes: adiciona à mesa os tokens que o TESTE mandar (o app não tem nenhum token pronto: eles vêm dos

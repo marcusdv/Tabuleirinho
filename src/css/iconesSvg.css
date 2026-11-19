@@ -1,4 +1,4 @@
-/* ÍCONES SVG do dono (pasta `public/images/svgs/`): pincel, borracha, lápis, régua, ponteiro, círculo, quadrado, triângulo e os dos tipos de ping (`icone-ping`, com o arquivo em `--icone`; ficam na subpasta `public/images/svgs/pings/`). Cada um é uma MÁSCARA pintada com a cor do texto do botão (`currentColor`), então o ícone acompanha o
+/* ÍCONES SVG do dono (pasta `public/images/svgs/`): pincel, borracha, lápis, régua, ponteiro, círculo, quadrado, triângulo, cone, linha, emanação (as três últimas, das ÁREAS) e os dos tipos de ping (`icone-ping`, com o arquivo em `--icone`; ficam na subpasta `public/images/svgs/pings/`). Cada um é uma MÁSCARA pintada com a cor do texto do botão (`currentColor`), então o ícone acompanha o
    estado do botão (cinza normal, dourado quando ligado) sem mexer no arquivo. É o mesmo jeito do selo da ficha única (`unico.svg`). Uso: <span class="icone-svg icone-pincel"></span>. */
 .icone-svg {
     display: inline-block;
@@ -41,6 +41,18 @@
 .icone-triangulo {
     -webkit-mask-image: url("/images/svgs/triangulo.svg");
     mask-image: url("/images/svgs/triangulo.svg");
+}
+.icone-cone {
+    -webkit-mask-image: url("/images/svgs/cone.svg");
+    mask-image: url("/images/svgs/cone.svg");
+}
+.icone-linha {
+    -webkit-mask-image: url("/images/svgs/linha.svg");
+    mask-image: url("/images/svgs/linha.svg");
+}
+.icone-emanacao {
+    -webkit-mask-image: url("/images/svgs/emanacao.svg");
+    mask-image: url("/images/svgs/emanacao.svg");
 }
 .icone-ping {
     -webkit-mask-image: var(--icone); /* (o caminho vem do ui/iconePing.ts, um por tipo de ping) */

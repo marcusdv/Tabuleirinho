@@ -1,11 +1,12 @@
 // =====================================================================
-// EDITOR DE TOKEN (HTML): janela para mudar NOME, TAMANHO e as duas CORES (preenchimento e borda) de
+// EDITOR DE TOKEN (HTML): janela para mudar NOME, TAMANHO, as duas CORES (preenchimento e borda) e a EMANAÇÃO (a aura: alcance, transparência e cor) de
 // um token que já existe. Abre pelo "Editar token…" do menu da ficha (na bolsa) e pelo "Editar token"
 // da lista de ações do token (no mapa). A imagem tem a sua própria janela (ui/editorImagem.ts).
 // A marcação e o CSS ficam no index.html (ids "editor-token-*").
 // =====================================================================
 
-import { MAX_CARACTERES_NOME_TOKEN } from "../config";
+import { casasParaMetros, metrosParaCasas, type EmanacaoDoToken } from "../areas";
+import { ALFA_MAX_EMANACAO, ALFA_MIN_EMANACAO, EMANACAO_INICIAL_TOKEN, MAX_CARACTERES_NOME_TOKEN, MAX_EMANACAO_TOKEN } from "../config";
 import { estado, motivoFichaOcupada } from "../estado";
 import type { MudancasToken, Token } from "../estado";
 import { corCss, escolherArquivo, marcarEscolhida, montarPaleta, pintarDisco } from "./aparenciaToken";
@@ -48,6 +49,16 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
     const botaoSemImagem = pegar<HTMLButtonElement>("editor-token-sem-imagem");
     const arquivo = pegar<HTMLInputElement>("editor-token-arquivo");
     const previa = pegar("editor-token-previa");
+    // A emanação (aura).
+    const caixaEmana = pegar<HTMLInputElement>("editor-token-emana");
+    const opcoesEmana = pegar("editor-token-emana-opcoes");
+    const campoMetros = pegar<HTMLInputElement>("editor-token-emana-metros");
+    const botaoMenosEmana = pegar<HTMLButtonElement>("editor-token-emana-menos");
+    const botaoMaisEmana = pegar<HTMLButtonElement>("editor-token-emana-mais");
+    const faixaTransparencia = pegar<HTMLInputElement>("editor-token-emana-transparencia");
+    const valorTransparencia = pegar<HTMLOutputElement>("editor-token-emana-transparencia-valor");
+    const amostrasEmana = pegar("editor-token-amostras-emana");
+    const seletorCorEmana = pegar<HTMLInputElement>("editor-token-cor-emana");
     const botaoCancelar = pegar<HTMLButtonElement>("editor-token-cancelar");
     const botaoSalvar = pegar<HTMLButtonElement>("editor-token-salvar");
 
@@ -58,6 +69,11 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
     let corBorda = 0;
     let imagem: string | null = null; // a imagem escolhida (só vai para o token ao salvar)
     let fichaEscolhida: number | null = null; // a ficha escolhida no menu suspenso (só vai para o token ao salvar)
+    // A emanação escolhida (só vai para o token ao salvar): ligada ou não, o alcance em casas, a cor e a opacidade.
+    let emana = false;
+    let emanaCasas: number = EMANACAO_INICIAL_TOKEN.casas;
+    let emanaCor: number = EMANACAO_INICIAL_TOKEN.cor;
+    let emanaAlfa: number = EMANACAO_INICIAL_TOKEN.alfa;
 
     /** Mostra na janela (botões, paletas e prévia) o que está escolhido agora. */
     function atualizarEscolha(): void {
@@ -76,6 +92,17 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
         botaoSemImagem.hidden = imagem === null;
         disco.style.setProperty("--t", String(tamanho));
         previa.querySelector("small")!.textContent = `${tamanho}×${tamanho}`;
+        // A emanação: as opções só aparecem com ela ligada.
+        caixaEmana.checked = emana;
+        opcoesEmana.hidden = !emana;
+        campoMetros.value = String(casasParaMetros(emanaCasas));
+        botaoMenosEmana.disabled = emanaCasas <= 1;
+        botaoMaisEmana.disabled = emanaCasas >= MAX_EMANACAO_TOKEN;
+        const transparencia = Math.round((1 - emanaAlfa) * 100); // (como no seletor de cor do app: 0% é opaco)
+        faixaTransparencia.value = String(transparencia);
+        valorTransparencia.textContent = `${transparencia}%`;
+        marcarEscolhida(amostrasEmana, emanaCor);
+        seletorCorEmana.value = corCss(emanaCor);
     }
 
     function fechar(): void {
@@ -88,7 +115,8 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
         if (!token) return;
         const id = token.id;
         fechar();
-        opcoes.aoSalvar(id, { nome: campoNome.value, size: tamanho, cor, corBorda, imagem, ficha: fichaEscolhida });
+        const emanacao: EmanacaoDoToken | null = emana ? { casas: emanaCasas, cor: emanaCor, alfa: emanaAlfa } : null;
+        opcoes.aoSalvar(id, { nome: campoNome.value, size: tamanho, cor, corBorda, imagem, ficha: fichaEscolhida, emanacao });
     }
 
     /** Esc fecha SÓ esta janela (a captura impede que a bolsa por baixo também feche); Enter salva. */
@@ -126,6 +154,37 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
     });
     seletorCorBorda.addEventListener("input", () => {
         corBorda = parseInt(seletorCorBorda.value.slice(1), 16);
+        atualizarEscolha();
+    });
+    // --- A emanação ---
+    caixaEmana.addEventListener("change", () => {
+        emana = caixaEmana.checked;
+        atualizarEscolha();
+    });
+    const mudarAlcance = (casas: number): void => {
+        emanaCasas = Math.min(MAX_EMANACAO_TOKEN, Math.max(1, Math.round(casas)));
+        atualizarEscolha();
+    };
+    botaoMenosEmana.addEventListener("click", () => mudarAlcance(emanaCasas - 1));
+    botaoMaisEmana.addEventListener("click", () => mudarAlcance(emanaCasas + 1));
+    campoMetros.addEventListener("change", () => mudarAlcance(metrosParaCasas(Number(campoMetros.value.replace(",", ".")))));
+    campoMetros.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" && !e.isComposing) {
+            e.preventDefault();
+            e.stopPropagation(); // (Enter no campo só confirma o alcance: não salva a janela)
+            campoMetros.blur();
+        }
+    });
+    faixaTransparencia.addEventListener("input", () => {
+        emanaAlfa = Math.min(ALFA_MAX_EMANACAO, Math.max(ALFA_MIN_EMANACAO, Math.round((1 - Number(faixaTransparencia.value) / 100) * 100) / 100));
+        atualizarEscolha();
+    });
+    montarPaleta(amostrasEmana, (nova) => {
+        emanaCor = nova;
+        atualizarEscolha();
+    });
+    seletorCorEmana.addEventListener("input", () => {
+        emanaCor = parseInt(seletorCorEmana.value.slice(1), 16);
         atualizarEscolha();
     });
     botaoImagem.addEventListener("click", async () => {
@@ -247,6 +306,10 @@ export function criarEditorToken(opcoes: OpcoesEditorToken): EditorToken {
             cor = alvo.cor;
             corBorda = alvo.corBorda;
             imagem = alvo.imagem;
+            emana = !!alvo.emanacao;
+            emanaCasas = alvo.emanacao?.casas ?? EMANACAO_INICIAL_TOKEN.casas;
+            emanaCor = alvo.emanacao?.cor ?? EMANACAO_INICIAL_TOKEN.cor;
+            emanaAlfa = alvo.emanacao?.alfa ?? EMANACAO_INICIAL_TOKEN.alfa;
             atualizarEscolha();
             janela.hidden = false;
             document.addEventListener("keydown", aoTeclar, true);

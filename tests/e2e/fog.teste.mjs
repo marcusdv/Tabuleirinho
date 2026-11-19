@@ -20,7 +20,7 @@ const cobrirTudo = async () => { await p.evaluate(() => { const m = window.__tab
 const alternarFog = async () => { await p.click("#fog-ativo"); await p.waitForTimeout(250); await p.click("#confirmar-ok"); await p.waitForTimeout(250); };
 const coberto = (col, row) => p.evaluate(([c, r]) => { const m = window.__tabuleirinho.estado.fog.mascara; if (!m) return null; const sub = 8; const i = Math.floor(r * sub) * m.colunas * sub + Math.floor(c * sub); return (m.bits[i >> 3] & (1 << (i & 7))) !== 0; }, [col, row]);
 
-ok("1a) o painel 'Fog' existe na pilha da esquerda (a 3ª barra)", (await p.locator("#fog .cabecalho h1").textContent()) === "Fog" && (await p.locator("#pilha .caixa-pilha").count()) === 3);
+ok("1a) o painel 'Fog' existe na pilha da esquerda (a 3ª barra, depois de Desenho e Área; a pilha tem 4)", (await p.locator("#fog .cabecalho h1").textContent()) === "Fog" && (await p.locator("#pilha .caixa-pilha").count()) === 4 && (await p.locator("#fog").evaluate((e) => e.style.order)) === "2");
 ok("1b) começa sem fog", !(await fog()).ativo);
 await p.click("#fog .cabecalho");
 await p.waitForTimeout(450);

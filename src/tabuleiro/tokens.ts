@@ -16,6 +16,8 @@
 import { Assets, Container, FederatedPointerEvent, Graphics, PointData, Sprite, Text, Texture, Ticker } from "pixi.js";
 import { buscarCondicao } from "../condicoes";
 import { ALPHA_RETANGULO_SELECAO, ALTURA_BARRA_STATUS, BARRAS_DA_CURA, COR_CURA, COR_DANO, COR_SELECAO, MS_ANIMACAO_CURA, MS_ANIMACAO_DANO, FOLGA_TOKEN, ALPHA_TILE_SELECAO, LARGURA_BORDA_TOKEN, ANEIS_DA_BORDA_DANO, PROFUNDIDADE_BORDA_DANO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, TAMANHO_NUMERO_BARRA, VAO_BARRA_STATUS, VAO_BARRA_TOKEN } from "../config";
+import { areaDaEmanacao } from "../areas";
+import { pintarArea } from "./formaDeArea";
 import { capacidadeDoRodape, casaMaisProxima, diametroDoIcone, posicoesNoRodape } from "../coordenadas";
 import { buscarToken, colocarToken, estado, guardarToken, naCenaAtual, podeUsarToken, statusAplicaveis, Token } from "../estado";
 import type { Camera } from "./camera";
@@ -89,7 +91,11 @@ export interface CamadaTokens {
      * Mostra o token onde o ESTADO diz que ele está (no mapa, ou escondido se está na bolsa). Usado quando a posição
      * vem de FORA (do servidor). Se o usuário está segurando este token agora, não mexe: o que ele soltar vale.
      */
-    aplicarPosicao(token: Token): void;
+    aplicarPosicao(token: Token, deslizeMs?: number): void;
+    /** Onde o DESENHO do token está agora, em pixels do mundo (o centro dele); durante um deslize difere da posição do estado. Só para os testes. */
+    posicaoDoDesenho(id: number): { x: number; y: number } | null;
+    /** Seleciona SÓ este token (tira a seleção dos outros), como um clique nele com o Ctrl: usado pela régua, que seleciona o token de onde a medida começa. */
+    selecionar(id: number): void;
     /** Os tokens SELECIONADOS agora (só os que estão à vista no mapa atual). */
     readonly selecionados: Token[];
     /** Tira a seleção de todos. */
@@ -137,6 +143,7 @@ export interface AncoraBalao {
 /** As partes visuais de um token. */
 interface ViewToken {
     raiz: Container;
+    aura: Graphics; // a EMANAÇÃO do token (a área semitransparente em volta dele): mora na camada das auras, ABAIXO de todos os tokens, não recebe o mouse e acompanha o token (ver `sincronizarAuras`)
     corpo: Graphics;
     foto: Sprite;
     borda: Graphics;
@@ -165,12 +172,19 @@ export function criarTokens(
     opcoes: OpcoesTokens,
 ): CamadaTokens {
     const mundo = camera.mundo;
+    // A camada das AURAS (emanações dos tokens): criada ANTES dos tokens, então fica por baixo de todos eles (e acima dos desenhos). As auras não ficam dentro da raiz do token porque, lá, uma aura
+    // de um token pequeno clarearia os tokens maiores que estão por baixo dele.
+    const camadaAuras = new Container();
+    mundo.addChild(camadaAuras);
 
     // Guarda a view de cada token pelo id, para podermos reposicioná-la
     // quando o estado do token mudar (tabuleiro encolheu, tamanho alterado...).
     const views = new Map<number, ViewToken>();
     let vezDestacada: number | null = null; // o token que tem a vez na iniciativa (ver `destacarVez`)
     let alvoDestacado: number | null = null; // o token que está crescido por baixo de um resultado de dado arrastado (ver `destacarAlvo`)
+
+    // Os DESLIZES em andamento (id do token -> de onde, até onde e há quanto tempo): quando a posição de um token muda por FORA (outro jogador, o servidor, a régua), ele DESLIZA até lá em vez de pular.
+    const deslizes = new Map<number, { x0: number; y0: number; x1: number; y1: number; passado: number; duracao: number }>();
 
     // Estado do arrasto. Só um token é arrastado por vez.
     let arrastando: { token: Token; view: ViewToken } | null = null;
@@ -289,8 +303,72 @@ export function criarTokens(
      * Ex.: token 3x3 em col=20 -> centro em (20 + 1,5) casas.
      */
     function posicionar(token: Token, view: ViewToken): void {
+        deslizes.delete(token.id); // (posicionar põe o token EXATAMENTE no lugar: um deslize em andamento acaba aqui)
         view.raiz.position.set((token.col + token.size / 2) * TAMANHO_CASA, (token.row + token.size / 2) * TAMANHO_CASA);
+        desenharAura(token, view); // (as casas da aura dependem de onde o token está: refaz quando ele muda de lugar)
     }
+
+    /** Um quadro dos deslizes: cada token anda um pouco até o destino (começa e termina suave); ao chegar, é posicionado exatamente e a aura se refaz. */
+    function passoDosDeslizes(ticker: Ticker): void {
+        for (const [id, d] of [...deslizes]) {
+            const token = buscarToken(id);
+            const view = views.get(id);
+            if (!token || !view || view.raiz.destroyed) {
+                deslizes.delete(id);
+                continue;
+            }
+            d.passado += ticker.deltaMS;
+            const u = Math.min(1, d.passado / d.duracao);
+            if (u >= 1) {
+                posicionar(token, view); // (chegou: apaga o deslize e põe no lugar exato)
+                continue;
+            }
+            const suave = u < 0.5 ? 2 * u * u : 1 - 2 * (1 - u) * (1 - u); // (começa e termina devagar)
+            view.raiz.position.set(d.x0 + (d.x1 - d.x0) * suave, d.y0 + (d.y1 - d.y0) * suave);
+        }
+        if (deslizes.size === 0) Ticker.shared.remove(passoDosDeslizes);
+    }
+    /** Faz o token DESLIZAR da posição em que a tela o mostra agora até a que o estado diz, em `ms`. Sem mudança de lugar (ou sem a view à vista), só posiciona. */
+    function deslizar(token: Token, view: ViewToken, ms: number): void {
+        const x1 = (token.col + token.size / 2) * TAMANHO_CASA;
+        const y1 = (token.row + token.size / 2) * TAMANHO_CASA;
+        if (!view.raiz.visible || ms <= 0 || (Math.abs(view.raiz.x - x1) < 0.5 && Math.abs(view.raiz.y - y1) < 0.5)) return posicionar(token, view);
+        const antes = deslizes.size;
+        deslizes.set(token.id, { x0: view.raiz.x, y0: view.raiz.y, x1, y1, passado: 0, duracao: ms });
+        desenharAura(token, view); // (a aura já é a das casas NOVAS; fica deslocada até o token chegar, e acompanha o deslize)
+        if (antes === 0) Ticker.shared.add(passoDosDeslizes);
+    }
+
+    /**
+     * A EMANAÇÃO do token: as casas em volta do corpo dele (alcance, cor e transparência escolhidos no editor), pintadas por baixo dele. A aura é desenhada com as coordenadas do MUNDO
+     * (as mesmas casas de qualquer área) e deslocada para o centro do token, porque a raiz dele está no centro: assim, ao ARRASTAR, ela anda junto com o token e, ao soltar, encaixa nas casas novas.
+     */
+    function desenharAura(token: Token, view: ViewToken): void {
+        view.aura.clear();
+        if (token.emanacao) {
+            const { cor, alfa } = token.emanacao;
+            pintarArea(view.aura, areaDaEmanacao(token, token.emanacao), cor, alfa);
+        }
+        sincronizarAura(token, view);
+    }
+
+    /** A aura acompanha o token: a mesma visibilidade e opacidade da raiz (token guardado, de outro mapa ou arrastado para a bolsa = sem aura) e o mesmo deslocamento (arrastando, a raiz anda livre; a aura vai junto). */
+    function sincronizarAura(token: Token, view: ViewToken): void {
+        const visivel = !!token.emanacao && view.raiz.visible && view.raiz.alpha > 0;
+        view.aura.visible = visivel;
+        if (!visivel) return;
+        view.aura.alpha = view.raiz.alpha;
+        view.aura.position.set(view.raiz.x - (token.col + token.size / 2) * TAMANHO_CASA, view.raiz.y - (token.row + token.size / 2) * TAMANHO_CASA); // (o desenho está nas casas do ESTADO; isto o desloca até onde a raiz está agora)
+    }
+    /** A cada quadro, as auras acompanham os tokens (arrastar, esconder, mostrar...): são poucas e a conta é mínima. */
+    function sincronizarAuras(): void {
+        for (const [id, view] of views) {
+            const token = buscarToken(id);
+            if (token?.emanacao) sincronizarAura(token, view);
+            else view.aura.visible = false;
+        }
+    }
+    Ticker.shared.add(sincronizarAuras);
 
     /**
      * As BARRAS de status (a vida "HP" e as outras que a pessoa criou), EMBAIXO do bloco do token, uma por status que tem valor, empilhadas na ordem da lista.
@@ -545,6 +623,8 @@ export function criarTokens(
 
     function criarView(token: Token): void {
         const raiz = new Container();
+        const aura = new Graphics();
+        aura.eventMode = "none"; // (a aura é grande: não pode "pegar" o clique, o token é só o círculo)
         const corpo = new Graphics();
         const foto = new Sprite();
         foto.anchor.set(0.5); // o centro da foto fica no centro do token
@@ -554,7 +634,8 @@ export function criarTokens(
         const condicoes = new Container();
         const barras = new Container();
         raiz.addChild(corpo, foto, borda, marca, condicoes, barras); // do fundo para a frente
-        const view: ViewToken = { raiz, corpo, foto, borda, fotoUrl: null, marca, anelVez: null, condicoes, barras, vida: somaDaVida(token) };
+        camadaAuras.addChild(aura); // (a aura fica na camada própria, abaixo de todos os tokens)
+        const view: ViewToken = { raiz, aura, corpo, foto, borda, fotoUrl: null, marca, anelVez: null, condicoes, barras, vida: somaDaVida(token) };
 
         desenharCorpo(token, view);
         void desenharFoto(token, view);
@@ -662,10 +743,12 @@ export function criarTokens(
             grade.esconderDestaque();
         }
         views.delete(id);
+        deslizes.delete(id);
         const estavaSelecionado = selecionadosIds.delete(id);
         aneisSelecao.delete(id); // (o anel é filho da raiz: é destruído junto com ela)
         grupo = grupo.filter((m) => m.token.id !== id);
         mundo.removeChild(view.raiz);
+        view.aura.destroy(); // (a aura mora na camada das auras, fora da raiz)
         view.raiz.destroy({ children: true }); // (a textura da imagem é compartilhada: sai da memória logo abaixo, se ninguém mais a usa)
         const url = view.fotoUrl;
         if (url && !estado.tokens.some((t) => t.imagem === url)) void Assets.unload(url);
@@ -720,13 +803,23 @@ export function criarTokens(
             if (novoId !== null) views.get(novoId)?.raiz.scale.set(1.12);
         },
 
-        aplicarPosicao(token) {
+        aplicarPosicao(token, deslizeMs = 0) {
             const view = views.get(token.id);
             if (!view || arrastando?.token.id === token.id) return;
             view.raiz.visible = naCenaAtual(token);
             if (!naCenaAtual(token) && selecionadosIds.delete(token.id)) desenharSelecao();
             desenharBarras(token, view); // (os status nascem ao sair da bolsa e somem ao voltar)
-            posicionar(token, view);
+            if (deslizeMs > 0) deslizar(token, view, deslizeMs);
+            else posicionar(token, view);
+        },
+
+        selecionar(id) {
+            if (views.has(id)) selecionarSo(id);
+        },
+
+        posicaoDoDesenho(id) {
+            const view = views.get(id);
+            return view ? { x: view.raiz.x, y: view.raiz.y } : null;
         },
 
         get selecionados() {

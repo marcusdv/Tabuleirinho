@@ -63,7 +63,7 @@ await p.fill("#editor-ficha-texto", "(<img src=x onerror=alert>)[1d4]\n(Normal)[
 await p.keyboard.press("Control+s");
 await p.waitForTimeout(100);
 await p.locator("#editor-ficha-cores .rolagem-nome").first().click();
-ok("6) um nome de rolagem com HTML aparece como TEXTO no cartão (nenhum <img> no chat)", (await p.locator("#chat img").count()) === 0 && (await cartoes()).some((x) => /<img/.test(x.titulo ?? "")));
+ok("6) um nome de rolagem com HTML aparece como TEXTO no cartão (nenhum <img> nas mensagens do chat; a aba Condições, que mora dentro do #chat, tem ícones de verdade)", (await p.locator(".chat-mensagem img").count()) === 0 && (await cartoes()).some((x) => /<img/.test(x.titulo ?? "")));
 // ----- ROLAR também na LEITURA formatada (clicando no nome da rolagem)
 await p.fill("#editor-ficha-texto", "# Ataques\n**(Golpe forte)[1d8 + 2]** e *texto*\nFOR:: 16\n(Normal)[1d6]");
 await p.keyboard.press("Control+s");
@@ -76,9 +76,38 @@ ok("8b) a variável aparece como TEXTO PURO na leitura (sem botão)", /FOR:: 16/
 await p.locator("#editor-ficha-previa .rolagem-previa-nome").first().click();
 await p.waitForTimeout(150);
 ok("8c) clicar numa rolagem NA LEITURA rola (o cartão vai ao chat) e a leitura continua à vista", (await cartoes()).length === antes + 1 && (await cartoes()).some((x) => x.titulo === "Golpe forte") && (await p.locator("#editor-ficha-previa").isVisible()));
-await p.locator("#editor-ficha-previa .rolagem-previa-formula").nth(1).click();
+ok("8d) com NOME, a leitura esconde a fórmula entre colchetes (só o nome aparece; a fórmula fica na dica)", (await p.locator("#editor-ficha-previa .rolagem-previa-formula").count()) === 0 && !/\[1d8/.test(await p.locator("#editor-ficha-previa").textContent()));
+await p.locator("#editor-ficha-previa .rolagem-previa-nome").nth(1).click();
 await p.waitForTimeout(150);
-ok("8d) clicar na FÓRMULA da rolagem também rola ('Normal')", (await cartoes()).some((x) => x.titulo === "Normal"));
+ok("8e) clicar no nome da segunda rolagem rola ('Normal')", (await cartoes()).some((x) => x.titulo === "Normal"));
+// ----- SEM nome, a fórmula continua visível na leitura (é o único lugar para clicar)
+await p.focus("#editor-ficha-texto");
+await p.fill("#editor-ficha-texto", "[1d20 + 3]");
+await p.keyboard.press("Control+s");
+await p.waitForTimeout(150);
+await p.focus("#editor-ficha-nome"); // sai do campo: a leitura liga sozinha só se há formatação; senão usa o botão Editar/Confirmar
+await p.waitForTimeout(100);
+if (!(await p.locator("#editor-ficha-previa").isVisible())) await p.click("#editor-ficha-ver");
+ok("8f) SEM nome, a leitura mostra a fórmula (botão clicável)", (await p.locator("#editor-ficha-previa .rolagem-previa-formula").count()) === 1);
+
+// ----- a lista lateral AGRUPA as rolagens pelo título mais próximo acima delas, e a leitura mostra o CÁLCULO na hora, numa caixa
+if (await p.locator("#editor-ficha-previa").isVisible()) await p.click("#editor-ficha-ver"); // (volta ao campo de texto para escrever)
+await p.fill("#editor-ficha-texto", "FOR:: 14\n(Solta)[1d4]\n# Perícias\n(Furtividade)[1d20 + 2]\n(Atletismo)[1d20 + FOR]\n## Salvaguardas\n(Força)[1d20 + 3]");
+await p.keyboard.press("Control+s");
+await p.waitForTimeout(150);
+const cabecalhos = await p.locator("#editor-ficha-rolagens li.titulo-grupo").evaluateAll((els) => els.map((e) => ({ texto: e.textContent, depois: e.classList.contains("depois-de-grupo") })));
+ok("9a) a lista tem um CABEÇALHO por título que tem rolagens ('Perícias' e 'Salvaguardas'); a rolagem solta de antes de qualquer título não ganha cabeçalho", JSON.stringify(cabecalhos.map((c) => c.texto)) === JSON.stringify(["Perícias", "Salvaguardas"]) && (await p.locator("#editor-ficha-rolagens li[data-rolagem]").count()) === 4);
+ok("9b) os cabeçalhos separam os grupos (espaço em cima), e a ordem é: solta, Perícias (2), Salvaguardas (1)", cabecalhos.every((c) => c.depois) && JSON.stringify(await p.locator("#editor-ficha-rolagens > li").evaluateAll((els) => els.map((e) => (e.classList.contains("titulo-grupo") ? "T" : "R")))) === JSON.stringify(["R", "T", "R", "R", "T", "R"]));
+await p.locator("#editor-ficha-rolagens li[data-rolagem]").nth(2).click(); // (a 3ª rolagem, 'Atletismo': o número da rolagem não se perde com os cabeçalhos no meio)
+await p.waitForTimeout(100);
+ok("9c) clicar numa rolagem da lista, com cabeçalhos no meio, rola a certa ('Atletismo')", (await cartoes()).some((x) => x.titulo === "Atletismo"));
+await p.focus("#editor-ficha-nome"); // sai do campo: a leitura liga sozinha (há títulos para formatar)
+await p.waitForTimeout(100);
+await p.locator("#editor-ficha-previa .rolagem-previa").nth(2).hover();
+ok("9d) ao passar o mouse no botão da leitura a caixa do CÁLCULO aparece NA HORA, com o nome, a fórmula escrita e o resultado ('= 1d20 + 14')", await p.locator("#editor-ficha-dica-rolagem").isVisible() && /Atletismo/.test(await p.locator("#editor-ficha-dica-rolagem").textContent()) && /\[1d20 \+ FOR\]/.test(await p.locator("#editor-ficha-dica-rolagem").textContent()) && /= 1d20 \+ 14/.test(await p.locator("#editor-ficha-dica-rolagem").textContent()));
+await p.mouse.move(2, 2); // (tira o mouse do botão)
+await p.waitForTimeout(50);
+ok("9e) ao tirar o mouse a caixa some", !(await p.locator("#editor-ficha-dica-rolagem").isVisible()));
 
 ok("7) nenhum erro de JavaScript", erros.length === 0, erros.join(" | "));
 const codigo = terminar(erros);

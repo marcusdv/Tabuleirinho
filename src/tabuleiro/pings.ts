@@ -21,6 +21,8 @@ export interface Pings {
     limpar(): void;
     /** Quantas SETAS de ping estão à vista agora (só para os testes). */
     readonly setasVisiveis: number;
+    /** Quantos pings estão na tela agora (só para os testes). */
+    readonly naTela: number;
 }
 
 interface PingAtivo {
@@ -280,6 +282,9 @@ export function criarPings(app: Application, camera: Camera, estaVisivel: (x: nu
         },
         get setasVisiveis() {
             return ativos.filter((p) => p.seta.visible).length;
+        },
+        get naTela() {
+            return ativos.length;
         },
     };
 }

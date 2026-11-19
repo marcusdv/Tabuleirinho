@@ -229,6 +229,41 @@
     color: #ffd54f;
     font-variant-numeric: tabular-nums;
 }
+/* O EFEITO da rolagem (a etiqueta {cura} ou {dano} escrita na ficha; pedido do dono, 19/11/2026): na CURA o número fica dentro de um CORAÇÃO verde (o `cura.svg` dos pings); no DANO explícito, a ESPADA (o `atacar.svg`)
+   vem na frente do número. Sem etiqueta nada muda. Os desenhos são pseudo-elementos: o texto do total continua sendo só o número (é o que o arrasto leva). */
+.chat-total.efeito-cura {
+    position: relative;
+    isolation: isolate; /* (o coração fica ATRÁS do número, mas dentro do total) */
+    min-width: 1.7em;
+    padding: 12px 8px 15px;
+    text-align: center;
+    color: #fff;
+    font-size: 28px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+}
+.chat-total.efeito-cura::before {
+    content: "";
+    position: absolute;
+    inset: -2px -10px -3px;
+    z-index: -1;
+    background: #2faa5f;
+    -webkit-mask: url("/images/svgs/pings/cura.svg") center / contain no-repeat;
+    mask: url("/images/svgs/pings/cura.svg") center / contain no-repeat;
+}
+.chat-total.efeito-dano {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.chat-total.efeito-dano::before {
+    content: "";
+    flex: none;
+    width: 0.62em;
+    height: 0.62em;
+    background: #ff6b6b;
+    -webkit-mask: url("/images/svgs/pings/atacar.svg") center / contain no-repeat;
+    mask: url("/images/svgs/pings/atacar.svg") center / contain no-repeat;
+}
 .chat-total.arrastavel {
     cursor: grab; /* o TOTAL se arrasta até um token para dar dano a ele */
     user-select: none;

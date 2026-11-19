@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Tabuleirinho</title>
-      <script type="module" crossorigin src="/assets/index-BWbEWobj.js"></script>
+      <script type="module" crossorigin src="/assets/index-CZNFVGzw.js"></script>
       <link rel="modulepreload" crossorigin href="/assets/CanvasPool-cZm-qJ09.js">
       <link rel="modulepreload" crossorigin href="/assets/Filter-CBWLFxHX.js">
       <link rel="modulepreload" crossorigin href="/assets/canvasUtils-D8Fc3Bye.js">
@@ -14,7 +14,7 @@
       <link rel="modulepreload" crossorigin href="/assets/getTextureBatchBindGroup-CPM2N5IT.js">
       <link rel="modulepreload" crossorigin href="/assets/GraphicsContext-DtkgRzau.js">
       <link rel="modulepreload" crossorigin href="/assets/getTexelRangeRects-fmak5Y5p.js">
-      <link rel="stylesheet" crossorigin href="/assets/index-Bcx8o8vT.css">
+      <link rel="stylesheet" crossorigin href="/assets/index-oXw1qIPv.css">
     </head>
     <body>
         <div id="app"></div>
@@ -22,8 +22,7 @@
 
 
 
-        <!-- A PILHA de barras, na borda esquerda: "Desenho" e "Ferramentas", todas com a MESMA largura. Clicar numa barra abre o conteúdo dela numa gaveta ao
-             lado (na parede direita da barra); arrastar uma barra troca a ordem. Ids e regras no ui/pilha.ts. -->
+        <!-- A PILHA de barras, na borda esquerda, todas com a MESMA largura e numa ordem fixa. Clicar numa barra abre o conteúdo dela numa gaveta. Ids e regras no ui/pilha.ts. -->
         <div id="pilha">
             <!-- ZOOM RÁPIDO: fica FIXO acima das barras (não entra na troca de ordem). Os ids são os de sempre, usados em ui/barra.ts. -->
             <div id="zoom-rapido" class="controle">
@@ -131,7 +130,48 @@
                 </div>
             </aside>
 
-            <!-- A INICIATIVA (2ª barra da pilha): a ordem de combate (quem age em que ordem, de quem é a vez, a rodada). Ids usados no ui/iniciativa.ts. -->
+            <!-- A ÁREA DE EFEITO (2ª barra da pilha): cone, linha, esfera, cubo e emanação, em casas inteiras. Tem a PRÓPRIA paleta de cores (separada da do Desenho). A prévia fica no topo. Ids usados no ui/painelArea.ts. -->
+            <aside id="area" class="caixa-pilha">
+                <div class="cabecalho">
+                    <h1>Área</h1>
+                    <button id="area-alternar" title="Recolher área" aria-expanded="true"><span class="seta" aria-hidden="true">▴</span></button>
+                </div>
+                <div class="conteudo">
+                    <section>
+                        <!-- A prévia desenha a área numa grade pequena, com o tamanho e a cor escolhidos (ui/painelArea.ts). -->
+                        <canvas id="area-previa" width="204" height="204" aria-label="Prévia da área" title="Como a área fica (cada quadradinho é uma casa)"></canvas>
+                    </section>
+                    <section>
+                        <h2>Forma</h2>
+                        <!-- os botões das formas são criados pelo ui/painelArea.ts (tabela do config.ts) -->
+                        <div id="area-formas"></div>
+                    </section>
+                    <section>
+                        <h2 id="area-medida-titulo">Comprimento</h2>
+                        <div id="area-tamanho">
+                            <button type="button" id="area-menos" aria-label="Diminuir o tamanho" title="Diminuir 1 casa (1,5 m)">−</button>
+                            <label id="area-campo-rotulo"><input type="number" id="area-metros" min="1.5" max="60" step="1.5" autocomplete="off" aria-label="Tamanho em metros" /><span>m</span></label>
+                            <button type="button" id="area-mais" aria-label="Aumentar o tamanho" title="Aumentar 1 casa (1,5 m)">+</button>
+                        </div>
+                        <div id="area-prontos"><!-- os tamanhos prontos de cada forma, numa linha só (ui/painelArea.ts) --></div>
+                    </section>
+                    <section>
+                        <label id="area-transparencia-linha" title="Transparência do preenchimento das áreas (0% é opaco; vai até 99%). Vale para as áreas novas e para a emanação dos tokens"><span>Transparência</span><output id="area-transparencia-valor"></output></label>
+                        <input type="range" id="area-transparencia" min="0" max="99" step="1" aria-label="Transparência das áreas, em porcentagem (0% é opaco)" />
+                    </section>
+                    <section>
+                        <h2>Cor</h2>
+                        <div id="area-amostras"></div>
+                        <input id="area-cor" type="color" value="#42a5f5" aria-label="Escolher outra cor da área" title="Escolher outra cor da área" />
+                    </section>
+                    <section>
+                        <div id="area-dica">Clique na ponta e depois na direção, ou arraste e solte.</div>
+                        <button id="area-limpar" class="botao-largo" title="Apaga as áreas do mapa (o mestre apaga todas; os outros, só as próprias). Ctrl+Z desfaz.">Limpar áreas</button>
+                    </section>
+                </div>
+            </aside>
+
+            <!-- A INICIATIVA (3ª barra da pilha): a ordem de combate (quem age em que ordem, de quem é a vez, a rodada). Ids usados no ui/iniciativa.ts. -->
             <aside id="iniciativa" class="caixa-pilha">
                 <div class="cabecalho">
                     <h1>Iniciativa</h1>
@@ -242,7 +282,7 @@
             </aside>
         </div>
 
-        <!-- MENU DO BOTÃO DIREITO no espaço vazio do mapa (ui/menuMapa.ts): Lápis, Borracha, Ping e Régua para todos; os pincéis do fog só para o mestre. -->
+        <!-- MENU DO BOTÃO DIREITO no espaço vazio do mapa (ui/menuMapa.ts): Lápis, Borracha, Ping, Área, Régua e Limpar áreas para todos; os pincéis do fog só para o mestre. -->
         <div id="menu-mapa" role="menu" aria-label="Ações no mapa" hidden>
             <button type="button" role="menuitem" data-acao="lapis" title="Desenhar à mão livre, na cor escolhida no painel Desenho"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-lapis"></span></span>Lápis</button>
             <button type="button" role="menuitem" data-acao="borracha" title="Apagar o desenho que ela tocar"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-borracha"></span></span>Borracha</button>
@@ -251,10 +291,21 @@
                 <button type="button" role="menuitem" data-acao="ping" aria-haspopup="menu" title="Chama a atenção de todos para este ponto (passe o mouse para ver os outros tipos). Atalho: Shift + clique; Shift + arrastar abre a roda de pings"><span class="menu-mapa-icone" aria-hidden="true">◎</span>Ping<span class="menu-mapa-seta" aria-hidden="true">▸</span></button>
                 <div class="menu-mapa-extras" role="menu" aria-label="Tipos de ping"><!-- os tipos vêm da tabela do config.ts (ui/menuMapa.ts) --></div>
             </div>
+            <!-- A ÁREA DE EFEITO: o item liga a ferramenta com a última forma; o submenu tem as 5 formas (cada uma com o tamanho que você usou por último) e as áreas rápidas (forma e tamanho de uma vez). -->
+            <div class="menu-mapa-grupo">
+                <button type="button" role="menuitem" data-acao="area" aria-haspopup="menu" title="Desenha uma área de efeito (cone, linha, esfera, cubo ou emanação), preenchendo as casas. Passe o mouse para escolher a forma (A)"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-cone"></span></span>Área<span class="menu-mapa-seta" aria-hidden="true">▸</span></button>
+                <div class="menu-mapa-extras" role="menu" aria-label="Formas de área"><!-- as formas e as áreas rápidas vêm das tabelas do config.ts (ui/menuMapa.ts) --></div>
+            </div>
             <button type="button" role="menuitem" data-acao="regua" title="Medir a distância (1 casa = 1,5 m); todos veem a sua medida (R)"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-regua"></span></span>Régua<kbd class="menu-mapa-atalho">R</kbd></button>
+            <button type="button" role="menuitem" data-acao="area-limpar" title="Apaga as áreas de efeito do mapa (o mestre apaga todas; os outros, só as próprias). Ctrl+Z desfaz"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-borracha"></span></span>Limpar áreas</button>
             <button type="button" role="menuitem" data-acao="fog-revelar" class="so-mestre" title="Borracha de fog: pinta para REVELAR o mapa"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-borracha"></span></span>Borracha de fog</button>
             <button type="button" role="menuitem" data-acao="fog-cobrir" class="so-mestre" title="Pincel de fog: pinta para COBRIR o mapa de novo"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-pincel"></span></span>Pincel de fog</button>
+            <!-- Os itens que dependem do PONTO clicado ("Remover área", "Remover emanação": só aparecem com uma área ou a aura de um token embaixo do cursor; ui/menuMapa.ts os monta ao abrir) -->
+            <div id="menu-mapa-sob"></div>
         </div>
+
+        <!-- O botão MOVER da RÉGUA: depois de medir a partir de um token que você pode usar, ele aparece junto da ponta da régua; clicar leva o token pelo caminho medido, com uma paradinha em cada ponto fixado com o botão direito (main.ts, `moverPelaRegua`). -->
+        <button id="regua-mover" type="button" hidden>Mover</button>
 
         <!-- A RODA DE PINGS (ui/rodaPing.ts): Shift + botão esquerdo arrastado no mapa. O mouse aponta um dos 4 lados (como no League of Legends); soltar faz o ping daquele tipo; no meio, o ping comum. Só desenho: o mouse passa por cima. -->
         <div id="roda-ping" aria-hidden="true" hidden>
@@ -352,14 +403,6 @@
                         >
                             Voltar ao padrão
                         </button>
-                        <button
-                            id="reorganizar-telas"
-                            class="botao-largo"
-                            style="margin-top: 6px"
-                            title="Devolve as barras da esquerda (Desenho e Iniciativa) à ordem de fábrica"
-                        >
-                            Reorganizar telas
-                        </button>
                     </section>
             </div>
             <button id="mapas-tabuleiro-ok" type="button" class="botao-largo" title="Fechar as configurações do tabuleiro">OK</button>
@@ -414,6 +457,8 @@
                         <button id="bolsa-selecao-excluir" type="button" class="bolsa-botao-pequeno">Excluir</button>
                         <button id="bolsa-selecao-limpar" type="button" class="bolsa-botao-pequeno" title="Tirar a seleção (Esc)">Cancelar</button>
                     </div>
+                    <!-- O botão INSTRUÇÕES fica no TOPO, ao lado de Fechar (pedido do dono, 19/11/2026): só na tela cheia, em qualquer aba. Abre a janela de instruções das fichas (ui/ajudaFichas.ts). -->
+                    <button id="bolsa-ficha-instrucoes" type="button" data-abrir-ajuda-fichas title="Como escrever variáveis, rolagens e cartões numa ficha">Instruções</button>
                     <button id="bolsa-fechar" hidden title="Fechar a bolsa (Esc ou Q)">✕ Fechar</button>
                     <!-- As ABAS da carteira: "Tokens" (o que a bolsa já era) e "Fichas" (fichas de personagem). Ficam numa linha
                          só delas, embaixo do título, nos três tamanhos. Ids usados no ui/bolsa.ts. -->
@@ -477,7 +522,6 @@
                 <section id="bolsa-fichas" role="tabpanel" aria-label="Fichas" aria-labelledby="bolsa-aba-fichas">
                     <div id="bolsa-fichas-barra">
                         <div id="bolsa-fichas-botoes">
-                            <button id="bolsa-ficha-instrucoes" class="botao-largo" data-abrir-ajuda-fichas title="Como escrever variáveis e rolagens numa ficha">Instruções</button>
                         </div>
                         <p id="bolsa-ficha-aviso" aria-live="polite"></p>
                     </div>
@@ -772,6 +816,22 @@
                 <p class="bolsa-rotulo">Cor da borda</p>
                 <div id="editor-token-amostras-borda" class="paleta-token"></div>
                 <input type="color" id="editor-token-cor-borda" class="cor-livre" title="Outra cor de borda" aria-label="Outra cor de borda" />
+                <!-- A EMANAÇÃO: o token emana uma área semitransparente (uma aura) em volta do corpo dele, que o acompanha. Alcance em metros (casas inteiras), transparência e cor. Ids usados no ui/editorToken.ts. -->
+                <p class="bolsa-rotulo">Emanação</p>
+                <label id="editor-token-emana-rotulo" title="O token emana uma área semitransparente em volta dele (uma aura), que o acompanha pelo mapa"><input type="checkbox" id="editor-token-emana" /> Emana uma área (aura)</label>
+                <div id="editor-token-emana-opcoes" hidden>
+                    <p class="bolsa-rotulo">Alcance</p>
+                    <div id="editor-token-emana-alcance">
+                        <button type="button" id="editor-token-emana-menos" aria-label="Diminuir o alcance" title="Diminuir 1 casa (1,5 m)">−</button>
+                        <label><input type="number" id="editor-token-emana-metros" min="1.5" max="30" step="1.5" autocomplete="off" aria-label="Alcance da emanação em metros" /><span>m</span></label>
+                        <button type="button" id="editor-token-emana-mais" aria-label="Aumentar o alcance" title="Aumentar 1 casa (1,5 m)">+</button>
+                    </div>
+                    <label class="editor-token-emana-linha"><span>Transparência</span><output id="editor-token-emana-transparencia-valor"></output></label>
+                    <input type="range" id="editor-token-emana-transparencia" min="0" max="99" step="1" aria-label="Transparência da emanação, em porcentagem (0% é opaco)" />
+                    <p class="bolsa-rotulo">Cor da emanação</p>
+                    <div id="editor-token-amostras-emana" class="paleta-token"></div>
+                    <input type="color" id="editor-token-cor-emana" class="cor-livre" title="Outra cor de emanação" aria-label="Outra cor de emanação" />
+                </div>
                 <div class="editor-imagem-botoes">
                     <button id="editor-token-cancelar">Cancelar</button>
                     <button id="editor-token-salvar">Salvar</button>
@@ -892,42 +952,97 @@
                     <h3 id="ajuda-fichas-titulo">Instruções: variáveis e rolagens</h3>
                     <button id="ajuda-fichas-copiar" type="button" title="Copiar todo o texto das instruções" aria-label="Copiar todo o texto das instruções">⧉</button>
                 </div>
+                <!-- O ÍNDICE: cada botão leva direto a uma parte (ui/ajudaFichas.ts). Fica FORA do corpo, então não entra no texto copiado pelo botão ⧉. -->
+                <nav id="ajuda-fichas-indice" aria-label="Partes das instruções">
+                    <button type="button" data-ir="ajuda-sec-variaveis">Variáveis</button>
+                    <button type="button" data-ir="ajuda-sec-rolagens">Rolagens</button>
+                    <button type="button" data-ir="ajuda-sec-essenciais">Essenciais</button>
+                    <button type="button" data-ir="ajuda-sec-cura-e-dano">Cura e dano</button>
+                    <button type="button" data-ir="ajuda-sec-cartoes">Cartões</button>
+                    <button type="button" data-ir="ajuda-sec-paginas">Páginas</button>
+                    <button type="button" data-ir="ajuda-sec-formatacao">Formatação</button>
+                    <button type="button" data-ir="ajuda-sec-fichas-unicas">Fichas Únicas</button>
+                    <button type="button" data-ir="ajuda-sec-fichas-e-tokens">Fichas e tokens</button>
+                    <button type="button" data-ir="ajuda-sec-erros-comuns">Erros comuns</button>
+                </nav>
                 <div id="ajuda-fichas-corpo">
-                    <h4>Sistema de variáveis</h4>
+                    <h4 id="ajuda-sec-variaveis">Sistema de variáveis</h4>
                     <p>Uma variável registra um valor. Escreva o nome, <code>::</code> e o valor.</p>
                     <ul>
                         <li>Somente uma variável por linha.</li>
                         <li>O valor deve ser um número ou um cálculo.</li>
-                        <li><b>Não formate variáveis:</b> sem <code>#</code>, <code>**negrito**</code> ou <code>*itálico*</code> na linha. Uma variável formatada deixa de funcionar.</li>
+                        <li><b>Não formate variáveis:</b> sem <code>#</code>, <code>**negrito**</code> ou <code>*itálico*</code> na linha.</li>
                         <li><b>Pontos de vida devem usar uma variável chamada <span class="trecho variavel-nome">PV</span>::</b> É ela que a barra de vida, o Dano e a Cura leem.</li>
                     </ul>
 <pre><span class="trecho variavel-nome">FOR</span>:: <span class="trecho variavel-valor">16</span>
 <span class="trecho variavel-nome">PROF</span>:: <span class="trecho variavel-valor">3</span>
-<span class="trecho variavel-nome">MOD_FOR</span>:: <span class="trecho variavel-valor">(FOR - 10) / 2</span></pre>
+<span class="trecho variavel-nome">MOD_FOR</span>:: <span class="trecho variavel-valor">(FOR - 10) / 2</span>
+<span class="trecho variavel-nome">PV</span>:: <span class="trecho variavel-valor">22</span>   &lt;- os pontos de vida</pre>
+                    <p class="ajuda-dica"><b>Dica:</b> calcule uma vez e use em todo lugar. Uma variável pode usar outras variáveis, e as rolagens, os cartões e os recursos usam o resultado.</p>
+<pre><span class="trecho variavel-nome">SAB</span>:: <span class="trecho variavel-valor">16</span>
+<span class="trecho variavel-nome">PROF</span>:: <span class="trecho variavel-valor">2</span>
+<span class="trecho variavel-nome">MOD_SAB</span>:: <span class="trecho variavel-valor">(SAB - 10) / 2</span>
+<span class="trecho variavel-nome">CD_MAGIA</span>:: <span class="trecho variavel-valor">8 + PROF + MOD_SAB</span>
 
-                    <h4>Rolagens</h4>
+<span class="trecho rolagem-nome">(Salvaguarda de Sabedoria)</span><span class="trecho rolagem-formula">[1d20 + MOD_SAB + PROF]</span>   &lt;- usa as variáveis de cima</pre>
+
+                    <h4 id="ajuda-sec-rolagens">Rolagens</h4>
                     <ul>
                         <li>Escreva o nome da rolagem entre parênteses e a fórmula entre colchetes, <b>juntos</b>.</li>
                         <li>O nome é opcional.</li>
                         <li>Pode usar números, variáveis e dados.</li>
-                        <li>Para ser uma rolagem, a fórmula deve ter dados.</li>
+                        <li>A fórmula deve incluir dados. Ex.: <code>1d4</code>, <code>1d20</code>.</li>
                         <li>Clique no nome, ou no botão criado automaticamente ao lado, para rolar.</li>
                         <li><b>Não estilize rolagens: somente texto comum.</b> Sem <code>#</code>, <code>**negrito**</code> ou <code>*itálico*</code> na linha, nem dentro dos parênteses e dos colchetes. Formatar pode quebrar a rolagem ou fazê-la perder o nome.</li>
                     </ul>
 <pre><span class="trecho rolagem-nome">(Ataque com espada)</span><span class="trecho rolagem-formula">[1d20 + MOD_FOR + PROF]</span>
 <span class="trecho rolagem-nome">(Dano da espada)</span><span class="trecho rolagem-formula">[1d8 + MOD_FOR]</span>
-<span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + MOD_DES]</span>
 <span class="trecho rolagem-nome">(Bola de Fogo)</span><span class="trecho rolagem-formula">[8d6]</span>
-<span class="trecho rolagem-nome">(Cura)</span><span class="trecho rolagem-formula">[2d4 + 2]</span></pre>
-
-                    <h4>Cartões</h4>
+<span class="trecho rolagem-formula">[1d20 + MOD_FOR]</span>   &lt;- uma rolagem sem nome</pre>
+                    <p class="ajuda-dica"><b>Dica:</b> uma rolagem pode ter mais de um grupo de dados.</p>
+<pre><span class="trecho rolagem-nome">(Ataque furtivo)</span><span class="trecho rolagem-formula">[1d8 + MOD_DES + 3d6]</span>
+<span class="trecho rolagem-nome">(Dano crítico da espada)</span><span class="trecho rolagem-formula">[2d8 + MOD_FOR]</span>   &lt;- no crítico, dobre os dados (e não o modificador)</pre>
+                    <p class="ajuda-dica"><b>Dica:</b> do chat para a mesa. Arraste o número de uma rolagem em:</p>
                     <ul>
-                        <li>Um cartão serve para magias, itens e qualquer coisa que você queira jogar no chat de uma vez.</li>
-                        <li>Escreva o nome entre parênteses, <b>colado</b> a três aspas, o texto, e três aspas para fechar. O texto pode ter várias linhas.</li>
-                        <li>Clique no nome (ou no botão do cartão, na leitura) e <b>todo o texto de dentro</b> vai para o chat, em forma de cartão.</li>
-                        <li>Dentro do cartão, use colchetes: <code>[2d6 + 3]</code> é <b>rolado</b> (tem dado) e <code>[8 + PROF + MOD_DES]</code> é <b>calculado</b> (sem dado). Isso acontece na hora em que o cartão chega ao chat, e variáveis valem.</li>
-                        <li>Dentro de um cartão, <code>#</code>, <code>**negrito**</code> e <code>*itálico*</code> funcionam (como no resto da ficha).</li>
-                        <li>Um erro dentro do cartão (variável que não existe, dado inválido) fica sublinhado, e o cartão não vai ao chat até ser corrigido.</li>
+                        <li>um <b>token</b> no tabuleiro: causar dano ou cura a ele;</li>
+                        <li>a caixa da <b>Iniciativa</b>: é incluído na iniciativa;</li>
+                        <li>os <b>dados</b> do resultado também podem ser arrastados.</li>
+                    </ul>
+
+                    <h4 id="ajuda-sec-essenciais">Variáveis e rolagens essenciais</h4>
+                    <ul>
+                        <li><b>Obrigatória:</b> a variável <span class="trecho variavel-nome">PV</span> (pontos de vida). Sem ela o token não tem barra de vida, e o Dano e a Cura não têm onde agir.</li>
+                        <li><b>Recomendada:</b> uma rolagem chamada <span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + MOD_DES]</span>. É ela que o token usa ao ser adicionado à iniciativa (modo de iniciativa rápida). Sem ela, o token entra com 0.</li>
+                    </ul>
+<pre><span class="trecho variavel-nome">PV</span>:: <span class="trecho variavel-valor">22</span>
+<span class="trecho variavel-nome">DES</span>:: <span class="trecho variavel-valor">14</span>
+<span class="trecho variavel-nome">MOD_DES</span>:: <span class="trecho variavel-valor">(DES - 10) / 2</span>
+<span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + MOD_DES]</span></pre>
+
+                    <h4 id="ajuda-sec-cura-e-dano">Cura e dano com chaves: {cura} {dano}</h4>
+                    <p>Ao arrastar o número de uma rolagem do chat até uma criatura, o jogo precisa saber se é <b>cura</b> ou <b>dano</b>. Escreva uma <b>etiqueta entre chaves</b>, colada ao colchete. Ex.: <code>[1d6]{cura}</code> ou <code>[1d6]{dano}</code>.</p>
+                    <ul>
+                        <li><code>{cura}</code>: o número vai para dentro de um <b>coração</b> verde no chat e, arrastado até a criatura, <b>soma</b> à vida dela (nunca passa do máximo).</li>
+                        <li><code>{dano}</code>: o número ganha uma <b>espada</b> no chat e <b>tira</b> vida.</li>
+                        <li>Rolagens sem chaves automaticamente serão interpretadas como <code>{dano}</code>.</li>
+                    </ul>
+<pre><span class="trecho rolagem-nome">(Curar Ferimentos)</span><span class="trecho rolagem-formula">[1d8 + MOD_SAB + 3]{cura}</span>
+<span class="trecho rolagem-nome">(Chama Sagrada)</span><span class="trecho rolagem-formula">[1d8]{dano}</span>
+<span class="trecho rolagem-nome">(Chama Sagrada)</span><span class="trecho rolagem-formula">[1d8]</span>   &lt;- mesma coisa que a rolagem de cima
+<span class="trecho cartao-nome">(Cura em Massa)</span>"""
+Todos recuperam <span class="trecho cartao-formula">[2d6 + MOD_SAB]{cura}</span> pontos de vida.
+"""</pre>
+                    <p class="ajuda-dica"><b>Dica:</b> a criatura que recebe a cura precisa ter uma barra de vida (a variável <span class="trecho variavel-nome">PV</span>).</p>
+<pre><span class="trecho variavel-nome">PV</span>:: <span class="trecho variavel-valor">22</span>
+<span class="trecho rolagem-nome">(Poção de cura)</span><span class="trecho rolagem-formula">[2d4 + 2]{cura}</span></pre>
+
+                    <h4 id="ajuda-sec-cartoes">Cartões</h4>
+                    <ul>
+                        <li>Um cartão serve para magias, itens, habilidades e qualquer coisa que você queira jogar no chat de uma vez.</li>
+                        <li>Escreva o nome entre parênteses, colado a 3 aspas. Ex.: <code>(exemplo)"""texto"""</code></li>
+                        <li>Clique no nome (ou no botão do cartão, na leitura) e todo o texto de dentro vai para o chat, em forma de cartão.</li>
+                        <li>Pode-se usar rolagens nos cartões.</li>
+                        <li>Pode-se estilizar o texto dos cartões.</li>
                     </ul>
 <pre><span class="trecho cartao-nome">(Bola de Fogo)</span>"""
 # Bola de Fogo
@@ -935,14 +1050,34 @@ Evocação de 3º nível, alcance 45 m.
 Salvaguarda de Destreza, CD <span class="trecho cartao-formula">[8 + PROF + MOD_DES]</span>.
 Dano: <span class="trecho cartao-formula">[8d6]</span> de fogo (metade se passar).
 """</pre>
+                    <p class="ajuda-dica"><b>Dica:</b> use uma conta <b>sem dado</b> para mostrar valores já calculados, como o bônus para acertar e a CD da magia.</p>
+<pre><span class="trecho cartao-nome">(Raio de Fogo)</span>"""
+## Raio de Fogo (truque)
+CD <span class="trecho cartao-formula">[CD_MAGIA]</span>
+Ataque de magia: Rolagem de ataque<span class="trecho cartao-formula">[1d20 + PROF + MOD_SAB]</span>
+Dano: <span class="trecho cartao-formula">[1d10]{dano}</span> de fogo.
+"""</pre>
+                    <p class="ajuda-dica"><b>Dica:</b> um cartão não precisa ter números: serve também para itens e regras da casa que você quer ter à mão.</p>
+<pre><span class="trecho cartao-nome">(Amuleto de Aurora)</span>"""
+**Amuleto de Aurora** (raro)
+Uma vez por descanso, ilumina 9 m de raio por 1 hora.
+"""</pre>
 
-                    <h4>Páginas</h4>
+                    <h4 id="ajuda-sec-paginas">Páginas</h4>
                     <ul>
                         <li>Variáveis valem para a ficha inteira (se repetida, vale a primeira).</li>
                         <li>Rolagens aparecem na página em que foram feitas.</li>
                     </ul>
+                    <p class="ajuda-dica"><b>Dica:</b> separe a ficha em páginas (ficha, magias, inventário). As variáveis da primeira página já valem nas outras.</p>
+<pre><b>Página "Ficha"</b>
+<span class="trecho variavel-nome">INT</span>:: <span class="trecho variavel-valor">14</span>
+<span class="trecho variavel-nome">PROF</span>:: <span class="trecho variavel-valor">2</span>
+<span class="trecho variavel-nome">MOD_INT</span>:: <span class="trecho variavel-valor">(INT - 10) / 2</span>
 
-                    <h4>Formatação do texto</h4>
+<b>Página "Magias"</b>
+<span class="trecho rolagem-nome">(Raio de Fogo)</span><span class="trecho rolagem-formula">[1d20 + MOD_INT + PROF]</span>   &lt;- usa o MOD_INT da outra página</pre>
+
+                    <h4 id="ajuda-sec-formatacao">Formatação do texto</h4>
                     <ul>
                         <li><span class="trecho variavel-valor">#</span>, <span class="trecho variavel-valor">##</span>, <span class="trecho variavel-valor">###</span> no começo da linha: títulos.</li>
                         <li><span class="trecho variavel-valor">**texto**</span> = negrito; <span class="trecho variavel-valor">*texto*</span> = itálico.</li>
@@ -951,26 +1086,36 @@ Dano: <span class="trecho cartao-formula">[8d6]</span> de fogo (metade se passar
                         <li><b>Rolagens também não:</b> use somente texto comum em <code>(Nome)[fórmula]</code>.</li>
                     </ul>
 
-                    <h4>Fichas Únicas</h4>
+                    <h4 id="ajuda-sec-fichas-unicas">Fichas Únicas</h4>
                     <p>Toda ficha pode ser usada por vários tokens.</p>
                     <p>Se você precisa de uma ficha de jogador, de chefão ou de um personagem com informações únicas e permanentes, faça uma ficha única. Para isso, basta criar uma variável de recurso.</p>
                     <ul>
                         <li><b>Recurso:</b> algo que muda durante o jogo (vida, ouro, flechas).</li>
                         <li>Depois disso, a ficha só pode pertencer a um token, e esse token guarda esses status mesmo removido do tabuleiro.</li>
                     </ul>
-                    <p><b>Regras das variáveis de recurso:</b></p>
+                    <h5>Regras das variáveis de recurso</h5>
                     <ul>
                         <li>Escreva <code>NOME::valormínimo:valorinicial:valormáximo</code>. Ex.: <span class="trecho variavel-nome">FLECHAS</span>::<span class="trecho variavel-muda">0:12:20</span> (mínimo de 0 flechas, 12 no momento, e cabem 20 no total).</li>
                         <li>Cada campo é um número inteiro, até 999.999.999 (os três devem ser preenchidos), <b>ou uma conta</b>.</li>
-                        <li><b>A conta vai ENTRE PARÊNTESES</b> e pode usar as variáveis fixas da ficha e <code>+ - * /</code> (a divisão arredonda para baixo). Ex.: <span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:(10 + CONSTITUICAO):(10 + CONSTITUICAO + 1)</span>, onde <span class="trecho variavel-nome">CONSTITUICAO</span> é uma variável da ficha (ex.: <span class="trecho variavel-nome">CONSTITUICAO</span>:: <span class="trecho variavel-muda">2</span>). A conta é refeita sempre que as variáveis dela mudam, e o valor de agora nunca passa do novo máximo.</li>
-                        <li><b>Sem dados na conta</b> (<code>1d8</code>, <code>2d6</code>...): o número precisa ser conhecido de antemão, para saber se o intervalo é válido. E um recurso <b>não usa outro recurso</b> na conta (só variáveis fixas, como <code>NIVEL</code> e <code>MOD_CON</code>).</li>
+                        <li><b>A conta vai ENTRE PARÊNTESES</b> e pode usar as variáveis fixas da ficha e <code>+ - * /</code> (a divisão arredonda para baixo). Ex.: <span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:(10 + CONSTITUICAO):(10 + CONSTITUICAO + 1)</span>, onde <span class="trecho variavel-nome">CONSTITUICAO</span> é uma variável da ficha (ex.: <span class="trecho variavel-nome">CONSTITUICAO</span>:: <span class="trecho variavel-muda">2</span>). A conta é refeita sempre que as variáveis dela mudam.</li>
+                        <li>Sem dados na conta (<code>1d8</code>, <code>2d6</code>...) e sem outros recursos: só variáveis fixas, como <code>NIVEL</code> e <code>MOD_CON</code>.</li>
                         <li>Uma conta fora dos parênteses (<code>10 + NIVEL</code>) dá erro.</li>
                     </ul>
-<pre><span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:44:44</span>
+<pre><span class="trecho variavel-nome">NIVEL</span>:: <span class="trecho variavel-valor">5</span>
+<span class="trecho variavel-nome">MOD_CON</span>:: <span class="trecho variavel-valor">2</span>
+
+<span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:44:44</span>                                      &lt;- números fixos
+<span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:(10 + NIVEL * 6):(10 + NIVEL * 6)</span>             &lt;- o máximo vem de uma conta com o nível
+<span class="trecho variavel-nome">ESPACOS_NIVEL_1</span>::<span class="trecho variavel-muda">0:(NIVEL + 1):(NIVEL + 1)</span>       &lt;- espaços de magia que crescem com o nível
 <span class="trecho variavel-nome">OURO</span>::<span class="trecho variavel-muda">0:150:999999999</span>
 <span class="trecho variavel-nome">EXAUSTAO</span>::<span class="trecho variavel-muda">0:0:6</span>
-<span class="trecho variavel-nome">KARMA</span>::<span class="trecho variavel-muda">-50:0:50</span></pre>
-                    <p><b>O que só a Ficha Token Único tem:</b></p>
+<span class="trecho variavel-nome">KARMA</span>::<span class="trecho variavel-muda">-50:0:50</span>                                &lt;- o mínimo pode ser negativo</pre>
+                    <p class="ajuda-dica"><b>Dica:</b> qualquer coisa que se gasta e se recupera é um recurso: espaços de magia, poções, cargas de um item.</p>
+<pre><span class="trecho variavel-nome">ESPACOS_NIVEL_1</span>::<span class="trecho variavel-muda">0:4:4</span>
+<span class="trecho variavel-nome">ESPACOS_NIVEL_2</span>::<span class="trecho variavel-muda">0:3:3</span>
+<span class="trecho variavel-nome">POCOES_DE_CURA</span>::<span class="trecho variavel-muda">0:3:10</span>
+<span class="trecho variavel-nome">CARGAS_DO_CAJADO</span>::<span class="trecho variavel-muda">0:7:7</span></pre>
+                    <h5>O que só a Ficha Token Único tem</h5>
                     <ul>
                         <li>Recursos, com − e + e um campo que aceita contas (<code>44 - 7</code> + Enter).</li>
                         <li>O valor de agora fica guardado na ficha permanentemente.</li>
@@ -978,12 +1123,36 @@ Dano: <span class="trecho cartao-formula">[8d6]</span> de fogo (metade se passar
                     </ul>
                     <p>Se quiser uma ficha comum, basta remover as variáveis de recurso.</p>
 
-                    <h4>Fichas e tokens</h4>
+                    <h4 id="ajuda-sec-fichas-e-tokens">Fichas e tokens</h4>
                     <ul>
-                        <li>Uma ficha pode ter vários tokens (Token Único: um por cena, e os valores são os mesmos em todas). Cada token tem uma ficha só.</li>
-                        <li><b>Deve-se escrever</b> a variável de pontos de vida como <span class="trecho variavel-nome">PV</span>:: <span class="trecho variavel-valor">valor</span> para fichas comuns (ex.: ficha de monstros) e <span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">mín:atual:máx</span> para fichas únicas (ex.: ficha de jogador).</li>
-                        <li>Recomenda-se também ter uma rolagem chamada <span class="trecho rolagem-nome">(Iniciativa)</span><span class="trecho rolagem-formula">[1d20 + MOD_DES]</span> (ex.: <span class="trecho variavel-nome">MOD_DES</span> é o modificador de destreza): é ela que o token usa ao ser adicionado à iniciativa (modo de iniciativa rápida). Sem ela, o token entra com 0.</li>
+                        <li>Uma ficha comum pode ter vários tokens.</li>
+                        <li>Uma ficha única só pode ter um token (são as fichas com variáveis de recurso, ex.: <span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:12:12</span>).</li>
+                        <li>Deve-se escrever a variável de pontos de vida como <span class="trecho variavel-nome">PV</span>:: <span class="trecho variavel-valor">valor</span> para fichas comuns (ex.: ficha de monstros) e <span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">mín:atual:máx</span> para fichas únicas (ex.: ficha de jogador).</li>
                     </ul>
+                    <p class="ajuda-dica"><b>Dica:</b> monstro ou personagem de jogador? Para um monstro (ficha comum), cada token guarda a sua vida. Para um personagem de jogador (ficha única), a vida fica na ficha.</p>
+<pre><b>Monstro (ficha comum, vários tokens)</b>
+<span class="trecho variavel-nome">PV</span>:: <span class="trecho variavel-valor">22</span>
+
+<b>Jogador (ficha única, um token por cena)</b>
+<span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:120:120</span></pre>
+
+                    <h4 id="ajuda-sec-erros-comuns">Erros comuns</h4>
+                    <p>O jogo sublinha em vermelho o que está errado. Os erros mais comuns:</p>
+<pre><b>Variável formatada deixa de ser variável</b>
+<span class="trecho variavel-valor">**FOR:: 16**</span>          &lt;- errado
+<span class="trecho variavel-nome">FOR</span>:: <span class="trecho variavel-valor">16</span>              &lt;- certo
+
+<b>Só {cura} e {dano} valem</b>
+<span class="trecho rolagem-nome">(Cura)</span><span class="trecho rolagem-formula">[2d4 + 2]{curar}</span>   &lt;- errado: a etiqueta vira texto comum
+<span class="trecho rolagem-nome">(Cura)</span><span class="trecho rolagem-formula">[2d4 + 2]{cura}</span>    &lt;- certo
+
+<b>Sem dado não é rolagem (não ganha botão)</b>
+<span class="trecho rolagem-nome">(Bônus)</span><span class="trecho rolagem-formula">[3 + 2]</span>          &lt;- errado: precisa de um dado
+<span class="trecho rolagem-nome">(Bônus)</span><span class="trecho rolagem-formula">[1d4 + 2]</span>        &lt;- certo (dentro de um cartão, [3 + 2] funciona: é calculado)
+
+<b>A conta de um recurso vai entre parênteses e sem dados</b>
+<span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:10 + NIVEL:10 + NIVEL</span>        &lt;- errado
+<span class="trecho variavel-nome">PV</span>::<span class="trecho variavel-muda">0:(10 + NIVEL):(10 + NIVEL)</span>    &lt;- certo</pre>
                 </div>
                 <div id="ajuda-fichas-rodape">
                     <p>(ou peça a alguma ia pra fazer uma ficha pra você com essas instruções)</p>
@@ -1140,14 +1309,14 @@ Dano: <span class="trecho cartao-formula">[8d6]</span> de fogo (metade se passar
                     if (el) el.classList.add("recolhido");
                 }
                 // A PILHA de barras (ui/pilha.ts): a ordem guardada (`order` do CSS) e quais gavetas estavam abertas (sem escolha guardada: nenhuma).
-                var padraoPilha = ["ferramentas-desenho", "iniciativa", "fog"];
+                var padraoPilha = ["ferramentas-desenho", "area", "fog", "iniciativa"];
                 var barrasPilha = {
                     "ferramentas-desenho": { chave: "tabuleirinho.desenho.recolhido", seta: "#desenho-alternar" },
+                    area: { chave: "tabuleirinho.area.recolhida", seta: "#area-alternar" },
                     iniciativa: { chave: "tabuleirinho.iniciativa.recolhida", seta: "#iniciativa-alternar" },
                     fog: { chave: "tabuleirinho.fog.recolhido", seta: "#fog-alternar" },
                 };
-                var guardadaPilha = (ler("tabuleirinho.pilha.ordem") || "").split(",");
-                var ordemPilha = guardadaPilha.length === padraoPilha.length && padraoPilha.every(function (id) { return guardadaPilha.indexOf(id) >= 0; }) ? guardadaPilha : padraoPilha;
+                var ordemPilha = padraoPilha; // (a ordem das barras é FIXA)
                 ordemPilha.forEach(function (id, i) {
                     var el = document.getElementById(id);
                     if (el) el.style.order = String(i);

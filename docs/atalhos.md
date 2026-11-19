@@ -8,7 +8,8 @@ Atalhos de uma letra só moram em `src/ui/atalhos.ts` (não valem enquanto se di
 | Tecla | O que faz | Onde |
 |---|---|---|
 | **R** | Liga a régua; de novo, volta a Mover | `ui/atalhos.ts` |
-| **Q** | Abre a bolsa em tela cheia; de novo, fecha | `ui/atalhos.ts` |
+| **A** | Liga a ferramenta de **Área** (com a última forma escolhida); de novo, volta a Mover | `ui/atalhos.ts` |
+| **Q** | Abre a bolsa em tela cheia (mesmo com a aba "Chat" à frente: a coluna troca sozinha para a "Bolsa"); de novo, fecha | `ui/atalhos.ts` |
 | **← ↑ → ↓** | Move a visão **1 casa** por toque, no sentido da seta (segurar repete). Só com o foco no mapa (não num campo, botão ou janela) | `tabuleiro/interacao.ts` |
 | **Espaço** (segurado) + botão esquerdo | Arrasta a tela | `tabuleiro/interacao.ts` |
 | **Esc** | Volta a Mover (desliga a ferramenta), fecha menus e janelas, tira a seleção | vários |
@@ -39,10 +40,13 @@ Atalhos de uma letra só moram em `src/ui/atalhos.ts` (não valem enquanto se di
 | **Esquerdo** no vazio | Tira a seleção |
 | **Shift + esquerdo** (clique) | Ping comum no ponto clicado (vale com qualquer ferramenta e sobre tokens) |
 | **Shift + esquerdo** arrastado | Abre a **roda de pings** (12 posições, com os 12 tipos) no ponto apertado: o mouse aponta um lado e soltar faz o ping dele. Do alto, no sentido do relógio: **Ajuda** (cima), Alvo, Atacar, **Avançar** (direita), Investigar, Tesouro, **Perigo** (baixo), Armadilha, Recuar, **Sumiu** (esquerda), Agrupar e Cura. No meio: ping comum. **Esc** cancela |
-| **Direito** no vazio | Menu do mapa: **Lápis**, **Borracha**, **Ping** (e o submenu com os 12 tipos: Sumiu, Perigo, Avançar, Ajuda, Agrupar, Alvo, Atacar, Recuar, Armadilha, Investigar, Tesouro, Cura), **Régua**, **Borracha** e, só para o mestre, **Borracha de fog** e **Pincel de fog** |
+| **Direito** no vazio | Menu do mapa: **Lápis**, **Borracha**, **Ping** (e o submenu com os 12 tipos: Sumiu, Perigo, Avançar, Ajuda, Agrupar, Alvo, Atacar, Recuar, Armadilha, Investigar, Tesouro, Cura), **Área** (submenu com as 5 formas, cada uma com o tamanho que você usou por último, e as áreas rápidas: Bola de Fogo, Mãos Flamejantes, Relâmpago, Onda Trovejante, Aura de 3 m), **Régua**, **Limpar áreas**, **Borracha** e, só para o mestre, **Borracha de fog** e **Pincel de fog** |
 | **Direito** num token | Engrenagem e lista de ações do token |
 | **Clique** na caixa de um personagem na **iniciativa** | Faz um **ping** em cima do token dele no tabuleiro (para todos acharem de quem é a vez); arrastar a caixa só reordena |
 | **Direito**, com a régua medindo (esquerdo apertado) | Fixa um ponto e a medida continua dali (curvas) |
+| **Régua** começando em cima de um **token seu** (que você pode usar) | Seleciona o token; ao soltar, o botão **Mover** aparece junto da ponta: clicar leva o token pelo caminho, deslizando e parando um instante em cada ponto fixado |
+| **Esquerdo** com a ferramenta de **Área** ligada | **Cone, linha e cubo:** clique na origem e depois na direção (a área acompanha o mouse e mostra a medida "6 m = 4 □"; o 2º clique fixa), ou arraste e solte. **Esfera e emanação:** um clique (ou apertar, ajustar e soltar) coloca. **Emanação sobre um token:** o token passa a emanar (clique de novo com os mesmos valores para parar). Antes de clicar, um "fantasma" (sempre apontando para a direita) acompanha o mouse |
+| **Direito** com uma área sendo posicionada | Cancela a área (o menu não abre) |
 
 ### Toque (celular)
 

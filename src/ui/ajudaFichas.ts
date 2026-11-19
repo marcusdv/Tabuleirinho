@@ -57,6 +57,12 @@ export function criarAjudaFichas(): void {
         navigator.clipboard.writeText(texto).then(() => avisar(true), () => avisar(false));
     });
 
+    // O ÍNDICE do alto: cada botão leva (rolando) até o título da parte.
+    const reduzirMovimento = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true;
+    for (const botao of document.querySelectorAll<HTMLElement>("#ajuda-fichas-indice [data-ir]")) {
+        botao.addEventListener("click", () => document.getElementById(botao.dataset.ir ?? "")?.scrollIntoView({ block: "start", behavior: reduzirMovimento ? "auto" : "smooth" }));
+    }
+
     for (const botao of document.querySelectorAll<HTMLElement>("[data-abrir-ajuda-fichas]")) botao.addEventListener("click", abrir);
     botaoFechar.addEventListener("click", fechar);
     janela.addEventListener("click", (e) => {

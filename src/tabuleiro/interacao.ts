@@ -7,7 +7,7 @@
 //   - BOTÃO DIREITO no vazio: abre o menu do mapa (Ping, Régua, Borracha e, para o mestre, os pincéis do fog); no meio de uma medida da régua, fixa um ponto.
 //   - SELEÇÃO: Ctrl + esquerdo arrastado no vazio desenha o retângulo que seleciona tokens; o esquerdo sozinho no vazio só tira a seleção.
 //   - Repassa o movimento do mouse e o soltar para os tokens (arrasto).
-//   - Com uma FERRAMENTA ligada (calibrar grade, régua, lápis, borracha, formas): o botão esquerdo é dela.
+//   - Com uma FERRAMENTA ligada (calibrar grade, régua, lápis, borracha, formas, áreas): o botão esquerdo é dela.
 //   - Exceção: no MEIO de uma medida (esquerdo apertado), o clique DIREITO vai para a
 //     ferramenta (cliqueDireito): a régua fixa um ponto e continua medindo.
 //
@@ -233,6 +233,7 @@ export function ativarInteracao(
             arrastando.arrastar(evento.global);
             return;
         }
+        ferramentaLigada()?.passar?.(evento.global); // (sem botão apertado: a ferramenta de área mostra o "fantasma" junto ao cursor)
         tokens.arrastarPara(evento.global);
     });
 

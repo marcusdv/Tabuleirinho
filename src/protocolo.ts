@@ -10,6 +10,7 @@
 // (o token existe? essa posição cabe? o texto passa do limite?) é conferido depois, pelas regras de estado.ts.
 // =====================================================================
 
+import { limparDadosDaArea, limparEmanacao, type DadosDaArea } from "./areas.ts";
 import { FORMAS_DE_PING, MAX_ABAS_FICHA, MAX_CASAS, MAX_PONTOS_REGUA, MAX_ACOES_MESA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_NOME_VARIAVEL, MAX_CARACTERES_QUANTIA_ACAO, MAX_CARACTERES_TEXTO_FICHA, MAX_GRUPOS, MAX_STATUS_TOKEN, MAX_TOKENS_ACAO_EM_GRUPO, MAX_VALOR_VARIAVEL_QUE_MUDA } from "./config.ts";
 import { lerAcaoDaIniciativa, type AcaoDaIniciativa, type Iniciativa } from "./iniciativa.ts";
 import { idDeUsuarioValido, LIMITE_MAXIMO_POR_JOGADOR, type NivelDeAcesso, type Permissoes, type TipoDeItem } from "./permissoes.ts";
@@ -82,7 +83,7 @@ export type PedidoDoCliente =
     | { tipo: "rolar_dados"; lados: number; quantidade: number; modificador: number }
     | { tipo: "rolar_conta"; texto: string } // o "/r" do chat: uma conta com dados (o servidor confere, sorteia e manda o cartão)
     | { tipo: "criar_token"; nome: string; cor: number; corBorda: number; tamanho: number; imagem: string | null; ficha?: number | null } // o SERVIDOR dá o id e cria o arquivo (`ficha` = "Gerar um token" a partir de uma ficha)
-    | { tipo: "editar_token"; id: number; mudancas: MudancasToken } // nome, tamanho, cores e/ou imagem
+    | { tipo: "editar_token"; id: number; mudancas: MudancasToken } // nome, tamanho, cores, imagem e/ou a emanação (aura)
     | { tipo: "duplicar_token"; id: number } // DUPLICA um token da bolsa (igual, com ficha, grupos e pasta; sem o favorito; ficha ÚNICA fica vazia): o SERVIDOR cria o arquivo e responde com "token_criado"
     | { tipo: "excluir_token"; id: number } // apaga o token E o arquivo dele
     | { tipo: "salvar_condicao"; condicao: Condicao } // o MESTRE cria (id novo) ou edita (id que já existe) UMA condição: nome, descrição (o texto do balão) e o ícone (o "print" da imagem). Um pedido por condição: uma lista inteira com imagens não cabe numa mensagem
@@ -115,6 +116,7 @@ export type PedidoDoCliente =
     | { tipo: "excluir_mapa"; id: string } // o MESTRE apaga um mapa da biblioteca (e o arquivo)
     | { tipo: "ping"; col: number; row: number; forma: FormaDePing; cor: number } // um PING no mapa (em casas, com fração: o ponto exato clicado) com a `cor` do desenho escolhida (0xRRGGBB); o SERVIDOR confere, limita a frequência e avisa quem está na mesma cena e vê aquele ponto
     | { tipo: "regua"; caminho: CasaDaRegua[] | null; cor: number } // a RÉGUA de quem mede (os pontos em casas; null = a medida sumiu) na `cor` do desenho escolhida: o servidor repassa a quem está na mesma cena
+    | { tipo: "area_previa"; area: DadosDaArea | null; cor: number; alfa?: number } // a PRÉVIA de uma área de efeito que a pessoa está posicionando (null = sumiu: ela fixou, cancelou ou soltou a ferramenta) na `cor` do desenho: o servidor repassa a quem está na mesma cena (não é guardada; a área fixada vai por `desenhar`)
     | { tipo: "usar_cartao"; id: number; versao: number; aba: number; indice: number; token?: number | null }; // usa o CARTÃO de posição `indice` da ABA `aba` da ficha SALVA: o servidor calcula/rola as [expressões] e manda o cartão ao chat
 
 /** O que o servidor AVISA aos navegadores. */
@@ -159,6 +161,7 @@ export type EventoDoServidor =
     | { tipo: "mensagem"; mensagem: Mensagem } // texto do chat OU cartão de rolagem (criados só pelo servidor)
     | { tipo: "ping"; col: number; row: number; forma: FormaDePing; cor: number; usuario: string; apelido: string; seu?: boolean } // um ping de alguém da sua cena (`seu`: foi você que pingou)
     | { tipo: "regua"; usuario: string; apelido: string; caminho: CasaDaRegua[] | null; cor: number } // a régua de alguém da sua cena (null = sumiu: ele soltou a ferramenta, saiu ou mudou de mapa)
+    | { tipo: "area_previa"; usuario: string; apelido: string; area: DadosDaArea | null; cor: number; alfa?: number } // a prévia de área de alguém da sua cena (null = sumiu)
     | { tipo: "erro"; motivo: string };
 
 /** Limite do texto de um pedido ANTES de qualquer outra conta (o estado.ts aplica o limite de verdade). */
@@ -318,6 +321,14 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             }
             return { tipo: "regua", caminho, cor: p.cor };
         }
+        case "area_previa": {
+            if (!eCor(p.cor)) return null;
+            if (p.alfa !== undefined && (typeof p.alfa !== "number" || !Number.isFinite(p.alfa))) return null;
+            const alfa = typeof p.alfa === "number" ? { alfa: Math.min(1, Math.max(0.01, Math.round(p.alfa * 100) / 100)) } : {}; // (a opacidade do preenchimento, opcional)
+            if (p.area === null) return { tipo: "area_previa", area: null, cor: p.cor, ...alfa };
+            const area = limparDadosDaArea(p.area);
+            return area ? { tipo: "area_previa", area, cor: p.cor, ...alfa } : null;
+        }
         case "fog_preencher":
             return typeof p.cobrir === "boolean" ? { tipo: "fog_preencher", cobrir: p.cobrir } : null;
         case "criar_pasta":
@@ -387,6 +398,10 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             if (m.imagem !== undefined) {
                 if (m.imagem !== null && !eTexto(m.imagem, MAX_CARACTERES_IMAGEM_TOKEN)) return null;
                 mudancas.imagem = m.imagem;
+            }
+            if (m.emanacao !== undefined) {
+                if (m.emanacao === null) mudancas.emanacao = null;
+                else { const e = limparEmanacao(m.emanacao); if (e === null) return null; mudancas.emanacao = e; }
             }
             if (m.favorito !== undefined) { if (typeof m.favorito !== "boolean") return null; mudancas.favorito = m.favorito; }
             if (m.grupos !== undefined) { const g = lerListaDeIds(m.grupos); if (g === null) return null; mudancas.grupos = g; }

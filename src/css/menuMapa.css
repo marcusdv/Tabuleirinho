@@ -93,3 +93,21 @@
     left: auto;
     right: calc(100% + 2px);
 }
+
+/* O submenu da ÁREA: o tamanho (guardado ou da área rápida) fica à direita do nome, mais apagado; um traço separa as 5 formas das áreas rápidas. */
+.menu-mapa-medida {
+    margin-left: auto;
+    padding-left: 12px;
+    font-size: 11px;
+    font-weight: 500;
+    opacity: 0.65;
+    white-space: nowrap;
+}
+.menu-mapa-separador {
+    height: 1px;
+    margin: 3px 6px;
+    background: #3a3a48;
+}
+.menu-mapa-extras button {
+    white-space: nowrap;
+}

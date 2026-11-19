@@ -18,6 +18,7 @@
 // conferida, e os arquivos do site só saem da pasta `dist/` (nada de `../`). Nunca se usa `eval`.
 // =====================================================================
 
+import type { DadosDaArea } from "../src/areas.ts";
 import { randomInt, timingSafeEqual } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
@@ -32,6 +33,7 @@ import {
     SEGUNDOS_BATIMENTO,
     MS_ENTRE_ENVIOS_REGUA,
     MAX_CONDICOES,
+    MS_MIN_ENTRE_PINGS,
     MS_RECARGA_PING,
     RAJADA_PINGS,
     MS_RECARGA_CHAT,
@@ -81,6 +83,7 @@ import {
     aplicarResultado,
     frasePraChatDeDano,
     totalDaRolagem,
+    efeitoDaRolagem,
     type ResultadoDeAcao,
     ajustarValorDaFicha,
     aplicarStatusDaMesaAosTokens,
@@ -129,10 +132,10 @@ import {
     type Token,
 } from "../src/estado.ts";
 import { aplicarAcaoDaIniciativa, definirIniciativa, iniciativaComoObjeto } from "../src/iniciativa.ts";
-import { ABAS_THORIN, IMAGEM_GOBLIN, NOME_GOBLIN, NOME_THORIN, TEXTO_GOBLIN } from "../src/exemplos.ts";
+import { ABAS_THORIN, IMAGEM_GOBLIN, NOME_CLERIGA, NOME_GOBLIN, NOME_THORIN, TEXTO_CLERIGA, TEXTO_GOBLIN } from "../src/exemplos.ts";
 import { analisarAbas, rolarCartaoDaAnalise, rolarConta, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
 import type { ValorDeStatus } from "../src/estado.ts";
-import { gastar, novoBalde, type Balde } from "../src/limite.ts";
+import { gastar, novoBalde, passouOIntervalo, type Balde } from "../src/limite.ts";
 import { CONDICOES, CONDICOES_DE_FABRICA, copiarCondicoes, definirCondicoes, ordenarCondicoes, podeExcluirCondicao } from "../src/condicoes.ts";
 import { carregarCondicoes, gravarCondicoes } from "./condicoes.ts";
 import { estaBanido, idDeUsuarioDoNome, LIMITE_MAXIMO_POR_JOGADOR, podeEditar, podeExcluir, podeLer, temPoderDeMestre, type NivelEfetivo, type TipoDeItem, nivelNaPasta } from "../src/permissoes.ts";
@@ -610,12 +613,16 @@ async function excluirGrupoNoServidor(c: Conexao, id: number): Promise<void> {
 // (`src/exemplos.ts`). A marca `exemplos` em `dados/mesa.json` impede que voltem se o dono as apagar; SEM_EXEMPLOS=1 desliga (os testes automáticos usam isto).
 const SEM_EXEMPLOS = process.env.SEM_EXEMPLOS === "1";
 let exemplosCriados = false;
+let exemploDeCuraCriado = false; // a Clériga Aurora (o token que cura) tem a marca própria: mesas que já tinham os outros exemplos também a recebem, UMA vez
 let mapasDeExemploCriados = false;
-async function semearExemplos(): Promise<void> {
-    const exemplos = [
+/** Cria as fichas de exemplo (cada uma com o seu token na bolsa). `quais`: "todos" (mesa nova) ou "cura" (só a Clériga, numa mesa que já tinha os outros exemplos). */
+async function semearExemplos(quais: "todos" | "cura" = "todos"): Promise<void> {
+    const todos = [
         { nome: NOME_GOBLIN, abas: [{ nome: "Página 1", texto: TEXTO_GOBLIN }], cor: 0x2f5d2a, corBorda: 0xffffff, imagem: IMAGEM_GOBLIN as string | null },
         { nome: NOME_THORIN, abas: ABAS_THORIN, cor: 0x2a4a7a, corBorda: 0xffd54f, imagem: null as string | null },
+        { nome: NOME_CLERIGA, abas: [{ nome: "Página 1", texto: TEXTO_CLERIGA }], cor: 0xf1c40f, corBorda: 0xffffff, imagem: null as string | null },
     ];
+    const exemplos = quais === "cura" ? todos.filter((e) => e.nome === NOME_CLERIGA) : todos;
     for (const e of exemplos) {
         const ficha = montarFicha();
         const abas = normalizarAbas(e.abas);
@@ -633,7 +640,7 @@ async function semearExemplos(): Promise<void> {
 
 /** Grava `dados/mesa.json` com o estado de AGORA (tamanho do tabuleiro e status da mesa). */
 function gravarMesaAtual(): Promise<void> {
-    return gravarMesa({ colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, valores: todosOsValoresDasFichas(), exemplos: exemplosCriados, mapa: mapaAtual, mapasDeExemplo: mapasDeExemploCriados, iniciativa: iniciativaComoObjeto(), grade: estado.grade }).catch((falha) => console.error("Não foi possível gravar mesa.json:", falha));
+    return gravarMesa({ colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, valores: todosOsValoresDasFichas(), exemplos: exemplosCriados, exemploDeCura: exemploDeCuraCriado, mapa: mapaAtual, mapasDeExemplo: mapasDeExemploCriados, iniciativa: iniciativaComoObjeto(), grade: estado.grade }).catch((falha) => console.error("Não foi possível gravar mesa.json:", falha));
 }
 
 /** A pasta de um token: os tokens da BOLSA (modelos) em `dados/tokens/`, as PEÇAS do tabuleiro em `dados/pecas/`. */
@@ -770,12 +777,20 @@ function refazerVisaoDasPastas(): void {
 /** Trata um pedido com a CENA de quem o mandou (o mapa e o tamanho do tabuleiro dele; ver `comCenaDe`). */
 /** Quando cada conexão pingou / mandou a régua pela última vez (anti-spam; some junto com a conexão). */
 const baldesDePings = new WeakMap<Conexao, Balde>();
-/** O LIMITE de pings (até RAJADA_PINGS de uma vez, depois 1 a cada MS_RECARGA_PING): o excesso é ignorado. */
-function podePingar(c: Conexao): boolean {
-    if (SEM_LIMITE_SPAM) return true;
+/** Quando cada conexão foi avisada pela última vez de que está pingando rápido demais (o aviso sai no máximo a cada 1,5 s: não vira spam de erros). */
+const ultimoAvisoDePing = new WeakMap<Conexao, number>();
+/** O LIMITE de pings (até RAJADA_PINGS de uma vez, depois 1 a cada MS_RECARGA_PING): o excesso é ignorado (e a pessoa é avisada de vez em quando). */
+const ultimoPing = new WeakMap<Conexao, number>();
+/** "ok" = o ping vale; "intervalo" = veio logo depois de outro (o mini delay: ignorado em silêncio, sem gastar a rajada); "limite" = passou da rajada/ritmo (ignorado e a pessoa é avisada). */
+function podePingar(c: Conexao): "ok" | "intervalo" | "limite" {
+    if (SEM_LIMITE_SPAM) return "ok";
+    const agora = Date.now();
+    if (!passouOIntervalo(ultimoPing.get(c) ?? 0, MS_MIN_ENTRE_PINGS, agora)) return "intervalo";
     let balde = baldesDePings.get(c);
     if (!balde) baldesDePings.set(c, (balde = novoBalde(RAJADA_PINGS)));
-    return gastar(balde, RAJADA_PINGS, MS_RECARGA_PING);
+    if (!gastar(balde, RAJADA_PINGS, MS_RECARGA_PING)) return "limite";
+    ultimoPing.set(c, agora);
+    return "ok";
 }
 const ultimaRegua = new WeakMap<Conexao, number>();
 
@@ -787,6 +802,18 @@ function avisarReguaDe(c: Conexao, mapa: string | null, caminho: { col: number; 
         // Sob o fog: manda "sumiu" (e não nada), para a régua que já estava à vista deixar de aparecer quando passa a ficar sob a névoa.
         const oculta = caminho?.some((p) => pontoOcultoPara(c2, mapa, p.col + 0.5, p.row + 0.5)) ?? false;
         return oculta ? { ...evento, caminho: null } : evento;
+    });
+}
+
+/** Quando cada conexão mandou a prévia de área pela última vez (o mesmo espaçamento da régua; some junto com a conexão). */
+const ultimaPreviaDeArea = new WeakMap<Conexao, number>();
+/** Manda aos OUTROS da mesma cena a prévia de área de `c` (null = sumiu). Quem não vê a origem dela (sob o fog) recebe "sumiu"; o mestre vê tudo. */
+function avisarPreviaDeAreaDe(c: Conexao, mapa: string | null, area: DadosDaArea | null, cor: number, alfa?: number): void {
+    const evento = { tipo: "area_previa" as const, usuario: c.usuario, apelido: c.jogador?.apelido ?? "", area, cor, ...(alfa !== undefined && { alfa }) };
+    avisarCada((c2) => {
+        if (c2 === c || mapaDaConexao(c2) !== mapa) return null;
+        const oculta = area !== null && pontoOcultoPara(c2, mapa, area.x, area.y);
+        return oculta ? { ...evento, area: null } : evento;
     });
 }
 
@@ -1006,7 +1033,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             const total = totalDaRolagem(pedido.mensagem, pedido.indice, pedido.dado);
             if (total === null) return erro(c.ws, "Essa mensagem não é uma rolagem.");
             if (!podeRolar(c)) return erro(c.ws, "Calma! Você está agindo rápido demais.");
-            const resultado = aplicarResultado(alvo, total);
+            const resultado = aplicarResultado(alvo, total, efeitoDaRolagem(pedido.mensagem, pedido.indice)); // ({cura} soma ao HP; {dano} ou sem etiqueta tira; o efeito vem da MENSAGEM guardada no servidor, não do navegador)
             if (!resultado.ok) return erro(c.ws, resultado.erro);
             publicarResultadoDeAcao(autor, alvo, resultado, frasePraChatDeDano(alvo, resultado));
             return;
@@ -1049,7 +1076,13 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             }
             // Ficha ÚNICA que já tem outro token: recusa com o motivo (o modelo de uma peça não conta: ela só espelha).
             const alvoDaEdicao = buscarToken(pedido.id);
-            if (alvoDaEdicao && !podeNoToken(c, alvoDaEdicao, "editar")) return erro(c.ws, "Você só pode mudar as configurações dos tokens que o mestre liberou como EDITOR para você.");
+            // A EMANAÇÃO (aura) é de TODOS (pedido do dono, 19/11/2026: "qualquer jogador coloca emanações em qualquer token, sem nenhuma autoridade"): um pedido que SÓ mexe nela vale para qualquer pessoa, em qualquer token que
+            // esteja no tabuleiro (uma peça, ou o modelo de uma peça); nada mais do token pode mudar por esse caminho. Vale para o MODELO (as peças copiam), como em todo o visual do token.
+            const soEmanacao = mudancas.emanacao !== undefined && Object.keys(mudancas).length === 1;
+            const noTabuleiro = !!alvoDaEdicao && (alvoDaEdicao.copiaDe !== null || pecasDoModelo(alvoDaEdicao.id).length > 0);
+            const emanacaoLivre = soEmanacao && noTabuleiro;
+            const idDaEdicao = emanacaoLivre && alvoDaEdicao ? (alvoDaEdicao.copiaDe ?? alvoDaEdicao.id) : pedido.id;
+            if (!emanacaoLivre && alvoDaEdicao && !podeNoToken(c, alvoDaEdicao, "editar")) return erro(c.ws, "Você só pode mudar as configurações dos tokens que o mestre liberou como EDITOR para você.");
             // Quem não é mestre não mexe nos GRUPOS nem na estrela (a liberação por grupo seria um atalho para dar acesso a si mesmo), e só liga uma ficha que pode editar.
             if (!c.mestre && (mudancas.grupos !== undefined || false)) return erro(c.ws, "Só o mestre mexe nos grupos e nos favoritos.");
             if (!c.mestre && typeof mudancas.ficha === "number") {
@@ -1062,7 +1095,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             }
             // editarToken aplica as MESMAS regras da criação (nome aparado, tamanho de 1 a 4, cores válidas, imagem válida).
             const fichaAntes = alvoDaEdicao?.ficha ?? null;
-            const token = editarToken(pedido.id, mudancas);
+            const token = editarToken(idDaEdicao, mudancas);
             if (!token) return erro(c.ws, "Esse token não existe.");
             // Trocou a FICHA ligada: quem tinha acesso ao token passa a ver a nova e deixa de ver a antiga (o acesso ao token vale para a ficha ligada).
             if (mudancas.ficha !== undefined && token.copiaDe === null && token.ficha !== fichaAntes) sincronizarVisaoDeTodos([token.id], fichaAntes === null ? [] : [fichaAntes]);
@@ -1156,6 +1189,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             if (!c.mestre && meuMapa === null) return erro(c.ws, "Você não está em nenhum mapa.");
             const criado = adicionarDesenhoNoMapa(meuMapa, pedido.desenho, c.usuario);
             if (!criado) return erro(c.ws, "Este mapa já tem desenhos demais. Peça ao mestre para apagar alguns.");
+            if (criado.tipo === "area") avisarPreviaDeAreaDe(c, meuMapa, null, 0); // (a área foi fixada: a prévia dela some da tela dos outros, por garantia)
             avisarCada((c2) => (mapaDaConexao(c2) === meuMapa && !desenhoOcultoPara(c2, criado, meuMapa) ? { tipo: "desenho_criado", desenho: criado, ...(pedido.ref !== undefined && { ref: pedido.ref }) } : null)); // (só quem vê o mapa vê o desenho)
             return;
         }
@@ -1163,7 +1197,16 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             // Um PING: quem está na MESMA cena vê (e quem tem o ponto sob o fog não: só o autor e o mestre). Não é guardado; no máximo 5 por segundo por pessoa (balde que enche aos poucos).
             const meuMapa = mapaDaConexao(c);
             if (!c.mestre && meuMapa === null) return;
-            if (!podePingar(c)) return;
+            const vale = podePingar(c);
+            if (vale === "intervalo") return; // (o mini delay entre pings: só ignora)
+            if (vale === "limite") {
+                const agora = Date.now();
+                if (agora - (ultimoAvisoDePing.get(c) ?? 0) > 1500) {
+                    ultimoAvisoDePing.set(c, agora);
+                    erro(c.ws, "Calma! Você está pingando rápido demais."); // (o excesso é descartado AQUI, antes de reenviar a qualquer um; o aviso deixa claro que há um limite)
+                }
+                return;
+            }
             const { colunas, linhas } = tamanhoDoMapa(meuMapa);
             const col = Math.min(Math.max(pedido.col, 0), colunas);
             const row = Math.min(Math.max(pedido.row, 0), linhas);
@@ -1181,6 +1224,18 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             const { colunas, linhas } = tamanhoDoMapa(meuMapa);
             const caminho = pedido.caminho === null ? null : pedido.caminho.map((p) => ({ col: Math.min(p.col, colunas - 1), row: Math.min(p.row, linhas - 1) }));
             avisarReguaDe(c, meuMapa, caminho, pedido.cor);
+            return;
+        }
+        case "area_previa": {
+            // A PRÉVIA da área que a pessoa está posicionando: os outros da cena a veem ao vivo (não é guardada). A origem fica limitada ao tabuleiro da cena.
+            const meuMapa = mapaDaConexao(c);
+            if (!c.mestre && meuMapa === null) return;
+            const agora = Date.now();
+            if (pedido.area !== null && agora - (ultimaPreviaDeArea.get(c) ?? 0) < MS_ENTRE_ENVIOS_REGUA) return;
+            ultimaPreviaDeArea.set(c, agora);
+            const { colunas, linhas } = tamanhoDoMapa(meuMapa);
+            const area = pedido.area === null ? null : { ...pedido.area, x: Math.min(Math.max(pedido.area.x, 0), colunas), y: Math.min(Math.max(pedido.area.y, 0), linhas) };
+            avisarPreviaDeAreaDe(c, meuMapa, area, pedido.cor, pedido.alfa);
             return;
         }
         case "apagar_desenhos": {
@@ -1598,6 +1653,7 @@ wss.on("connection", (ws, requisicao: IncomingMessage) => {
 
     ws.on("close", () => {
         if (conexao.jogador) avisarReguaDe(conexao, mapaDaConexao(conexao), null, 0); // (a régua dele some da tela dos outros)
+        if (conexao.jogador) avisarPreviaDeAreaDe(conexao, mapaDaConexao(conexao), null, 0); // (e a prévia de área também)
         clearInterval(batimento);
         clearTimeout(prazo);
         conexoes.delete(conexao);
@@ -1698,8 +1754,17 @@ try {
     else if (!SEM_EXEMPLOS) {
         await semearExemplos();
         exemplosCriados = true;
+        exemploDeCuraCriado = true; // (a mesa nova já recebeu a Clériga junto)
         await gravarMesaAtual(); // (guarda a marca: se o dono apagar os exemplos, eles não voltam)
-        console.log("Fichas de exemplo criadas: Goblin Guerreiro e Thorin Escudo-de-Carvalho (com seus tokens na bolsa).");
+        console.log("Fichas de exemplo criadas: Goblin Guerreiro, Thorin Escudo-de-Carvalho e Clériga Aurora (com seus tokens na bolsa).");
+    }
+    if (mesa?.exemploDeCura === true || exemploDeCuraCriado) exemploDeCuraCriado = true;
+    else if (!SEM_EXEMPLOS) {
+        // Uma mesa que já existia (criada antes da Clériga): ela ganha só a ficha que cura, uma vez; se o dono a apagar, não volta.
+        await semearExemplos("cura");
+        exemploDeCuraCriado = true;
+        await gravarMesaAtual();
+        console.log("Ficha de exemplo criada: Clériga Aurora (o token que cura, com rolagens {cura} e {dano}).");
     }
     console.log(`${estado.fichas.length} ficha(s), ${estado.tokens.length} token(s) e ${estado.grupos.length} grupo(s) carregado(s) de ${PASTA_DE_DADOS}`);
 } catch (falha) {

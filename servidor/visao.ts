@@ -132,6 +132,7 @@ export const pontoOcultoPara = (c: Conexao, mapa: string | null, col: number, ro
 /** O ponto "representativo" de um desenho, em casas (as coordenadas dos desenhos já são em casas): o centro da forma, ou o 1º ponto do traço. */
 function pontoDoDesenho(d: Desenho): { col: number; row: number } {
     if (d.tipo === "livre") return { col: d.pontos[0]?.x ?? 0, row: d.pontos[0]?.y ?? 0 };
+    if (d.tipo === "area") return { col: d.x, row: d.y }; // (a origem da área)
     return { col: d.x + d.largura / 2, row: d.y + d.altura / 2 };
 }
 /** O desenho está escondido de `c` pelo fog do mapa dele? (o autor sempre vê o dele) */

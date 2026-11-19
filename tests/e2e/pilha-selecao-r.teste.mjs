@@ -15,7 +15,7 @@ await abrirPagina(p);
 await recolherDados(p);
 
 // ----- 1) o Tabuleiro na aba Mapas
-ok("1a) a pilha da esquerda não tem a barra 'Tabuleiro' (tem Desenho, Iniciativa e Fog)", (await p.locator("#barra").count()) === 0 && (await p.locator("#pilha .caixa-pilha").count()) === 3);
+ok("1a) a pilha da esquerda não tem a barra 'Tabuleiro' (tem Desenho, Área, Fog e Iniciativa)", (await p.locator("#barra").count()) === 0 && (await p.locator("#pilha .caixa-pilha").count()) === 4);
 await p.click("#bolsa-aba-mapas");
 ok("1b) o painel Mapas tem o botão 'Configurar o tabuleiro' (modo local) e a janela começa fechada", (await p.locator("#bolsa-mapas-configurar").isVisible()) && (await p.locator("#mapas-tabuleiro").isHidden()));
 await p.click("#bolsa-mapas-configurar");

@@ -24,3 +24,12 @@ export function gastar(balde: Balde, capacidade: number, msRecarga: number, agor
     balde.fichas -= 1;
     return true;
 }
+
+/** Passou o tempo mínimo desde a última vez? (o "mini delay" entre um ping e o seguinte; `ultimo` em ms, 0 = nunca) */
+export const passouOIntervalo = (ultimo: number, msMinimo: number, agora: number = Date.now()): boolean => agora - ultimo >= msMinimo || agora < ultimo;
+
+/**
+ * A página está PARADA (alt-tab, aba oculta, janela minimizada)? Então o que chega pela rede (pings) não deve ser mostrado: com a tela parada, tudo se acumularia e apareceria de uma vez quando ela voltasse.
+ * `oculta` = `document.hidden`; `msSemQuadro` = há quantos ms o último quadro foi desenhado.
+ */
+export const paginaParada = (oculta: boolean, msSemQuadro: number, msLimite: number): boolean => oculta || msSemQuadro > msLimite;

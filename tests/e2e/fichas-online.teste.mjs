@@ -11,7 +11,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { abrirPagina, lancar, ok, terminar, criarFichaFechada } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, criarFichaFechada, exigirPortaLivre } from "./ajuda.mjs";
 
 const RAIZ = fileURLToPath(new URL("../../", import.meta.url));
 const PORTA = Number(process.env.PORTA_TESTE ?? 3737); // a mesma de PORTA_SERVIDOR em src/config.ts (o Vite repassa /ws para ela). `PORTA_TESTE` troca a porta (com `PORTA_SERVIDOR=<a mesma> npm run dev` e `URL_TESTE`), para não bater no servidor do dono na 3737
@@ -19,7 +19,8 @@ const dados = mkdtempSync(join(tmpdir(), "tabuleirinho-dados-"));
 const arquivo = (id) => JSON.parse(readFileSync(join(dados, "fichas", `${id}.json`), "utf8"));
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
-function subir() {
+async function subir() {
+    await exigirPortaLivre(PORTA); // (a porta 3737 em uso = o servidor do dono: não roda)
     const proc = spawn(process.execPath, ["servidor/servidor.ts"], { cwd: RAIZ, env: { ...process.env, PORT: String(PORTA), DADOS: dados } });
     let saida = "";
     proc.stdout.on("data", (d) => (saida += d));

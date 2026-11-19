@@ -14,15 +14,20 @@
 // O desenho do caminho é `criarVisualDeMedida`, usado pela régua própria (dourada) e pelas dos outros (`reguasDosOutros.ts`).
 // =====================================================================
 
-import { Container, Graphics, Text, type PointData } from "pixi.js";
+import { Container, Graphics, type PointData } from "pixi.js";
 import { COR_DA_MEDIDA_PADRAO, MAX_PONTOS_REGUA, TAMANHO_CASA, PX_MIN_ARRASTO_REGUA } from "../config";
 import { limitar } from "../coordenadas";
-import { distanciaEmCasas, textoDaDistancia } from "../desenhos";
+import { distanciaEmCasas, metrosDaDistancia, textoDaDistancia } from "../desenhos";
+import { criarRotuloDeMedida } from "./rotuloDeMedida";
 import { estado } from "../estado";
 import type { Camera } from "./camera";
 import type { FerramentaDeArrasto } from "./ferramenta";
 
 export interface OpcoesRegua {
+    /** Começou uma medida nesta casa (o aperto do mouse): quem usa a régua para MOVER um token acha o token que está ali. */
+    aoComecar?(casa: Casa): void;
+    /** Soltou o mouse: `vertices` é o caminho que ficou na tela (os pontos fixados e a ponta), ou null se não houve medida (só um clique). */
+    aoSoltar?(vertices: Casa[] | null): void;
     /** O caminho mudou (os vértices em casas, ou null quando a régua some): quem compartilha a régua com os outros escuta isto. */
     aoMudarCaminho?(vertices: Casa[] | null): void;
 }
@@ -32,10 +37,12 @@ export interface Regua extends FerramentaDeArrasto {
     definirAtiva(ativa: boolean): void;
     /** Redesenha a medida (o zoom mudou: o tamanho do texto e da linha na tela depende dele). */
     redesenhar(): void;
-    /** O texto da medida que está à vista ("6 m = 4 □"), ou null sem medida. A medida aparece só sobre o mapa (a caixa do painel Desenho não a mostra mais); isto serve aos testes. */
+    /** O texto da medida que está à vista ("6 m\n4 quadrados"), ou null sem medida. A medida aparece só sobre o mapa (a caixa do painel Desenho não a mostra mais); isto serve aos testes. */
     readonly texto: string | null;
     /** A cor da régua: a cor de DESENHO escolhida agora (já redesenha a medida que está à vista). */
     definirCor(cor: number): void;
+    /** Tira a medida da tela (a ferramenta continua ligada): usado depois que o token terminou de andar pelo caminho. */
+    limpar(): void;
 }
 
 /** Um caminho de medida: os vértices em casas (o 1º é o começo; o último, a ponta). */
@@ -61,13 +68,9 @@ export function criarVisualDeMedida(camera: Camera, corInicial: number): VisualD
     camera.mundo.addChild(camada);
 
     const linha = new Graphics();
-    // O rótulo (texto + fundo) fica num Container à parte para podermos escalá-lo por 1/zoom:
-    // assim ele mantém o mesmo tamanho NA TELA em qualquer zoom.
-    const rotulo = new Container();
-    const fundo = new Graphics();
-    const texto = new Text({ text: "", style: { fontFamily: "system-ui, sans-serif", fontSize: 15, fontWeight: "600", fill: 0xffffff } });
-    texto.anchor.set(0.5);
-    rotulo.addChild(fundo, texto);
+    // O rótulo (metros em cima; embaixo, os quadrados com o SÍMBOLO do quadrado) é o `rotuloDeMedida` compartilhado: o container dele é escalado por 1/zoom para manter o mesmo tamanho NA TELA em qualquer zoom.
+    const rotuloDeMedida = criarRotuloDeMedida();
+    const rotulo = rotuloDeMedida.container;
     camada.addChild(linha, rotulo);
     let nome = "";
 
@@ -106,17 +109,12 @@ export function criarVisualDeMedida(camera: Camera, corInicial: number): VisualD
             for (let i = 1; i < vertices.length; i++) {
                 casas += distanciaEmCasas(vertices[i - 1].col, vertices[i - 1].row, vertices[i].col, vertices[i].row);
             }
-            const mensagem = textoDaDistancia(casas);
-            texto.text = nome ? `${nome}: ${mensagem}` : mensagem;
-            const larguraRotulo = texto.width + 16;
-            const alturaRotulo = texto.height + 8;
-            fundo.clear().roundRect(-larguraRotulo / 2, -alturaRotulo / 2, larguraRotulo, alturaRotulo, alturaRotulo / 2)
-                .fill({ color: 0x1a1a1f, alpha: 0.92 })
-                .stroke({ width: 1.5, color: cor });
+            const mensagem = textoDaDistancia(casas); // (o texto "6 m" + "4 quadrados": serve aos testes; na tela o rótulo mostra o símbolo do quadrado)
+            rotuloDeMedida.atualizar({ nome, metros: metrosDaDistancia(casas), casas, cor });
             rotulo.scale.set(1 / z);
             // O rótulo fica um pouco acima do meio do ÚLTIMO trecho (o que está sendo medido agora).
             const a = centros[centros.length - 2], b = centros[centros.length - 1];
-            rotulo.position.set((a.x + b.x) / 2, (a.y + b.y) / 2 - 24 / z);
+            rotulo.position.set((a.x + b.x) / 2, (a.y + b.y) / 2 - 40 / z); // (acima da linha: o rótulo tem duas linhas)
 
             camada.visible = true;
             return mensagem;
@@ -175,6 +173,14 @@ export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
 
         redesenhar: desenhar,
 
+        limpar() {
+            arrastando = false;
+            origemTela = null;
+            pontos = [];
+            fim = null;
+            desenhar(); // some (e a rede avisa os outros)
+        },
+
         definirCor(cor) {
             visual.definirCor(cor);
             if (fim) desenhar();
@@ -188,6 +194,7 @@ export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
             fim = null; // NADA aparece ao clicar: a régua só surge quando o mouse é ARRASTADO (pedido do dono, 17/11/2026)
             origemTela = { x: ponto.x, y: ponto.y };
             desenhar();
+            opcoes.aoComecar?.(comeco);
         },
 
         arrastar(ponto) {
@@ -201,7 +208,9 @@ export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
         soltar() {
             arrastando = false; // a medida continua na tela (se nunca foi arrastada, não há medida)
             origemTela = null;
+            const vertices = pontos.length > 0 && fim ? [...pontos, fim] : null;
             if (fim === null) pontos = [];
+            opcoes.aoSoltar?.(vertices);
         },
 
         // Botão direito no meio da medida: fixa um ponto onde a ponta está e a medida segue dali.

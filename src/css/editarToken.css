@@ -47,3 +47,99 @@
     color: #c9c9d4;
 }
 
+
+/* A EMANAÇÃO (aura) do token na janela "Editar token": a caixinha que liga, o alcance (− [ 3 m ] +), a transparência e a cor. */
+#editor-token-emana-rotulo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    cursor: pointer;
+}
+#editor-token-emana {
+    margin: 0;
+    accent-color: #ffd54f;
+}
+#editor-token-emana-opcoes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+#editor-token-emana-opcoes[hidden] {
+    display: none;
+}
+#editor-token-emana-alcance {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 30px;
+    gap: 4px;
+}
+#editor-token-emana-alcance button {
+    height: 30px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: inherit;
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+}
+#editor-token-emana-alcance button:hover:not(:disabled) {
+    background: #3b3b49;
+}
+#editor-token-emana-alcance button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+#editor-token-emana-alcance label {
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    height: 30px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #1f1f27;
+    font-size: 13px;
+}
+#editor-token-emana-alcance label span {
+    position: absolute;
+    right: 10px;
+    color: #9a9aa8;
+    pointer-events: none;
+}
+#editor-token-emana-alcance label:focus-within {
+    border-color: #ffd54f;
+}
+#editor-token-emana-metros {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    padding: 0 16px; /* (o número fica no MEIO do campo; o "m" fica fixo à direita; sem folga demais, para não cortar números grandes) */
+    border: 0;
+    background: transparent;
+    color: #e6e6ea;
+    font: inherit;
+    font-weight: 700;
+    text-align: center;
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+#editor-token-emana-metros::-webkit-outer-spin-button,
+#editor-token-emana-metros::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+}
+#editor-token-emana-metros:focus {
+    outline: none;
+}
+.editor-token-emana-linha {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #c9c9d4;
+}
+#editor-token-emana-transparencia {
+    width: 100%;
+    margin: 0;
+    accent-color: #ffd54f;
+}

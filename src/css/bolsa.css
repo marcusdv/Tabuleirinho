@@ -227,13 +227,13 @@
 }
 /* Na bolsa expandida as fichas só mostram o token (arrastar para o mapa é com a bolsa fechada). */
 #bolsa.expandida .ficha {
-    padding: 28px 6px 10px; /* (o token mais colado nas marcas: era 34 px; pedido do dono, 18/11/2026) */
+    padding: 24px 6px 6px; /* (o token mais colado nas marcas: era 34 px, depois 28 px; 24 px em 19/11/2026, pedido do dono; embaixo 10 → 6 px: a caixa ficou mais baixa) */
     cursor: default;
 }
 #bolsa.expandida .ficha .disco {
     /* O MESMO tamanho para todo token (antes crescia com o tamanho do token). */
     width: min(95px, 100%); /* (um pouquinho menor: era 100 px) */
-    margin-bottom: 6px;
+    margin-bottom: 4px;
 }
 #bolsa.expandida .ficha.selecionada .disco {
     box-shadow: 0 0 0 4px #ffd54f;

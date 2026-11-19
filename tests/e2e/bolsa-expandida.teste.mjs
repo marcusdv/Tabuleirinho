@@ -157,7 +157,7 @@ ok("9h) depois de criar, o formulário volta a 'sem imagem' (e as cores escolhid
 const fichaFoto = p.locator(".ficha", { hasText: "Com foto" });
 ok("9i) a ficha mostra a imagem", await fichaFoto.locator(".disco").evaluate((e) => e.classList.contains("com-imagem")));
 await fichaFoto.click({ button: "right" });
-ok("9j) clique direito na ficha abre o menu com 'Editar token…', 'Recolher do tabuleiro', 'Criar ficha' (ou 'Abrir ficha'), 'Favoritar', 'Grupos…', 'Compartilhar…' (só o mestre) e 'Excluir token' (trocar/remover a imagem fica SÓ dentro de Editar token)", (await p.locator("#menu-ficha").isVisible()) && (await p.locator("#menu-ficha button:visible").allTextContents()).join("|") === "Editar token…|Recolher do tabuleiro|Criar ficha|Favoritar|Grupos…|Compartilhar…|Excluir token");
+ok("9j) clique direito na ficha abre o menu com 'Editar token…', 'Duplicar token', 'Recolher do tabuleiro', 'Criar ficha' (ou 'Abrir ficha'), 'Favoritar', 'Grupos…', 'Compartilhar…' (só o mestre) e 'Excluir token' (trocar/remover a imagem fica SÓ dentro de Editar token)", (await p.locator("#menu-ficha").isVisible()) && (await p.locator("#menu-ficha button:visible").allTextContents()).join("|") === "Editar token…|Duplicar token|Recolher do tabuleiro|Criar ficha|Favoritar|Grupos…|Compartilhar…|Excluir token");
 await p.click("#menu-ficha-editar"); // a imagem agora se troca DENTRO do Editar token
 await escolherArquivo("#editor-token-imagem", outraFoto);
 await editorPronto();

@@ -98,6 +98,7 @@ export interface Mesa {
     grade?: unknown; // a espessura e a cor da grade da mesa (`limparGradeDaMesa` confere ao ler); arquivos antigos não têm: vale o padrão
     iniciativa?: unknown; // a ordem de combate (`lerIniciativa` confere ao ler)
     exemplos?: boolean; // as fichas de exemplo (Goblin e Thorin) já foram criadas uma vez: se o dono as apagar, não voltam
+    exemploDeCura?: boolean; // a ficha de exemplo da Clériga Aurora (o token que cura) já foi criada uma vez (marca própria: mesas que já tinham os outros exemplos também a recebem, uma vez)
     mapa?: string | null; // o id do mapa ATUAL na biblioteca (dados/mapas/); null = nenhum; arquivos antigos não têm
     mapasDeExemplo?: boolean; // os mapas de exemplo já foram criados uma vez: se o dono os apagar, não voltam
     valores?: unknown; // os valores ATUAIS das variáveis que mudam (ficha -> NOME -> valor); quem lê confere (`definirTodosOsValoresDasFichas`). Arquivos antigos não têm: valem os iniciais
@@ -109,7 +110,7 @@ export async function carregarMesa(): Promise<Mesa | null> {
     try {
         const bruto = migrarArquivo("mesa", JSON.parse(await readFile(caminho, "utf8"))) as Record<string, unknown>;
         if (!Number.isSafeInteger(bruto.colunas) || !Number.isSafeInteger(bruto.linhas)) throw new Error("conteúdo inválido");
-        return { colunas: bruto.colunas as number, linhas: bruto.linhas as number, ...(Array.isArray(bruto.status) && { status: bruto.status }), ...(Array.isArray(bruto.acoes) && { acoes: bruto.acoes }), ...(typeof bruto.valores === "object" && bruto.valores !== null && !Array.isArray(bruto.valores) && { valores: bruto.valores }), ...(bruto.exemplos === true && { exemplos: true }), ...(bruto.mapa === null || (typeof bruto.mapa === "string" && ID_DE_MAPA.test(bruto.mapa)) ? { mapa: bruto.mapa } : {}), ...(bruto.mapasDeExemplo === true && { mapasDeExemplo: true }), ...(typeof bruto.iniciativa === "object" && bruto.iniciativa !== null && { iniciativa: bruto.iniciativa }), ...(bruto.grade !== undefined && { grade: bruto.grade }) }; // (a GRADE faltava aqui: a grade gravada nunca era lida ao ligar; corrigido em 17/11/2026)
+        return { colunas: bruto.colunas as number, linhas: bruto.linhas as number, ...(Array.isArray(bruto.status) && { status: bruto.status }), ...(Array.isArray(bruto.acoes) && { acoes: bruto.acoes }), ...(typeof bruto.valores === "object" && bruto.valores !== null && !Array.isArray(bruto.valores) && { valores: bruto.valores }), ...(bruto.exemplos === true && { exemplos: true }), ...(bruto.exemploDeCura === true && { exemploDeCura: true }), ...(bruto.mapa === null || (typeof bruto.mapa === "string" && ID_DE_MAPA.test(bruto.mapa)) ? { mapa: bruto.mapa } : {}), ...(bruto.mapasDeExemplo === true && { mapasDeExemplo: true }), ...(typeof bruto.iniciativa === "object" && bruto.iniciativa !== null && { iniciativa: bruto.iniciativa }), ...(bruto.grade !== undefined && { grade: bruto.grade }) }; // (a GRADE faltava aqui: a grade gravada nunca era lida ao ligar; corrigido em 17/11/2026)
     } catch (falha) {
         if ((falha as NodeJS.ErrnoException).code !== "ENOENT") console.warn(`mesa.json ignorado: ${falha instanceof Error ? falha.message : "erro ao ler"}`);
         return null;
@@ -122,7 +123,7 @@ export async function gravarMesa(mesa: Mesa): Promise<void> {
     const destino = join(PASTA_DE_DADOS, "mesa.json");
     const temporario = `${destino}.${randomUUID()}.tmp`;
     try {
-        await writeFile(temporario, JSON.stringify({ formato: FORMATO_ATUAL, colunas: mesa.colunas, linhas: mesa.linhas, ...(mesa.status !== undefined && { status: mesa.status }), ...(mesa.acoes !== undefined && { acoes: mesa.acoes }), ...(mesa.valores !== undefined && { valores: mesa.valores }), ...(mesa.exemplos === true && { exemplos: true }), ...(mesa.mapa !== undefined && { mapa: mesa.mapa }), ...(mesa.mapasDeExemplo === true && { mapasDeExemplo: true }), ...(mesa.iniciativa !== undefined && { iniciativa: mesa.iniciativa }), ...(mesa.grade !== undefined && { grade: mesa.grade }) }, null, 2) + "\n", { encoding: "utf8", flush: true });
+        await writeFile(temporario, JSON.stringify({ formato: FORMATO_ATUAL, colunas: mesa.colunas, linhas: mesa.linhas, ...(mesa.status !== undefined && { status: mesa.status }), ...(mesa.acoes !== undefined && { acoes: mesa.acoes }), ...(mesa.valores !== undefined && { valores: mesa.valores }), ...(mesa.exemplos === true && { exemplos: true }), ...(mesa.exemploDeCura === true && { exemploDeCura: true }), ...(mesa.mapa !== undefined && { mapa: mesa.mapa }), ...(mesa.mapasDeExemplo === true && { mapasDeExemplo: true }), ...(mesa.iniciativa !== undefined && { iniciativa: mesa.iniciativa }), ...(mesa.grade !== undefined && { grade: mesa.grade }) }, null, 2) + "\n", { encoding: "utf8", flush: true });
         await rename(temporario, destino);
     } catch (falha) {
         await unlink(temporario).catch(() => undefined);

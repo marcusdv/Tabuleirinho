@@ -48,7 +48,7 @@ if (!(await p.locator("#editor-ficha-previa").isVisible())) await p.locator("#ed
 await p.waitForTimeout(200);
 ok("1a) na LEITURA o cartão é uma caixa com o nome clicável", (await p.locator(".cartao-previa").count()) === 1 && (await p.locator(".cartao-previa-nome").textContent()) === "Bola de Fogo");
 ok("1b) o texto de dentro aparece formatado (o título e as linhas)", (await p.locator(".cartao-previa .titulo").count()) === 1 && /alcance 45 m/.test(await p.locator(".cartao-previa-corpo").textContent()));
-ok("1c) as [expressões] de dentro NÃO viram rolagens soltas (a lista da página só tem as 5 rolagens de antes)", (await p.locator("#editor-ficha-rolagens li").count()) === 5, String(await p.locator("#editor-ficha-rolagens li").count()));
+ok("1c) as [expressões] de dentro NÃO viram rolagens soltas (a lista da página só tem as 5 rolagens de antes)", (await p.locator("#editor-ficha-rolagens li[data-rolagem]").count()) === 5, String(await p.locator("#editor-ficha-rolagens li[data-rolagem]").count()));
 
 // 2) clicar no nome manda o cartão ao chat
 await p.locator(".cartao-previa-nome").click();

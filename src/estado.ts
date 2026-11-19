@@ -5,6 +5,7 @@
 // navegadores apenas desenharão o que vier daqui.
 // =====================================================================
 
+import { limparDadosDaArea, limparEmanacao, type DadosDaArea, type EmanacaoDoToken } from "./areas.ts";
 import type { RegistroDeMapa } from "./protocolo.ts";
 import type { MascaraDeFog } from "./fog.ts";
 import {
@@ -40,7 +41,7 @@ import { COR_STATUS_HP, DADOS_DISPONIVEIS, LIMITE_COORDENADA_DESENHO, MAX_ACOES_
 import { buscarCondicao } from "./condicoes.ts";
 import { limitar } from "./coordenadas.ts";
 import { formulaDosDados, rolarDados, type Rolagem } from "./dados.ts";
-import { analisarAbas, rolarDaAnalise, type CartaoRolado, type RolagemDeFicha } from "./formulas.ts";
+import { analisarAbas, rolarDaAnalise, type CartaoRolado, type EfeitoDeRolagem, type RolagemDeFicha } from "./formulas.ts";
 
 /** Quantas casas (por lado) um token ocupa: 1 = 1x1, 2 = 2x2, 3 = 3x3, 4 = 4x4. */
 export type TamanhoToken = 1 | 2 | 3 | 4;
@@ -137,6 +138,7 @@ export interface Token {
     guardado: boolean; // true = está na BOLSA (fora do tabuleiro); col/row só valem quando false
     favorito: boolean; // marcado com a estrela na bolsa (vale para a mesa toda, por enquanto: ainda não há contas)
     grupos: number[]; // ids dos GRUPOS (ver `Grupo`) a que o token pertence; sem repetir
+    emanacao?: EmanacaoDoToken | null; // a AURA que o token emana (alcance, cor e transparência), desenhada em volta do corpo dele e acompanhando-o; sem o campo ou null = não emana. É visual: o modelo da bolsa manda e as peças copiam
     pasta?: number | null; // a PASTA da bolsa onde o token está (ver `Pasta`); sem o campo ou null = na raiz
     nivel?: "dono" | "editor" | "leitor"; // SÓ do servidor, para um JOGADOR: o que ELE pode fazer com este token (o mestre não recebe: pode tudo). A interface esconde o que não pode; o servidor confere de novo
     somenteMapa?: boolean; // SÓ do servidor, para um JOGADOR sem permissão: este modelo existe apenas porque uma peça dele está no tabuleiro; NÃO aparece na bolsa e vai sem ficha nem grupos
@@ -893,13 +895,15 @@ export interface Ponto {
  *   elipse     cabe numa "caixa": canto superior esquerdo (x,y), largura e altura
  *   retangulo  a própria caixa: canto superior esquerdo (x,y), largura e altura
  *   triangulo  cabe na caixa, com a ponta em cima, no meio
- * As formas são só CONTORNO (sem preenchimento).
+ *   area       área de efeito (ver areas.ts): origem, direção e tamanho; é a única que é PREENCHIDA (casa por casa)
+ * As outras formas são só CONTORNO (sem preenchimento).
  */
 export type Desenho = (
     | { id: number; tipo: "livre"; cor: number; pontos: Ponto[] }
     | { id: number; tipo: "elipse"; cor: number; x: number; y: number; largura: number; altura: number }
     | { id: number; tipo: "retangulo"; cor: number; x: number; y: number; largura: number; altura: number }
     | { id: number; tipo: "triangulo"; cor: number; x: number; y: number; largura: number; altura: number }
+    | ({ id: number; tipo: "area"; cor: number } & DadosDaArea) // uma ÁREA DE EFEITO (cone, linha, esfera, cubo, emanação): só os parâmetros; as casas são calculadas (areas.ts) e PREENCHIDAS
 ) & {
     /** A OPACIDADE do desenho (0.1 a 1; sem ela, 1 = opaco). É o "nível de transparência" do seletor de cor (pedido do dono, 18/11/2026). */
     alfa?: number;
@@ -936,6 +940,12 @@ export function limparDesenho(bruto: unknown): NovoDesenho | null {
     if (d.tipo === "elipse" || d.tipo === "retangulo" || d.tipo === "triangulo") {
         if (!numeroDeDesenho(d.x) || !numeroDeDesenho(d.y) || !numeroDeDesenho(d.largura) || !numeroDeDesenho(d.altura) || d.largura <= 0 || d.altura <= 0) return null;
         return { tipo: d.tipo, cor, x: d.x, y: d.y, largura: d.largura, altura: d.altura, ...alfa };
+    }
+    if (d.tipo === "area") {
+        const area = limparDadosDaArea(d);
+        // Na área, `alfa` é a opacidade do PREENCHIMENTO (0.01 a 1: até 99% de transparência) e é guardada sempre que vem (sem ela, vale a de fábrica).
+        const alfaDaArea = typeof d.alfa === "number" && Number.isFinite(d.alfa) ? { alfa: limitar(Math.round(d.alfa * 100) / 100, 0.01, 1) } : {};
+        return area ? { tipo: "area", cor, ...area, ...alfaDaArea } : null;
     }
     return null;
 }
@@ -1044,6 +1054,7 @@ export function montarToken(
         guardado: true,
         favorito: false,
         grupos: [],
+        emanacao: null,
         ficha: fichaExiste(ficha) && motivoFichaOcupada(ficha, null) === null ? ficha : null, // (uma ficha que não existe, ou única e já ocupada, é ignorada)
         status: statusDaMesaCopiada(), // (os status são da MESA: o token nasce com a lista dela)
         valores: [],
@@ -1111,6 +1122,7 @@ export function montarPeca(idDoModelo: number, col: number, row: number): Token 
         guardado: false,
         favorito: false,
         grupos: [],
+        emanacao: modelo.emanacao ? { ...modelo.emanacao } : null,
         ficha: modelo.ficha,
         status: modelo.status.map((s) => ({ ...s })),
         valores: [],
@@ -1159,6 +1171,7 @@ function sincronizarPecas(modelo: Token, refazerValores: boolean): void {
         peca.cor = modelo.cor;
         peca.corBorda = modelo.corBorda;
         peca.size = modelo.size;
+        peca.emanacao = modelo.emanacao ? { ...modelo.emanacao } : null;
         peca.ficha = modelo.ficha;
         peca.status = modelo.status.map((s) => ({ ...s }));
         peca.col = limitar(peca.col, 0, estado.colunas - peca.size);
@@ -1213,6 +1226,7 @@ export function montarDuplicata(modelo: Token, opcoes: { ficha?: number | null; 
     const token = montarToken(modelo.cor, modelo.size, modelo.nome, modelo.imagem, modelo.corBorda, opcoes.ficha !== undefined ? opcoes.ficha : modelo.ficha);
     if (!token) return null;
     token.grupos = [...(opcoes.grupos ?? modelo.grupos)];
+    token.emanacao = modelo.emanacao ? { ...modelo.emanacao } : null; // (a aura é visual: a duplicata é IGUAL)
     const pasta = opcoes.pasta !== undefined ? opcoes.pasta : (modelo.pasta ?? null);
     if (pasta !== null) token.pasta = pasta;
     return token;
@@ -1262,6 +1276,7 @@ export function tokenValido(bruto: unknown): Token | null {
         favorito: t.favorito === true, // (arquivos ANTIGOS não têm estes dois campos: valem "não favorito" e "sem grupos")
         grupos: gruposDoArquivo(t.grupos),
         pasta: inteiro(t.pasta) && t.pasta >= 1 ? t.pasta : null, // (arquivos ANTIGOS não têm o campo: na raiz)
+        emanacao: limparEmanacao(t.emanacao), // (arquivos ANTIGOS não têm o campo: não emana; uma emanação estragada vira "não emana")
         ficha: inteiro(t.ficha) && t.ficha >= 1 ? t.ficha : null, // (arquivos ANTIGOS não têm o campo: valem "sem ficha"; se a ficha já não existe, o servidor solta ao ligar)
         status: limparStatus(t.status) ?? statusPadrao(), // (arquivos antigos, sem a lista: o HP de fábrica)
         valores: [],
@@ -1504,14 +1519,34 @@ export function statusQueRecebeArrasto(token: Token): StatusDoToken | null {
     return null;
 }
 
-/** Tira `total` do status do token que recebe os números arrastados. O servidor usa esta função (e o modo local também). Sem status marcado, ou sem valor: erro. */
-export function aplicarResultado(token: Token, total: number): ResultadoDeAcao {
+/**
+ * Aplica `total` ao token que recebeu um número ARRASTADO do chat. `efeito` é a etiqueta da rolagem (`{cura}` ou `{dano}`, ver formulas.ts): com `cura` o valor é SOMADO ao status da ação de cura da mesa
+ * (a primeira ação que aumenta um status, a "Cura" de fábrica); sem etiqueta, ou com `dano`, é TIRADO do status que recebe números arrastados. O servidor usa esta função (e o modo local também).
+ * Sem o status, sem valor ou sem uma ação de cura: erro com o motivo.
+ */
+export function aplicarResultado(token: Token, total: number, efeito: EfeitoDeRolagem | null = null): ResultadoDeAcao {
+    if (efeito === "cura") {
+        const acao = estado.acoesDaMesa.find((a) => a.efeito === "aumentar");
+        if (!acao) return { ok: false, erro: 'A mesa não tem uma ação de cura (uma ação que aumenta um status): crie uma em "+ Nova ação".' };
+        const alvo = statusDaAcao(token, acao);
+        if (!alvo) return { ok: false, erro: `"${token.nome}" não recebe a ação "${acao.nome}": ele não tem o status dela (a vida).` };
+        const curada = Number.isSafeInteger(total) ? Math.min(Math.max(0, total), MAX_QUANTIA_ACAO) : 0;
+        return aplicarTotal(token, alvo, "aumentar", curada, String(curada));
+    }
     const status = statusQueRecebeArrasto(token);
     if (!status) {
         return { ok: false, erro: `"${token.nome}" não tem nenhum status que receba números arrastados: marque "Subtraído por números arrastados" no status (bolsa em tela cheia, Status).` };
     }
     const quantia = Number.isSafeInteger(total) ? Math.min(Math.max(0, total), MAX_QUANTIA_ACAO) : 0;
     return aplicarTotal(token, status, "reduzir", quantia, String(quantia));
+}
+
+/** O EFEITO (`cura` ou `dano`) da rolagem de uma mensagem do chat, escrito na ficha como etiqueta ("[1d8]{cura}"): o do cartão tem o efeito de CADA número (`indice`). null = sem etiqueta (dá dano). */
+export function efeitoDaRolagem(idDaMensagem: number, indice?: number): EfeitoDeRolagem | null {
+    const m = estado.mensagens.find((x) => x.id === idDaMensagem);
+    if (m?.rolagemFicha) return m.rolagemFicha.efeito ?? null;
+    const doCartao = m?.cartaoFicha && indice !== undefined && Number.isSafeInteger(indice) && indice >= 0 ? m.cartaoFicha.pedacos.filter((p) => p.tipo !== "texto")[indice] : undefined;
+    return doCartao ? (doCartao.efeito ?? null) : null;
 }
 
 /** O TOTAL de uma rolagem do chat (dados ou ficha), pelo id da mensagem (ou o valor de UM dado, com `dado`); null se a mensagem não existe ou não é uma rolagem. O servidor lê o número AQUI: o navegador nunca manda o número. */
@@ -1530,10 +1565,10 @@ export function totalDaRolagem(idDaMensagem: number, indice?: number, dado?: num
     return typeof total === "number" && Number.isFinite(total) ? total : null;
 }
 
-/** A frase curta do chat depois de um dano ARRASTADO (cabe nos 72 caracteres): "Orc: Dano 9 (HP 15→6)". */
+/** A frase curta do chat depois de um número ARRASTADO (cabe nos 72 caracteres): "Orc: Dano 9 (HP 15→6)" ou, com a etiqueta {cura}, "Orc: Cura 7 (HP 6→13)". */
 export function frasePraChatDeDano(token: Token, r: Extract<ResultadoDeAcao, { ok: true }>): string {
     const numeros = r.todosVeem ? ` (${r.nomeStatus} ${r.antes}→${r.depois})` : ""; // (status que nem todos veem: sem os números no chat)
-    return `${token.nome}: Dano ${r.quantia}${numeros}`.slice(0, MAX_CARACTERES_MENSAGEM);
+    return `${token.nome}: ${r.efeito === "aumentar" ? "Cura" : "Dano"} ${r.quantia}${numeros}`.slice(0, MAX_CARACTERES_MENSAGEM);
 }
 
 /**
@@ -1646,6 +1681,7 @@ export interface MudancasToken {
     cor?: number; // preenchimento
     corBorda?: number;
     imagem?: string | null; // miniatura nova, ou null para tirar a imagem (uma imagem inválida é ignorada)
+    emanacao?: EmanacaoDoToken | null; // a aura do token (null = parar de emanar); uma emanação inválida é ignorada
     favorito?: boolean;
     grupos?: number[]; // a lista INTEIRA de grupos do token (ids que não existem são descartados)
     ficha?: number | null; // a ficha atribuída (null = tirar a ficha); um id que não é de uma ficha existente é ignorado
@@ -1664,6 +1700,10 @@ export function editarToken(id: number, mudancas: MudancasToken): Token | null {
     if (mudancas.cor !== undefined) token.cor = limitar(Math.round(mudancas.cor), 0, 0xffffff);
     if (mudancas.corBorda !== undefined) token.corBorda = limitar(Math.round(mudancas.corBorda), 0, 0xffffff);
     if (mudancas.imagem !== undefined && (mudancas.imagem === null || imagemValida(mudancas.imagem))) token.imagem = mudancas.imagem;
+    if (mudancas.emanacao !== undefined) {
+        const nova = mudancas.emanacao === null ? null : limparEmanacao(mudancas.emanacao);
+        if (mudancas.emanacao === null || nova !== null) token.emanacao = nova;
+    }
     if (mudancas.favorito !== undefined) token.favorito = mudancas.favorito === true;
     if (mudancas.grupos !== undefined) token.grupos = limparGrupos(mudancas.grupos);
     const fichaAntes = token.ficha;

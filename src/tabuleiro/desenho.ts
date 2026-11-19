@@ -17,6 +17,7 @@
 
 import { Graphics, type PointData } from "pixi.js";
 import {
+    ALFA_PREENCHIMENTO_AREA,
     COR_INICIAL_DESENHO,
     DISTANCIA_MIN_PONTO,
     ESPESSURA_DESENHO,
@@ -25,6 +26,7 @@ import {
     TAMANHO_MIN_FORMA,
 } from "../config";
 import { desenhoAtingido, verticesDoTriangulo } from "../desenhos";
+import { pintarArea } from "./formaDeArea";
 import { estado, type Desenho, type NovoDesenho, type Ponto } from "../estado";
 import type { Camera } from "./camera";
 import type { FerramentaDeArrasto } from "./ferramenta";
@@ -103,6 +105,10 @@ export function criarDesenho(camera: Camera, opcoes: OpcoesDesenho): CamadaDesen
             case "triangulo":
                 g.poly(verticesDoTriangulo(d).flatMap((v) => [v.x * T, v.y * T]));
                 break;
+            case "area":
+                // Área de efeito: as casas PREENCHIDAS (e o contorno e a origem), sem rótulo (a medida só aparece enquanto se posiciona; ver formaDeArea.ts).
+                pintarArea(g, d, d.cor, d.alfa ?? ALFA_PREENCHIMENTO_AREA); // (para a área, `alfa` é a opacidade do PREENCHIMENTO)
+                return;
         }
         // Formas: só o CONTORNO na cor escolhida (sem preenchimento).
         g.stroke({ width: ESPESSURA_DESENHO, color: d.cor, alpha: d.alfa ?? 1, join: "round" });

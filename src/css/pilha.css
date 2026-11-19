@@ -2,7 +2,7 @@
 /* ===================================================================
          A PILHA DE BARRAS (ui/pilha.ts), na borda ESQUERDA: "Desenho" e "Ferramentas". Todas as barras têm SEMPRE a mesma largura (--largura-barra), por isso
          dá para empilhá-las. Clicar numa abre o CONTEÚDO dela (.conteudo) numa GAVETA ao lado, colada na parede DIREITA da barra e com a mesma largura.
-         Uma gaveta aberta por vez. A ordem das barras é o `order` de cada uma (o ui/pilha.ts o define; arrastar uma barra troca a ordem).
+         Uma gaveta aberta por vez. A ordem das barras é o `order` de cada uma (o ui/pilha.ts o define; é FIXA, não se arrasta mais a ordem).
          =================================================================== */
 :root {
     --largura-barra: 156px;
@@ -87,32 +87,12 @@
 .caixa-pilha.recolhida > .conteudo {
     display: none;
 }
-/* ARRASTAR uma barra dentro da pilha troca a ordem: a que é arrastada fica por cima e acompanha o mouse; as outras se afastam
-   suavemente (a classe `na-pilha` só existe durante o arrasto: sem ela, trocar a ordem na hora não faz as barras "voltarem" deslizando). */
-.caixa-pilha.na-pilha {
-    transition: translate 150ms ease;
-}
-.caixa-pilha.arrastando-caixa {
-    z-index: 2;
-    transition: none;
-    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.6);
-}
-
-/* As ALÇAS de arrasto (o cabeçalho de cada barra da pilha, ui/pilha.ts) mostram a mãozinha, e durante o arrasto a caixa fica sem selecionar texto. */
-.alca-arrastar {
-    cursor: grab;
-    touch-action: none;
-}
-.alca-arrastar button,
-.alca-arrastar input {
+/* O cabeçalho de cada barra abre e fecha a gaveta (a ordem das barras é fixa: não dá mais para arrastá-las). */
+.caixa-pilha > .cabecalho {
     cursor: pointer;
 }
-/* Durante o arrasto a caixa fica por cima das outras e sem selecionar texto. */
-.arrastando-caixa {
-    user-select: none;
-}
-.arrastando-caixa .alca-arrastar {
-    cursor: grabbing;
+.caixa-pilha > .cabecalho button {
+    cursor: pointer;
 }
 /* Cabeçalho: título à esquerda e botão de recolher à direita. */
 .cabecalho {
@@ -201,11 +181,13 @@
 }
 /* Os botões da pilha da esquerda: a gaveta abre para BAIXO. Aberta ▾ (aponta para o conteúdo); recolhida ‹ (aponta para a própria barra). */
 #desenho-alternar .seta,
+#area-alternar .seta,
 #iniciativa-alternar .seta,
 #fog-alternar .seta {
     --giro: 45deg;
 }
 #desenho-alternar.recolhido .seta,
+#area-alternar.recolhido .seta,
 #iniciativa-alternar.recolhido .seta,
 #fog-alternar.recolhido .seta {
     --giro: 135deg;
@@ -215,6 +197,7 @@
         transition: none;
     }
 }
+#area-alternar,
 #iniciativa-alternar,
 #fog-alternar {
     width: 26px;
@@ -227,6 +210,7 @@
     line-height: 1;
     cursor: pointer;
 }
+#area-alternar:hover,
 #iniciativa-alternar:hover,
 #fog-alternar:hover {
     background: #3b3b49;

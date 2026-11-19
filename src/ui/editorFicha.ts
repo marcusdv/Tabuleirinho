@@ -795,16 +795,33 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
         );
         listaMudam.replaceChildren(...mudam.map((v) => itemDaVariavelQueMuda(v, v.aba !== abaAtual)));
         foco?.();
-        listaRolagens.replaceChildren(
-            ...analise.rolagens.map((r, i) => {
-                const item = itemDaLista("rolagem", r.nome, r.erro ?? r.resolvida ?? "", r.erro ?? `Clique para rolar: [${r.formula}]`, r.erro !== null, i);
-                if (TEM_D20.test(r.formula)) item.classList.add("d20"); // (cor levemente diferente: testes e ataques de d20 se acham mais rápido no meio dos danos e outros dados)
-                item.querySelector(".nome")?.prepend(...iconesDosDados(r.formula)); // (o ícone de cada tipo de dado da rolagem, na cor dele, antes do nome)
-                const principal = dadoPrincipal(r.formula);
-                if (principal !== null) item.dataset.lados = String(principal); // (o botão ganha a cor e o fundo do dado)
-                return item;
-            }),
-        );
+        // As rolagens da lista são AGRUPADAS pelo título mais próximo ACIMA delas no texto (pedido do dono, 19/11/2026): cada grupo ganha o título como cabeçalho
+        // e um espaço em cima, separando "Perícias" de "Salvaguardas". Rolagens antes de qualquer título ficam soltas, no começo, sem cabeçalho.
+        const titulos = titulosDoTexto(texto, analise);
+        const itensDaLista: HTMLElement[] = [];
+        let grupoAtual = -1; // (o índice do título do grupo que está sendo montado; -1 = ainda sem título)
+        analise.rolagens.forEach((r, i) => {
+            const grupo = titulos.reduce((achado, titulo, indiceDoTitulo) => (titulo.inicio < (r.posNome ?? r.posFormula).inicio ? indiceDoTitulo : achado), -1);
+            if (grupo !== grupoAtual) {
+                grupoAtual = grupo;
+                if (grupo >= 0) {
+                    const cabecalho = document.createElement("li");
+                    cabecalho.className = "titulo-grupo" + (itensDaLista.length > 0 ? " depois-de-grupo" : "");
+                    cabecalho.setAttribute("role", "heading");
+                    cabecalho.setAttribute("aria-level", "3");
+                    cabecalho.textContent = titulos[grupo].texto;
+                    cabecalho.title = titulos[grupo].texto; // (o título pode terminar em reticências: a dica mostra inteiro)
+                    itensDaLista.push(cabecalho);
+                }
+            }
+            const item = itemDaLista("rolagem", r.nome, r.erro ?? r.resolvida ?? "", r.erro !== null ? `${r.nome}: ${r.erro}` : `Clique para rolar: ${r.nome} [${r.formula}]`, r.erro !== null, i); // (o nome e o cálculo podem terminar em reticências: a dica traz o nome inteiro)
+            if (TEM_D20.test(r.formula)) item.classList.add("d20"); // (cor levemente diferente: testes e ataques de d20 se acham mais rápido no meio dos danos e outros dados)
+            item.querySelector(".nome")?.prepend(...iconesDosDados(r.formula)); // (o ícone de cada tipo de dado da rolagem, na cor dele, antes do nome)
+            const principal = dadoPrincipal(r.formula);
+            if (principal !== null) item.dataset.lados = String(principal); // (o botão ganha a cor e o fundo do dado)
+            itensDaLista.push(item);
+        });
+        listaRolagens.replaceChildren(...itensDaLista);
         try {
             pintarTexto(texto, analise);
             campoTexto.classList.add("colorido");
@@ -813,6 +830,23 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
             campoTexto.classList.remove("colorido");
             camadaCores.replaceChildren();
         }
+    }
+
+    /**
+     * Os TÍTULOS ("# ", "## ", "### " no começo da linha) do texto da aba, na ordem em que aparecem, com a posição (em caracteres) onde começam. Servem para agrupar a lista de
+     * rolagens. Linhas que estão DENTRO de um cartão (`"""..."""`) não contam: o texto do cartão não é a página. As marcas de negrito/itálico (`*`) saem do título.
+     */
+    function titulosDoTexto(texto: string, analise: AnaliseDaFicha): { inicio: number; texto: string }[] {
+        const titulos: { inicio: number; texto: string }[] = [];
+        let inicio = 0;
+        for (const linha of texto.split("\n")) {
+            const achou = /^#{1,3} +(.*)$/.exec(linha);
+            const dentroDeCartao = analise.cartoes.some((c) => inicio >= c.posTotal.inicio && inicio < c.posTotal.fim);
+            const nome = achou?.[1].replace(/\*+/g, "").trim() ?? "";
+            if (nome !== "" && !dentroDeCartao) titulos.push({ inicio, texto: nome });
+            inicio += linha.length + 1; // (+1 do "\n")
+        }
+        return titulos;
     }
 
     /** Rola a rolagem `indice` (a pessoa clicou no nome dela no texto, ou no item da lista). O resultado aparece no chat. */
@@ -848,7 +882,7 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
 
     /** Destaca, por um instante, uma rolagem na lista lateral (quando a pessoa clica no nome dela no texto). */
     function destacarRolagem(indice: number): void {
-        const item = listaRolagens.children[indice];
+        const item = listaRolagens.querySelector(`[data-rolagem="${indice}"]`); // (pelo número, e não pela posição: a lista tem cabeçalhos de título no meio)
         if (!(item instanceof HTMLElement)) return;
         item.scrollIntoView({ block: "nearest" });
         item.classList.add("destaque");
@@ -1101,15 +1135,22 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
                 if (TEM_D20.test(rolagem.formula)) botao.dataset.lados = "20"; // (no TEXTO só o d20 tem cor: azul; os outros dados ficam como sempre)
                 botao.dataset.rolagem = String(indice);
                 botao.setAttribute("role", "button");
-                botao.title = rolagem.erro ? `${rolagem.nome}: ${rolagem.erro}` : `Clique para rolar: ${rolagem.nome}: ${rolagem.resolvida ?? rolagem.formula}`;
+                // Sem `title`: a dica do navegador demora. O cálculo aparece NA HORA numa caixa própria (`dicaDeRolagem`, logo abaixo de `desenharPrevia`); o `aria-label` mantém o botão acessível.
+                botao.setAttribute("aria-label", rolagem.erro ? `${rolagem.nome}: ${rolagem.erro}` : `Clique para rolar: ${rolagem.nome}: ${rolagem.resolvida ?? rolagem.formula}`);
                 const corte = rolagem.posFormula.inicio - deslocamento; // onde começam os colchetes
+                // Com NOME "(Ataque)[1d20 + FOR]": na leitura só o nome aparece (é ele que se clica); a fórmula fica na dica do mouse (`title`) e no modo de edição.
+                // SEM nome "[1d20 + FOR]": a fórmula é o único lugar para clicar, então continua visível (pedido do dono, 19/11/2026).
+                const temNome = rolagem.posNome !== null;
                 const nome = document.createElement("span");
                 nome.className = "rolagem-previa-nome";
-                nome.textContent = linha.slice(ini, corte);
-                const formula = document.createElement("span");
-                formula.className = "rolagem-previa-formula";
-                formula.append(...pecasDaFormula(linha.slice(corte, fim))); // (cada dado da fórmula com o seu ícone e a sua cor)
-                botao.append(nome, formula);
+                nome.textContent = temNome ? linha.slice(ini, corte).trimEnd() : linha.slice(ini, corte); // (sem a fórmula, o espaço entre o nome e o colchete sobraria)
+                botao.append(nome);
+                if (!temNome) {
+                    const formula = document.createElement("span");
+                    formula.className = "rolagem-previa-formula";
+                    formula.append(...pecasDaFormula(linha.slice(corte, fim))); // (cada dado da fórmula com o seu ícone e a sua cor)
+                    botao.append(formula);
+                }
                 bloco.append(botao);
                 cursor = fim;
             }
@@ -1137,8 +1178,49 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
         return caixa;
     }
 
+    /**
+     * A CAIXA DO CÁLCULO de uma rolagem (pedido do dono, 19/11/2026): ao passar o mouse no botão dela na leitura, aparece NA HORA, junto ao botão, com o nome, a fórmula como
+     * foi escrita ("[1d20 + FOR]") e o cálculo já resolvido ("= 1d20 + 3"), ou o erro. Uma só caixa, criada aqui e posta no <body> (acima das janelas de ficha). Só texto puro (`textContent`).
+     */
+    const dicaDeRolagem = document.createElement("div");
+    dicaDeRolagem.id = "editor-ficha-dica-rolagem";
+    dicaDeRolagem.hidden = true;
+    document.body.append(dicaDeRolagem);
+    function esconderDicaDeRolagem(): void {
+        dicaDeRolagem.hidden = true;
+    }
+    function mostrarDicaDeRolagem(botao: HTMLElement): void {
+        const rolagem = ultimaAnalise?.rolagens[Number(botao.dataset.rolagem)];
+        if (!rolagem) return esconderDicaDeRolagem();
+        const linha = (classe: string, texto: string): HTMLElement => {
+            const el = document.createElement("div");
+            el.className = classe;
+            el.textContent = texto;
+            return el;
+        };
+        const linhas = [linha("dica-nome", rolagem.nome)];
+        linhas.push(linha("dica-escrita", `[${rolagem.formula}]`));
+        if (rolagem.erro !== null) linhas.push(linha("dica-erro", rolagem.erro));
+        else if (rolagem.resolvida !== null && rolagem.resolvida !== rolagem.formula) linhas.push(linha("dica-conta", `= ${rolagem.resolvida}`)); // (só quando há o que calcular: variáveis trocadas por valores)
+        dicaDeRolagem.replaceChildren(...linhas);
+        // Mede com a caixa visível (ainda fora de vista) e então a põe: abaixo do botão, ou acima se não couber; sempre dentro da janela do navegador.
+        dicaDeRolagem.style.left = "0px";
+        dicaDeRolagem.style.top = "0px";
+        dicaDeRolagem.hidden = false;
+        const alvo = botao.getClientRects()[0] ?? botao.getBoundingClientRect(); // (um botão que quebra de linha tem vários retângulos: vale o primeiro)
+        const folga = 6;
+        const largura = dicaDeRolagem.offsetWidth;
+        const altura = dicaDeRolagem.offsetHeight;
+        const esquerda = Math.max(8, Math.min(alvo.left, window.innerWidth - largura - 8));
+        const abaixo = alvo.bottom + folga;
+        const topo = abaixo + altura <= window.innerHeight - 8 ? abaixo : Math.max(8, alvo.top - altura - folga);
+        dicaDeRolagem.style.left = `${esquerda}px`;
+        dicaDeRolagem.style.top = `${topo}px`;
+    }
+
     /** Desenha a aba aberta já formatada: o texto de sempre, e cada CARTÃO como uma caixa (o texto é cortado onde os cartões começam e terminam). */
     function desenharPrevia(): void {
+        esconderDicaDeRolagem(); // (os botões são refeitos: o que estava sob o mouse deixou de existir)
         const texto = campoTexto.value;
         const cartoes = (ultimaAnalise?.cartoes ?? []).map((cartao, indice) => ({ cartao, indice })).sort((x, y) => x.cartao.posTotal.inicio - y.cartao.posTotal.inicio);
         const pecas: HTMLElement[] = [];
@@ -1169,6 +1251,7 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
         // (a leitura e o campo são duas áreas com rolagem própria; e focar o campo faria o navegador rolar até o cursor, no começo do texto: por isso `preventScroll`).
         const rolagem = elementoQueRola().scrollTop;
         previa.hidden = !ligada;
+        esconderDicaDeRolagem(); // (a leitura some ou é refeita: a caixa do cálculo não pode ficar solta)
         botaoVer.setAttribute("aria-pressed", String(ligada));
         botaoVer.textContent = ligada ? "Editar" : "Confirmar"; // (na leitura: "Editar"; na edição: "Confirmar", que volta à leitura sem salvar)
         botaoVer.title = ligada ? "Editar o texto (ou dê um duplo clique no texto)" : "Confirmar: voltar à leitura (o que você escreveu continua; para gravar, use Salvar)";
@@ -1178,6 +1261,14 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
         camadaCores.scrollTop = campoTexto.scrollTop; // (a camada de cores acompanha o campo)
         agendarBarraDeRolagem(); // (a barra passa a acompanhar a leitura, ou o campo)
     }
+    // A caixa do cálculo: aparece ao entrar num botão de rolagem da leitura e some ao sair dele (ou da leitura inteira, ou ao rolar o texto).
+    previa.addEventListener("mouseover", (e) => {
+        const botao = (e.target as HTMLElement).closest<HTMLElement>(".rolagem-previa");
+        if (botao && previa.contains(botao)) mostrarDicaDeRolagem(botao);
+        else esconderDicaDeRolagem();
+    });
+    previa.addEventListener("mouseleave", esconderDicaDeRolagem);
+    previa.addEventListener("scroll", esconderDicaDeRolagem);
     botaoVer.addEventListener("mousedown", (e) => e.preventDefault()); // (o campo não perde o foco: senão a leitura ligaria sozinha e o clique a desligaria)
     botaoVer.addEventListener("click", () => mostrarPrevia(previa.hidden === true));
 

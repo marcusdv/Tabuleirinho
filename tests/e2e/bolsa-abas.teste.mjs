@@ -43,9 +43,11 @@ ok("4b) a seta para a direita vai de 'Fichas' para 'Mapas' (a 3ª aba)", (await 
 await p.keyboard.press("ArrowRight");
 ok("4b2) a seta vai de 'Mapas' para 'Jogadores' (a 4ª aba, só do mestre)", (await selecionada("#bolsa-aba-jogadores")) === "true" && (await p.locator("#bolsa-jogadores").isVisible()) && (await p.locator("#bolsa-mapas").isHidden()));
 await p.keyboard.press("ArrowRight");
-ok("4c) a seta dá a volta: de 'Jogadores' vai para 'Tokens' (e a aba Jogadores some)", (await selecionada("#bolsa-aba-tokens")) === "true" && (await p.locator("#bolsa-jogadores").isHidden()));
+ok("4b3) a seta vai de 'Jogadores' para 'Condições' (a 5ª aba, só do mestre; entrou em 19/11/2026)", (await selecionada("#bolsa-aba-condicoes")) === "true" && (await p.locator("#bolsa-condicoes").isVisible()) && (await p.locator("#bolsa-jogadores").isHidden()));
+await p.keyboard.press("ArrowRight");
+ok("4c) a seta dá a volta: de 'Condições' vai para 'Tokens' (e a aba Condições some)", (await selecionada("#bolsa-aba-tokens")) === "true" && (await p.locator("#bolsa-condicoes").isHidden()));
 await p.keyboard.press("End");
-ok("4d) End vai para a última aba ('Jogadores')", (await selecionada("#bolsa-aba-jogadores")) === "true");
+ok("4d) End vai para a última aba ('Condições')", (await selecionada("#bolsa-aba-condicoes")) === "true");
 await p.keyboard.press("Home");
 ok("4e) Home volta para a primeira ('Tokens')", (await selecionada("#bolsa-aba-tokens")) === "true");
 await p.keyboard.press("Home");
@@ -98,9 +100,20 @@ const painel = await p.locator("#bolsa-fichas").boundingBox();
 const botaoCriarFicha = await p.locator("#bolsa-ficha-criar-botao").boundingBox();
 ok("6c) o painel das fichas fica dentro da caixa, sem sair pelos lados nem por baixo", painel.x >= cheia.x && painel.x + painel.width <= cheia.x + cheia.width + 1 && painel.y + painel.height <= cheia.y + cheia.height + 1, `${JSON.stringify(painel)} em ${JSON.stringify(cheia)}`);
 // (o "+ Criar ficha" fica na linha da pesquisa, NO CABEÇALHO da bolsa — o mesmo lugar do "+ Criar token" —, e não mais dentro do painel das fichas)
-ok("6d) na tela cheia o botão 'Criar ficha' está à vista, na linha do botão 'Instruções', dentro da largura da bolsa", botaoCriarFicha.x >= painel.x && botaoCriarFicha.x + botaoCriarFicha.width <= painel.x + painel.width + 1 && Math.abs(botaoCriarFicha.y - (await p.locator("#bolsa-ficha-instrucoes").boundingBox()).y) < 8, `${JSON.stringify(botaoCriarFicha)} em ${JSON.stringify(painel)}`);
+ok("6d) na tela cheia o botão 'Criar ficha' está à vista, dentro da largura da bolsa", botaoCriarFicha.x >= painel.x && botaoCriarFicha.x + botaoCriarFicha.width <= painel.x + painel.width + 1, `${JSON.stringify(botaoCriarFicha)} em ${JSON.stringify(painel)}`);
+// (o botão "Instruções" mora no TOPO, ao lado de "Fechar": na mesma linha, à esquerda dele, e à vista em qualquer aba)
+const instrucoes = await p.locator("#bolsa-ficha-instrucoes").boundingBox();
+const fechar = await p.locator("#bolsa-fechar").boundingBox();
+ok("6d2) o botão 'Instruções' fica no topo, ao lado de 'Fechar' (mesma linha, à esquerda dele)", instrucoes && fechar && Math.abs(instrucoes.y - fechar.y) < 4 && instrucoes.x + instrucoes.width <= fechar.x, `${JSON.stringify(instrucoes)} / ${JSON.stringify(fechar)}`);
 await p.keyboard.press("Escape");
 ok("6e) Esc fecha a tela cheia e volta à bolsa do canto (a aba Fichas continua escolhida)", !(await classe()).includes("expandida") && (await visivel("#bolsa-fichas")));
+
+// Q com a aba "Chat" à frente da coluna: a bolsa abre mesmo assim, e já com a aba "Bolsa" à vista (antes ela abria escondida atrás do chat).
+await p.click("#lateral-aba-chat");
+await p.locator("body").click({ position: { x: 600, y: 400 } });
+await p.keyboard.press("q");
+ok("6f) Q com o Chat à frente abre a bolsa em tela cheia, à vista", (await classe()).includes("expandida") && (await visivel("#bolsa")));
+await p.keyboard.press("Escape");
 
 ok("7) nenhum erro de JavaScript durante o teste", erros.length === 0, erros.join(" | "));
 

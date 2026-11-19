@@ -9,7 +9,7 @@ import { CHAVE_ALFA_DESENHO, CHAVE_COR_DESENHO, COR_INICIAL_DESENHO, CORES_FIXAS
 import { guardarPreferencia, lerPreferencia } from "./preferencias";
 import { estado } from "../estado";
 
-export type NomeFerramenta = "mover" | "regua" | "lapis" | "borracha" | "elipse" | "retangulo" | "triangulo" | "fog-cobrir" | "fog-revelar"; // (os dois "fog-" são os pincéis do painel do Fog)
+export type NomeFerramenta = "mover" | "regua" | "lapis" | "borracha" | "elipse" | "retangulo" | "triangulo" | "area" | "fog-cobrir" | "fog-revelar"; // (os dois "fog-" são os pincéis do painel do Fog)
 
 export interface OpcoesPainelDesenho {
     /** O usuário escolheu uma ferramenta. */

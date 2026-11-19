@@ -60,13 +60,24 @@
     display: flex;
     gap: 6px;
 }
+/* O botão "Instruções" mora no TOPO da bolsa, ao lado de "Fechar" (pedido do dono, 19/11/2026), com a mesma cara dele. */
 #bolsa-ficha-instrucoes {
     flex: none;
-    width: auto;
-    margin: 0;
-    padding: 0 10px;
+    height: 30px;
+    margin: 0 8px 0 0;
+    padding: 0 14px;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    color: inherit;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
 }
-/* O botão "Instruções" só aparece na tela EXPANDIDA das fichas (pedido do dono): na bolsa pequena e na média ele some e "+ Criar ficha" ocupa a linha. */
+#bolsa-ficha-instrucoes:hover {
+    background: #3b3b49;
+}
+/* O botão "Instruções" só aparece na tela EXPANDIDA (pedido do dono): na bolsa pequena e na média ele some. */
 #bolsa:not(.expandida) #bolsa-ficha-instrucoes {
     display: none;
 }
@@ -423,7 +434,7 @@
 #bolsa.com-selecao #bolsa-fichas-busca {
     margin-right: 12px; /* a pesquisa fica à vista e a barra vem logo depois dela (e não empurrada para a direita) */
 }
-/* Tela cheia: o "+ Criar ficha" mora na linha do botão "Instruções" (ui/bolsa.ts o move para lá). */
+/* Tela cheia: o "+ Criar ficha" mora na linha própria da aba Fichas (ui/bolsa.ts o move para lá; o botão "Instruções" foi para o topo). */
 #bolsa.expandida #bolsa-fichas-botoes #bolsa-ficha-criar-botao {
     order: 0;
     height: auto;
@@ -628,7 +639,7 @@
     flex-direction: column;
     align-items: center;
     gap: 2px;
-    padding: 17px 4px 6px; /* uma FAIXA baixinha em cima para as marcas (arquivo, estrela e grupos); o token fica COLADO nela, com 1 a 2 px de folga (pedido do dono, 18/11/2026: era 22 px; com 15 px a estrela encostava) e o nome ganha o espaço de baixo */
+    padding: 14px 4px 5px; /* (19/11/2026: o token SUBIU mais, 17 → 14 px, para ficar ainda mais perto das marcas do alto; embaixo 6 → 5) uma FAIXA baixinha em cima para as marcas (arquivo, estrela e grupos); o token fica COLADO nela, com 1 a 2 px de folga (pedido do dono, 18/11/2026: era 22 px; com 15 px a estrela encostava) e o nome ganha o espaço de baixo */
     width: 100%;
     min-width: 0;
     box-sizing: border-box;
@@ -660,6 +671,18 @@
 /* Nome do token na ficha (pedido do dono, 17/11/2026: igual em TODOS os tamanhos da bolsa, e igual ao do cartão da ficha): até DUAS linhas, centralizado, com quebra bonita (`text-wrap: pretty`) e "…"
    só se passar de duas (o nome inteiro está na dica do mouse). Antes, na média e na tela cheia era uma linha só. */
 .ficha .ficha-nome {
+    /* A caixa de fora reserva SEMPRE o espaço de DUAS linhas e CENTRALIZA o nome na vertical (19/11/2026): um nome de 1 linha fica no meio das duas; o de 2 linhas as preenche. */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 2.4em; /* (2 linhas de 1,2) */
+    max-width: 100%;
+    line-height: 1.2;
+    font-size: 11px;
+    font-weight: 600;
+    color: #e6e6ea;
+}
+.ficha .ficha-nome-texto {
     display: -webkit-box;
     -webkit-box-orient: vertical;
     -webkit-line-clamp: 2;
@@ -669,10 +692,6 @@
     overflow-wrap: anywhere;
     text-wrap: pretty;
     text-align: center;
-    line-height: 1.2;
-    font-size: 11px;
-    font-weight: 600;
-    color: #e6e6ea;
 }
 .ficha small {
     font-size: 11px;

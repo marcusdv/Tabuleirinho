@@ -1,0 +1,180 @@
+/* O painel de ÁREA (2ª barra da pilha da esquerda; ui/painelArea.ts): a prévia (no topo), a forma, o tamanho (em metros), os tamanhos prontos (numa linha só), a transparência, a PRÓPRIA paleta
+   de cores e "Limpar áreas". */
+#area .conteudo {
+    gap: 12px;
+}
+#area .conteudo section {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+/* A prévia: a área desenhada numa grade pequena, no TOPO, com a cor e o tamanho escolhidos. */
+#area-previa {
+    align-self: center;
+    width: 102px;
+    height: 102px;
+    border: 1px solid #3a3a48;
+    border-radius: 6px;
+    background: #1b1b22;
+}
+/* As formas: 3 em cima (Cone, Linha, Esfera) e 2 maiores embaixo (Cubo, Emanação), cada uma com o ícone e o nome, a ligada em dourado. */
+#area-formas {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 4px;
+}
+#area-formas .botao-largo {
+    grid-column: span 2;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    min-width: 0;
+    height: 46px;
+    margin: 0;
+    padding: 0 2px;
+    font-size: 11px;
+}
+#area-formas .botao-largo:nth-child(n + 4) {
+    grid-column: span 3;
+}
+#area-formas .botao-largo .icone-svg {
+    width: 20px;
+    height: 20px;
+    vertical-align: baseline;
+}
+/* O tamanho: − [ 4,5 m ] +, com o valor CENTRALIZADO no campo (o "m" fica fixo à direita). */
+#area-tamanho {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr) 26px; /* (botões − e + mais estreitos: o campo do meio precisa de espaço para "58,5") */
+    gap: 4px;
+}
+#area-tamanho button {
+    height: 30px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    color: inherit;
+    font-size: 17px;
+    line-height: 1;
+    cursor: pointer;
+}
+#area-tamanho button:hover:not(:disabled) {
+    background: #3b3b49;
+}
+#area-tamanho button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+#area-campo-rotulo {
+    position: relative;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    height: 30px;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #1f1f27;
+    font-size: 13px;
+}
+#area-campo-rotulo span {
+    position: absolute;
+    right: 5px;
+    color: #9a9aa8;
+    font-size: 12px;
+    pointer-events: none;
+}
+#area-metros {
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0;
+    padding: 0 16px; /* (o mesmo espaço dos dois lados: o número fica no MEIO, e o "m" não encosta nele; 26 px deixavam só 12 px de largura útil e cortavam o número) */
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    color: #e6e6ea;
+    font: inherit;
+    font-weight: 700;
+    text-align: center;
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+#area-metros::-webkit-outer-spin-button,
+#area-metros::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+}
+#area-metros:focus {
+    outline: none;
+}
+#area-campo-rotulo:focus-within {
+    border-color: #ffd54f;
+}
+/* Os tamanhos prontos (do livro, em metros): chips numa LINHA SÓ, o do tamanho atual em dourado. */
+#area-prontos {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 3px;
+}
+#area-prontos button {
+    flex: 1 1 0;
+    min-width: 0;
+    padding: 3px 0;
+    border: 1px solid #3a3a48;
+    border-radius: 6px;
+    background: #23232d;
+    color: #c9c9d4;
+    font-size: 10.5px;
+    cursor: pointer;
+}
+#area-prontos button:hover {
+    border-color: #ffd54f;
+}
+#area-prontos button.ativo {
+    border-color: #ffd54f;
+    color: #ffd54f;
+}
+/* A transparência do preenchimento das áreas (0% é opaco), igual à do seletor de cor. */
+#area-transparencia-linha {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: #c9c9d4;
+}
+#area-transparencia {
+    width: 100%;
+    margin: 0;
+    accent-color: #ffd54f;
+}
+/* A paleta PRÓPRIA da Área (as mesmas amostras do Desenho, mas separadas). */
+#area-amostras {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    padding: 0 3px;
+    gap: 6px;
+}
+#area-cor {
+    width: 100%;
+    height: 20px;
+    margin-top: 2px;
+    padding: 0;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+    background: #2f2f3a;
+    cursor: pointer;
+}
+#area-dica {
+    font-size: 11px;
+    line-height: 1.35;
+    color: #9a9aa8;
+    text-align: center;
+}
+#area-limpar {
+    margin: 0;
+    border-color: #7a3a3a;
+    color: #ff9a9a;
+}
+#area-limpar:hover:not(:disabled) {
+    background: #4a2a2a;
+}

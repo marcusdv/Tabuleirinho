@@ -30,28 +30,28 @@ const A = casa(3, 2), B = casa(7, 2), C = casa(7, 6), D = casa(11, 6);
 
 // 1) sem ponto fixo: em linha reta, a diagonal conta 1 casa (maior diferença entre colunas e linhas)
 await p.mouse.move(A.x, A.y); await p.mouse.down(); await ir(A, C);
-ok("1) A -> C direto, sem ponto fixo: 6 m = 4 □", (await dist()) === "6 m = 4 □", await dist());
+ok("1) A -> C direto, sem ponto fixo: 6 m\n4 quadrados", (await dist()) === "6 m\n4 quadrados", await dist());
 await p.mouse.up();
 
 // 2) com ponto fixo: A -> B (4), direito, B -> C (4) = 8
 const visaoAntes = await camX();
 await p.mouse.move(A.x, A.y); await p.mouse.down(); await ir(A, B);
-ok("2a) em B, antes do clique direito: 6 m = 4 □", (await dist()) === "6 m = 4 □", await dist());
+ok("2a) em B, antes do clique direito: 6 m\n4 quadrados", (await dist()) === "6 m\n4 quadrados", await dist());
 await direito();
 await ir(B, C);
-ok("2b) fixou B e foi até C: a medida SOMA os trechos (4 + 4 = 12 m = 8 □), e não os 4 em linha reta", (await dist()) === "12 m = 8 □", await dist());
+ok("2b) fixou B e foi até C: a medida SOMA os trechos (4 + 4 = 12 m\n8 quadrados), e não os 4 em linha reta", (await dist()) === "12 m\n8 quadrados", await dist());
 await direito();
 await ir(C, D);
-ok("2c) fixou C e foi até D: 18 m = 12 □ (três trechos)", (await dist()) === "18 m = 12 □", await dist());
+ok("2c) fixou C e foi até D: 18 m\n12 quadrados (três trechos)", (await dist()) === "18 m\n12 quadrados", await dist());
 await direito(); await direito();
-ok("2d) clicar com o direito de novo no MESMO lugar não duplica o ponto nem muda a soma", (await dist()) === "18 m = 12 □", await dist());
+ok("2d) clicar com o direito de novo no MESMO lugar não duplica o ponto nem muda a soma", (await dist()) === "18 m\n12 quadrados", await dist());
 await p.mouse.up();
-ok("2e) soltar o esquerdo mantém o resultado na tela", (await dist()) === "18 m = 12 □");
+ok("2e) soltar o esquerdo mantém o resultado na tela", (await dist()) === "18 m\n12 quadrados");
 ok("2f) o clique direito NÃO moveu a visão", (await camX()) === visaoAntes);
 
 // 3) medida nova apaga a anterior (e as curvas)
 await p.mouse.move(A.x, A.y); await p.mouse.down(); await ir(A, B); await p.mouse.up();
-ok("3) uma medida nova começa do zero: A -> B = 6 m = 4 □", (await dist()) === "6 m = 4 □", await dist());
+ok("3) uma medida nova começa do zero: A -> B = 6 m\n4 quadrados", (await dist()) === "6 m\n4 quadrados", await dist());
 
 // 4) o botão do MEIO move a visão (o direito sozinho não move mais: abre o menu do mapa)
 const antes = await camX();

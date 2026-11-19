@@ -96,7 +96,7 @@ export async function recolherDados(p) {
 }
 
 /**
- * Abre uma barra da pilha da esquerda: "desenho" (o painel de Desenho, `#ferramentas-desenho`) ou "iniciativa" (`#iniciativa`); elas abrem PARA BAIXO e podem ficar abertas juntas.
+ * Abre uma barra da pilha da esquerda: "desenho" (o painel de Desenho, `#ferramentas-desenho`), "area" (o painel de Área, `#area`) ou "iniciativa" (`#iniciativa`); elas abrem PARA BAIXO e podem ficar abertas juntas.
  * "tabuleiro" (colunas, linhas, grade, mapa...) já NÃO é uma barra: vive na aba MAPAS da bolsa (só o mestre); então este atalho escolhe a bolsa e a aba Mapas (depois, para voltar
  * aos tokens, clique em `#bolsa-aba-tokens`). Tudo começa recolhido. Espera a animação terminar.
  */
@@ -110,7 +110,7 @@ export async function abrirGaveta(p, qual) {
         await p.waitForTimeout(150);
         return;
     }
-    const caixa = qual === "desenho" ? "#ferramentas-desenho" : "#iniciativa";
+    const caixa = qual === "desenho" ? "#ferramentas-desenho" : qual === "area" ? "#area" : "#iniciativa";
     if (await p.evaluate((c) => !document.querySelector(c).classList.contains("recolhida"), caixa)) return;
     await p.click(caixa + " .cabecalho");
     await p.waitForTimeout(450);
@@ -202,4 +202,22 @@ export async function definirCor(p, campo, hex) {
     await codigo.fill(hex);
     await codigo.press("Tab"); // (sair do campo dispara a mudança)
     await botao.click(); // fecha a caixa
+}
+
+/**
+ * TRAVA DE SEGURANÇA dos testes que sobem o PRÓPRIO servidor numa porta fixa (rede, fichas-online, fichas-online-excluir, mapas-online: porta 3737): se a porta JÁ está em uso (quase sempre é o
+ * servidor do DONO, com a campanha dele), o teste NÃO RODA: ele falaria com o servidor errado e poderia criar e apagar coisas nos dados reais. Sai com código 0 e avisa o motivo.
+ * Chamar ANTES de subir o servidor: `await exigirPortaLivre(PORTA);`
+ */
+export async function exigirPortaLivre(porta) {
+    const { createConnection } = await import("node:net");
+    const ocupada = await new Promise((resolver) => {
+        const c = createConnection({ port: porta, host: "127.0.0.1" });
+        c.once("connect", () => { c.destroy(); resolver(true); });
+        c.once("error", () => resolver(false));
+    });
+    if (ocupada) {
+        console.log(`PULADO: a porta ${porta} já está em uso (provavelmente o servidor do dono). Este teste sobe o próprio servidor nela e NÃO deve falar com um servidor de verdade; desligue o servidor e rode de novo.`);
+        process.exit(0);
+    }
 }

@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
-import { abrirPagina, lancar, ok, TOKENS_DE_TESTE, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, TOKENS_DE_TESTE, terminar, exigirPortaLivre } from "./ajuda.mjs";
 
 const RAIZ = fileURLToPath(new URL("../../", import.meta.url));
 const PORTA = Number(process.env.PORTA_TESTE ?? 3737); // a mesma de PORTA_SERVIDOR em src/config.ts (o Vite repassa /ws para ela). `PORTA_TESTE` troca a porta (com `PORTA_SERVIDOR=<a mesma> npm run dev` e `URL_TESTE`), para não bater no servidor do dono na 3737
@@ -22,6 +22,7 @@ const PORTA = Number(process.env.PORTA_TESTE ?? 3737); // a mesma de PORTA_SERVI
 const dados = mkdtempSync(join(tmpdir(), "tabuleirinho-dados-"));
 mkdirSync(join(dados, "tokens"), { recursive: true });
 for (const t of TOKENS_DE_TESTE) writeFileSync(join(dados, "tokens", `${t.id}.json`), JSON.stringify({ ...t, condicoes: [] }));
+await exigirPortaLivre(PORTA); // (a porta 3737 em uso = o servidor do dono: não roda)
 const servidor = spawn(process.execPath, ["servidor/servidor.ts"], { cwd: RAIZ, env: { ...process.env, PORT: String(PORTA), DADOS: dados } });
 let saidaDoServidor = "";
 servidor.stdout.on("data", (d) => (saidaDoServidor += d));

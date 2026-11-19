@@ -325,6 +325,12 @@ export interface VariavelFicha {
     posConta: PosicaoNoTexto;
 }
 
+/**
+ * O EFEITO de uma rolagem, escrito numa ETIQUETA entre chaves logo depois do colchete (pedido do dono, 19/11/2026): `(Curar Ferimentos)[1d8 + MOD_SAB + 3]{cura}` ou `[8d6]{dano}`. Ao arrastar o número do chat
+ * até uma criatura, `cura` SOMA ao HP e `dano` (ou nenhuma etiqueta) TIRA dele. Só estas duas palavras valem (sem diferenciar maiúsculas); qualquer outra coisa entre chaves é texto comum.
+ */
+export type EfeitoDeRolagem = "cura" | "dano";
+
 export interface RolagemFicha {
     /** O NOME, entre parênteses (referência visual). Sem nome, é a própria fórmula. */
     nome: string;
@@ -335,8 +341,10 @@ export interface RolagemFicha {
     erro: string | null;
     /** Onde está o nome no texto, COM os parênteses (ex.: "(Ataque)"); null se a rolagem não tem nome. */
     posNome: PosicaoNoTexto | null;
-    /** Onde está a fórmula no texto, COM os colchetes (ex.: "[1d20 + FOR]"). */
+    /** Onde está a fórmula no texto, COM os colchetes (ex.: "[1d20 + FOR]") e, se houver, a etiqueta de efeito logo depois ("[1d8 + 3]{cura}"). */
     posFormula: PosicaoNoTexto;
+    /** A etiqueta `{cura}` ou `{dano}` escrita depois dos colchetes; null = sem etiqueta (o número arrastado dá dano, como sempre). */
+    efeito: EfeitoDeRolagem | null;
 }
 
 /** Um [cálculo ou rolagem] escrito DENTRO de um cartão (ex.: o "[2d6 + 3]" de "Dano: [2d6 + 3]"). */
@@ -348,8 +356,10 @@ export interface ExpressaoDoCartao {
     erro: string | null;
     /** Tem um dado (1d20, 2d6, d8...)? Com dado é ROLADO; sem dado é CALCULADO. */
     temDado: boolean;
-    /** Onde está no texto da aba, COM os colchetes. */
+    /** Onde está no texto da aba, COM os colchetes e a etiqueta de efeito, se houver (a etiqueta não aparece no chat). */
     pos: PosicaoNoTexto;
+    /** A etiqueta `{cura}` ou `{dano}` depois dos colchetes; null = sem etiqueta. */
+    efeito: EfeitoDeRolagem | null;
 }
 
 /**
@@ -390,13 +400,15 @@ export interface AnaliseDaFicha {
 const LINHA_DE_VARIAVEL = /^\s*([\p{L}_][\p{L}\p{N}_]*)\s*::\s*(.*?)\s*$/du;
 // "(Nome)" opcional, colado a "[fórmula]" (só espaços ou tabulações podem separar os dois). Nem o nome nem a fórmula atravessam linhas nem têm parênteses/colchetes dentro (a fórmula
 // pode ter parênteses: eles só não podem estar no NOME).
-const ROLAGEM = /(?:\(([^()[\]\n]{1,200})\)[ \t]*)?\[([^[\]\n]{1,400})\]/dgu;
+// Logo depois do "]" pode vir a ETIQUETA de efeito: "{cura}" ou "{dano}" (grupo 3).
+const ROLAGEM = /(?:\(([^()[\]\n]{1,200})\)[ \t]*)?\[([^[\]\n]{1,400})\](?:\{[ \t]*(cura|dano)[ \t]*\})?/dgui;
 const TEM_DADO = /(?:^|[^\p{L}\p{N}_])\d*[dD]\d+(?![\p{L}\p{N}_])/u;
 // CARTÃO: "(Nome)" colado a três aspas, o texto (pode ter várias linhas) e três aspas de novo. O texto tem um limite de tamanho (um caractere a mais que o máximo: assim um cartão comprido demais
 // é reconhecido e DÁ ERRO, em vez de virar texto comum sem ninguém perceber; além disso nem é procurado, o que também limita o trabalho do analisador).
 const CARTAO = new RegExp(`\\(([^()[\\]\\n]{1,200})\\)[ \\t]*"""([\\s\\S]{0,${MAX_CARACTERES_CARTAO + 1}}?)"""`, "dgu");
 // As [expressões] de dentro de um cartão (nada de colchetes dentro, nem quebra de linha).
-const EXPRESSAO_DO_CARTAO = /\[([^[\]\n]{1,400})\]/gu;
+// (com a ETIQUETA de efeito opcional logo depois do "]": "{cura}" ou "{dano}", grupo 2)
+const EXPRESSAO_DO_CARTAO = /\[([^[\]\n]{1,400})\](?:\{[ \t]*(cura|dano)[ \t]*\})?/giu;
 
 // VARIÁVEL QUE MUDA (RECURSO): depois dos "::" vêm TRÊS valores separados por ":" (mín:inicial:máx). Cada um é um número inteiro ("12") OU uma CONTA ENTRE PARÊNTESES, com variáveis fixas da
 // ficha ("((10 + MOD_CON + 2) * NIVEL)"). Regras do dono: a conta vai entre parênteses (os de fora a delimitam) e NÃO pode ter dados (o número precisa ser conhecido de antemão, para saber se o
@@ -575,7 +587,9 @@ export function analisarFicha(texto: string, atuais?: ReadonlyMap<string, number
         const nome = (achou[1] ?? "").replace(/\*/g, "").trim().slice(0, MAX_CARACTERES_NOME_ROLAGEM) || formula; // (sem os "*" de negrito/itálico)
         // As posições de dentro do grupo vão de "depois do abre" até "antes do fecha": os parênteses/colchetes ficam um caractere de cada lado.
         const posNome = lugarDoNome ? { inicio: lugarDoNome[0] - 1, fim: lugarDoNome[1] + 1 } : null;
-        const posFormula = { inicio: lugarDaFormula[0] - 1, fim: lugarDaFormula[1] + 1 };
+        const lugarDaEtiqueta = achou.indices?.[3];
+        const efeito: EfeitoDeRolagem | null = achou[3] ? (achou[3].toLowerCase() as EfeitoDeRolagem) : null;
+        const posFormula = { inicio: lugarDaFormula[0] - 1, fim: lugarDaEtiqueta ? lugarDaEtiqueta[1] + 1 : lugarDaFormula[1] + 1 }; // (com os colchetes e, se houver, a etiqueta: "[1d8]{cura}")
         const arvore = analisarConta(formula);
         let resolvida: string | null = null;
         let erro: string | null = null;
@@ -588,7 +602,7 @@ export function analisarFicha(texto: string, atuais?: ReadonlyMap<string, number
                 else erro = escrita.erro;
             }
         }
-        rolagens.push({ nome, formula, resolvida, erro, posNome, posFormula });
+        rolagens.push({ nome, formula, resolvida, erro, posNome, posFormula, efeito });
     }
 
     // --- 4) avalia cada CARTÃO: confere as [expressões] de dentro (as contas, as variáveis e os dados), sem rolar nada ainda
@@ -610,7 +624,8 @@ export function analisarFicha(texto: string, atuais?: ReadonlyMap<string, number
                     break;
                 }
                 const inicio = lugarDoTexto[0] + (e.index ?? 0);
-                const pos = { inicio, fim: inicio + e[0].length };
+                const pos = { inicio, fim: inicio + e[0].length }; // (e[0] já inclui a etiqueta: ela some do texto do cartão no chat)
+                const efeitoDaExpressao: EfeitoDeRolagem | null = e[2] ? (e[2].toLowerCase() as EfeitoDeRolagem) : null;
                 const arvore = analisarConta(formula);
                 let resolvida: string | null = null;
                 let erroDaExpressao: string | null = null;
@@ -624,7 +639,7 @@ export function analisarFicha(texto: string, atuais?: ReadonlyMap<string, number
                     }
                 }
                 if (erroDaExpressao !== null) erro ??= `Em [${formula}]: ${erroDaExpressao}`;
-                expressoes.push({ formula, resolvida, erro: erroDaExpressao, temDado: TEM_DADO.test(formula), pos });
+                expressoes.push({ formula, resolvida, erro: erroDaExpressao, temDado: TEM_DADO.test(formula), pos, efeito: efeitoDaExpressao });
             }
         }
         const nome = achou[1].replace(/\*/g, "").trim().slice(0, MAX_CARACTERES_NOME_ROLAGEM) || "Cartão"; // (sem os "*" de negrito/itálico)
@@ -756,6 +771,8 @@ export interface RolagemDeFicha {
     /** Os dados de cada termo, na ordem em que aparecem na fórmula. */
     dados: DadosRolados[];
     total: number;
+    /** A etiqueta de efeito da rolagem (`{cura}` ou `{dano}`), se tinha; sem ela o campo nem existe (e o número arrastado dá dano). */
+    efeito?: EfeitoDeRolagem;
 }
 
 /**
@@ -795,7 +812,7 @@ export function rolarDaAnalise(analise: AnaliseDaFicha, indice: number, nomeDaFi
     // "1d20 + 3" vira "1d20 [14] + 3": cada "NdM" da fórmula ganha, depois dele, o que saiu (na mesma ordem em que os dados foram rolados).
     let proximo = 0;
     const detalhe = rolagem.resolvida.replace(/\d+d\d+/g, (termo) => `${termo} [${(dados[proximo++]?.resultados ?? []).join(", ")}]`);
-    return { ok: true, valor: { nome: rolagem.nome, ficha: nomeDaFicha, formula: rolagem.resolvida, detalhe, dados, total: total.valor } };
+    return { ok: true, valor: { nome: rolagem.nome, ficha: nomeDaFicha, formula: rolagem.resolvida, detalhe, dados, total: total.valor, ...(rolagem.efeito && { efeito: rolagem.efeito }) } };
 }
 
 /**
@@ -837,8 +854,8 @@ export function rolarDaFicha(texto: string, indice: number, nomeDaFicha: string,
 /** Um pedaço do cartão já pronto para o chat: texto comum, ou o resultado de uma [expressão] (uma CONTA, sem dado, ou uma ROLAGEM, com dado). */
 export type PedacoDoCartao =
     | { tipo: "texto"; texto: string }
-    | { tipo: "conta"; formula: string; total: number }
-    | { tipo: "rolagem"; formula: string; detalhe: string; total: number; dados: DadosRolados[] };
+    | { tipo: "conta"; formula: string; total: number; efeito?: EfeitoDeRolagem }
+    | { tipo: "rolagem"; formula: string; detalhe: string; total: number; dados: DadosRolados[]; efeito?: EfeitoDeRolagem };
 
 /** O que vai para o chat quando um cartão é usado. Só dados simples (vai pela rede). */
 export interface CartaoRolado {
@@ -889,9 +906,9 @@ export function rolarCartaoDaAnalise(analise: AnaliseDaFicha, indice: number, no
         if (expressao.temDado) {
             let proximo = 0;
             const detalhe = expressao.resolvida.replace(/\d+d\d+/g, (termo) => `${termo} [${(dados[proximo++]?.resultados ?? []).join(", ")}]`);
-            pedacos.push({ tipo: "rolagem", formula: expressao.resolvida, detalhe, total: total.valor, dados });
+            pedacos.push({ tipo: "rolagem", formula: expressao.resolvida, detalhe, total: total.valor, dados, ...(expressao.efeito && { efeito: expressao.efeito }) });
         } else {
-            pedacos.push({ tipo: "conta", formula: expressao.resolvida, total: total.valor });
+            pedacos.push({ tipo: "conta", formula: expressao.resolvida, total: total.valor, ...(expressao.efeito && { efeito: expressao.efeito }) });
         }
     }
     if (cursor < cartao.texto.length) pedacos.push({ tipo: "texto", texto: cartao.texto.slice(cursor) });

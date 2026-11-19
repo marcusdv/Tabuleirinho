@@ -11,13 +11,14 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { abrirPagina, lancar, ok, terminar } from "./ajuda.mjs";
+import { abrirPagina, lancar, ok, terminar, exigirPortaLivre } from "./ajuda.mjs";
 
 const RAIZ = fileURLToPath(new URL("../../", import.meta.url));
 const PORTA = Number(process.env.PORTA_TESTE ?? 3737); // a mesma de PORTA_SERVIDOR em src/config.ts (o Vite repassa /ws e /mapas para ela)
 const dados = mkdtempSync(join(tmpdir(), "tabuleirinho-mapas-ui-"));
 const png = readFileSync(join(RAIZ, "public/images/maps/acampamento.png"));
 
+await exigirPortaLivre(PORTA); // (a porta 3737 em uso = o servidor do dono: não roda)
 const servidor = spawn(process.execPath, ["servidor/servidor.ts"], { cwd: RAIZ, env: { ...process.env, PORT: String(PORTA), DADOS: dados, SEM_EXEMPLOS: "0" } }); // (SEM_EXEMPLOS: "0": os outros testes o desligam, mas este precisa dos mapas de exemplo)
 let saida = "";
 servidor.stdout.on("data", (d) => (saida += d));

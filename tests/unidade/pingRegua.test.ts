@@ -2,8 +2,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { lerPedido } from "../../src/protocolo.ts";
-import { DADOS_DAS_FORMAS_DE_PING, FORMAS_DE_PING, FORMAS_ESPECIAIS_DE_PING, MAX_PONTOS_REGUA, MS_RECARGA_PING, RAJADA_PINGS } from "../../src/config.ts";
-import { gastar, novoBalde } from "../../src/limite.ts";
+import { DADOS_DAS_FORMAS_DE_PING, FORMAS_DE_PING, FORMAS_ESPECIAIS_DE_PING, MAX_PONTOS_REGUA, MS_MIN_ENTRE_PINGS, MS_PAGINA_PARADA, MS_RECARGA_PING, RAJADA_PINGS } from "../../src/config.ts";
+import { gastar, novoBalde, paginaParada, passouOIntervalo } from "../../src/limite.ts";
 
 const COR = 0xff5a5f;
 
@@ -50,18 +50,36 @@ test("régua: recusa caminho vazio, grande demais, com fração, negativo ou de 
     assert.notEqual(lerPedido({ tipo: "regua", caminho: Array(MAX_PONTOS_REGUA + 1).fill(casa), cor: COR }), null); // (o limite exato cabe: pontos fixados + a ponta)
 });
 
-test("limite de pings: 5 por segundo (rajada de 5 e depois 1 a cada 0,2 s)", () => {
-    assert.equal(RAJADA_PINGS, 5);
-    assert.equal(MS_RECARGA_PING, 200);
+test("limite de pings: rajada de 3 e depois 1 a cada meio segundo (2 por segundo, sustentado)", () => {
+    assert.equal(RAJADA_PINGS, 3);
+    assert.equal(MS_RECARGA_PING, 500);
     const balde = novoBalde(RAJADA_PINGS, 0);
-    // 5 pings no mesmo instante passam; o 6º não.
-    for (let i = 0; i < 5; i++) assert.equal(gastar(balde, RAJADA_PINGS, MS_RECARGA_PING, 0), true, `ping ${i + 1}`);
+    // 3 pings no mesmo instante passam; o 4º não.
+    for (let i = 0; i < 3; i++) assert.equal(gastar(balde, RAJADA_PINGS, MS_RECARGA_PING, 0), true, `ping ${i + 1}`);
     assert.equal(gastar(balde, RAJADA_PINGS, MS_RECARGA_PING, 0), false);
-    // 0,2 s depois cabe mais um (só um).
-    assert.equal(gastar(balde, RAJADA_PINGS, MS_RECARGA_PING, 200), true);
-    assert.equal(gastar(balde, RAJADA_PINGS, MS_RECARGA_PING, 200), false);
-    // Ritmo SUSTENTADO: com o balde vazio, tentando a cada 10 ms durante 1 s, passam 5 (um a cada 0,2 s).
+    // 0,5 s depois cabe mais um (só um).
+    assert.equal(gastar(balde, RAJADA_PINGS, MS_RECARGA_PING, 500), true);
+    assert.equal(gastar(balde, RAJADA_PINGS, MS_RECARGA_PING, 500), false);
+    // Ritmo SUSTENTADO: com o balde vazio, tentando a cada 10 ms durante 2 s, passam 4 (um a cada 0,5 s).
     let aceitos = 0;
-    for (let t = 210; t < 1210; t += 10) if (gastar(balde, RAJADA_PINGS, MS_RECARGA_PING, t)) aceitos++;
-    assert.equal(aceitos, 5);
+    for (let t = 510; t < 2510; t += 10) if (gastar(balde, RAJADA_PINGS, MS_RECARGA_PING, t)) aceitos++;
+    assert.equal(aceitos, 4);
+});
+
+test("mini delay entre pings: um ping logo depois de outro é ignorado; passado o intervalo, vale", () => {
+    assert.equal(MS_MIN_ENTRE_PINGS, 250);
+    assert.ok(MS_MIN_ENTRE_PINGS < MS_RECARGA_PING, "o intervalo mínimo é menor que a recarga (a recarga continua sendo o limite do ritmo sustentado)");
+    assert.equal(passouOIntervalo(0, MS_MIN_ENTRE_PINGS, 1000), true, "nunca pingou: vale");
+    assert.equal(passouOIntervalo(1000, MS_MIN_ENTRE_PINGS, 1100), false, "100 ms depois: ignorado");
+    assert.equal(passouOIntervalo(1000, MS_MIN_ENTRE_PINGS, 1249), false);
+    assert.equal(passouOIntervalo(1000, MS_MIN_ENTRE_PINGS, 1250), true, "250 ms depois: vale");
+    assert.equal(passouOIntervalo(5000, MS_MIN_ENTRE_PINGS, 1000), true, "relógio que andou para trás não trava os pings");
+});
+
+test("página parada (alt-tab, aba oculta): os pings que chegam não são mostrados", () => {
+    assert.equal(paginaParada(false, 16, MS_PAGINA_PARADA), false, "desenhando normalmente (um quadro a cada 16 ms)");
+    assert.equal(paginaParada(false, MS_PAGINA_PARADA, MS_PAGINA_PARADA), false, "no limite exato ainda vale");
+    assert.equal(paginaParada(false, MS_PAGINA_PARADA + 1, MS_PAGINA_PARADA), true, "sem quadros além do limite: parada");
+    assert.equal(paginaParada(true, 0, MS_PAGINA_PARADA), true, "aba oculta: parada, mesmo com um quadro recente");
+    assert.equal(paginaParada(false, 60_000, MS_PAGINA_PARADA), true, "voltou de uma aba congelada há um minuto: o 1º evento que chega ainda encontra a tela parada");
 });

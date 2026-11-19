@@ -17,7 +17,6 @@ import {
     ZOOM_MIN,
 } from "../config";
 import { guardarPreferencia, lerPreferencia } from "./preferencias";
-import { restaurarPilha } from "./pilha";
 import { estado } from "../estado";
 import type { Camera } from "../tabuleiro/camera";
 import type { GradeDaMesa } from "../estado";
@@ -122,7 +121,6 @@ export function criarBarra(camera: Camera, opcoes: OpcoesBarra): Barra {
     ligarCampo("linhas-valor", "linhas");
 
     pegar("voltar-padrao").addEventListener("click", () => opcoes.aoVoltarAoPadrao());
-    pegar("reorganizar-telas").addEventListener("click", restaurarPilha); // as barras da pilha voltam à ordem de fábrica
 
     // "Escolher mapa": o botão aparente abre o seletor de arquivos do navegador
     // (o <input type="file"> fica escondido; o navegador só permite abri-lo por um clique do usuário).

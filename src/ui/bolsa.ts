@@ -375,7 +375,10 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                 // O nome vem do usuário: entra por textContent (nunca como HTML). Nomes longos ganham "…" (CSS).
                 const nome = document.createElement("span");
                 nome.className = "ficha-nome";
-                nome.textContent = token.nome;
+                const textoDoNome = document.createElement("span"); // (o texto vai num elemento interno: a caixa de fora CENTRALIZA o nome na vertical dentro das 2 linhas reservadas; o corte em 2 linhas é do interno)
+                textoDoNome.className = "ficha-nome-texto";
+                textoDoNome.textContent = token.nome;
+                nome.append(textoDoNome);
                 const tamanho = document.createElement("small");
                 tamanho.textContent = `${token.size}×${token.size}`;
                 ficha.append(disco, nome, tamanho, ...marcasDoItem("tokens", token));
