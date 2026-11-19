@@ -15,6 +15,16 @@ body {
     font-family: system-ui, sans-serif;
     color: #e6e6ea;
 }
+/* Todo DROPDOWN (<select>) do app: escuro, com a fonte do site e a LISTA suspensa também escura (`color-scheme: dark`). É só a base: cada select pode ter o seu tamanho e
+   suas cores mais abaixo (as regras específicas vêm depois e vencem), mas nenhum fica "sem estilo" (cinza-claro, fonte Arial do navegador). */
+select {
+    color-scheme: dark;
+    font: inherit;
+    color: inherit;
+    background: #2f2f3a;
+    border: 1px solid #4a4a58;
+    border-radius: 6px;
+}
 
 
 /* O PixiJS cria o <canvas> dentro desta div, que ocupa a janela inteira.

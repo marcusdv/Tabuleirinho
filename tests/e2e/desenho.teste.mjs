@@ -44,6 +44,8 @@ ok("A4) 'Apagar tudo' desativado sem pinturas", await p.locator("#desenho-apagar
 await p.screenshot({ path: `${S}/d0_painel.png` });
 
 // ================= B) régua
+// (A régua usa a cor de DESENHO escolhida: amarela aqui, para o teste achá-la pela cor; depois do B8 volta à de sempre.)
+await fill("#ffd54f");
 await ferr("regua");
 ok("B1) Régua ficou ativa e Mover não", (await cls("regua")).includes("ativo") && !(await cls("mover")).includes("ativo"));
 await arrastar(casa(4, 2), casa(8, 5)); // dc=4, dr=3 -> 4 casas
@@ -65,6 +67,7 @@ await p.evaluate(() => { window.__tabuleirinho.camera.aplicarZoom(1); window.__t
 await ferr("mover");
 const amarelosB8 = (await cor(AMARELO, { x0: 340, x1: 1040, y0: 60, y1: 430 }, `${S}/d1b.png`)).n; // (só o mapa livre: a bolsa do canto e a barra têm detalhes dourados)
 ok("B8) voltar a 'Mover' apaga a medida (painel e linha)", (await dist()) === null && amarelosB8 < 20, `dist=${await dist()} amarelos=${amarelosB8}`);
+await fill("#ff5a5f"); // (volta à cor de desenho de sempre para as outras partes)
 
 // ================= C) lápis e cor
 await ferr("lapis"); await fill("#ff00ff");
@@ -152,12 +155,12 @@ await arrastar({ x: v0.cx, y: v0.cy }, { x: v0.cx + 128, y: v0.cy + 64 });
 const v2 = await cor(VERMELHO, { x0: 170, x1: 1160, y0: 0, y1: 800 });
 ok("H2) em 'Mover' o token volta a andar (2 colunas, 1 linha)", perto(v2.cx - v0.cx, 128, 2) && perto(v2.cy - v0.cy, 64, 2));
 
-// ================= I) botão direito move a visão com a ferramenta ligada
+// ================= I) o botão do MEIO move a visão com a ferramenta ligada (o direito não move mais: abre o menu do mapa)
 await ferr("lapis");
 const camX = () => p.evaluate(() => window.__tabuleirinho.camera.mundo.x);
 const x0Camera = await camX();
-await arrastar({ x: 400, y: 560 }, { x: 300, y: 560 }, "right");
-ok("I1) botão direito arrasta a visão (100 px p/ a esquerda) com o lápis ligado", perto((await camX()) - x0Camera, -100, 1), `dx=${((await camX()) - x0Camera).toFixed(1)}`);
+await p.mouse.move(400, 560); await p.mouse.down({ button: "middle" }); await p.mouse.move(300, 560, { steps: 6 }); await p.waitForTimeout(150); await p.mouse.up({ button: "middle" }); // (a pausa antes de soltar evita a INÉRCIA do arrasto)
+ok("I1) botão do MEIO arrasta a visão (100 px p/ a esquerda) com o lápis ligado", perto((await camX()) - x0Camera, -100, 1), `dx=${((await camX()) - x0Camera).toFixed(1)}`);
 await p.evaluate(() => { window.__tabuleirinho.camera.aplicarZoom(1); window.__tabuleirinho.camera.centralizar(); }); await p.waitForTimeout(500); // (o botão "Voltar ao padrão" fica na gaveta do Tabuleiro, fechada aqui)
 
 // ================= J) Esc, calibragem e bolsa

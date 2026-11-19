@@ -2,7 +2,8 @@
 // PINGS: o que aparece no mapa quando alguém "pinga" um ponto (botão direito > Ping): anéis que pulsam, um SÍMBOLO no centro (o ponto comum ou o símbolo do tipo: ?, caveira, setas, !, mira, espadas...) e o
 // NOME de quem pingou. Se esse ponto está FORA da área livre da tela, uma SETA na borda aponta para ele por alguns segundos (e acompanha o mapa se você mexer a câmera).
 // Nada é guardado: o ping some sozinho.
-//   - Os anéis e o símbolo vivem no mundo (por cima de tudo, como a régua); a seta vive na TELA (no palco, por cima do mundo).
+//   - A seta aparece só quando o ponto do ping NÃO está à vista (atrás de um painel ou fora da janela), e não quando o mapa está visível, mesmo ao lado dos painéis.
+//   - Os anéis e o símbolo vivem no mundo (por cima de tudo, como a régua); a seta vive na TELA (no palco, por cima do mundo); ela se ajusta à área livre entre os painéis.
 //   - A cor do ping comum é a do desenho que a pessoa tinha escolhido; os outros tipos têm cor fixa (a tabela `DADOS_DAS_FORMAS_DE_PING` do config.ts): "?" amarelo, caveira vermelha, setas verdes, escudo azul, coração verde, grupo violeta...
 //   - O símbolo SOBE DO CHÃO: o ponto clicado é o chão; o símbolo começa enterrado (escondido por uma máscara que só deixa ver o que está acima do chão) e sobe, com um pulinho no fim.
 //   - Os símbolos são os SVGs do dono (`public/images/svgs/pings/`): lidos, pintados na cor do tipo, com um contorno escuro por trás, e guardados como textura.
@@ -18,6 +19,8 @@ export interface Pings {
     mostrar(col: number, row: number, forma: FormaDePing, cor: number, nome: string): void;
     /** Tira todos os pings da tela (trocou de mapa). */
     limpar(): void;
+    /** Quantas SETAS de ping estão à vista agora (só para os testes). */
+    readonly setasVisiveis: number;
 }
 
 interface PingAtivo {
@@ -124,7 +127,11 @@ function simboloDe(forma: FormaDePing, cor: number): Container {
     return caixa;
 }
 
-export function criarPings(app: Application, camera: Camera): Pings {
+/**
+ * `estaVisivel(x, y)`: o ponto (em pixels do canvas) está À VISTA? Quem cria decide (o main.ts pergunta ao navegador o que está no TOPO daquele ponto: se for o mapa, está visível; um painel, um menu ou o fim da janela
+ * o escondem). A seta só aparece quando o ping NÃO está à vista.
+ */
+export function criarPings(app: Application, camera: Camera, estaVisivel: (x: number, y: number) => boolean): Pings {
     void prepararTexturas(); // (já deixa os SVGs prontos para o primeiro ping)
 
     const camadaDoMundo = new Container();
@@ -194,7 +201,7 @@ export function criarPings(app: Application, camera: Camera): Pings {
 
             // --- a seta, na tela: só se o ponto caiu fora da área livre, e só pelos primeiros MS_SETA_PING ---
             const tela = camera.mundoParaTela(cx, cy);
-            const dentro = tela.x >= area.x0 && tela.x <= area.x1 && tela.y >= area.y0 && tela.y <= area.y1;
+            const dentro = estaVisivel(tela.x, tela.y); // (à vista: nenhuma seta)
             if (dentro || idade > MS_SETA_PING) {
                 p.seta.visible = false;
                 continue;
@@ -270,6 +277,9 @@ export function criarPings(app: Application, camera: Camera): Pings {
         },
         limpar() {
             for (const p of [...ativos]) remover(p);
+        },
+        get setasVisiveis() {
+            return ativos.filter((p) => p.seta.visible).length;
         },
     };
 }

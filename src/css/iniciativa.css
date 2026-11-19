@@ -81,7 +81,8 @@
     grid-template-columns: auto minmax(0, 1fr);
     grid-template-areas:
         "disco valor"
-        "nome nome";
+        "nome nome"
+        "condicoes condicoes"; /* (as condições têm a PRÓPRIA linha, na largura toda: sem área, o navegador as punha na coluna do disco e, com muitas, ela alargava e empurrava o número) */
     align-items: center;
     column-gap: 8px;
     row-gap: 3px;
@@ -127,6 +128,7 @@
     line-height: 1;
 }
 .iniciativa-disco {
+    position: relative; /* (o X do Morto é desenhado por cima) */
     grid-area: disco;
     flex: none;
     box-sizing: border-box;
@@ -141,6 +143,14 @@
     font-size: 11px;
     font-weight: 700;
     color: #fff;
+}
+/* O token MORTO é riscado também na iniciativa: o mesmo X vermelho, com contorno escuro, do tabuleiro (ver `Morto` em condicoes.ts). */
+.iniciativa-disco.morto::after {
+    content: "";
+    position: absolute;
+    inset: -3px;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 26 26'%3E%3Cg stroke-linecap='round' fill='none'%3E%3Cpath d='M5 5L21 21M21 5L5 21' stroke='%231a1a1f' stroke-width='6'/%3E%3Cpath d='M5 5L21 21M21 5L5 21' stroke='%23e53935' stroke-width='3.2'/%3E%3C/g%3E%3C/svg%3E") center / contain no-repeat;
+    pointer-events: none;
 }
 #iniciativa-botoes {
     display: flex;
@@ -238,11 +248,11 @@
 }
 /* Os ícones das CONDIÇÕES de cada personagem, entre o nome e o valor (pequenos; até caberem: o resto é cortado). */
 .iniciativa-condicoes {
-    flex: 0 1 auto;
+    grid-area: condicoes;
     display: flex;
-    gap: 1px;
+    flex-wrap: wrap; /* (muitas condições quebram para a linha de baixo, em vez de empurrar o número ou estourar o cartão) */
+    gap: 2px 1px;
     min-width: 0;
-    overflow: hidden;
 }
 .iniciativa-condicoes img {
     flex: none;

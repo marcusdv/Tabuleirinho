@@ -13,6 +13,7 @@
 import { FORMAS_DE_PING, MAX_ABAS_FICHA, MAX_CASAS, MAX_PONTOS_REGUA, MAX_ACOES_MESA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_NOME_VARIAVEL, MAX_CARACTERES_QUANTIA_ACAO, MAX_CARACTERES_TEXTO_FICHA, MAX_GRUPOS, MAX_STATUS_TOKEN, MAX_TOKENS_ACAO_EM_GRUPO, MAX_VALOR_VARIAVEL_QUE_MUDA } from "./config.ts";
 import { lerAcaoDaIniciativa, type AcaoDaIniciativa, type Iniciativa } from "./iniciativa.ts";
 import { idDeUsuarioValido, LIMITE_MAXIMO_POR_JOGADOR, type NivelDeAcesso, type Permissoes, type TipoDeItem } from "./permissoes.ts";
+import { limparCondicao, type Condicao } from "./condicoes.ts";
 import { limparDesenho, type Desenho, type NovoDesenho } from "./estado.ts";
 import { limparTraco, MAX_TRACOS_FOG, type TracoDeFog } from "./fog.ts";
 import type { AbaFicha, AcaoDaMesa, AcaoNova, Ficha, GradeDaMesa, Grupo, Mensagem, MudancasToken, Pasta, StatusDoToken, StatusNovo, Token, ValorDeStatus } from "./estado.ts";
@@ -82,7 +83,11 @@ export type PedidoDoCliente =
     | { tipo: "rolar_conta"; texto: string } // o "/r" do chat: uma conta com dados (o servidor confere, sorteia e manda o cartão)
     | { tipo: "criar_token"; nome: string; cor: number; corBorda: number; tamanho: number; imagem: string | null; ficha?: number | null } // o SERVIDOR dá o id e cria o arquivo (`ficha` = "Gerar um token" a partir de uma ficha)
     | { tipo: "editar_token"; id: number; mudancas: MudancasToken } // nome, tamanho, cores e/ou imagem
+    | { tipo: "duplicar_token"; id: number } // DUPLICA um token da bolsa (igual, com ficha, grupos e pasta; sem o favorito; ficha ÚNICA fica vazia): o SERVIDOR cria o arquivo e responde com "token_criado"
     | { tipo: "excluir_token"; id: number } // apaga o token E o arquivo dele
+    | { tipo: "salvar_condicao"; condicao: Condicao } // o MESTRE cria (id novo) ou edita (id que já existe) UMA condição: nome, descrição (o texto do balão) e o ícone (o "print" da imagem). Um pedido por condição: uma lista inteira com imagens não cabe numa mensagem
+    | { tipo: "excluir_condicao"; id: string } // o MESTRE exclui uma condição (ela sai de todos os tokens que a tinham)
+    | { tipo: "restaurar_condicoes" } // o MESTRE recria as condições de FÁBRICA que foram excluídas (as que existem ficam como estão)
     | { tipo: "criar_ficha"; token?: number } // o SERVIDOR dá o id e cria o arquivo NA HORA (a ficha nasce vazia, "Ficha N"); com `token` (um token da bolsa SEM ficha), ela nasce com o NOME do token e já fica LIGADA a ele
     | { tipo: "editar_ficha"; id: number; versao: number; nome?: string; abas?: AbaFicha[] } // `versao` = a que a pessoa tinha na tela ao abrir; `abas` = a lista INTEIRA de abas (1 a 6)
     | { tipo: "excluir_ficha"; id: number } // apaga a ficha E o arquivo dela
@@ -114,8 +119,11 @@ export type PedidoDoCliente =
 
 /** O que o servidor AVISA aos navegadores. */
 export type EventoDoServidor =
-    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; status: StatusDoToken[]; acoes: AcaoDaMesa[]; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[]; grupos: Grupo[]; valores: Record<string, Record<string, number>>; iniciativa: Iniciativa; mestre: boolean; mapa: string | null; mapas: RegistroDeMapa[]; grade: GradeDaMesa; permissoes: Permissoes | null; desenhos: Desenho[]; semPermissao?: boolean; pastas?: Pasta[] } // `permissoes`: o documento inteiro, SÓ para o mestre (null para os jogadores);  `grade`: a espessura e a cor da grade da mesa; `mestre`: esta conexão é a do MESTRE (por enquanto: a do computador do servidor); `mapa`: o id do mapa atual; `mapas`: a biblioteca
+    | { tipo: "estado_inicial"; voce: Jogador; colunas: number; linhas: number; status: StatusDoToken[]; acoes: AcaoDaMesa[]; tokens: Token[]; mensagens: Mensagem[]; fichas: Ficha[]; grupos: Grupo[]; valores: Record<string, Record<string, number>>; iniciativa: Iniciativa; mestre: boolean; mapa: string | null; mapas: RegistroDeMapa[]; grade: GradeDaMesa; permissoes: Permissoes | null; desenhos: Desenho[]; semPermissao?: boolean; pastas?: Pasta[]; condicoes?: Condicao[] } // `condicoes`: a lista de condições da mesa (sem ela valem as de fábrica); `permissoes`: o documento inteiro, SÓ para o mestre (null para os jogadores);  `grade`: a espessura e a cor da grade da mesa; `mestre`: esta conexão é a do MESTRE (por enquanto: a do computador do servidor); `mapa`: o id do mapa atual; `mapas`: a biblioteca
     | { tipo: "token_criado"; token: Token } // já gravado no disco do servidor; nasce guardado na bolsa
+    | { tipo: "condicoes_definidas"; condicoes: Condicao[] } // a lista INTEIRA de condições da mesa (depois de "restaurar")
+    | { tipo: "condicao_salva"; condicao: Condicao } // uma condição criada ou editada pelo mestre (quem recebe a põe na lista e a ordena)
+    | { tipo: "condicao_excluida"; id: string } // uma condição foi excluída (os tokens que a tinham mandam "condicoes_atualizadas")
     | { tipo: "iniciativa_definida"; iniciativa: Iniciativa } // a ordem de combate inteira, como ficou depois de uma ação
     | { tipo: "valores_ficha"; id: number; valores: Record<string, number> } // os valores atuais das variáveis que mudam de uma ficha (NOME em MAIÚSCULAS -> valor): o SERVIDOR já limitou; cada navegador refaz as barras dos tokens dela
     | { tipo: "condicoes_atualizadas"; id: number; condicoes: string[] } // as condições de um token mudaram (a lista inteira, na ordem em que foram aplicadas)
@@ -189,7 +197,7 @@ function lerListaDeStatus(bruto: unknown): StatusNovo[] | null {
             if (!Array.isArray(x.grupos) || x.grupos.length > MAX_GRUPOS || !x.grupos.every(eInteiro)) return null; // (a lista de grupos em que o status vale; o estado.ts descarta os que não existem)
             grupos = [...(x.grupos as number[])];
         } else grupos = x.grupos;
-        lista.push({ ...(x.id !== undefined && { id: x.id }), nome: x.nome, variavel: x.variavel, cor: x.cor, ...(x.mostrar !== undefined && { mostrar: x.mostrar }), ...(x.mostrarNome !== undefined && { mostrarNome: x.mostrarNome }), ...(x.numeros !== undefined && { numeros: x.numeros }), ...(grupos !== undefined && { grupos }), ...(x.semGrupo === true && { semGrupo: true }), ...(x.recebeArrasto === true && { recebeArrasto: true }), ...(quemVe !== undefined && { quemVe }), ...(x.posicao === "cima" && { posicao: "cima" as const }) }); // (`posicao`: só "cima" muda algo; o resto vale embaixo)
+        lista.push({ ...(x.id !== undefined && { id: x.id }), nome: x.nome, variavel: x.variavel, cor: x.cor, ...(x.mostrar !== undefined && { mostrar: x.mostrar }), ...(x.mostrarNome !== undefined && { mostrarNome: x.mostrarNome }), ...(x.numeros !== undefined && { numeros: x.numeros }), ...(grupos !== undefined && { grupos }), ...(x.semGrupo === true && { semGrupo: true }), ...(x.recebeArrasto === true && { recebeArrasto: true }), ...(quemVe !== undefined && { quemVe }), ...((x.posicao === "cima" || x.posicao === "baixo") && { posicao: x.posicao }) }); // (`posicao`: os dois valores vão ao servidor; sem o campo vale EM CIMA)
     }
     return lista;
 }
@@ -385,6 +393,16 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             if (m.ficha !== undefined) { if (m.ficha !== null && !eInteiro(m.ficha)) return null; mudancas.ficha = m.ficha; }
             return { tipo: "editar_token", id: p.id, mudancas };
         }
+        case "duplicar_token":
+            return eInteiro(p.id) ? { tipo: "duplicar_token", id: p.id } : null;
+        case "salvar_condicao": {
+            const condicao = limparCondicao(p.condicao);
+            return condicao ? { tipo: "salvar_condicao", condicao } : null;
+        }
+        case "excluir_condicao":
+            return typeof p.id === "string" && /^[A-Za-z0-9_-]{1,40}$/.test(p.id) ? { tipo: "excluir_condicao", id: p.id } : null;
+        case "restaurar_condicoes":
+            return { tipo: "restaurar_condicoes" };
         case "excluir_token":
             return eInteiro(p.id) ? { tipo: "excluir_token", id: p.id } : null;
         case "marcar_ficha": {

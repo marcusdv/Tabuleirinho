@@ -18,8 +18,10 @@
 // não muda com a unidade).
 // =====================================================================
 
+import { MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_LINHA_CONDICAO, MAX_CARACTERES_NOME_CONDICAO, MAX_CONDICOES, MAX_LINHAS_DESCRICAO_CONDICAO } from "./config.ts";
+
 export interface Condicao {
-    id: string; // nome do arquivo (sem a extensão .png), também usado no estado do token
+    id: string; // sem acento (letras, números, "-" e "_"); nas de FÁBRICA é o nome do arquivo do ícone (sem a extensão .png); nas criadas pelo mestre é um código gerado. Fica guardado no token
     nome: string; // nome exibido, com acentos
     descricao: string[]; // uma linha por item da lista mostrada no balão de descrição
     /**
@@ -29,11 +31,16 @@ export interface Condicao {
      * O ícone (arquivo PNG) existe de qualquer forma: é usado no menu e no balão.
      */
     visual?: "x-vermelho";
+    /**
+     * O ÍCONE, quando NÃO é o PNG de fábrica: o "print" da imagem que o mestre enviou (texto "data:image/webp;base64,...", recortado em 256 px pelo editor de imagem). As condições de fábrica
+     * não têm este campo (o ícone é /images/condicoes/<id>.png); as CRIADAS pelo mestre sempre têm.
+     */
+    imagem?: string | null;
 }
 
 // Em ordem alfabética pelo nome exibido, EXCETO "Morto", que fica sempre por último.
 // É a ordem em que as condições aparecem no menu "Add condição".
-export const CONDICOES: Condicao[] = [
+export const CONDICOES_DE_FABRICA: readonly Condicao[] = [
     {
         id: "Agarrado",
         nome: "Agarrado",
@@ -205,12 +212,97 @@ export const CONDICOES: Condicao[] = [
     },
 ];
 
+/** Uma cópia (profunda) de uma lista de condições. */
+export function copiarCondicoes(lista: readonly Condicao[]): Condicao[] {
+    return lista.map((c) => ({ ...c, descricao: [...c.descricao] }));
+}
+
+/**
+ * A lista de condições EM USO (a da mesa). Começa igual à de fábrica e o servidor (ou, no modo local, o mestre) a troca com `definirCondicoes`. É UM array só, alterado no lugar:
+ * quem importou `CONDICOES` sempre vê a lista de agora (os menus que a desenham precisam se refazer quando ela muda).
+ */
+export const CONDICOES: Condicao[] = copiarCondicoes(CONDICOES_DE_FABRICA);
+
+/** Troca a lista em uso. */
+export function definirCondicoes(lista: readonly Condicao[]): void {
+    const nova = copiarCondicoes(lista);
+    CONDICOES.length = 0;
+    CONDICOES.push(...nova);
+}
+
+/** O "Morto" NÃO pode ser excluído (regra do dono, 17/11/2026): o jogo a usa para o X vermelho do token e para o atalho do menu. Pode ser EDITADO (nome, texto, ícone). */
+export const podeExcluirCondicao = (id: string): boolean => id !== "Morto";
+
+const IDS_DE_FABRICA = new Set(CONDICOES_DE_FABRICA.map((c) => c.id));
+/** Esta condição veio de fábrica? (o ícone dela é o PNG da pasta de imagens, e ela pode ser restaurada) */
+export const ehDeFabrica = (id: string): boolean => IDS_DE_FABRICA.has(id);
+
+/**
+ * A ORDEM das condições (a do menu "Add condição"): as de fábrica na ordem de fábrica (alfabética, com "Morto" por último), as criadas pelo mestre DEPOIS delas e ANTES do "Morto", na ordem em
+ * que foram criadas. Devolve uma lista nova.
+ */
+export function ordenarCondicoes(lista: readonly Condicao[]): Condicao[] {
+    const porId = new Map(lista.map((c) => [c.id, c]));
+    const deFabrica = CONDICOES_DE_FABRICA.filter((f) => f.id !== "Morto" && porId.has(f.id)).map((f) => porId.get(f.id) as Condicao);
+    const criadas = lista.filter((c) => !IDS_DE_FABRICA.has(c.id));
+    const morto = porId.get("Morto");
+    return copiarCondicoes([...deFabrica, ...criadas, ...(morto ? [morto] : [])]);
+}
+
+/**
+ * Confere UMA condição que veio de fora (do navegador, ou do arquivo `dados/condicoes.json`) e devolve uma cópia limpa (só os campos conhecidos), ou null se algo está errado. Nunca lança erro.
+ * O nome é aparado e cortado; a descrição vira uma lista de linhas aparadas (as vazias saem); a imagem só pode ser um "data:image/webp|png|jpeg;base64,..." pequeno e TEM de existir nas
+ * condições que não são de fábrica; o `visual` (o X vermelho) só existe no "Morto".
+ */
+export function limparCondicao(bruto: unknown): Condicao | null {
+    if (typeof bruto !== "object" || bruto === null || Array.isArray(bruto)) return null;
+    const c = bruto as Record<string, unknown>;
+    if (typeof c.id !== "string" || !/^[A-Za-z0-9_-]{1,40}$/.test(c.id)) return null;
+    if (typeof c.nome !== "string") return null;
+    const nome = c.nome.trim().slice(0, MAX_CARACTERES_NOME_CONDICAO);
+    if (nome === "") return null;
+    if (!Array.isArray(c.descricao) || c.descricao.length > MAX_LINHAS_DESCRICAO_CONDICAO * 4) return null;
+    const descricao: string[] = [];
+    for (const linha of c.descricao) {
+        if (typeof linha !== "string") return null;
+        const limpa = linha.trim().slice(0, MAX_CARACTERES_LINHA_CONDICAO);
+        if (limpa !== "") descricao.push(limpa);
+    }
+    descricao.length = Math.min(descricao.length, MAX_LINHAS_DESCRICAO_CONDICAO);
+    let imagem: string | null = null;
+    if (c.imagem !== undefined && c.imagem !== null) {
+        if (typeof c.imagem !== "string" || c.imagem.length > MAX_CARACTERES_IMAGEM_TOKEN || !/^data:image\/(webp|png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(c.imagem)) return null;
+        imagem = c.imagem;
+    }
+    if (imagem === null && !IDS_DE_FABRICA.has(c.id)) return null; // (uma condição criada precisa de ícone)
+    const limpa: Condicao = { id: c.id, nome, descricao };
+    if (imagem !== null) limpa.imagem = imagem;
+    if (c.id === "Morto" && c.visual === "x-vermelho") limpa.visual = "x-vermelho";
+    return limpa;
+}
+
+/**
+ * Confere a lista INTEIRA (o arquivo gravado): descarta o que estiver errado e as repetidas (vale a primeira), até MAX_CONDICOES. Devolve null se `bruto` nem é uma lista.
+ */
+export function limparCondicoes(bruto: unknown): Condicao[] | null {
+    if (!Array.isArray(bruto)) return null;
+    const vistas = new Set<string>();
+    const lista: Condicao[] = [];
+    for (const item of bruto) {
+        const c = limparCondicao(item);
+        if (!c || vistas.has(c.id) || lista.length >= MAX_CONDICOES) continue;
+        vistas.add(c.id);
+        lista.push(c);
+    }
+    return ordenarCondicoes(lista);
+}
+
 /** Procura uma condição pelo id. */
 export function buscarCondicao(id: string): Condicao | undefined {
     return CONDICOES.find((c) => c.id === id);
 }
 
-/** Endereço do ícone de uma condição (a pasta "public" é servida na raiz do site). */
+/** Endereço do ícone de uma condição: o "print" enviado pelo mestre, ou o PNG de fábrica (a pasta "public" é servida na raiz do site). */
 export function urlDoIcone(id: string): string {
-    return `/images/condicoes/${id}.png`;
+    return buscarCondicao(id)?.imagem ?? `/images/condicoes/${id}.png`;
 }

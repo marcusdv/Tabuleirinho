@@ -26,6 +26,20 @@
     display: none;
 }
 
+/* A aba CONDIÇÕES (só na bolsa em tela cheia) é um modo à parte da bolsa: esconde o que é de tokens e de fichas, e os painéis das outras abas extras. (condicoes.css) */
+#bolsa.aba-condicoes #bolsa-conteudo,
+#bolsa.aba-condicoes #bolsa-criar,
+#bolsa.aba-condicoes #bolsa-busca,
+#bolsa.aba-condicoes #bolsa-fichas,
+#bolsa.aba-condicoes #bolsa-fichas-busca,
+#bolsa.aba-condicoes #bolsa-organizar,
+#bolsa.aba-condicoes #bolsa-criar-token-botao,
+#bolsa.aba-condicoes #bolsa-ficha-criar-botao,
+#bolsa.aba-condicoes #bolsa-mapas,
+#bolsa.aba-condicoes #bolsa-jogadores {
+    display: none;
+}
+
 /* A aba JOGADORES é um modo à parte da bolsa: esconde o que é de tokens e de fichas (as regras de tela cheia definem o display dessas partes). (bolsaJogadores.css) */
 #bolsa.aba-jogadores #bolsa-conteudo,
 #bolsa.aba-jogadores #bolsa-criar,

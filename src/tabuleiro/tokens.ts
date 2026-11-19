@@ -9,14 +9,14 @@
 //    ├─ foto       Sprite: a imagem recortada do token (só se o token tem imagem; as partes transparentes mostram o preenchimento)
 //    ├─ borda      Graphics: o contorno (cor `corBorda`), por cima do preenchimento e da foto
 //    ├─ marca      Graphics: o X vermelho da condição "Morto" (vazio nos outros casos)
-//    └─ condicoes  Container: os ícones das condições, em anel na borda do token
+//    └─ condicoes  Container: os ícones das condições, no rodapé do tile do token (da esquerda para a direita)
 // (O PixiJS 8 só aceita filhos em Containers, não em um Graphics solto.)
 // =====================================================================
 
 import { Assets, Container, FederatedPointerEvent, Graphics, PointData, Sprite, Text, Texture, Ticker } from "pixi.js";
 import { buscarCondicao } from "../condicoes";
-import { ALPHA_RETANGULO_SELECAO, ALTURA_BARRA_STATUS, BARRAS_DA_CURA, COR_CURA, COR_DANO, COR_SELECAO, MS_ANIMACAO_CURA, MS_ANIMACAO_DANO, FOLGA_TOKEN, ALPHA_TILE_SELECAO, LARGURA_BORDA_TOKEN, ANEIS_DA_BORDA_DANO, PROFUNDIDADE_BORDA_DANO, MAX_ICONES_CONDICAO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, TAMANHO_NUMERO_BARRA, VAO_BARRA_STATUS, VAO_BARRA_TOKEN } from "../config";
-import { casaMaisProxima, diametroDoIcone, posicoesNoAnel } from "../coordenadas";
+import { ALPHA_RETANGULO_SELECAO, ALTURA_BARRA_STATUS, BARRAS_DA_CURA, COR_CURA, COR_DANO, COR_SELECAO, MS_ANIMACAO_CURA, MS_ANIMACAO_DANO, FOLGA_TOKEN, ALPHA_TILE_SELECAO, LARGURA_BORDA_TOKEN, ANEIS_DA_BORDA_DANO, PROFUNDIDADE_BORDA_DANO, MS_DUPLO_CLIQUE, PX_DUPLO_CLIQUE, TAMANHO_CASA, TAMANHO_NUMERO_BARRA, VAO_BARRA_STATUS, VAO_BARRA_TOKEN } from "../config";
+import { capacidadeDoRodape, casaMaisProxima, diametroDoIcone, posicoesNoRodape } from "../coordenadas";
 import { buscarToken, colocarToken, estado, guardarToken, naCenaAtual, podeUsarToken, statusAplicaveis, Token } from "../estado";
 import type { Camera } from "./camera";
 import type { Grade } from "./grade";
@@ -310,7 +310,7 @@ export function criarTokens(
         for (const status of statusAplicaveis(token)) {
             const valor = token.valores.find((v) => v.id === status.id);
             if (!valor || valor.oculto || !status.mostrar) continue; // ("Exibir em jogo" desligado, ou um status que esta pessoa NÃO pode ver (`oculto`): o valor existe, mas a barra não é desenhada)
-            const emCima = status.posicao === "cima";
+            const emCima = status.posicao !== "baixo"; // (sem o campo vale EM CIMA: o padrão desde 19/11/2026)
             const y = emCima ? -topo - ALTURA_BARRA_STATUS - acima * (ALTURA_BARRA_STATUS + VAO_BARRA_STATUS) : topo + i * (ALTURA_BARRA_STATUS + VAO_BARRA_STATUS);
             const largura = raio * 2;
             const parte = Math.max(0, Math.min(1, valor.atual / valor.max));
@@ -466,26 +466,25 @@ export function criarTokens(
     }
 
     /**
-     * Desenha as condições do token: ícones em anel na borda, o primeiro no
-     * TOPO e os outros em SENTIDO HORÁRIO. Mostra no máximo MAX_ICONES_CONDICAO;
-     * se houver mais, o lugar seguinte vira "+N".
+     * Desenha as condições do token: ícones no RODAPÉ do tile, o primeiro no canto de baixo à esquerda e os outros indo para a DIREITA (pedido do dono, 19/11/2026; antes ficavam
+     * num anel em volta do token). O número que cabe depende da largura do tile; se houver mais, o último lugar vira "+N" (o balão ao passar o mouse lista todas).
      */
     function desenharCondicoes(token: Token, view: ViewToken): void {
         // Limpa os ícones anteriores (destroy libera a memória de cada um).
         for (const filho of view.condicoes.removeChildren()) filho.destroy({ children: true });
 
-        // Condições com visual próprio no token (ex.: Morto = X vermelho) não ocupam
-        // lugar no anel nem entram na conta do "+N".
-        const doAnel = token.condicoes.filter((id) => !buscarCondicao(id)?.visual);
-        const total = doAnel.length;
+        // Condições com visual próprio no token (ex.: Morto = X vermelho, que toma o token TODO) não ocupam lugar no rodapé nem entram na conta do "+N".
+        const doRodape = token.condicoes.filter((id) => !buscarCondicao(id)?.visual);
+        const total = doRodape.length;
         if (total === 0) return;
 
-        const visiveis = doAnel.slice(0, MAX_ICONES_CONDICAO);
+        const capacidade = capacidadeDoRodape(token.size);
+        const visiveis = total <= capacidade ? doRodape : doRodape.slice(0, Math.max(0, capacidade - 1)); // (se não cabem todas, o último lugar é do "+N")
         const extras = total - visiveis.length; // quantas ficaram de fora
-        const lugares = visiveis.length + (extras > 0 ? 1 : 0); // +1 lugar para o "+N"
+        const lugares = visiveis.length + (extras > 0 ? 1 : 0);
 
         const diametro = diametroDoIcone(token.size);
-        const pontos = posicoesNoAnel(lugares, raioDoToken(token.size), diametro);
+        const pontos = posicoesNoRodape(lugares, token.size);
 
         visiveis.forEach((condicaoId, i) => view.condicoes.addChild(criarIcone(condicaoId, pontos[i], diametro)));
         if (extras > 0) view.condicoes.addChild(criarDistintivoExtras(extras, pontos[visiveis.length], diametro));

@@ -6,6 +6,7 @@
 
 import {
     ESPACO_ICONES,
+    MARGEM_ICONES_RODAPE,
     ICONE_CONDICAO_BASE,
     ICONE_CONDICAO_POR_CASA,
     MAX_CASAS,
@@ -45,31 +46,22 @@ export function diametroDoIcone(size: number): number {
 }
 
 /**
- * Posições dos ícones de condição ao redor de um token: o primeiro no TOPO e
- * os seguintes em SENTIDO HORÁRIO. Devolve pontos relativos ao CENTRO do token.
- *   quantidade     = quantas condições o token tem
- *   raioAnel       = raio do círculo sobre o qual os centros dos ícones ficam
- *   diametroIcone  = diâmetro de cada ícone
- *
- * Os ícones ficam lado a lado (com ESPACO_ICONES entre eles), começando no
- * topo. Se passarem de uma volta inteira, o espaçamento é comprimido para
- * caberem todos no anel.
+ * Quantos ícones de condição cabem no RODAPÉ de um tile de `size` x `size` casas (um ao lado do outro, com ESPACO_ICONES entre eles e MARGEM_ICONES_RODAPE nas pontas). Sempre pelo menos 1.
  */
-export function posicoesNoAnel(quantidade: number, raioAnel: number, diametroIcone: number): { x: number; y: number }[] {
-    if (quantidade <= 0) return [];
+export function capacidadeDoRodape(size: number): number {
+    const largura = TAMANHO_CASA * size - 2 * MARGEM_ICONES_RODAPE;
+    return Math.max(1, Math.floor((largura + ESPACO_ICONES) / (diametroDoIcone(size) + ESPACO_ICONES)));
+}
 
-    // Passo angular (em radianos) para encostar um ícone no outro: comprimento
-    // do arco = ângulo * raio  =>  ângulo = arco / raio.
-    const passoIdeal = (diametroIcone + ESPACO_ICONES) / raioAnel;
-    // Passo máximo para caber tudo em uma volta (2π dividido pela quantidade).
-    const passo = Math.min(passoIdeal, (2 * Math.PI) / quantidade);
-
-    return Array.from({ length: quantidade }, (_, k) => {
-        // -π/2 é o topo (a tela tem o eixo y para BAIXO). Somar ângulo gira no
-        // sentido horário na tela.
-        const angulo = -Math.PI / 2 + k * passo;
-        return { x: Math.cos(angulo) * raioAnel, y: Math.sin(angulo) * raioAnel };
-    });
+/**
+ * Posições dos ícones de condição no RODAPÉ do tile de um token: o primeiro no canto de baixo à ESQUERDA e os seguintes indo para a DIREITA. Devolve os CENTROS, relativos ao centro do
+ * token (como o resto do desenho do token), na ordem em que as condições foram aplicadas. `quantidade` não deve passar de `capacidadeDoRodape(size)` (o que passa não cabe no tile).
+ */
+export function posicoesNoRodape(quantidade: number, size: number): { x: number; y: number }[] {
+    const diametro = diametroDoIcone(size);
+    const metade = (TAMANHO_CASA * size) / 2;
+    const y = metade - MARGEM_ICONES_RODAPE - diametro / 2;
+    return Array.from({ length: Math.max(0, quantidade) }, (_, k) => ({ x: -metade + MARGEM_ICONES_RODAPE + diametro / 2 + k * (diametro + ESPACO_ICONES), y }));
 }
 
 /**
@@ -79,13 +71,13 @@ export function posicoesNoAnel(quantidade: number, raioAnel: number, diametroIco
  *   tabuleiro = tamanho do tabuleiro NA TELA nesse eixo (já multiplicado pelo zoom)
  */
 export function limitarEixo(posicao: number, tela: number, tabuleiro: number): number {
-    // Posição = onde a borda esquerda/topo do tabuleiro está na tela. O espaço vazio além do mapa nunca passa de MARGEM_LIVRE_CAMERA:
-    //   mínimo: o mapa foi para a esquerda/cima até sobrar a margem vazia na ponta direita/baixo (borda de trás do mapa em `tela - margem`);
+    // Posição = onde a borda esquerda/topo do tabuleiro está na tela. O espaço vazio além do mapa nunca passa de MARGEM_LIVRE_CAMERA quando o mapa SAI da tela:
+    //   mínimo: o mapa foi para a esquerda/cima até sobrar a margem vazia na ponta direita/baixo (a borda de trás do mapa em `tela - margem`);
     //   máximo: o mapa foi para a direita/baixo até sobrar a margem vazia na ponta esquerda/topo.
-    let minimo = tela - MARGEM_LIVRE_CAMERA - tabuleiro;
-    let maximo = MARGEM_LIVRE_CAMERA;
-    // Mapa pequeno (ou zoom longe): os dois limites se cruzam. Aí ele anda só entre os dois valores (não some nem fica preso).
-    if (minimo > maximo) [minimo, maximo] = [maximo, minimo];
+    // Mas se o mapa CABE inteiro na tela, qualquer posição em que ele apareça inteiro vale (senão o "Ajustar à tela", que o centra entre os painéis, seria puxado alguns pixels
+    // pela margem): por isso o mínimo nunca passa de 0 e o máximo nunca fica abaixo de `tela - tabuleiro` (a borda de trás do mapa na borda da tela).
+    const minimo = Math.min(tela - MARGEM_LIVRE_CAMERA - tabuleiro, 0);
+    const maximo = Math.max(MARGEM_LIVRE_CAMERA, tela - tabuleiro);
     return limitar(posicao, minimo, maximo);
 }
 

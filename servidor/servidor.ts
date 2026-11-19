@@ -31,6 +31,7 @@ import {
     MAX_MENSAGENS_POR_SEGUNDO,
     SEGUNDOS_BATIMENTO,
     MS_ENTRE_ENVIOS_REGUA,
+    MAX_CONDICOES,
     MS_RECARGA_PING,
     RAJADA_PINGS,
     MS_RECARGA_CHAT,
@@ -115,6 +116,7 @@ import {
     montarGrupo,
     montarMarcacaoDaFicha,
     montarToken,
+    montarDuplicata,
     normalizarAbas,
     normalizarNomeFicha,
     posicaoValida,
@@ -131,6 +133,8 @@ import { ABAS_THORIN, IMAGEM_GOBLIN, NOME_GOBLIN, NOME_THORIN, TEXTO_GOBLIN } fr
 import { analisarAbas, rolarCartaoDaAnalise, rolarConta, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
 import type { ValorDeStatus } from "../src/estado.ts";
 import { gastar, novoBalde, type Balde } from "../src/limite.ts";
+import { CONDICOES, CONDICOES_DE_FABRICA, copiarCondicoes, definirCondicoes, ordenarCondicoes, podeExcluirCondicao } from "../src/condicoes.ts";
+import { carregarCondicoes, gravarCondicoes } from "./condicoes.ts";
 import { estaBanido, idDeUsuarioDoNome, LIMITE_MAXIMO_POR_JOGADOR, podeEditar, podeExcluir, podeLer, temPoderDeMestre, type NivelEfetivo, type TipoDeItem, nivelNaPasta } from "../src/permissoes.ts";
 import { adicionarDesenhoNoMapa, apagarDesenhosDoMapa, carregarDesenhos, desenhosDoMapa, gravarDesenhosPendentes } from "./desenhos.ts";
 import { carregarPermissoes, definirDono, esquecerItem, gravarPermissoes, motivoDoLimite, nivelDoUsuario, permissoes } from "./acesso.ts";
@@ -679,6 +683,37 @@ async function criarTokenNoServidor(c: Conexao, pedido: Extract<PedidoDoCliente,
     avisarToken("token_criado", token);
 }
 
+/**
+ * DUPLICAR um token da bolsa: quem pediu precisa VER o token (um modelo, não uma peça); o novo token é dele (dono) e conta no limite de tokens dele, como qualquer criação.
+ * Vai igual: nome, imagem, cores, tamanho e FICHA (uma ficha ÚNICA fica vazia: `montarDuplicata`); NÃO vai o favorito. Quem não é mestre também não herda os GRUPOS nem a PASTA (só o mestre
+ * mexe nisso) e só mantém a ficha se puder editá-la (a mesma regra de ligar uma ficha ao criar).
+ */
+async function duplicarTokenNoServidor(c: Conexao, id: number): Promise<void> {
+    const modelo = buscarToken(id);
+    if (!modelo || modelo.copiaDe !== null || !tokenParaConexaoSemEstrela(c, modelo)) return erro(c.ws, "Esse token não existe.");
+    const limite = c.mestre ? null : motivoDoLimite("tokens", c.usuario);
+    if (limite) return erro(c.ws, limite);
+    let ficha = modelo.ficha;
+    if (ficha !== null && !c.mestre) {
+        const ligada = estado.fichas.find((f) => f.id === ficha);
+        if (!ligada || !podeNaFicha(c, ligada, "editar")) ficha = null;
+    }
+    const pastaExiste = modelo.pasta != null && estado.pastas.some((p) => p.id === modelo.pasta);
+    const token = montarDuplicata(modelo, { ficha, grupos: c.mestre ? modelo.grupos : [], pasta: c.mestre && pastaExiste ? (modelo.pasta ?? null) : null });
+    if (!token) return erro(c.ws, `Não foi possível duplicar o token: o limite é de ${MAX_TOKENS} tokens na mesa.`);
+    try {
+        await gravarNaPasta("tokens", token);
+    } catch (falha) {
+        console.error(`Não foi possível gravar o token ${token.id}:`, falha);
+        return erro(c.ws, "Não foi possível gravar o token no servidor.");
+    }
+    receberToken(token);
+    definirDono("tokens", token.id, c.mestre ? null : c.usuario);
+    naFilaDeArquivos(() => gravarPermissoes());
+    avisarPermissoes();
+    avisarToken("token_criado", token);
+}
+
 // A POSIÇÃO de um token muda a toda hora (cada vez que alguém o solta). Em vez de gravar a cada movimento, marcamos o token como
 // "sujo" e gravamos o estado ATUAL dele um instante depois (MS_ESPERA_GRAVACAO_TOKEN): vários movimentos seguidos viram uma gravação só.
 const tokensSujos = new Set<number>();
@@ -787,7 +822,7 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
         c.mapaVisto = lembrado !== undefined && (lembrado === null || acharMapa(lembrado)) ? lembrado : mapaAtual;
         // Quem entra recebe o estado COMPLETO uma vez; depois só os eventos.
         c.pecasEscondidas = new Set(estado.tokens.filter((t) => t.copiaDe !== null && !t.guardado && tokenParaConexao(c, t) === null).map((t) => t.id)); // (o fog esconde peças: o servidor lembra quais já escondeu)
-        enviar(c.ws, { tipo: "estado_inicial", voce: c.jogador, colunas: tamanhoDoMapa(mapaDaConexao(c)).colunas, linhas: tamanhoDoMapa(mapaDaConexao(c)).linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, tokens: estado.tokens.flatMap((t) => tokenParaConexao(c, t) ?? []), mensagens: estado.mensagens, fichas: estado.fichas.flatMap((f) => fichaParaConexao(c, f) ?? []), grupos: estado.grupos, valores: valoresVisiveisPara(c), iniciativa: iniciativaComoObjeto(), mestre: c.mestre, mapa: mapaDaConexao(c), mapas: bibliotecaParaConexao(c), grade: gradeDoMapa(mapaDaConexao(c)), permissoes: c.mestre ? permissoes : null, desenhos: desenhosVisiveisPara(c, mapaDaConexao(c)), ...(semPermissaoNoMapa(c) && { semPermissao: true }), pastas: estado.pastas.flatMap((p) => pastaParaConexao(c, p) ?? []) });
+        enviar(c.ws, { tipo: "estado_inicial", voce: c.jogador, colunas: tamanhoDoMapa(mapaDaConexao(c)).colunas, linhas: tamanhoDoMapa(mapaDaConexao(c)).linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, tokens: estado.tokens.flatMap((t) => tokenParaConexao(c, t) ?? []), mensagens: estado.mensagens, fichas: estado.fichas.flatMap((f) => fichaParaConexao(c, f) ?? []), grupos: estado.grupos, valores: valoresVisiveisPara(c), iniciativa: iniciativaComoObjeto(), mestre: c.mestre, mapa: mapaDaConexao(c), mapas: bibliotecaParaConexao(c), grade: gradeDoMapa(mapaDaConexao(c)), condicoes: copiarCondicoes(CONDICOES), permissoes: c.mestre ? permissoes : null, desenhos: desenhosVisiveisPara(c, mapaDaConexao(c)), ...(semPermissaoNoMapa(c) && { semPermissao: true }), pastas: estado.pastas.flatMap((p) => pastaParaConexao(c, p) ?? []) });
         enviarFogDe(c);
         avisarJogadores();
         console.log(`+ ${c.jogador.apelido} entrou como ${c.mestre ? "MESTRE" : "jogador"} (${listaDeJogadores().length} na mesa)`);
@@ -819,6 +854,43 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             if (!alternarCondicao(alvo.id, pedido.condicao)) return erro(c.ws, "Essa condição não existe.");
             avisarCada((c2) => (pecaOcultaPelaFog(c2, alvo) ? null : { tipo: "condicoes_atualizadas", id: alvo.id, condicoes: alvo.condicoes }));
             agendarGravacaoDoToken(alvo.id);
+            return;
+        }
+        case "salvar_condicao": {
+            // O MESTRE cria ou edita UMA condição. O pedido já foi conferido pela forma (`limparCondicao`); aqui vale o limite da mesa e o "Morto" nunca perde o X vermelho.
+            if (!c.mestre) return erro(c.ws, "Só o mestre cria e edita condições.");
+            const nova = pedido.condicao.id === "Morto" ? { ...pedido.condicao, visual: "x-vermelho" as const } : pedido.condicao;
+            const existe = CONDICOES.some((x) => x.id === nova.id);
+            if (!existe && CONDICOES.length >= MAX_CONDICOES) return erro(c.ws, `A mesa já tem ${MAX_CONDICOES} condições (o máximo). Exclua alguma para criar outra.`);
+            definirCondicoes(ordenarCondicoes(existe ? CONDICOES.map((x) => (x.id === nova.id ? nova : x)) : [...CONDICOES, nova]));
+            gravarCondicoes();
+            avisarTodos({ tipo: "condicao_salva", condicao: nova });
+            return;
+        }
+        case "excluir_condicao": {
+            // O MESTRE exclui uma condição: ela sai da lista E de todos os tokens (modelos e peças) que a tinham; cada token afetado é regravado e avisado.
+            if (!c.mestre) return erro(c.ws, "Só o mestre exclui condições.");
+            if (!podeExcluirCondicao(pedido.id)) return erro(c.ws, "A condição Morto não pode ser excluída: o jogo a usa para o X vermelho do token.");
+            if (!CONDICOES.some((x) => x.id === pedido.id)) return erro(c.ws, "Essa condição não existe.");
+            definirCondicoes(CONDICOES.filter((x) => x.id !== pedido.id));
+            gravarCondicoes();
+            avisarTodos({ tipo: "condicao_excluida", id: pedido.id });
+            for (const t of estado.tokens) {
+                if (!t.condicoes.includes(pedido.id)) continue;
+                t.condicoes = t.condicoes.filter((x) => x !== pedido.id);
+                avisarCada((c2) => (pecaOcultaPelaFog(c2, t) ? null : { tipo: "condicoes_atualizadas", id: t.id, condicoes: t.condicoes }));
+                agendarGravacaoDoToken(t.id);
+            }
+            return;
+        }
+        case "restaurar_condicoes": {
+            // O MESTRE recria as condições de FÁBRICA que foram excluídas (as que ainda existem, editadas ou não, ficam como estão).
+            if (!c.mestre) return erro(c.ws, "Só o mestre restaura condições.");
+            const faltam = CONDICOES_DE_FABRICA.filter((f) => !CONDICOES.some((x) => x.id === f.id));
+            if (faltam.length === 0) return erro(c.ws, "Todas as condições de fábrica já estão na mesa.");
+            definirCondicoes(ordenarCondicoes([...CONDICOES, ...faltam]));
+            gravarCondicoes();
+            avisarTodos({ tipo: "condicoes_definidas", condicoes: copiarCondicoes(CONDICOES) });
             return;
         }
         case "guardar_token": {
@@ -959,6 +1031,9 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
         }
         case "criar_token":
             naFilaDeArquivos(() => criarTokenNoServidor(c, pedido));
+            return;
+        case "duplicar_token":
+            naFilaDeArquivos(() => duplicarTokenNoServidor(c, pedido.id));
             return;
         case "editar_token": {
             // A ESTRELA é de cada pessoa: qualquer um que veja o token favorita o dele; o resto do pedido segue as regras de sempre.
@@ -1607,6 +1682,7 @@ try {
         console.log(`Mapas de exemplo criados (${listaDeMapas().length}).`);
     }
     definirMapaAtual(mapaAtual);
+    await carregarCondicoes(); // (as condições da mesa: dados/condicoes.json; sem o arquivo, as de fábrica)
     await carregarCenas(); // (o tamanho e a grade de cada cena: dados/cenas.json; migra do índice dos mapas na 1ª vez)
     await carregarFog(); // (o fog de cada mapa: dados/fog.json)
     const cenaDoMestre = configDaCena(mapaAtual);

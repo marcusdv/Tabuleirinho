@@ -17,13 +17,18 @@ import { VALOR_MAX_INICIATIVA } from "../config";
 import { buscarToken } from "../estado";
 import { iniciativa, type AcaoDaIniciativa } from "../iniciativa";
 import { pintarDisco } from "./aparenciaToken";
-import { CONDICOES, urlDoIcone } from "../condicoes";
+import { CONDICOES, buscarCondicao, urlDoIcone } from "../condicoes";
 
 export interface OpcoesIniciativa {
     /** A pessoa pediu uma ação na ordem de combate (o `main.ts` manda ao servidor, ou aplica aqui no modo local). */
     aoAcao(acao: AcaoDaIniciativa): void;
     /** "Limpar" apaga tudo: pergunta antes. Devolve true se a pessoa confirmou. */
     confirmarLimpar(): Promise<boolean>;
+    /**
+     * UM CLIQUE (sem arrastar) na caixa de um personagem que tem token: `tokenId` é o id da peça no tabuleiro. O `main.ts` faz aparecer um PING em cima dela (pedido do dono, 19/11/2026),
+     * para todos acharem de quem é a vez. Não é chamado para uma pessoa temporária (sem token).
+     */
+    aoClicarPersonagem(tokenId: number): void;
 }
 
 export interface PainelIniciativa {
@@ -228,7 +233,13 @@ export function criarIniciativa(opcoes: OpcoesIniciativa): PainelIniciativa {
                 if (cancelou || destino === posicaoInicial) return;
                 opcoes.aoAcao({ acao: "mover", id, para: destino });
             };
-            const soltar = (): void => terminar(false);
+            const soltar = (): void => {
+                const foiClique = !arrastando; // (soltou sem ter arrastado: é um clique)
+                terminar(false);
+                if (!foiClique) return;
+                const token = iniciativa.entradas.find((x) => x.id === id)?.token ?? null;
+                if (token !== null) opcoes.aoClicarPersonagem(token);
+            };
             const cancelar = (): void => terminar(true);
             item.addEventListener("pointermove", mover);
             item.addEventListener("pointerup", soltar);
@@ -270,7 +281,9 @@ export function criarIniciativa(opcoes: OpcoesIniciativa): PainelIniciativa {
             disco.className = "iniciativa-disco";
             const token = entrada.token === null ? undefined : buscarToken(entrada.token);
             if (token) pintarDisco(disco, token.cor, token.corBorda, token.imagem);
-            else disco.textContent = entrada.nome.charAt(0).toUpperCase();
+            // MORTO (a condição de visual "X vermelho") RISCA o token também aqui, como no tabuleiro (pedido do dono, 19/11/2026).
+            disco.classList.toggle("morto", token?.condicoes.some((id) => buscarCondicao(id)?.visual === "x-vermelho") === true);
+            if (!token) disco.textContent = entrada.nome.charAt(0).toUpperCase();
             const nome = document.createElement("span");
             nome.className = "iniciativa-nome";
             nome.textContent = entrada.nome;

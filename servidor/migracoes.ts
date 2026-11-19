@@ -10,7 +10,7 @@
 /** O formato que esta versão do servidor grava. */
 export const FORMATO_ATUAL = 1;
 
-export type TipoDeArquivo = "fichas" | "tokens" | "pecas" | "grupos" | "pastas" | "mesa";
+export type TipoDeArquivo = "fichas" | "tokens" | "pecas" | "grupos" | "pastas" | "mesa" | "condicoes";
 type Migracao = (bruto: Record<string, unknown>) => Record<string, unknown>;
 
 /** MIGRACOES[tipo][i] converte do formato i para o formato i + 1. */
@@ -21,6 +21,7 @@ const MIGRACOES: Record<TipoDeArquivo, Migracao[]> = {
     grupos: [(b) => b],
     pastas: [(b) => b],
     mesa: [(b) => b],
+    condicoes: [(b) => b],
 };
 
 /** Leva o conteúdo de um arquivo (já lido do JSON) ao formato atual e tira o campo `formato` (o resto do programa não o conhece). Lança erro se o formato é de uma versão mais nova. */

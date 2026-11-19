@@ -5,7 +5,8 @@
 // =====================================================================
 
 import { criarSeletorDeCor } from "./seletorDeCor";
-import { COR_INICIAL_DESENHO, CORES_FIXAS_DESENHO, CORES_RECENTES_INICIAIS } from "../config";
+import { CHAVE_ALFA_DESENHO, CHAVE_COR_DESENHO, COR_INICIAL_DESENHO, CORES_FIXAS_DESENHO, CORES_RECENTES_INICIAIS } from "../config";
+import { guardarPreferencia, lerPreferencia } from "./preferencias";
 import { estado } from "../estado";
 
 export type NomeFerramenta = "mover" | "regua" | "lapis" | "borracha" | "elipse" | "retangulo" | "triangulo" | "fog-cobrir" | "fog-revelar"; // (os dois "fog-" são os pincéis do painel do Fog)
@@ -66,7 +67,16 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
     });
 
     // --- Cores: pilha das ÚLTIMAS usadas + branco e preto fixos + seletor livre ---
-    let corAtual = COR_INICIAL_DESENHO;
+    // A cor e a opacidade escolhidas ficam GUARDADAS neste navegador (localStorage): ao recarregar a página a pessoa continua com a mesma cor. O que vem de lá é conferido (pode estar estragado).
+    const lerCorGuardada = (): number | null => {
+        const texto = lerPreferencia(CHAVE_COR_DESENHO);
+        return texto !== null && /^#[0-9a-f]{6}$/i.test(texto) ? parseInt(texto.slice(1), 16) : null;
+    };
+    const lerAlfaGuardado = (): number | null => {
+        const valor = Number(lerPreferencia(CHAVE_ALFA_DESENHO));
+        return lerPreferencia(CHAVE_ALFA_DESENHO) !== null && Number.isFinite(valor) && valor >= 0.1 && valor <= 1 ? valor : null;
+    };
+    let corAtual = lerCorGuardada() ?? COR_INICIAL_DESENHO;
     // Pilha das cores recentes: a mais recente na frente. Tem sempre o mesmo tamanho.
     const recentes = [...CORES_RECENTES_INICIAIS];
 
@@ -93,13 +103,23 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
         seletor.value = corCss(cor);
         seletorCor.atualizar();
         renderizarAmostras(); // só muda o destaque: escolher NÃO reordena a pilha
+        guardarPreferencia(CHAVE_COR_DESENHO, corCss(cor));
         opcoes.aoMudarCor(cor);
     }
     // O seletor de cor próprio: o NÍVEL DE TRANSPARÊNCIA fica DENTRO da caixa dele (pedido do dono, 18/11/2026). O <input type="color"> continua guardando a cor.
-    const seletorCor = criarSeletorDeCor({ entrada: seletor, alfa: 1, aoMudarAlfa: (alfa) => opcoes.aoMudarAlfa(alfa) });
+    const alfaGuardado = lerAlfaGuardado();
+    const seletorCor = criarSeletorDeCor({
+        entrada: seletor,
+        alfa: alfaGuardado ?? 1,
+        aoMudarAlfa: (alfa) => {
+            guardarPreferencia(CHAVE_ALFA_DESENHO, String(alfa));
+            opcoes.aoMudarAlfa(alfa);
+        },
+    });
     seletor.addEventListener("input", () => {
         corAtual = parseInt(seletor.value.slice(1), 16);
         renderizarAmostras();
+        guardarPreferencia(CHAVE_COR_DESENHO, corCss(corAtual));
         opcoes.aoMudarCor(corAtual);
     });
 
@@ -117,6 +137,7 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
     seletorCor.atualizar();
     renderizarAmostras();
     opcoes.aoMudarCor(corAtual);
+    if (alfaGuardado !== null) opcoes.aoMudarAlfa(alfaGuardado); // (a camada de desenho começa com a opacidade guardada)
 
     // --- Apagar tudo: SEM caixa de confirmação (pedido do dono, 17/11/2026); dá para desfazer com Ctrl+Z ---
     apagarTudo.addEventListener("click", () => opcoes.aoApagarTudo());

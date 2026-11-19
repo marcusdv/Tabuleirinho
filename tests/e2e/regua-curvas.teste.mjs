@@ -53,10 +53,10 @@ ok("2f) o clique direito NÃO moveu a visão", (await camX()) === visaoAntes);
 await p.mouse.move(A.x, A.y); await p.mouse.down(); await ir(A, B); await p.mouse.up();
 ok("3) uma medida nova começa do zero: A -> B = 6 m = 4 □", (await dist()) === "6 m = 4 □", await dist());
 
-// 4) direito SOZINHO (sem o esquerdo) continua movendo a visão
+// 4) o botão do MEIO move a visão (o direito sozinho não move mais: abre o menu do mapa)
 const antes = await camX();
-await p.mouse.move(700, 560); await p.mouse.down({ button: "right" }); await ir({ x: 700, y: 560 }, { x: 600, y: 560 }); await p.mouse.up({ button: "right" });
-ok("4) botão direito sozinho arrasta a visão (100 px para a esquerda)", perto((await camX()) - antes, -100, 1), `dx=${((await camX()) - antes).toFixed(1)}`);
+await p.mouse.move(700, 560); await p.mouse.down({ button: "middle" }); await ir({ x: 700, y: 560 }, { x: 600, y: 560 }); await p.waitForTimeout(150); await p.mouse.up({ button: "middle" }); // (a pausa antes de soltar evita a INÉRCIA do arrasto)
+ok("4) botão do MEIO arrasta a visão (100 px para a esquerda)", perto((await camX()) - antes, -100, 1), `dx=${((await camX()) - antes).toFixed(1)}`);
 
 // 5) direito sem medida em andamento: nada acontece
 await p.mouse.click(500, 500, { button: "right" });

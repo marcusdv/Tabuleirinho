@@ -19,6 +19,8 @@ export const MAX_ENTRADAS_INICIATIVA = 60; // quantos personagens cabem na ordem
 export const MAX_CARACTERES_NOME_INICIATIVA = 24; // o nome de uma entrada (de uma pessoa temporária ou de um token)
 export const VALOR_MAX_INICIATIVA = 1000; // o valor da iniciativa vai de -1000 a 1000
 export const CHAVE_ORDEM_PILHA = "tabuleirinho.pilha.ordem"; // a ordem das barras da pilha (Desenho/Ferramentas), ex.: "barra,ferramentas-desenho"; vazio = a de fábrica
+export const CHAVE_COR_DESENHO = "tabuleirinho.desenho.cor"; // a cor de desenho escolhida, "#rrggbb": lembrada ao recarregar (e é a cor do lápis, das formas, da régua e do ping)
+export const CHAVE_ALFA_DESENHO = "tabuleirinho.desenho.alfa"; // o nível de opacidade (0.1 a 1) escolhido junto com a cor
 export const CHAVE_DESENHO_RECOLHIDO = "tabuleirinho.desenho.recolhido"; // "1" = o painel de Desenho está recolhido
 /** SELEÇÃO de tokens no tabuleiro: a cor e a espessura do anel dos selecionados e as cores do retângulo de seleção (Ctrl + arrastar). */
 /** ANIMAÇÕES de vida no token: a piscada vermelha do DANO e a piscada verde da CURA (com barrinhas que sobem). Durações em ms. */
@@ -287,16 +289,22 @@ export const CORES_TOKEN = [
 export const COR_INICIAL_TOKEN = 0x4f8cff; // cor marcada ao abrir a bolsa (azul)
 export const TAMANHO_INICIAL_TOKEN = 1; // tamanho marcado ao abrir a bolsa (1 = 1×1)
 
+// --- A aba CONDIÇÕES (o mestre cria, edita e exclui condições; ver condicoes.ts e ui/bolsaCondicoes.ts) ---
+export const MAX_CONDICOES = 60; // quantas condições a mesa pode ter
+export const MAX_CARACTERES_NOME_CONDICAO = 30;
+export const MAX_LINHAS_DESCRICAO_CONDICAO = 12; // a descrição (o texto do balão ao passar o mouse) tem uma linha por item
+export const MAX_CARACTERES_LINHA_CONDICAO = 300;
+
 // --- Ícones de condições (desenhados em anel na borda do token) ---
 // Diâmetro do ícone = TAMANHO_CASA * (BASE + POR_CASA * size): cresce com o token.
-// Ex.: token 1x1 -> 0,4 casa (~26 px); token 4x4 -> 0,7 casa (~45 px).
-export const ICONE_CONDICAO_BASE = 0.3;
-export const ICONE_CONDICAO_POR_CASA = 0.1;
-export const ESPACO_ICONES = 2; // folga (px) entre ícones vizinhos no anel
-// Quantos ícones aparecem no token. Com MAIS condições que isso, o lugar seguinte
-// vira um distintivo "+N" (N = quantas ficaram de fora). O balão ao passar o
-// mouse sempre lista todas.
-export const MAX_ICONES_CONDICAO = 4;
+// Ex.: token 1x1 -> 0,21 casa (~13 px); token 4x4 -> 0,36 casa (~23 px). (Pedido do dono, 18/11/2026: "diminua bastante": era 0,3 + 0,1 por casa, ~26 px num 1x1 e ~45 px num 4x4.)
+export const ICONE_CONDICAO_BASE = 0.16;
+export const ICONE_CONDICAO_POR_CASA = 0.05;
+// (Pedido do dono, 19/11/2026: as condições saem do ANEL em volta do token e vão para o RODAPÉ do tile, da esquerda para a direita, uma ao lado da outra.)
+export const ESPACO_ICONES = 1; // folga (px) entre ícones vizinhos no rodapé
+export const MARGEM_ICONES_RODAPE = 2; // folga (px) entre os ícones e as bordas do tile (a de baixo e a da esquerda)
+// Quantos ícones cabem no rodapé depende da LARGURA do tile (um 1x1 comporta uns 4; um 4x4, uns 10): com MAIS condições que isso, o último lugar vira um distintivo "+N"
+// (N = quantas ficaram de fora). O balão ao passar o mouse sempre lista todas.
 
 // --- Menu do token (botões e painéis que abrem com o clique direito) ---
 // Vão (px) entre os botões e o canto superior esquerdo do token: quanto maior, mais longe do token.

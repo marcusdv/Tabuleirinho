@@ -121,8 +121,8 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
         }
         // A prévia mostra as barras como no tabuleiro: as de "Posição: Em cima" ACIMA de um tokenzinho e as outras EMBAIXO dele (a mais perto do token é a 1ª de cada lado).
         const mostradas = visiveis.slice(0, BARRAS_NA_PREVIA_STATUS);
-        const emCima = mostradas.filter((i) => i.posicao === "cima").reverse();
-        const embaixo = mostradas.filter((i) => i.posicao !== "cima");
+        const emCima = mostradas.filter((i) => i.posicao !== "baixo").reverse(); // (sem o campo vale EM CIMA)
+        const embaixo = mostradas.filter((i) => i.posicao === "baixo");
         const marcaDoToken = document.createElement("div");
         marcaDoToken.className = "status-previa-token";
         marcaDoToken.title = "O token";
@@ -304,15 +304,15 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
         const campo = document.createElement("select");
         campo.title = "Onde a barra fica no tabuleiro";
         campo.setAttribute("aria-label", "Posição da barra no tabuleiro");
-        for (const [valor, texto] of [["baixo", "Embaixo"], ["cima", "Em cima"]] as const) {
+        for (const [valor, texto] of [["cima", "Em cima"], ["baixo", "Embaixo"]] as const) { // ("Em cima" é a 1ª opção e o padrão)
             const opcao = document.createElement("option");
             opcao.value = valor;
             opcao.textContent = texto;
             campo.append(opcao);
         }
-        campo.value = item.posicao === "cima" ? "cima" : "baixo";
+        campo.value = item.posicao === "baixo" ? "baixo" : "cima";
         campo.addEventListener("change", () => {
-            item.posicao = campo.value === "cima" ? "cima" : "baixo";
+            item.posicao = campo.value === "baixo" ? "baixo" : "cima";
             avisarAgora();
         });
         td.append(campo);
@@ -343,7 +343,7 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
         { titulo: "Grupos", dica: "Em quais grupos de tokens este status vale", classe: "c-grupos" },
         { titulo: "Quem vê", dica: "Quem pode ver este status (o mestre sempre vê)", classe: "c-quem" },
         { titulo: "Barra", dica: "Exibir em jogo: mostra a barra deste status embaixo do token no tabuleiro", classe: "c-caixa" },
-        { titulo: "Posição", dica: "Onde a barra fica no tabuleiro: embaixo ou em cima do token", classe: "c-posicao" },
+        { titulo: "Posição", dica: "Onde a barra fica no tabuleiro: em cima ou embaixo do token", classe: "c-posicao" },
         { titulo: "Núm.", dica: "Exibir números: mostra o valor (atual/máximo, ex.: 100/100) dentro da barra", classe: "c-caixa" },
         { titulo: "Rótulo", dica: "Mostrar nome no tabuleiro: escreve o nome do status à esquerda da barra", classe: "c-caixa" },
         { titulo: "Arrasto", dica: "Subtraído por números arrastados: ao soltar o total de uma rolagem do chat num token, ele perde essa quantidade deste status (em geral o HP)", classe: "c-caixa" },
@@ -468,7 +468,7 @@ export function criarEditorStatus(raiz: HTMLElement, aoMudar?: (lista: StatusNov
         if (itens.length >= MAX_STATUS_TOKEN) return;
         // Um status NOVO nasce "apagado" (pedido do dono): sem nome, sem barra ("Exibir em jogo" desligado), sem números e em NENHUM grupo (não vale para token nenhum até a pessoa escolher). Assim criar um
         // status não muda nada no jogo por conta própria.
-        itens.push({ nome: "", variavel: "", cor: proximaCor(), mostrar: false, numeros: false, grupos: [], semGrupo: false, recebeArrasto: false, quemVe: quemVePadrao(), mostrarNome: false });
+        itens.push({ nome: "", variavel: "", cor: proximaCor(), mostrar: false, numeros: false, grupos: [], semGrupo: false, recebeArrasto: false, quemVe: quemVePadrao(), mostrarNome: false, posicao: "cima" });
         desenhar();
         avisarAgora();
         lista.querySelector<HTMLInputElement>(".status-linha:last-child .status-nome")?.select(); // (já pronto para renomear)

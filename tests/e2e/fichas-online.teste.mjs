@@ -58,7 +58,7 @@ try {
     await A.keyboard.press("Control+s");
     ok("1b) a Ana salva: o editor mostra 'Salva na versão 2.' e Salvar volta a ficar desabilitado", await aguardar(async () => /Salva na versão 2/.test(await A.locator("#editor-ficha-aviso").textContent())) && (await A.isDisabled("#editor-ficha-salvar")), await A.locator("#editor-ficha-aviso").textContent());
     ok("1c) o ARQUIVO 1.json tem a versão 2 e o texto", arquivo(1).versao === 2 && arquivo(1).abas[0].texto === "FOR:: 16", JSON.stringify(arquivo(1)));
-    ok("1d) o Beto vê 'v2' na grade", await aguardar(async () => (await B.locator(".bolsa-doc small").textContent()) === "v2"));
+    ok("1d) o cartão da ficha na grade do Beto NÃO mostra o número da versão (pedido do dono: sem o 'v2')", (await B.locator(".bolsa-doc small").count()) === 0 && (await B.locator(".bolsa-doc").count()) === 1);
 
     // ---- o Beto abre (versão 2, sem mexer) e a Ana salva de novo: o editor dele se atualiza SOZINHO
     await B.locator(".bolsa-doc").dblclick();

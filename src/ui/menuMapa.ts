@@ -1,5 +1,5 @@
 // =====================================================================
-// MENU DO BOTÃO DIREITO no espaço vazio do mapa (HTML em index.html, `#menu-mapa`): Ping (com um submenu com os outros tipos: Sumiu, Perigo, Avançar, Ajuda, Agrupar, Alvo...), Régua e Borracha (de todos) e, só para o mestre, a Borracha e o Pincel de fog.
+// MENU DO BOTÃO DIREITO no espaço vazio do mapa (HTML em index.html, `#menu-mapa`): Lápis, Borracha, Ping (com um submenu com os outros tipos: Sumiu, Perigo, Avançar, Ajuda, Agrupar, Alvo...) e Régua (de todos) e, só para o mestre, a Borracha e o Pincel de fog.
 // Clicar no item Ping, e não numa das formas do submenu, faz o ping COMUM.
 // Abre junto ao cursor; fecha ao clicar fora, com Esc, ao perder o foco da janela ou ao escolher um item. Quem decide o que cada item faz é o main.ts (callbacks).
 // O servidor é quem decide de verdade (o ping e a régua só chegam a quem pode ver; os pincéis do fog só o mestre usa): os itens do mestre só são escondidos aqui (classe `so-mestre`).
@@ -13,7 +13,7 @@ import type { NomeFerramenta } from "./painelDesenho";
 export interface OpcoesMenuMapa {
     /** Escolheu um ping (`forma`: "comum" se clicou no item Ping): o ponto é o que estava sob o cursor quando o menu abriu (em casas, com fração). */
     aoPingar(col: number, row: number, forma: FormaDePing): void;
-    /** Escolheu uma ferramenta (Régua, Borracha ou um pincel do fog). */
+    /** Escolheu uma ferramenta (Lápis, Borracha, Régua ou um pincel do fog). */
     aoEscolher(ferramenta: NomeFerramenta): void;
     /** O fog do mapa atual está ligado? (sem fog, os pincéis ficam desabilitados) */
     fogAtivo(): boolean;

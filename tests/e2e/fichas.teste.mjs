@@ -25,9 +25,9 @@ ok("1b) o botão 'Criar ficha' está à vista e habilitado", (await p.locator("#
 await criarFichaFechada(p);
 const uma = await fichas();
 ok("2a) um clique cria 1 ficha: 'Ficha 1', versão 1, texto vazio", uma.length === 1 && uma[0].id === 1 && uma[0].nome === "Ficha 1" && uma[0].versao === 1 && uma[0].texto === "", JSON.stringify(uma));
-ok("2b) aparece 1 documento na grade, com o nome e 'v1'", (await p.locator(".bolsa-doc").count()) === 1 && (await p.locator(".bolsa-doc .bolsa-doc-nome").textContent()) === "Ficha 1" && (await p.locator(".bolsa-doc small").textContent()) === "v1");
+ok("2b) aparece 1 documento na grade, com o nome (e sem o número da versão)", (await p.locator(".bolsa-doc").count()) === 1 && (await p.locator(".bolsa-doc .bolsa-doc-nome").textContent()) === "Ficha 1" && (await p.locator(".bolsa-doc small").count()) === 0);
 ok("2c) o aviso de 'nenhuma ficha' some", !(await p.locator("#bolsa-fichas-vazia").isVisible()));
-ok("2c2) na bolsa do canto o número da VERSÃO fica oculto (continua na dica do mouse) e o nome ocupa o espaço", !(await p.locator(".bolsa-doc small").isVisible()) && /versão 1/.test((await p.locator(".bolsa-doc").getAttribute("title")) ?? ""));
+ok("2c2) na bolsa do canto não há número de VERSÃO, nem na dica do mouse (o nome ocupa o espaço)", (await p.locator(".bolsa-doc small").count()) === 0 && !/versão/.test((await p.locator(".bolsa-doc").getAttribute("title")) ?? ""));
 ok("2d) criar a ficha NÃO expande a bolsa (a bolsa do canto não expande ao clicar)", !(await classe()).includes("expandida"));
 
 // 3) vários cliques: ids únicos e a grade como a de tokens (5 por linha)
@@ -44,7 +44,7 @@ await p.click("#bolsa-gerenciar");
 const t2 = await topos();
 ok("4b) na tela cheia as 6 fichas cabem numa linha só (a grade usa a largura toda)", (await classe()).includes("expandida") && t2.length === 6 && new Set(t2).size === 1, t2.join());
 ok("4c) na tela cheia o botão 'Criar ficha' continua à vista", await p.locator("#bolsa-ficha-criar-botao").isVisible());
-ok("4d) e na tela cheia o número da VERSÃO aparece ao lado do nome", (await p.locator(".bolsa-doc small").first().isVisible()) && (await p.locator(".bolsa-doc small").first().textContent()) === "v1");
+ok("4d) e na tela cheia também não há número de VERSÃO ao lado do nome", (await p.locator(".bolsa-doc small").count()) === 0);
 
 // 5) o limite de 200 fichas (cliques dados dentro da página, para ser rápido)
 await p.evaluate(() => {

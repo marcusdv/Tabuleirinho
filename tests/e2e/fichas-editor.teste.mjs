@@ -65,7 +65,7 @@ await p.keyboard.press("Enter");
 ok("5a) Enter no documento (teclado) abre o editor, com o conteúdo salvo", (await aberto()) && (await p.inputValue("#editor-ficha-texto")).startsWith("FOR:: 16") && (await versao()) === "Versão 3");
 await escNaFicha(p);
 ok("5b) sem alterações, Esc fecha direto (sem perguntar)", !(await aberto()) && !(await confirmarAberta()));
-ok("5c) a grade mostra o nome novo e 'v3'", (await p.locator(".bolsa-doc-nome").textContent()) === "Goblin Arqueiro" && (await p.locator(".bolsa-doc small").textContent()) === "v3");
+ok("5c) a grade mostra o nome novo, sem o número da versão", (await p.locator(".bolsa-doc-nome").textContent()) === "Goblin Arqueiro" && (await p.locator(".bolsa-doc small").count()) === 0);
 
 // texto no limite / contador
 await p.locator(".bolsa-doc").dblclick();

@@ -38,7 +38,10 @@
 }
 #bolsa-previa-barras {
     box-sizing: border-box;
-    width: 100%;
+    /* NÃO pode alargar a coluna: a coluna da prévia é dimensionada por `max-content` (ver #bolsa-previa-area), e o conteúdo desta caixa (nome + barra, ou o texto "sem status") é mais largo
+       que a prévia do token. `width: 0` tira o conteúdo da conta da largura natural, e `min-width: 100%` a estica até a largura que a coluna já tem (a da prévia do token). */
+    width: 0;
+    min-width: 100%;
     height: 52px; /* 3 barras de 12 px + 2 vãos de 2 px + folgas: a mesma altura com 0, 1, 2 ou 3 barras */
     overflow: hidden;
     display: flex;
@@ -426,7 +429,13 @@
 .editor-status .status-tabela .c-posicao select {
     width: 100%;
     height: 26px;
+    padding: 0 20px 0 8px; /* (espaço à direita para a setinha) */
+    box-sizing: border-box;
     font-size: 12px;
+    cursor: pointer;
+    /* A setinha ▾ igual à dos outros dropdowns da tabela (Grupos, Quem vê), no lugar da seta do navegador. */
+    appearance: none;
+    background: #2f2f3a url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0l4 5 4-5z' fill='%23c9c9d4'/%3E%3C/svg%3E") no-repeat right 7px center;
 }
 
 /* A PRÉVIA DAS BARRAS como no tabuleiro: um tokenzinho no meio, as barras "em cima" acima dele e as outras embaixo; nome à esquerda e a barra centralizada, com a largura do token. */

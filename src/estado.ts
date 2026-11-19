@@ -76,7 +76,7 @@ export interface StatusDoToken {
     recebeArrasto: boolean;
     /** Quem vê este status (o mestre sempre vê). O SERVIDOR não manda o valor a quem não vê (a barra nem existe para essa pessoa); Dano e Cura continuam valendo para todos. */
     quemVe: QuemVeStatus;
-    /** ONDE a barra fica no tabuleiro: embaixo do token (o padrão) ou em cima dele (pedido do dono, 17/11/2026). Sem o campo: embaixo. */
+    /** ONDE a barra fica no tabuleiro: em cima do token (o PADRÃO desde 19/11/2026, pedido do dono; antes era embaixo) ou embaixo dele. Sem o campo: em cima. */
     posicao?: "baixo" | "cima";
 }
 
@@ -93,7 +93,7 @@ export interface StatusNovo {
     semGrupo?: boolean; // também vale para os tokens sem grupo (só conta com uma lista de grupos); sem o campo vale desligado
     recebeArrasto?: boolean; // "Subtraído por números arrastados" (sem o campo vale desligado)
     quemVe?: QuemVeStatus; // sem o campo vale TODOS veem
-    posicao?: "baixo" | "cima"; // sem o campo vale embaixo
+    posicao?: "baixo" | "cima"; // sem o campo vale EM CIMA (o padrão)
 }
 
 /**
@@ -179,7 +179,7 @@ export const estado = {
     colunas: COLUNAS_INICIAIS, // largura do tabuleiro, em casas
     linhas: LINHAS_INICIAIS, // altura do tabuleiro, em casas
     /** Os STATUS (barras: HP etc.): UMA regra para a MESA INTEIRA. Todo token e toda peça copiam esta lista (o servidor a guarda em `dados/mesa.json`); só os VALORES (PV atual) são de cada peça. */
-    statusDaMesa: [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false, recebeArrasto: true, quemVe: quemVePadrao(), mostrarNome: true }] as StatusDoToken[],
+    statusDaMesa: [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false, recebeArrasto: true, quemVe: quemVePadrao(), mostrarNome: true, posicao: "cima" }] as StatusDoToken[],
     /** As AÇÕES da mesa (Dano, Cura...): também UMA regra para todos (o servidor a guarda em `dados/mesa.json`). De fábrica: Dano e Cura, que mexem no status 1 (o HP). */
     acoesDaMesa: acoesPadrao(), // (Dano e Cura; a função é declarada mais abaixo, e as declarações de função já existem quando este objeto é criado)
     // Imagem de fundo, esticada sobre o tabuleiro inteiro (null = sem imagem).
@@ -1203,6 +1203,27 @@ export function criarToken(
     return token ? receberToken(token) : null;
 }
 
+/**
+ * DUPLICA um token da bolsa (pedido do dono, 19/11/2026): o novo token é IGUAL ao modelo (nome, imagem, cores e tamanho) e leva também os GRUPOS, a PASTA e a FICHA; o FAVORITO não passa
+ * (todo token novo nasce sem estrela). Uma ficha ÚNICA (que só pode ter UM token) não passa: o `montarToken` a deixa vazia quando ela já está ocupada, e a duplicata fica sem ficha.
+ * `opcoes` deixa o SERVIDOR limitar o que um jogador herda (quem não é mestre não mexe nos grupos nem nas pastas, e só liga uma ficha que pode editar). Devolve null se a mesa já tem
+ * tokens demais. O token devolvido ainda não está na lista (`receberToken` o põe).
+ */
+export function montarDuplicata(modelo: Token, opcoes: { ficha?: number | null; grupos?: number[]; pasta?: number | null } = {}): Token | null {
+    const token = montarToken(modelo.cor, modelo.size, modelo.nome, modelo.imagem, modelo.corBorda, opcoes.ficha !== undefined ? opcoes.ficha : modelo.ficha);
+    if (!token) return null;
+    token.grupos = [...(opcoes.grupos ?? modelo.grupos)];
+    const pasta = opcoes.pasta !== undefined ? opcoes.pasta : (modelo.pasta ?? null);
+    if (pasta !== null) token.pasta = pasta;
+    return token;
+}
+
+/** Duplica e já põe o token novo na lista (modo local). */
+export function duplicarToken(modelo: Token): Token | null {
+    const token = montarDuplicata(modelo);
+    return token ? receberToken(token) : null;
+}
+
 /** Tira o token da lista (o desenho e o arquivo são problema de quem chama). Devolve false se ele não existe. */
 export function excluirToken(id: number): boolean {
     const posicao = estado.tokens.findIndex((t) => t.id === id);
@@ -1560,7 +1581,7 @@ export function rotuloDoStatus(status: { nome: string; variavel: string }): stri
 
 /** O status de fábrica: o HP, que lê a variável PV:: da ficha. */
 export function statusPadrao(): StatusDoToken[] {
-    return [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false, recebeArrasto: true, quemVe: quemVePadrao(), mostrarNome: true }];
+    return [{ id: 1, nome: STATUS_PADRAO_NOME, variavel: STATUS_PADRAO_VARIAVEL, cor: COR_STATUS_HP, mostrar: true, numeros: true, grupos: null, semGrupo: false, recebeArrasto: true, quemVe: quemVePadrao(), mostrarNome: true, posicao: "cima" }];
 }
 
 /**
@@ -1587,7 +1608,7 @@ export function limparStatus(bruto: unknown, idJaUsado = 0): StatusDoToken[] | n
         if (/^\p{N}/u.test(variavel)) variavel = ""; // (uma variável não pode começar por número)
         const cor = typeof s.cor === "number" && Number.isFinite(s.cor) ? limitar(Math.round(s.cor), 0, 0xffffff) : COR_STATUS_HP;
         const grupos = Array.isArray(s.grupos) ? limparGrupos(s.grupos.filter((g): g is number => typeof g === "number")) : null; // (sem a lista = TODOS os tokens; lista vazia = NENHUM; ids de grupos que não existem são descartados)
-        return { id, nome, variavel, cor, mostrar: s.mostrar !== false, numeros: s.numeros !== false, grupos, semGrupo: grupos !== null && s.semGrupo === true, recebeArrasto: s.recebeArrasto === true, quemVe: limparQuemVe(s.quemVe), mostrarNome: s.mostrarNome !== false, posicao: s.posicao === "cima" ? "cima" : "baixo" }; // (sem o campo, os dois ficam ligados; a barra fica embaixo)
+        return { id, nome, variavel, cor, mostrar: s.mostrar !== false, numeros: s.numeros !== false, grupos, semGrupo: grupos !== null && s.semGrupo === true, recebeArrasto: s.recebeArrasto === true, quemVe: limparQuemVe(s.quemVe), mostrarNome: s.mostrarNome !== false, posicao: s.posicao === "baixo" ? "baixo" : "cima" }; // (sem o campo, os dois ficam ligados; a barra fica EM CIMA)
     });
 }
 

@@ -99,6 +99,8 @@ export interface OpcoesBolsa {
     editarImagem(arquivo: File, corFundo: number): Promise<string | null>;
     /** O usuário pediu "Editar token…" no menu de uma ficha: abrir a janela de edição desse token. */
     aoEditar(token: Token): void;
+    /** O usuário pediu "Duplicar token": online o SERVIDOR cria a cópia (devolve "enviado"; ela chega por `tokenCriado`); no modo local devolve a cópia (ou null se a mesa já tem tokens demais). */
+    aoDuplicar(token: Token): Token | "enviado" | null;
     /** Os STATUS (barras) da MESA mudaram no editor da bolsa em tela cheia: aplicar AO VIVO a TODOS os tokens e peças. `status` = a lista inteira. */
     aoMudarStatus(status: StatusNovo[]): void;
     /** "Botar"/"Tirar" na caixa "Tokens da ficha": liga o token à ficha (`idFicha`) ou desfaz a ligação (`null`). Online o servidor confere (ficha única com token = recusa). */
@@ -125,6 +127,8 @@ export interface OpcoesBolsa {
 
 /** As seções da carteira: os tokens guardados (o que a bolsa já era) e as fichas de personagem (em construção). */
 export type AbaBolsa = "tokens" | "fichas";
+/** As abas que são um MODO À PARTE da bolsa (o CSS esconde o que é de tokens e fichas e mostra o painel delas): "condicoes" só existe na bolsa em tela cheia. */
+export type AbaExtra = "mapas" | "jogadores" | "condicoes";
 
 export interface Bolsa {
     /** A aba aberta agora. */
@@ -185,7 +189,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     const caixaDeFiltros = pegar("bolsa-organizar");
     const lugarDoOrganizar = { pai: caixaDeFiltros.parentElement as HTMLElement, depois: caixaDeFiltros.nextSibling };
     function posicionarOrganizar(): void {
-        const juntoDosTokens = expandida && !bolsa.classList.contains("aba-mapas") && !bolsa.classList.contains("aba-jogadores");
+        const juntoDosTokens = expandida && !bolsa.classList.contains("aba-mapas") && !bolsa.classList.contains("aba-jogadores") && !bolsa.classList.contains("aba-condicoes");
         // (logo ANTES do aviso de lista vazia, que vem antes da grade: os filtros ficam acima dos dois)
         const grade = pastas.barra(aba === "fichas" ? "fichas" : "tokens"); // (os filtros ficam logo acima da barra das pastas, que fica acima da grade)
         if (juntoDosTokens && caixaDeFiltros.nextElementSibling !== grade) grade.before(caixaDeFiltros);
@@ -214,6 +218,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     let fantasmaPintado = ""; // o que a cópia mostra agora (para repintar só quando o token muda)
     const menuFicha = pegar("menu-ficha");
     const menuEditar = pegar<HTMLButtonElement>("menu-ficha-editar");
+    const menuDuplicar = pegar<HTMLButtonElement>("menu-ficha-duplicar"); // "Duplicar token": um token igual (ficha, grupos e pasta; sem o favorito)
     const menuFichaDoToken = pegar<HTMLButtonElement>("menu-ficha-ficha"); // "Abrir ficha" (se o token tem uma) ou "Criar ficha" (se não tem)
     const menuExcluir = pegar<HTMLButtonElement>("menu-ficha-excluir");
     const menuRecolher = pegar<HTMLButtonElement>("menu-ficha-recolher"); // "Recolher do tabuleiro": tira as peças deste token que estão NESTE mapa
@@ -1091,6 +1096,16 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
         fecharMenuFicha();
         if (token) opcoes.aoEditar(token);
     });
+    menuDuplicar.addEventListener("click", () => {
+        const token = tokenDoMenu;
+        fecharMenuFicha();
+        if (!token) return;
+        const resultado = opcoes.aoDuplicar(token);
+        if (resultado === "enviado") return; // (online: o servidor cria e a cópia chega por `tokenCriado`)
+        if (resultado === null) return void opcoes.aoAvisar(`Não foi possível duplicar: a mesa tem o limite de ${MAX_TOKENS} tokens.`);
+        atualizar();
+        opcoes.aoAvisar(`Token "${resultado.nome}" duplicado.`);
+    });
     menuRecolher.addEventListener("click", () => {
         const token = tokenDoMenu;
         fecharMenuFicha();
@@ -1330,6 +1345,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     function fechar(): void {
         if (!expandida) return;
         expandida = false;
+        if (bolsa.classList.contains("aba-condicoes")) escolherAba(aba); // (a aba Condições só existe na bolsa em tela cheia: volta à aba de tokens ou fichas de antes)
         // Na bolsa do canto só há UM item selecionado por vez: de uma seleção múltipla da tela cheia fica o último clicado.
         for (const s of [selecao.tokens, selecao.fichas]) {
             if (s.ids.size > 1) s.ids = new Set(s.ancora !== null && s.ids.has(s.ancora) ? [s.ancora] : [[...s.ids][0]]);
@@ -1355,9 +1371,9 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
      * Troca a aba. O CSS faz o resto a partir da classe `aba-fichas` na bolsa (esconde o que é só dos tokens e mostra o painel das
      * fichas). `focar` leva o foco do teclado ao botão da aba (usado pelas setas, como nas abas de qualquer programa).
      */
-    function escolherAba(nova: AbaBolsa | "mapas" | "jogadores", focar = false): void {
-        if (nova === "mapas" || nova === "jogadores") return mostrarAbaExtra(nova, focar);
-        bolsa.classList.remove("aba-mapas", "aba-jogadores"); // (voltando de Mapas ou Jogadores para Tokens ou Fichas)
+    function escolherAba(nova: AbaBolsa | AbaExtra, focar = false): void {
+        if (nova === "mapas" || nova === "jogadores" || nova === "condicoes") return mostrarAbaExtra(nova, focar);
+        bolsa.classList.remove("aba-mapas", "aba-jogadores", "aba-condicoes"); // (voltando de Mapas, Jogadores ou Condições para Tokens ou Fichas)
         aba = nova;
         guardarPreferencia(CHAVE_ABA_BOLSA, nova); // a última aba clicada volta ao recarregar a página
         fecharMenuFicha(); // o menu do clique direito é das fichinhas de token: não pode ficar solto sobre a outra aba
@@ -1377,9 +1393,9 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
      * A aba MAPAS (a biblioteca de mapas, ver ui/bolsaMapas.ts) é um modo à parte: só liga a classe `aba-mapas` (o CSS esconde tudo o que é de tokens e de fichas e mostra o painel). O `aba` daqui NÃO muda: muita coisa na
      * bolsa (a ordem, a seleção, os filtros) usa o nome da aba como índice, e só existe para "tokens" e "fichas". Não é guardada como "a aba da última vez": a bolsa volta sempre a Tokens ou Fichas.
      */
-    function mostrarAbaExtra(qual: "mapas" | "jogadores", focar: boolean): void {
+    function mostrarAbaExtra(qual: AbaExtra, focar: boolean): void {
         fecharMenuFicha();
-        bolsa.classList.remove("aba-fichas", "aba-mapas", "aba-jogadores");
+        bolsa.classList.remove("aba-fichas", "aba-mapas", "aba-jogadores", "aba-condicoes");
         bolsa.classList.add(`aba-${qual}`);
         posicionarOrganizar();
         for (const botao of botoesAba) {
@@ -1393,7 +1409,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
     escolherAba(lerPreferencia(CHAVE_ABA_BOLSA) === "fichas" ? "fichas" : "tokens"); // a aba da última vez (sem preferência: Tokens)
 
     for (const botao of botoesAba) {
-        botao.addEventListener("click", () => escolherAba(botao.dataset.aba as AbaBolsa | "mapas" | "jogadores"));
+        botao.addEventListener("click", () => escolherAba(botao.dataset.aba as AbaBolsa | AbaExtra));
     }
     listaAbas.addEventListener("keydown", (e) => {
         const atual = botoesAba.findIndex((b) => b.getAttribute("aria-selected") === "true"); // (a aba SELECIONADA: a aba Mapas não muda o `aba` interno, então ele não serve aqui)
@@ -1406,7 +1422,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
             : -1;
         if (destino < 0) return;
         e.preventDefault();
-        escolherAba(botoesAba[destino].dataset.aba as AbaBolsa | "mapas" | "jogadores", true);
+        escolherAba(botoesAba[destino].dataset.aba as AbaBolsa | AbaExtra, true);
     });
 
     // ---------------------------------------------------------------
@@ -1444,7 +1460,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                 const doc = document.createElement("li");
                 doc.className = "bolsa-doc" + (idsFichasAbertas.includes(ficha.id) ? " aberta" : "");
                 doc.dataset.id = String(ficha.id);
-                doc.title = `${ficha.nome} (versão ${ficha.versao}): clique para selecionar, clique de novo (ou Enter) para abrir e editar (botão direito: mais opções)`;
+                doc.title = `${ficha.nome}: clique para selecionar, clique de novo (ou Enter) para abrir e editar (botão direito: mais opções)`;
                 doc.tabIndex = 0; // dá para chegar pelo teclado
                 doc.setAttribute("role", "button");
                 doc.addEventListener("pointerdown", (e) => {
@@ -1470,9 +1486,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                 const nome = document.createElement("span");
                 nome.className = "bolsa-doc-nome";
                 nome.textContent = ficha.nome;
-                const versao = document.createElement("small");
-                versao.textContent = `v${ficha.versao}`;
-                doc.append(nome, versao, ...marcasDoItem("fichas", ficha));
+                doc.append(nome, ...marcasDoItem("fichas", ficha)); // (o número da versão da ficha ("v3") não aparece mais: pedido do dono, 18/11/2026)
                 if (ehTokenUnico(ficha)) {
                     // "Ficha Token Único" (tem recursos): um marcador dourado no canto superior esquerdo. (O mesmo "outro lado" do selinho "tem ficha" da fichinha do token.)
                     const unica = document.createElement("span");

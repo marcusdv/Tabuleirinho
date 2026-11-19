@@ -52,6 +52,7 @@ await p.evaluate(() => { const t = window.__tabuleirinho; t.camera.aplicarZoom(1
 const antes = await camera();
 await p.mouse.move(700, 560); await p.mouse.down({ button: "middle" }); // (o pan é com o botão do MEIO, ou espaço + esquerdo)
 for (let i = 1; i <= 8; i++) { await p.mouse.move(700 - 12 * i, 560); await p.waitForTimeout(20); }
+await p.waitForTimeout(150); // (parado antes de soltar: sem INÉRCIA; o teste 11 cobre a inércia)
 await p.mouse.up({ button: "middle" }); await p.waitForTimeout(150);
 const depois = await camera();
 ok("8) arrastar o mapa com o botão do meio (96 px p/ a esquerda) move a câmera exatamente isso", perto(depois.x - antes.x, -96, 1) && perto(depois.y, antes.y, 1), `dx=${(depois.x - antes.x).toFixed(1)}`);
@@ -61,6 +62,7 @@ const antes2 = await camera();
 await p.keyboard.down("Space");
 await p.mouse.move(700, 560); await p.mouse.down();
 for (let i = 1; i <= 8; i++) { await p.mouse.move(700 + 10 * i, 560); await p.waitForTimeout(20); }
+await p.waitForTimeout(150); // (parado antes de soltar: sem inércia)
 await p.mouse.up(); await p.keyboard.up("Space"); await p.waitForTimeout(150);
 const depois2 = await camera();
 ok("9) espaço + botão esquerdo (80 px p/ a direita) move a câmera", perto(depois2.x - antes2.x, 80, 1), `dx=${(depois2.x - antes2.x).toFixed(1)}`);
@@ -69,6 +71,26 @@ for (let i = 1; i <= 8; i++) { await p.mouse.move(700 - 12 * i, 560); await p.wa
 await p.mouse.up(); await p.waitForTimeout(150);
 const depois3 = await camera();
 ok("10) o botão esquerdo sozinho no vazio NÃO move a câmera", perto(depois3.x, depois2.x, 0.5), `dx=${(depois3.x - depois2.x).toFixed(1)}`);
+
+// ---- 7) INÉRCIA: soltar um arrasto EM MOVIMENTO faz a tela deslizar mais um pouco; soltar parado, não
+await p.evaluate(() => { const t = window.__tabuleirinho; t.camera.aplicarZoom(1); t.camera.centralizar(); });
+const i0 = await camera();
+await p.mouse.move(700, 560); await p.mouse.down({ button: "middle" });
+for (let i = 1; i <= 10; i++) { await p.mouse.move(700 - 12 * i, 560); await p.waitForTimeout(16); }
+await p.mouse.up({ button: "middle" });
+const aoSoltar = (await camera()).x - i0.x; await p.waitForTimeout(900); const depoisDeDeslizar = (await camera()).x - i0.x;
+ok("11) soltar em movimento: a tela continua deslizando para o mesmo lado depois de soltar", depoisDeDeslizar < aoSoltar - 5, `ao soltar ${aoSoltar.toFixed(1)}, depois ${depoisDeDeslizar.toFixed(1)}`);
+
+// ---- 8) as SETAS movem a visão 1 casa por toque, no sentido da seta (e não valem digitando num campo)
+await p.evaluate(() => { const t = window.__tabuleirinho; t.camera.aplicarZoom(1); t.camera.centralizar(); });
+await p.evaluate(() => document.activeElement?.blur()); // (as setas só valem com o foco no mapa, não num botão)
+const s0 = await camera();
+await p.keyboard.press("ArrowRight"); await p.waitForTimeout(700);
+const s1 = await camera();
+ok("12) a seta para a direita move a visão 1 casa (64 px) para a direita (o mundo anda para a esquerda)", perto(s1.x - s0.x, -64, 1), `dx=${(s1.x - s0.x).toFixed(1)}`);
+await p.keyboard.press("ArrowDown"); await p.waitForTimeout(700);
+const s2 = await camera();
+ok("13) a seta para baixo move 1 casa para baixo", perto(s2.y - s1.y, -64, 1), `dy=${(s2.y - s1.y).toFixed(1)}`);
 
 const codigo = terminar(erros);
 await navegador.close();

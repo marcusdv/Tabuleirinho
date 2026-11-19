@@ -23,7 +23,7 @@
 // criados aqui a partir do catálogo (condicoes.ts).
 // =====================================================================
 
-import { CONDICOES, urlDoIcone } from "../condicoes";
+import { CONDICOES, buscarCondicao, urlDoIcone } from "../condicoes";
 import { AFASTAMENTO_OPCOES_TOKEN, ALTURA_MIN_PAINEL, DISTANCIA_PAINEL } from "../config";
 import { limitar } from "../coordenadas";
 import { buscarToken, estado, podeConfigurarToken, rotuloDoStatus } from "../estado";
@@ -55,6 +55,8 @@ export interface MenuToken {
     atualizar(): void;
     /** Esconde tudo. */
     fechar(): void;
+    /** A lista de condições da mesa mudou (o mestre criou, editou ou excluiu): refaz os botões do painel de condições. */
+    reconstruirCondicoes(): void;
 }
 
 type Painel = "engrenagem" | "condicoes";
@@ -138,33 +140,38 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
         acoes.append(nova);
     }
 
-    // --- Botões das condições: criados uma vez, a partir do catálogo ---
+    // --- Botões das condições: montados a partir da lista da mesa (a do mestre; ver condicoes.ts) e REFEITOS quando ela muda (`reconstruirCondicoes`) ---
     // Guardados por id para marcar quais estão ativas no token aberto.
     const botoesCondicao = new Map<string, HTMLButtonElement>();
-    for (const condicao of CONDICOES) {
-        const botao = document.createElement("button");
-        botao.className = "condicao";
-        // Sem "title": o balão nativo do navegador competiria com a nossa descrição.
-        botao.setAttribute("aria-label", condicao.nome);
+    function montarBotoesDeCondicao(): void {
+        gradeCondicoes.replaceChildren();
+        botoesCondicao.clear();
+        for (const condicao of CONDICOES) {
+            const botao = document.createElement("button");
+            botao.className = "condicao";
+            // Sem "title": o balão nativo do navegador competiria com a nossa descrição.
+            botao.setAttribute("aria-label", condicao.nome);
 
-        const imagem = document.createElement("img");
-        imagem.src = urlDoIcone(condicao.id);
-        imagem.alt = ""; // decorativa: o nome já está escrito logo abaixo
-        imagem.draggable = false;
+            const imagem = document.createElement("img");
+            imagem.src = urlDoIcone(condicao.id);
+            imagem.alt = ""; // decorativa: o nome já está escrito logo abaixo
+            imagem.draggable = false;
 
-        const rotulo = document.createElement("span");
-        rotulo.textContent = condicao.nome;
+            const rotulo = document.createElement("span");
+            rotulo.textContent = condicao.nome;
 
-        botao.append(imagem, rotulo);
-        botao.addEventListener("click", () => {
-            if (tokenAberto !== null) opcoes.aoAlternarCondicao(tokenAberto, condicao.id);
-        });
-        // Passar o mouse mostra a descrição ao lado do painel; sair a esconde.
-        botao.addEventListener("mouseenter", () => opcoes.dica.mostrar(condicao.id, menuCondicoes, botao));
-        botao.addEventListener("mouseleave", () => opcoes.dica.esconder(menuCondicoes));
-        gradeCondicoes.appendChild(botao);
-        botoesCondicao.set(condicao.id, botao);
+            botao.append(imagem, rotulo);
+            botao.addEventListener("click", () => {
+                if (tokenAberto !== null) opcoes.aoAlternarCondicao(tokenAberto, condicao.id);
+            });
+            // Passar o mouse mostra a descrição ao lado do painel; sair a esconde.
+            botao.addEventListener("mouseenter", () => opcoes.dica.mostrar(condicao.id, menuCondicoes, botao));
+            botao.addEventListener("mouseleave", () => opcoes.dica.esconder(menuCondicoes));
+            gradeCondicoes.appendChild(botao);
+            botoesCondicao.set(condicao.id, botao);
+        }
     }
+    montarBotoesDeCondicao();
     // ACESSO RÁPIDO ao "Morto": um botão compacto na linha do título "Condições" (o da grade continua lá). Marca e desmarca a mesma condição.
     const topoCondicoes = document.getElementById("menu-condicoes-topo") as HTMLDivElement;
     const botaoMortoRapido = document.createElement("button");
@@ -183,6 +190,15 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
     botaoMortoRapido.addEventListener("mouseenter", () => opcoes.dica.mostrar("Morto", menuCondicoes, botaoMortoRapido));
     botaoMortoRapido.addEventListener("mouseleave", () => opcoes.dica.esconder(menuCondicoes));
     topoCondicoes.appendChild(botaoMortoRapido);
+    /** O atalho do "Morto" acompanha a lista: o ícone e o nome (o mestre pode ter editado), e some se a condição foi excluída. */
+    function atualizarBotaoMorto(): void {
+        const morto = buscarCondicao("Morto");
+        botaoMortoRapido.hidden = !morto;
+        imagemMorto.src = urlDoIcone("Morto");
+        rotuloMorto.textContent = morto?.nome ?? "Morto";
+        botaoMortoRapido.setAttribute("aria-label", morto?.nome ?? "Morto");
+    }
+    atualizarBotaoMorto();
 
     // Ao rolar a grade, a descrição aberta ficaria alinhada a um botão que mudou de lugar: some.
     gradeCondicoes.addEventListener("scroll", () => opcoes.dica.esconder(menuCondicoes));
@@ -343,6 +359,12 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
     });
 
     return {
+        reconstruirCondicoes() {
+            montarBotoesDeCondicao();
+            atualizarBotaoMorto();
+            opcoes.dica.esconder(menuCondicoes);
+            atualizarConteudo(); // (marca de novo as condições do token aberto)
+        },
         abrir(id) {
             tokenAberto = id;
             painelAberto = null; // começa só com os botões; os painéis abrem ao clicar

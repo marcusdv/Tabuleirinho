@@ -548,17 +548,6 @@
     font-weight: 600;
     text-wrap: pretty; /* quebras de linha mais bonitas (sem palavra solta na última linha) */
 }
-/* a VERSÃO: só na tela cheia (na bolsa do canto continua na dica do mouse), num cantinho do alto, ao lado da pontinha dobrada */
-.bolsa-doc small {
-    position: absolute;
-    top: 3px;
-    right: 20px;
-    font-size: 10px;
-    color: #9a9aa8;
-}
-#bolsa:not(.expandida) .bolsa-doc small {
-    display: none;
-}
 /* Tela cheia: o painel ocupa a largura toda (por baixo do cabeçalho) e a grade se estica até a borda direita. */
 #bolsa.expandida #bolsa-fichas {
     grid-column: 1 / -1;
@@ -600,9 +589,6 @@
 }
 #bolsa.expandida .bolsa-doc-nome {
     font-size: 12px; /* (já foi 14 px) */
-}
-#bolsa.expandida .bolsa-doc small {
-    font-size: 12px;
 }
 /* Janelas estreitas: a criação fica em cima e as fichas embaixo. */
 @media (max-width: 760px) {

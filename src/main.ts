@@ -42,6 +42,7 @@ import {
     definirDesenhos,
     podeApagarDesenho,
     criarToken,
+    duplicarToken,
     criarPeca,
     carregarStatusDaMesa,
     aplicarAcao,
@@ -101,7 +102,9 @@ import { criarCalibragem } from "./tabuleiro/calibragem";
 import { criarCamera } from "./tabuleiro/camera";
 import { criarDesenho, type FerramentaDesenho } from "./tabuleiro/desenho";
 import { criarGrade } from "./tabuleiro/grade";
-import { carregarTexturasCondicoes } from "./tabuleiro/iconesCondicoes";
+import { atualizarTexturasCondicoes, carregarTexturasCondicoes } from "./tabuleiro/iconesCondicoes";
+import { CONDICOES, CONDICOES_DE_FABRICA, definirCondicoes, ehDeFabrica, ordenarCondicoes, podeExcluirCondicao, type Condicao } from "./condicoes";
+import { criarBolsaCondicoes } from "./ui/bolsaCondicoes";
 import { ativarInteracao } from "./tabuleiro/interacao";
 import { criarMapa } from "./tabuleiro/mapa";
 import { criarRegua } from "./tabuleiro/regua";
@@ -116,7 +119,7 @@ import { criarBolsa } from "./ui/bolsa";
 import { criarBolsaMapas } from "./ui/bolsaMapas";
 import { definirBiblioteca, definirGradeDaMesa, definirMapa, definirMapaAtual } from "./estado";
 import type { Desenho, NovoDesenho } from "./estado";
-import { CHAVE_VISOES, MAX_BYTES_MAPA, MAX_HISTORICO_DESENHO, MAX_TOKENS_ACAO_EM_GRUPO, MS_ENVIO_REGUA, TAMANHO_CASA } from "./config";
+import { CHAVE_VISOES, MAX_BYTES_MAPA, MAX_CONDICOES, MAX_HISTORICO_DESENHO, MAX_TOKENS_ACAO_EM_GRUPO, MS_ENVIO_REGUA, TAMANHO_CASA } from "./config";
 import { guardarPreferencia, lerPreferencia } from "./ui/preferencias";
 import { criarEditorImagem } from "./ui/editorImagem";
 import { analisarAbas, rolarCartaoDaAnalise, rolarConta, rolarDaAnalise } from "./formulas";
@@ -462,6 +465,7 @@ async function iniciar(): Promise<void> {
     organizarAbasEmLinhas(document.getElementById("bolsa-abas") as HTMLElement, ".bolsa-aba", 0, 2);
     const painelIniciativa = criarIniciativa({
         aoAcao: (acao) => aplicarAcaoIniciativa(acao),
+        aoClicarPersonagem: (tokenId) => pingarNoToken(tokenId),
         confirmarLimpar: () => confirmacao.perguntar({ titulo: "Limpar a iniciativa?", mensagem: "A lista, a vez e a rodada serão apagadas para todos.", confirmar: "Limpar" }),
     });
 
@@ -1136,6 +1140,15 @@ async function iniciar(): Promise<void> {
             balao.esconder();
         },
         aoEditar: (token) => editorToken.editar(token),
+        aoDuplicar: (token) => {
+            if (rede?.ativa) {
+                rede.enviar({ tipo: "duplicar_token", id: token.id }); // (online quem cria é o SERVIDOR; a cópia chega pelo evento "token_criado")
+                return "enviado";
+            }
+            const copia = duplicarToken(token); // modo local: estado e desenho aqui mesmo
+            if (copia) tokens.adicionar(copia);
+            return copia;
+        },
         aoAbrirFichaDoToken: (token) => abrirFichaDoToken(token),
         aoRecolherPecas: (modelo) => {
             // Só as peças deste token no mapa (cena) em que estou: as de outros mapas ficam onde estão.
@@ -1572,8 +1585,62 @@ async function iniciar(): Promise<void> {
         },
     });
 
+    // --- As CONDIÇÕES da mesa: a lista que o MESTRE edita na aba Condições da bolsa em tela cheia (ver condicoes.ts e ui/bolsaCondicoes.ts) ---
+    /**
+     * A lista de condições mudou (o servidor avisou, ou o mestre mudou no modo local): põe a lista em uso, carrega os ícones que mudaram, redesenha os tokens (os ícones do anel) e refaz
+     * os menus e a aba.
+     */
+    async function condicoesMudaram(lista: Condicao[]): Promise<void> {
+        definirCondicoes(ordenarCondicoes(lista));
+        const mudou = await atualizarTexturasCondicoes(texturas);
+        if (mudou) for (const t of estado.tokens) tokens.redesenhar(t);
+        menu.reconstruirCondicoes();
+        bolsaCondicoes.atualizar();
+    }
+    /** Criar ou editar UMA condição. Online o SERVIDOR guarda em `dados/condicoes.json` e avisa todos ("condicao_salva"); no modo local, na hora. */
+    function salvarCondicao(condicao: Condicao): void {
+        if (rede?.ativa) return void rede.enviar({ tipo: "salvar_condicao", condicao });
+        const existe = CONDICOES.some((c) => c.id === condicao.id);
+        if (!existe && CONDICOES.length >= MAX_CONDICOES) return void aviso.mostrar(`A mesa já tem ${MAX_CONDICOES} condições (o máximo). Exclua alguma para criar outra.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        void condicoesMudaram(existe ? CONDICOES.map((c) => (c.id === condicao.id ? condicao : c)) : [...CONDICOES, condicao]);
+    }
+    /** Excluir uma condição (depois de confirmar): ela sai da lista e de todos os tokens que a tinham. */
+    async function excluirCondicao(condicao: Condicao): Promise<void> {
+        if (!podeExcluirCondicao(condicao.id)) return void aviso.mostrar(`A condição ${condicao.nome} não pode ser excluída: o jogo a usa para o X vermelho do token.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        const quantos = estado.tokens.filter((t) => t.condicoes.includes(condicao.id)).length;
+        const confirmou = await confirmacao.perguntar({
+            titulo: `Excluir a condição "${condicao.nome}"?`,
+            mensagem: `${quantos > 0 ? `Ela sai ${quantos === 1 ? "do 1 token que a tem" : `dos ${quantos} tokens que a têm`}.` : "Nenhum token tem esta condição agora."}${ehDeFabrica(condicao.id) ? '\nDá para trazê-la de volta com "Restaurar as de fábrica".' : ""}`,
+            confirmar: "Excluir",
+        });
+        if (!confirmou) return;
+        if (rede?.ativa) return void rede.enviar({ tipo: "excluir_condicao", id: condicao.id }); // (o servidor tira dos tokens e avisa)
+        for (const t of estado.tokens) {
+            if (!t.condicoes.includes(condicao.id)) continue;
+            t.condicoes = t.condicoes.filter((x) => x !== condicao.id);
+            tokens.redesenhar(t);
+        }
+        await condicoesMudaram(CONDICOES.filter((c) => c.id !== condicao.id));
+    }
+    /** "Restaurar as de fábrica": recria as de fábrica que foram excluídas (as que existem ficam como estão). */
+    function restaurarCondicoes(): void {
+        if (rede?.ativa) return void rede.enviar({ tipo: "restaurar_condicoes" });
+        void condicoesMudaram([...CONDICOES, ...CONDICOES_DE_FABRICA.filter((f) => !CONDICOES.some((c) => c.id === f.id))]);
+    }
+    const bolsaCondicoes = criarBolsaCondicoes({
+        editarImagem: (arquivo, corFundo) => editorImagem.editar(arquivo, corFundo),
+        aoSalvar: (condicao) => salvarCondicao(condicao),
+        aoExcluir: (condicao) => void excluirCondicao(condicao),
+        aoRestaurar: () => restaurarCondicoes(),
+    });
+
     // PINGS e RÉGUAS DOS OUTROS (compartilhados pelo servidor com quem está na mesma cena). Ficam por cima de tudo (inclusive dos tokens).
-    const pings = criarPings(app, camera);
+    // O ponto (em pixels do canvas) está À VISTA? Só se o elemento no TOPO dele for o próprio mapa (um painel, um menu ou o fim da janela o escondem): é o que decide se a SETA do ping aparece.
+    const pontoVisivelNoMapa = (x: number, y: number): boolean => {
+        const caixa = app.canvas.getBoundingClientRect();
+        return document.elementFromPoint(x + caixa.left, y + caixa.top) === app.canvas;
+    };
+    const pings = criarPings(app, camera, pontoVisivelNoMapa);
     const reguasDosOutros = criarReguasDosOutros(camera);
 
     // A SUA régua também vai aos outros: no máximo a cada MS_ENVIO_REGUA (com o estado mais novo no fim) e só quando mudou; "sumiu" (null) vai na hora.
@@ -1608,6 +1675,14 @@ async function iniciar(): Promise<void> {
 
     // LIMITE de pings: o mesmo "balde que enche aos poucos" do servidor (até RAJADA_PINGS de uma vez, depois 1 a cada MS_RECARGA_PING = 5 por segundo); aqui só para AVISAR a pessoa (o servidor é quem manda).
     const baldeDePings = novoBalde(RAJADA_PINGS);
+
+    /** Um clique na caixa de um personagem da INICIATIVA: faz um ping (comum) em cima da peça dele no tabuleiro, para todos acharem de quem é a vez. Se a peça não está neste mapa, só avisa. */
+    function pingarNoToken(tokenId: number): void {
+        const peca = buscarToken(tokenId);
+        if (!peca || peca.guardado) return void aviso.mostrar("Este personagem não está no tabuleiro.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        if (peca.mapa !== estado.mapaId) return void aviso.mostrar("Este personagem está em outro mapa.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        pingar(peca.col + peca.size / 2, peca.row + peca.size / 2, "comum"); // (o centro do bloco do token: `col`/`row` é o canto superior esquerdo)
+    }
 
     /** Faz um ping no ponto (col, row) (em casas, com fração): online o SERVIDOR repassa a quem está na cena (e o seu volta por ele); no modo local, só você vê. */
     function pingar(col: number, row: number, forma: FormaDePing): void {
@@ -1907,7 +1982,17 @@ async function iniciar(): Promise<void> {
                 case "regua":
                     reguasDosOutros.atualizar(evento.usuario, evento.apelido, evento.caminho, evento.cor);
                     return;
+                case "condicoes_definidas":
+                    void condicoesMudaram(evento.condicoes);
+                    return;
+                case "condicao_salva":
+                    void condicoesMudaram(CONDICOES.some((c) => c.id === evento.condicao.id) ? CONDICOES.map((c) => (c.id === evento.condicao.id ? evento.condicao : c)) : [...CONDICOES, evento.condicao]);
+                    return;
+                case "condicao_excluida":
+                    void condicoesMudaram(CONDICOES.filter((c) => c.id !== evento.id));
+                    return;
                 case "estado_inicial": {
+                    if (evento.condicoes) void condicoesMudaram(evento.condicoes); // (as condições da mesa: o mestre pode ter criado, editado ou excluído)
                     pings.limpar();
                     reguasDosOutros.limpar();
                     // O tamanho do tabuleiro também é do SERVIDOR (dados/mesa.json): aplica antes dos tokens (a posição deles é conferida com ele).
@@ -2179,6 +2264,7 @@ async function iniciar(): Promise<void> {
     if (import.meta.env.DEV) {
         (window as unknown as Record<string, unknown>).__tabuleirinho = {
             pronto: true,
+            setasDePing: () => pings.setasVisiveis, // (só para os testes: quantas setas de ping estão à vista)
             distanciaDaRegua: () => regua.texto, // (só para os testes: o texto da medida da régua; ela não aparece mais no painel Desenho)
             atrasoRolagemMs: ATRASO_ROLAGEM_MS, // (os testes zeram: tests/e2e/ajuda.mjs `abrirPagina`)
             // Só para os testes: adiciona à mesa os tokens que o TESTE mandar (o app não tem nenhum token pronto: eles vêm dos

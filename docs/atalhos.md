@@ -39,8 +39,9 @@ Atalhos de uma letra só moram em `src/ui/atalhos.ts` (não valem enquanto se di
 | **Esquerdo** no vazio | Tira a seleção |
 | **Shift + esquerdo** (clique) | Ping comum no ponto clicado (vale com qualquer ferramenta e sobre tokens) |
 | **Shift + esquerdo** arrastado | Abre a **roda de pings** (12 posições, com os 12 tipos) no ponto apertado: o mouse aponta um lado e soltar faz o ping dele. Do alto, no sentido do relógio: **Ajuda** (cima), Alvo, Atacar, **Avançar** (direita), Investigar, Tesouro, **Perigo** (baixo), Armadilha, Recuar, **Sumiu** (esquerda), Agrupar e Cura. No meio: ping comum. **Esc** cancela |
-| **Direito** no vazio | Menu do mapa: **Ping** (e o submenu com os 12 tipos: Sumiu, Perigo, Avançar, Ajuda, Agrupar, Alvo, Atacar, Recuar, Armadilha, Investigar, Tesouro, Cura), **Régua**, **Borracha** e, só para o mestre, **Borracha de fog** e **Pincel de fog** |
+| **Direito** no vazio | Menu do mapa: **Lápis**, **Borracha**, **Ping** (e o submenu com os 12 tipos: Sumiu, Perigo, Avançar, Ajuda, Agrupar, Alvo, Atacar, Recuar, Armadilha, Investigar, Tesouro, Cura), **Régua**, **Borracha** e, só para o mestre, **Borracha de fog** e **Pincel de fog** |
 | **Direito** num token | Engrenagem e lista de ações do token |
+| **Clique** na caixa de um personagem na **iniciativa** | Faz um **ping** em cima do token dele no tabuleiro (para todos acharem de quem é a vez); arrastar a caixa só reordena |
 | **Direito**, com a régua medindo (esquerdo apertado) | Fixa um ponto e a medida continua dali (curvas) |
 
 ### Toque (celular)

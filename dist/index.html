@@ -4,7 +4,7 @@
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>Tabuleirinho</title>
-      <script type="module" crossorigin src="/assets/index-BqYwAcsL.js"></script>
+      <script type="module" crossorigin src="/assets/index-BfqKQOTV.js"></script>
       <link rel="modulepreload" crossorigin href="/assets/CanvasPool-cZm-qJ09.js">
       <link rel="modulepreload" crossorigin href="/assets/Filter-CBWLFxHX.js">
       <link rel="modulepreload" crossorigin href="/assets/canvasUtils-D8Fc3Bye.js">
@@ -14,7 +14,7 @@
       <link rel="modulepreload" crossorigin href="/assets/getTextureBatchBindGroup-CPM2N5IT.js">
       <link rel="modulepreload" crossorigin href="/assets/GraphicsContext-DtkgRzau.js">
       <link rel="modulepreload" crossorigin href="/assets/getTexelRangeRects-fmak5Y5p.js">
-      <link rel="stylesheet" crossorigin href="/assets/index-CsaXmShK.css">
+      <link rel="stylesheet" crossorigin href="/assets/index-BEra-uP0.css">
     </head>
     <body>
         <div id="app"></div>
@@ -242,15 +242,16 @@
             </aside>
         </div>
 
-        <!-- MENU DO BOTÃO DIREITO no espaço vazio do mapa (ui/menuMapa.ts): Ping, Régua e Borracha para todos; os pincéis do fog só para o mestre. -->
+        <!-- MENU DO BOTÃO DIREITO no espaço vazio do mapa (ui/menuMapa.ts): Lápis, Borracha, Ping e Régua para todos; os pincéis do fog só para o mestre. -->
         <div id="menu-mapa" role="menu" aria-label="Ações no mapa" hidden>
+            <button type="button" role="menuitem" data-acao="lapis" title="Desenhar à mão livre, na cor escolhida no painel Desenho"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-lapis"></span></span>Lápis</button>
+            <button type="button" role="menuitem" data-acao="borracha" title="Apagar o desenho que ela tocar"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-borracha"></span></span>Borracha</button>
             <!-- O PING comum é o próprio item; as formas especiais abrem num submenu ao lado (passar o mouse, ou a seta → do teclado). Clicar no item Ping, e não numa forma, faz o ping comum. -->
             <div class="menu-mapa-grupo">
                 <button type="button" role="menuitem" data-acao="ping" aria-haspopup="menu" title="Chama a atenção de todos para este ponto (passe o mouse para ver os outros tipos). Atalho: Shift + clique; Shift + arrastar abre a roda de pings"><span class="menu-mapa-icone" aria-hidden="true">◎</span>Ping<span class="menu-mapa-seta" aria-hidden="true">▸</span></button>
                 <div class="menu-mapa-extras" role="menu" aria-label="Tipos de ping"><!-- os tipos vêm da tabela do config.ts (ui/menuMapa.ts) --></div>
             </div>
             <button type="button" role="menuitem" data-acao="regua" title="Medir a distância (1 casa = 1,5 m); todos veem a sua medida (R)"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-regua"></span></span>Régua<kbd class="menu-mapa-atalho">R</kbd></button>
-            <button type="button" role="menuitem" data-acao="borracha" title="Apagar o desenho que ela tocar"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-borracha"></span></span>Borracha</button>
             <button type="button" role="menuitem" data-acao="fog-revelar" class="so-mestre" title="Borracha de fog: pinta para REVELAR o mapa"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-borracha"></span></span>Borracha de fog</button>
             <button type="button" role="menuitem" data-acao="fog-cobrir" class="so-mestre" title="Pincel de fog: pinta para COBRIR o mapa de novo"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-pincel"></span></span>Pincel de fog</button>
         </div>
@@ -421,6 +422,8 @@
                         <button id="bolsa-aba-fichas" class="bolsa-aba" role="tab" data-aba="fichas" aria-selected="false" aria-controls="bolsa-fichas" tabindex="-1">Fichas</button>
                         <button id="bolsa-aba-mapas" class="bolsa-aba so-mestre" role="tab" data-aba="mapas" aria-selected="false" aria-controls="bolsa-mapas" tabindex="-1">Mapas</button>
                         <button id="bolsa-aba-jogadores" class="bolsa-aba so-mestre" role="tab" data-aba="jogadores" aria-selected="false" aria-controls="bolsa-jogadores" tabindex="-1">Jogadores</button>
+                        <!-- Aba CONDIÇÕES (só do mestre, e só na bolsa em TELA CHEIA: o CSS a esconde na do canto): criar, editar e excluir as condições da mesa. Ids usados no ui/bolsaCondicoes.ts. -->
+                        <button id="bolsa-aba-condicoes" class="bolsa-aba so-mestre" role="tab" data-aba="condicoes" aria-selected="false" aria-controls="bolsa-condicoes" tabindex="-1">Condições</button>
                     </div>
                 </div>
                 <div id="bolsa-conteudo">
@@ -495,6 +498,19 @@
                     <div id="bolsa-mapas-rolagem">
                         <p id="bolsa-mapas-explicacao"></p>
                         <ul id="bolsa-mapas-lista"></ul>
+                    </div>
+                </section>
+                <!-- A aba CONDIÇÕES (só do mestre; só na bolsa em tela cheia): a lista das condições da mesa, com o ícone e o texto do balão de cada uma. Ids usados no ui/bolsaCondicoes.ts. -->
+                <section id="bolsa-condicoes" role="tabpanel" aria-label="Condições" aria-labelledby="bolsa-aba-condicoes">
+                    <div id="bolsa-condicoes-barra">
+                        <button id="bolsa-condicoes-nova" type="button" class="botao-largo">+ Nova condição</button>
+                        <input type="search" id="bolsa-condicoes-busca" placeholder="Pesquisar condição…" aria-label="Pesquisar condição" autocomplete="off" />
+                        <button id="bolsa-condicoes-restaurar" type="button" class="botao-largo" title="Recria as condições de fábrica que foram excluídas (as que existem ficam como estão)">Restaurar as de fábrica</button>
+                        <p id="bolsa-condicoes-aviso" aria-live="polite"></p>
+                    </div>
+                    <div id="bolsa-condicoes-rolagem">
+                        <p id="bolsa-condicoes-explicacao">As condições que os tokens podem ter. O texto de cada uma aparece num balão quando se passa o mouse sobre o ícone dela, no token. Excluir uma condição a tira de todos os tokens que a tinham.</p>
+                        <ul id="bolsa-condicoes-lista"></ul>
                     </div>
                 </section>
                 <!-- Aba JOGADORES (só do mestre): quem está na mesa, o papel de cada um e a configuração da mesa (limites por jogador). Ids usados no ui/jogadores.ts. -->
@@ -604,6 +620,7 @@
         <!-- Menu do clique direito numa ficha da bolsa. Ids usados no ui/bolsa.ts. -->
         <div id="menu-ficha" hidden role="menu">
             <button id="menu-ficha-editar" role="menuitem">Editar token…</button>
+            <button id="menu-ficha-duplicar" role="menuitem" title="Cria um token igual a este (com a ficha, os grupos e a pasta; sem o favorito; uma ficha única fica vazia)">Duplicar token</button>
             <button id="menu-ficha-recolher" role="menuitem">Recolher do tabuleiro</button>
             <button id="menu-ficha-ficha" role="menuitem">Criar ficha</button>
             <button id="menu-ficha-favorito" role="menuitem">Favoritar</button>
@@ -639,6 +656,33 @@
                     <button id="editor-grupo-compartilhar" type="button" hidden>Compartilhar…</button>
                     <button id="editor-grupo-cancelar" type="button">Cancelar</button>
                     <button id="editor-grupo-salvar" type="button">Salvar</button>
+                </div>
+            </div>
+        </div>
+        <!-- Janela de CRIAR ou EDITAR uma CONDIÇÃO (ui/editorCondicao.ts): o nome, o texto do balão (uma linha por item) e o ícone (a imagem enviada é recortada e comprimida num "print" de 256 px). -->
+        <div id="editor-condicao" hidden role="dialog" aria-modal="true" aria-labelledby="editor-condicao-titulo">
+            <div id="editor-condicao-painel">
+                <h3 id="editor-condicao-titulo">Nova condição</h3>
+                <div id="editor-condicao-corpo">
+                    <div id="editor-condicao-coluna-icone">
+                        <p class="bolsa-rotulo">Ícone</p>
+                        <div id="editor-condicao-icone"><img id="editor-condicao-imagem" alt="" draggable="false" hidden /><span id="editor-condicao-sem-imagem">sem imagem</span></div>
+                        <button id="editor-condicao-escolher" type="button">Escolher imagem…</button>
+                        <input type="file" id="editor-condicao-arquivo" accept="image/png,image/jpeg,image/webp" hidden />
+                        <p class="editor-condicao-dica">Imagem grande? Sem problema: ela é recortada e comprimida (256 px) para ocupar pouco espaço.</p>
+                    </div>
+                    <div id="editor-condicao-campos">
+                        <p class="bolsa-rotulo">Nome</p>
+                        <input type="text" id="editor-condicao-nome" placeholder="Nome da condição" autocomplete="off" aria-label="Nome da condição" />
+                        <p class="bolsa-rotulo">Texto do balão (uma linha por item)</p>
+                        <textarea id="editor-condicao-descricao" rows="8" placeholder="O que a condição faz. Aparece quando se passa o mouse sobre o ícone dela." aria-label="Texto do balão da condição"></textarea>
+                        <p id="editor-condicao-aviso" role="alert" hidden></p>
+                    </div>
+                </div>
+                <div id="editor-condicao-botoes">
+                    <button id="editor-condicao-original" type="button" hidden title="Volta o nome, o texto e o ícone ao que vinha de fábrica (só aparece nas condições de fábrica)">Restaurar original</button>
+                    <button id="editor-condicao-cancelar" type="button">Cancelar</button>
+                    <button id="editor-condicao-salvar" type="button">Salvar</button>
                 </div>
             </div>
         </div>
