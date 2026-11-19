@@ -16,9 +16,15 @@ const rolarTexto = async () => `${await p.locator("#dados-rolar-rotulo").textCon
 const valor = (s) => p.inputValue(s);
 const sorteio = (v) => p.evaluate((v) => { Math.random = () => v; }, v); // controla o sorteio do navegador
 
-// ================= 1) posição: a barra no pé da coluna da direita (dentro do #chat, embaixo do chat OU da bolsa)
+// ================= 1) posição: a barra da coluna da direita (dentro do #chat): entre as mensagens e o campo de mensagem do chat; na aba Bolsa, no pé
 const chat = await caixa("#chat"), dados = await caixa("#dados");
-ok("1a) o painel de dados é o ÚLTIMO filho da coluna da direita (#chat)", (await p.locator("#chat > #dados").count()) === 1 && (await p.evaluate(() => document.getElementById("chat").lastElementChild.id)) === "dados");
+ok("1a) o painel de dados é filho da coluna da direita (#chat) e vem ANTES do campo de mensagem, que é o último item", (await p.locator("#chat > #dados").count()) === 1 && (await p.evaluate(() => { const f = [...document.getElementById("chat").children].map((e) => e.id); return f[f.length - 1] === "chat-form" && f[f.length - 2] === "dados"; })));
+// Na aba Chat os Dados ficam ENTRE as mensagens e o campo de mensagem (em cima dele, e não embaixo); na Bolsa não há campo e eles ficam no pé.
+await p.click("#lateral-aba-chat"); await p.waitForTimeout(250);
+{ const d = await caixa("#dados"), f = await caixa("#chat-form"), m = await caixa("#chat-faixa");
+  ok("1a2) na aba Chat, os dados ficam ACIMA do campo de mensagem e abaixo das mensagens", d.y + d.height <= f.y + 1 && m.y + m.height <= d.y + 1, JSON.stringify({ m, d, f }));
+  ok("1a3) o campo de mensagem fica no pé da coluna (a base dele encosta no fim da janela)", perto(f.y + f.height, 800, 2), `${(f.y + f.height).toFixed(0)}`); }
+await p.click("#lateral-aba-bolsa"); await p.waitForTimeout(250);
 ok("1b) fica no PÉ da coluna da direita (a base da caixa encosta no fim da janela e ela está na coluna)", perto(dados.y + dados.height, 800, 2) && dados.x >= chat.x - 1 && dados.x + dados.width <= chat.x + chat.width + 1, JSON.stringify(dados));
 ok("1b2) tem cabeçalho 'Dados' com o botão ▴ de recolher, como Ferramentas e Desenho", (await p.locator("#dados .cabecalho h1").textContent()) === "Dados" && (await p.locator("#dados-alternar").textContent()) === "▴");
 ok("1b3) aberto, o painel tem a largura da coluna (~318 px)", perto(dados.width, 318, 3), `${dados.width.toFixed(0)} px`);

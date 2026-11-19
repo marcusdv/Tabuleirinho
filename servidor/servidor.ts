@@ -29,6 +29,10 @@ import {
     MAX_FICHAS,
     MAX_GRUPOS,
     MAX_MENSAGENS_POR_SEGUNDO,
+    SEGUNDOS_BATIMENTO,
+    MS_ENTRE_ENVIOS_REGUA,
+    MS_RECARGA_PING,
+    RAJADA_PINGS,
     MS_RECARGA_CHAT,
     MS_RECARGA_ROLAGEM,
     RAJADA_CHAT,
@@ -137,9 +141,9 @@ import { ajustarFogAoTamanho, ativarFog, desativarFog, pintarFog, preencherFog, 
 import { apagarDaPasta, carregarMesa, carregarPasta, gravarMesa, gravarNaPasta, PASTA_DE_DADOS, type NomeDaPasta } from "./dados.ts";
 
 import { filaDeArquivos, naFilaDeArquivos } from "./fila.ts";
-import { type Conexao, podeRolar, podeEscrever, conexoes, novoIdDeConexao, listaDeJogadores, enviar, avisarTodos, erro, avisarCada } from "./conexoes.ts";
+import { type Conexao, SEM_LIMITE_SPAM, podeRolar, podeEscrever, conexoes, novoIdDeConexao, listaDeJogadores, enviar, avisarTodos, erro, avisarCada } from "./conexoes.ts";
 import { mapaAtual, mapaDaConexao, mapaDoUsuario, irParaMapa, tamanhoDoMapa, gradeDoMapa, comCenaDe, definirMapaDoMestre, configDaCena, lembrarTamanhoDaCena, lembrarGradeDaCena, esquecerCena, carregarCenas } from "./cenas.ts";
-import { SEM_PERMISSAO, podeNoToken, podeNaFicha, valoresParaConexao, avisarValoresDoToken, bibliotecaParaConexao, avisarMapaDe, avisarMapaAtual, avisarJogadores, avisarMapasDefinidos, tokenParaConexao, tokenParaConexaoSemEstrela, fichaParaConexao, sincronizarVisaoDe, sincronizarVisaoDeTodos, avisarPermissoes, atualizarPapeisConectados, avisarToken, avisarFicha, valoresVisiveisPara, avisarValoresDaFicha, semPermissaoNoMapa, pastaParaConexao, avisarPasta, avisarFogDoMapa, avisarFogPintado, desenhoOcultoPara, desenhosVisiveisPara, enviarFogDe, pecaOcultaPelaFog, reconciliarTodos } from "./visao.ts";
+import { SEM_PERMISSAO, podeNoToken, podeNaFicha, valoresParaConexao, avisarValoresDoToken, bibliotecaParaConexao, avisarMapaDe, avisarMapaAtual, avisarJogadores, avisarMapasDefinidos, tokenParaConexao, tokenParaConexaoSemEstrela, fichaParaConexao, sincronizarVisaoDe, sincronizarVisaoDeTodos, avisarPermissoes, atualizarPapeisConectados, avisarToken, avisarFicha, valoresVisiveisPara, avisarValoresDaFicha, semPermissaoNoMapa, pastaParaConexao, avisarPasta, avisarFogDoMapa, avisarFogPintado, desenhoOcultoPara, desenhosVisiveisPara, enviarFogDe, pecaOcultaPelaFog, reconciliarTodos, pontoOcultoPara } from "./visao.ts";
 import { carregarPreferencias, definirFavoritoDe } from "./preferencias.ts";
 
 // A pasta do site: `dist/` (o resultado de `npm run build`). Dá para trocar com a variável SITE (ex.: SITE=/outra/pasta npm run servidor).
@@ -729,6 +733,28 @@ function refazerVisaoDasPastas(): void {
 }
 
 /** Trata um pedido com a CENA de quem o mandou (o mapa e o tamanho do tabuleiro dele; ver `comCenaDe`). */
+/** Quando cada conexão pingou / mandou a régua pela última vez (anti-spam; some junto com a conexão). */
+const baldesDePings = new WeakMap<Conexao, Balde>();
+/** O LIMITE de pings (até RAJADA_PINGS de uma vez, depois 1 a cada MS_RECARGA_PING): o excesso é ignorado. */
+function podePingar(c: Conexao): boolean {
+    if (SEM_LIMITE_SPAM) return true;
+    let balde = baldesDePings.get(c);
+    if (!balde) baldesDePings.set(c, (balde = novoBalde(RAJADA_PINGS)));
+    return gastar(balde, RAJADA_PINGS, MS_RECARGA_PING);
+}
+const ultimaRegua = new WeakMap<Conexao, number>();
+
+/** Manda aos OUTROS da mesma cena a régua de `c` (null = sumiu). Quem tem um ponto dela sob o fog não a recebe (o mestre vê tudo). */
+function avisarReguaDe(c: Conexao, mapa: string | null, caminho: { col: number; row: number }[] | null, cor: number): void {
+    const evento = { tipo: "regua" as const, usuario: c.usuario, apelido: c.jogador?.apelido ?? "", caminho, cor };
+    avisarCada((c2) => {
+        if (c2 === c || mapaDaConexao(c2) !== mapa) return null;
+        // Sob o fog: manda "sumiu" (e não nada), para a régua que já estava à vista deixar de aparecer quando passa a ficar sob a névoa.
+        const oculta = caminho?.some((p) => pontoOcultoPara(c2, mapa, p.col + 0.5, p.row + 0.5)) ?? false;
+        return oculta ? { ...evento, caminho: null } : evento;
+    });
+}
+
 function tratar(c: Conexao, pedido: PedidoDoCliente): void {
     comCenaDe(c, () => tratarNaCena(c, pedido));
     reconciliarTodos(); // (o fog: a peça que acabou de sair dele aparece para os jogadores e a que entrou some; sem fog em uso, não faz nada)
@@ -1056,6 +1082,30 @@ function tratarNaCena(c: Conexao, pedido: PedidoDoCliente): void {
             const criado = adicionarDesenhoNoMapa(meuMapa, pedido.desenho, c.usuario);
             if (!criado) return erro(c.ws, "Este mapa já tem desenhos demais. Peça ao mestre para apagar alguns.");
             avisarCada((c2) => (mapaDaConexao(c2) === meuMapa && !desenhoOcultoPara(c2, criado, meuMapa) ? { tipo: "desenho_criado", desenho: criado, ...(pedido.ref !== undefined && { ref: pedido.ref }) } : null)); // (só quem vê o mapa vê o desenho)
+            return;
+        }
+        case "ping": {
+            // Um PING: quem está na MESMA cena vê (e quem tem o ponto sob o fog não: só o autor e o mestre). Não é guardado; no máximo 5 por segundo por pessoa (balde que enche aos poucos).
+            const meuMapa = mapaDaConexao(c);
+            if (!c.mestre && meuMapa === null) return;
+            if (!podePingar(c)) return;
+            const { colunas, linhas } = tamanhoDoMapa(meuMapa);
+            const col = Math.min(Math.max(pedido.col, 0), colunas);
+            const row = Math.min(Math.max(pedido.row, 0), linhas);
+            const base = { tipo: "ping" as const, col, row, forma: pedido.forma, cor: pedido.cor, usuario: c.usuario, apelido: c.jogador?.apelido ?? "" };
+            avisarCada((c2) => (mapaDaConexao(c2) === meuMapa && (c2 === c || !pontoOcultoPara(c2, meuMapa, col, row)) ? { ...base, ...(c2 === c && { seu: true }) } : null));
+            return;
+        }
+        case "regua": {
+            // A RÉGUA de quem mede: os outros da mesma cena a veem (não é guardada). Os pontos são limitados ao tabuleiro da cena; sob o fog, só o autor e o mestre veem.
+            const meuMapa = mapaDaConexao(c);
+            if (!c.mestre && meuMapa === null) return;
+            const agora = Date.now();
+            if (pedido.caminho !== null && agora - (ultimaRegua.get(c) ?? 0) < MS_ENTRE_ENVIOS_REGUA) return;
+            ultimaRegua.set(c, agora);
+            const { colunas, linhas } = tamanhoDoMapa(meuMapa);
+            const caminho = pedido.caminho === null ? null : pedido.caminho.map((p) => ({ col: Math.min(p.col, colunas - 1), row: Math.min(p.row, linhas - 1) }));
+            avisarReguaDe(c, meuMapa, caminho, pedido.cor);
             return;
         }
         case "apagar_desenhos": {
@@ -1461,7 +1511,19 @@ wss.on("connection", (ws, requisicao: IncomingMessage) => {
         }
     });
 
+    // BATIMENTO: uma conexão que cai SEM avisar (túnel, Wi-Fi, aba congelada) nunca dispara "close" sozinha, e o nome ficaria para sempre em "Online" e "Na cena".
+    // A cada ciclo mandamos um ping; o navegador responde pong sozinho. Se nenhum pong chegou desde o ciclo anterior, a conexão é derrubada (o que dispara o "close" abaixo).
+    let respondeu = true;
+    ws.on("pong", () => (respondeu = true));
+    const batimento = setInterval(() => {
+        if (!respondeu) return ws.terminate();
+        respondeu = false;
+        ws.ping();
+    }, SEGUNDOS_BATIMENTO * 1000);
+
     ws.on("close", () => {
+        if (conexao.jogador) avisarReguaDe(conexao, mapaDaConexao(conexao), null, 0); // (a régua dele some da tela dos outros)
+        clearInterval(batimento);
         clearTimeout(prazo);
         conexoes.delete(conexao);
         if (conexao.jogador) {

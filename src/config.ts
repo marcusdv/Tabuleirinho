@@ -75,6 +75,37 @@ export const MAPA_INICIAL: string | null = "/images/maps/caverna.png";
 
 // --- Régua ---
 export const METROS_POR_CASA = 1.5; // cada casa do tabuleiro vale 1,5 m (5 pés do livro)
+export const RAJADA_PINGS = 5; // LIMITE ANTI-SPAM dos pings (pedido do dono: "5 por segundo"): quantos pings cabem de uma vez...
+export const MS_RECARGA_PING = 200; // ...e depois vale 1 ping a cada tanto (= 5 por segundo). A Riot não publica o limite do League of Legends; este é o do dono
+export const MS_ENTRE_ENVIOS_REGUA = 30; // o servidor ignora uma atualização da régua de quem acabou de mandar outra (o navegador manda a cada MS_ENVIO_REGUA)
+export const MS_ENVIO_REGUA = 70; // com a régua à vista, o navegador a manda aos outros no máximo a cada tanto (e sempre manda o último estado)
+// Os TIPOS DE PING. O "comum" é só um ponto (na cor do desenho de quem pinga); os especiais têm um SÍMBOLO (um SVG de `public/images/svgs/pings/`), um NOME, uma COR fixa e uma dica.
+// Para criar um tipo novo: o SVG na pasta + uma entrada aqui (e, se quiser na roda, uma linha em `LADOS_DA_RODA_DE_PING`, em ui/rodaPing.ts). O menu, a roda e o mapa se montam desta tabela.
+export const FORMAS_ESPECIAIS_DE_PING = ["sumiu", "perigo", "avancar", "ajuda", "agrupar", "alvo", "atacar", "recuar", "armadilha", "investigar", "tesouro", "cura"] as const; // (a ORDEM é a do submenu)
+export const FORMAS_DE_PING = ["comum", ...FORMAS_ESPECIAIS_DE_PING] as const;
+export const DADOS_DAS_FORMAS_DE_PING: Record<(typeof FORMAS_ESPECIAIS_DE_PING)[number], { nome: string; cor: number; arquivo: string; dica: string }> = {
+    sumiu: { nome: "Sumiu", cor: 0xffd54f, arquivo: "interrogacao", dica: "Sumiu: alguém ou algo sumiu daqui (? amarelo)" },
+    perigo: { nome: "Perigo", cor: 0xe53935, arquivo: "perigo", dica: "Perigo: há ameaça mortal aqui (caveira vermelha)" },
+    avancar: { nome: "Avançar", cor: 0x43a047, arquivo: "avancar", dica: "Avançar: vamos para lá (setas verdes)" },
+    ajuda: { nome: "Ajuda", cor: 0x42a5f5, arquivo: "escudo", dica: "Ajuda: preciso de ajuda ou de proteção aqui (escudo azul)" },
+    agrupar: { nome: "Agrupar", cor: 0x7c4dff, arquivo: "agrupar", dica: "Agrupar: venham todos para cá (violeta)" },
+    alvo: { nome: "Alvo", cor: 0xff5252, arquivo: "alvo", dica: "Alvo: foquem este inimigo (mira vermelha)" },
+    atacar: { nome: "Atacar", cor: 0xec407a, arquivo: "atacar", dica: "Atacar: ataquem aqui (rosa)" },
+    recuar: { nome: "Recuar", cor: 0xff7043, arquivo: "recuar", dica: "Recuar: voltem, saiam daí (laranja-avermelhado)" },
+    armadilha: { nome: "Armadilha", cor: 0xab47bc, arquivo: "armadilha", dica: "Armadilha: desconfio deste ponto (roxo)" },
+    investigar: { nome: "Investigar", cor: 0x26c6da, arquivo: "investigar", dica: "Investigar: olhem este detalhe (ciano)" },
+    tesouro: { nome: "Tesouro", cor: 0xffc400, arquivo: "tesouro", dica: "Tesouro: algo valioso aqui (dourado)" },
+    cura: { nome: "Cura", cor: 0x00e676, arquivo: "cura", dica: "Cura: preciso de cura ou de ajuda (coração verde)" },
+};
+export const RAIO_RODA_PING = 112; // a distância (px) do centro da roda de pings até o centro de cada lado
+export const COR_DA_MEDIDA_PADRAO = 0xffd54f; // a cor da régua enquanto nenhuma cor de desenho foi escolhida
+export const MARGEM_SETA_PING = 34; // a seta do ping fora da tela fica a este tanto (px) da borda da área livre
+export const PX_ABRIR_RODA_PING = 18; // com o Shift apertado, o mouse precisa andar este tanto (px) para a RODA DE PINGS abrir (menos que isso é um clique: ping comum)
+export const PX_ZONA_MORTA_RODA_PING = 30; // dentro deste raio (px) do centro da roda, soltar faz o ping COMUM; fora dele vale o lado para onde o mouse aponta
+export const MS_SUBIDA_PING = 560; // o símbolo do ping SOBE do chão (do ponto clicado para cima) neste tempo, com um pulinho no fim
+export const ALTURA_SIMBOLO_PING = 46; // a altura do símbolo do ping NA TELA (px; não muda com o zoom)
+export const MS_PING_VISIVEL = 3200; // quanto tempo o anel do ping pulsa no mapa
+export const MS_SETA_PING = 4500; // quanto tempo a SETA fica na borda da tela quando o ping caiu fora da tela
 export const MAX_PONTOS_REGUA = 30; // quantos pontos (início + curvas) cabem numa medida da régua
 
 // --- Desenho (lápis, borracha e formas: elipse, retângulo e triângulo, só contorno) ---
@@ -103,6 +134,7 @@ export const TAMANHO_MAX_MENSAGEM_REDE = 262144; // bytes (256 KB): o servidor r
 export const MAX_MENSAGENS_POR_SEGUNDO = 40; // por conexão: o excesso é ignorado (e quem insiste é desconectado)
 export const MS_ESPERA_GRAVACAO_TOKEN = 300; // o servidor espera este tempo antes de gravar a posição de um token que andou (vários movimentos seguidos viram uma gravação só)
 export const SEGUNDOS_PARA_ENTRAR = 5; // quem conecta e não se apresenta ("entrar") neste tempo é desconectado
+export const SEGUNDOS_BATIMENTO = 15; // o servidor "chama" cada conexão (ping) a cada tanto tempo; quem não responde até a próxima chamada é considerada caída e sai da lista de online
 
 // --- Dados (a barra de dados ao lado do chat) ---
 export const DADOS_DISPONIVEIS = [4, 6, 8, 10, 12, 20, 100, 1000]; // d4, d6, d8, d10, d12, d20, d100, d1000
@@ -166,12 +198,15 @@ export const PX_DUPLO_CLIQUE = 5;
 export const SENSIBILIDADE_ZOOM_RODA = 0.001;
 
 // --- Câmera ---
-// O tabuleiro pode ser arrastado para qualquer lado, deixando muito espaço em branco em volta,
-// mas pelo menos esta parte dele (em pixels de TELA, em cada eixo) continua visível para ele
-// nunca sumir. Quanto MENOR o número, mais livre a movimentação.
-export const PARTE_VISIVEL_CAMERA = 240;
+// A câmera deixa sobrar, além da borda do mapa, NO MÁXIMO este tanto de espaço vazio (em pixels de TELA, em cada eixo; pedido do dono, 18/11/2026: "menos espaço livre além do mapa").
+// Um pouco mais que a largura de cada painel lateral (~340 px), para dar para tirar a borda do mapa de trás deles. Quanto MENOR o número, mais presa a câmera fica ao mapa.
+export const MARGEM_LIVRE_CAMERA = 360;
 // Ao "ajustar à tela", sobra esta folga (px) de cada lado do tabuleiro.
 export const MARGEM_AJUSTE = 24;
+export const MS_SUAVIZAR_CAMERA = 70; // o deslize da câmera (setas e inércia do arrasto): a cada instante ela anda a fração `1 - e^(-tempo / isto)` do que falta. Menor = mais seco, maior = mais "mole"
+export const FATOR_INERCIA_PAN = 110; // ao SOLTAR um arrasto em movimento, a câmera ainda desliza: velocidade (px por ms) × isto = distância (px) que falta percorrer
+export const MS_JANELA_VELOCIDADE_PAN = 90; // a velocidade do arrasto é medida nos últimos ms; se o mouse ficou parado antes de soltar, não há inércia
+export const VELOCIDADE_MIN_INERCIA_PAN = 0.15; // px por ms: abaixo disto soltar não desliza (um arrasto lento e preciso pára onde parou)
 
 // --- Tokens ---
 export const TAMANHO_MIN_TOKEN = 1; // um token ocupa no mínimo 1x1 casa

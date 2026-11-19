@@ -199,7 +199,7 @@
     color: #ff6b63;
 }
 
-/* O selo de ficha ÚNICA (pedido do dono, 17/11/2026): agora usa o ícone `public/images/svgs/unique.svg` (um selo com visto) no lugar do número "1". O SVG é um contorno preto, então entra como MÁSCARA
+/* O selo de ficha ÚNICA (pedido do dono, 17/11/2026): agora usa o ícone `public/images/svgs/unico.svg` (um selo com visto) no lugar do número "1". O SVG é um contorno preto, então entra como MÁSCARA
    (a forma dele) pintada com a cor do tema. */
 .bolsa-doc .item-unica,
 #bolsa.expandida .bolsa-doc .item-unica {
@@ -210,8 +210,8 @@
     font-size: 0;
     line-height: 0;
     background: #4aa3ff;
-    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
-    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    -webkit-mask: url("/images/svgs/unico.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unico.svg") center / contain no-repeat;
     filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.9));
 }
 #bolsa.expandida .bolsa-doc .item-unica {

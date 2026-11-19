@@ -94,7 +94,7 @@ import {
     definirValoresDaFicha,
     motivoParaNaoColocar,
     sincronizarValoresDaFicha, temIniciativaNaFicha, montarPasta, receberPasta, limparNomeDePasta, podeMoverPasta, excluirPasta, moverParaPasta, definirPastas } from "./estado";
-import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, LINHAS_INICIAIS, MS_RECARGA_ROLAGEM, RAJADA_ROLAGENS, SENSIBILIDADE_ZOOM_RODA, TEMPO_AVISO_MAPA_MS, TEMPO_DESFAZER_MS } from "./config";
+import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, COR_INICIAL_DESENHO, LINHAS_INICIAIS, MS_RECARGA_PING, MS_RECARGA_ROLAGEM, RAJADA_PINGS, RAJADA_ROLAGENS, SENSIBILIDADE_ZOOM_RODA, TEMPO_AVISO_MAPA_MS, TEMPO_DESFAZER_MS } from "./config";
 import { preverGrade } from "./coordenadas";
 import { gastar, novoBalde } from "./limite";
 import { criarCalibragem } from "./tabuleiro/calibragem";
@@ -105,13 +105,18 @@ import { carregarTexturasCondicoes } from "./tabuleiro/iconesCondicoes";
 import { ativarInteracao } from "./tabuleiro/interacao";
 import { criarMapa } from "./tabuleiro/mapa";
 import { criarRegua } from "./tabuleiro/regua";
+import { criarPings } from "./tabuleiro/pings";
+import { criarReguasDosOutros } from "./tabuleiro/reguasDosOutros";
+import { criarMenuMapa } from "./ui/menuMapa";
+import { criarRodaPing } from "./ui/rodaPing";
+import { criarAtalhos } from "./ui/atalhos";
 import { criarTokens } from "./tabuleiro/tokens";
 import { criarBalaoToken } from "./ui/balaoToken";
 import { criarBolsa } from "./ui/bolsa";
 import { criarBolsaMapas } from "./ui/bolsaMapas";
 import { definirBiblioteca, definirGradeDaMesa, definirMapa, definirMapaAtual } from "./estado";
 import type { Desenho, NovoDesenho } from "./estado";
-import { CHAVE_VISOES, MAX_BYTES_MAPA, MAX_HISTORICO_DESENHO, MAX_TOKENS_ACAO_EM_GRUPO } from "./config";
+import { CHAVE_VISOES, MAX_BYTES_MAPA, MAX_HISTORICO_DESENHO, MAX_TOKENS_ACAO_EM_GRUPO, MS_ENVIO_REGUA, TAMANHO_CASA } from "./config";
 import { guardarPreferencia, lerPreferencia } from "./ui/preferencias";
 import { criarEditorImagem } from "./ui/editorImagem";
 import { analisarAbas, rolarCartaoDaAnalise, rolarConta, rolarDaAnalise } from "./formulas";
@@ -123,7 +128,7 @@ import { criarConfirmacao } from "./ui/confirmar";
 import { criarEditorFicha } from "./ui/editorFicha";
 import { criarEditorToken } from "./ui/editorToken";
 import { rolarDados } from "./dados";
-import type { EventoDoServidor, Jogador, RegistroDeMapa } from "./protocolo";
+import type { EventoDoServidor, FormaDePing, Jogador, RegistroDeMapa } from "./protocolo";
 import { criarRede, type Rede } from "./rede";
 import { criarChat } from "./ui/chat";
 import { criarLateral } from "./ui/lateral";
@@ -468,9 +473,16 @@ async function iniciar(): Promise<void> {
         },
     });
 
+    // A cor de desenho escolhida agora: a régua e o ping (os seus e, pela rede, os que os outros veem) usam ESTA cor.
+    let corDoDesenho: number = COR_INICIAL_DESENHO;
+    let aplicarCorNaRegua: ((cor: number) => void) | null = null; // (a régua é criada mais abaixo)
     const painelDesenho = criarPainelDesenho({
         aoEscolher: escolherFerramenta,
-        aoMudarCor: (cor) => desenho.definirCor(cor),
+        aoMudarCor: (cor) => {
+            corDoDesenho = cor;
+            aplicarCorNaRegua?.(cor);
+            desenho.definirCor(cor);
+        },
         aoMudarAlfa: (alfa) => desenho.definirAlfa(alfa),
         aoApagarTudo: () => apagarTodosOsDesenhos(), // (o mestre apaga todos; os outros, só os deles; Ctrl+Z desfaz)
     });
@@ -1486,6 +1498,7 @@ async function iniciar(): Promise<void> {
     const janelaDoTabuleiro = document.getElementById("mapas-tabuleiro");
     if (janelaDoTabuleiro) new MutationObserver(() => fog.ocultar(!janelaDoTabuleiro.hidden)).observe(janelaDoTabuleiro, { attributes: true, attributeFilter: ["hidden"] });
 
+    let emPan = false; // (a tela está sendo arrastada agora: o balão dos tokens fica quieto)
     const tokens = criarTokens(camera, grade, texturas, {
         sobreBolsa: (ponto) => {
             // Arrastando um token até a COLUNA da direita com a aba "Chat" à vista: a coluna troca sozinha para a "Bolsa" (que estava escondida), e então
@@ -1541,7 +1554,9 @@ async function iniciar(): Promise<void> {
             const ancora = tokens.ancoraNaTela(token.id);
             if (ancora) menuGrupo.abrir(ancora.x, ancora.y + ancora.largura + 12, [token], extrasDoPainel(token)); // o PAINEL de ações, embaixo do token
         },
-        aoPassarMouse: (token) => balao.mostrar(token.id),
+        aoPassarMouse: (token) => {
+            if (!emPan) balao.mostrar(token.id); // (durante o arrasto da tela os tokens passam sob o cursor: sem balão, para o arrasto ficar leve)
+        },
         // Ao sair do token o balão NÃO some na hora: dá tempo de o mouse chegar até ele.
         aoSairMouse: () => balao.agendarEsconder(),
     });
@@ -1557,14 +1572,95 @@ async function iniciar(): Promise<void> {
         },
     });
 
-    // A régua fica por cima de tudo (inclusive dos tokens).
-    const regua = criarRegua(camera, { aoMedir: (texto) => painelDesenho.mostrarDistancia(texto) });
+    // PINGS e RÉGUAS DOS OUTROS (compartilhados pelo servidor com quem está na mesma cena). Ficam por cima de tudo (inclusive dos tokens).
+    const pings = criarPings(app, camera);
+    const reguasDosOutros = criarReguasDosOutros(camera);
+
+    // A SUA régua também vai aos outros: no máximo a cada MS_ENVIO_REGUA (com o estado mais novo no fim) e só quando mudou; "sumiu" (null) vai na hora.
+    let reguaPendente: { col: number; row: number }[] | null = null;
+    let reguaUltimoEnvio = JSON.stringify([null, COR_INICIAL_DESENHO]);
+    let reguaEnviadaEm = 0;
+    let reguaTemporizador = 0;
+    function enviarReguaAgora(): void {
+        const json = JSON.stringify([reguaPendente, corDoDesenho]);
+        if (json === reguaUltimoEnvio) return;
+        reguaUltimoEnvio = json;
+        reguaEnviadaEm = performance.now();
+        if (rede?.ativa) rede.enviar({ tipo: "regua", caminho: reguaPendente, cor: corDoDesenho });
+    }
+    function compartilharRegua(vertices: { col: number; row: number }[] | null): void {
+        reguaPendente = vertices ? vertices.map(({ col, row }) => ({ col, row })) : null;
+        if (reguaPendente === null) {
+            window.clearTimeout(reguaTemporizador);
+            reguaTemporizador = 0;
+            enviarReguaAgora();
+            return;
+        }
+        if (reguaTemporizador) return; // (já há um envio marcado: ele leva o estado mais novo)
+        reguaTemporizador = window.setTimeout(() => {
+            reguaTemporizador = 0;
+            enviarReguaAgora();
+        }, Math.max(0, reguaEnviadaEm + MS_ENVIO_REGUA - performance.now()));
+    }
+    const regua = criarRegua(camera, { aoMudarCaminho: compartilharRegua });
+    regua.definirCor(corDoDesenho);
+    aplicarCorNaRegua = (cor) => regua.definirCor(cor);
+
+    // LIMITE de pings: o mesmo "balde que enche aos poucos" do servidor (até RAJADA_PINGS de uma vez, depois 1 a cada MS_RECARGA_PING = 5 por segundo); aqui só para AVISAR a pessoa (o servidor é quem manda).
+    const baldeDePings = novoBalde(RAJADA_PINGS);
+
+    /** Faz um ping no ponto (col, row) (em casas, com fração): online o SERVIDOR repassa a quem está na cena (e o seu volta por ele); no modo local, só você vê. */
+    function pingar(col: number, row: number, forma: FormaDePing): void {
+        if (!gastar(baldeDePings, RAJADA_PINGS, MS_RECARGA_PING)) return void aviso.mostrar("Calma! Você está pingando rápido demais.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        if (rede?.ativa) rede.enviar({ tipo: "ping", col, row, forma, cor: corDoDesenho });
+        else pings.mostrar(col, row, forma, corDoDesenho, "Você");
+    }
+
+    // O MENU do botão direito no vazio do mapa: Ping, Régua, Borracha e, só para o mestre, os pincéis do fog.
+    const rodaPing = criarRodaPing();
+    let origemDoPing: { col: number; row: number } | null = null; // (o ponto do mapa onde o Shift + botão foi apertado)
+    const menuMapa = criarMenuMapa({
+        aoPingar: (col, row, forma) => pingar(col, row, forma),
+        aoEscolher: (ferramenta) => escolherFerramenta(ferramenta),
+        fogAtivo: () => estado.fog.ativo,
+    });
 
     ativarInteracao(app, camera, tokens, [calibragem, desenho, regua, fog], {
         aoClicarNoFundo: () => fecharMenusDoToken(),
         aoIniciarPan: () => {
+            emPan = true;
             fecharMenusDoToken();
             balao.esconder();
+        },
+        aoTerminarPan: () => {
+            emPan = false;
+        },
+        // SHIFT + clique = ping comum; SHIFT + arrastar abre a roda de pings. O ponto do ping é onde o botão foi APERTADO (mesmo que a câmera ande depois).
+        aoComecarPing: (ponto) => {
+            fecharMenusDoToken();
+            balao.esconder();
+            menuMapa.fechar();
+            const caixa = app.canvas.getBoundingClientRect();
+            const mundo = camera.telaParaMundo(ponto);
+            origemDoPing = { col: mundo.x / TAMANHO_CASA, row: mundo.y / TAMANHO_CASA };
+            rodaPing.comecar(ponto.x + caixa.left, ponto.y + caixa.top);
+        },
+        aoMoverPing: (ponto) => {
+            const caixa = app.canvas.getBoundingClientRect();
+            rodaPing.apontar(ponto.x + caixa.left, ponto.y + caixa.top);
+        },
+        aoTerminarPing: (ponto) => {
+            const caixa = app.canvas.getBoundingClientRect();
+            const forma = rodaPing.terminar(ponto.x + caixa.left, ponto.y + caixa.top);
+            if (forma && origemDoPing) pingar(origemDoPing.col, origemDoPing.row, forma);
+            origemDoPing = null;
+        },
+        aoClicarDireitoNoVazio: (ponto) => {
+            fecharMenusDoToken();
+            balao.esconder();
+            const mundo = camera.telaParaMundo(ponto);
+            const caixa = app.canvas.getBoundingClientRect();
+            menuMapa.abrir(ponto.x + caixa.left, ponto.y + caixa.top, mundo.x / TAMANHO_CASA, mundo.y / TAMANHO_CASA);
         },
     });
 
@@ -1575,6 +1671,8 @@ async function iniciar(): Promise<void> {
     camera.aoMudarZoom = () => {
         grade.desenhar();
         regua.redesenhar(); // o tamanho do texto e da linha, na tela, depende do zoom
+        reguasDosOutros.redesenhar();
+        menuMapa.fechar();
         fecharMenusDoToken();
         balao.esconder();
         barra.atualizar();
@@ -1734,6 +1832,12 @@ async function iniciar(): Promise<void> {
         else desfazerDesenho();
     });
 
+    // ATALHOS de uma tecla só (a lista completa está em docs/atalhos.md): R liga e desliga a régua; Q abre e fecha a bolsa em tela cheia.
+    criarAtalhos({
+        aoAlternarRegua: () => escolherFerramenta(ferramentaAtual === "regua" ? "mover" : "regua"),
+        aoAlternarBolsa: () => (bolsa.expandida ? bolsa.fechar() : bolsa.abrir()),
+    });
+
     // SELEÇÃO por teclado: Delete remove os tokens selecionados (sem confirmar; o aviso oferece "Desfazer") e Esc tira a seleção. Só vale com o foco no tabuleiro (não digitando num campo,
     // nem dentro de uma janela de ficha, da bolsa...).
     document.addEventListener("keydown", (e) => {
@@ -1797,7 +1901,15 @@ async function iniciar(): Promise<void> {
                     bolsa.statusMudaram(); // o editor da bolsa mostra a lista nova (se ninguém está digitando nele)
                     return;
                 }
+                case "ping":
+                    pings.mostrar(evento.col, evento.row, evento.forma, evento.cor, evento.apelido);
+                    return;
+                case "regua":
+                    reguasDosOutros.atualizar(evento.usuario, evento.apelido, evento.caminho, evento.cor);
+                    return;
                 case "estado_inicial": {
+                    pings.limpar();
+                    reguasDosOutros.limpar();
                     // O tamanho do tabuleiro também é do SERVIDOR (dados/mesa.json): aplica antes dos tokens (a posição deles é conferida com ele).
                     const tamanhoMudou = evento.colunas !== estado.colunas || evento.linhas !== estado.linhas;
                     definirTamanhoTabuleiro(evento.colunas, evento.linhas);
@@ -1844,6 +1956,8 @@ async function iniciar(): Promise<void> {
                     return;
                 }
                 case "mapa_definido": {
+                    pings.limpar(); // (os pings e as réguas dos outros eram do mapa de antes)
+                    reguasDosOutros.limpar();
                     const depois = depoisDoMapa; // (só quem pediu a troca)
                     depoisDoMapa = null;
                     mostrarSemPermissao(evento.semPermissao === true);
@@ -2065,6 +2179,7 @@ async function iniciar(): Promise<void> {
     if (import.meta.env.DEV) {
         (window as unknown as Record<string, unknown>).__tabuleirinho = {
             pronto: true,
+            distanciaDaRegua: () => regua.texto, // (só para os testes: o texto da medida da régua; ela não aparece mais no painel Desenho)
             atrasoRolagemMs: ATRASO_ROLAGEM_MS, // (os testes zeram: tests/e2e/ajuda.mjs `abrirPagina`)
             // Só para os testes: adiciona à mesa os tokens que o TESTE mandar (o app não tem nenhum token pronto: eles vêm dos
             // arquivos de dados/tokens/ do servidor, ou nascem pela bolsa). Os dados dos tokens de teste ficam em tests/e2e/ajuda.mjs.

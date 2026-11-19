@@ -7,7 +7,7 @@
 // =====================================================================
 
 import { Application, Container, PointData } from "pixi.js";
-import { MARGEM_AJUSTE, TAMANHO_CASA, ZOOM_MAX, ZOOM_MIN } from "../config";
+import { MARGEM_AJUSTE, MS_SUAVIZAR_CAMERA, TAMANHO_CASA, ZOOM_MAX, ZOOM_MIN } from "../config";
 import { limitar, limitarEixo } from "../coordenadas";
 import { estado } from "../estado";
 
@@ -42,6 +42,10 @@ export interface Camera {
     ajustar(): void;
     /** Move a visão por (dx, dy) pixels de tela (pan). */
     moverPor(dx: number, dy: number): void;
+    /** Move a visão DESLIZANDO (suave, em vários quadros). Os pedidos se SOMAM: apertar a seta várias vezes anda várias casas sem perder nenhuma. */
+    deslizarPor(dx: number, dy: number): void;
+    /** Interrompe um deslize em andamento (ao começar um arrasto, um zoom ou um ajuste). */
+    pararDeslize(): void;
     /** Aplica um zoom mantendo fixo um ponto da TELA (por padrão, o centro da janela; o Ctrl + roda passa o ponto do cursor). */
     aplicarZoom(novoZoom: number, pontoFixo?: PointData): void;
     /** Converte um ponto da TELA (pixels da janela) para coordenadas do MUNDO. */
@@ -55,6 +59,29 @@ export function criarCamera(app: Application): Camera {
     app.stage.addChild(mundo);
 
     let zoom = 1;
+
+    // O DESLIZE: o que ainda falta andar (em pixels de tela). A cada quadro a câmera anda uma fração disso (suavização exponencial: rápido no começo, mansinho no fim).
+    let faltaX = 0;
+    let faltaY = 0;
+    let deslizando = false; // (o ouvinte do relógio está ligado?)
+    function passoDoDeslize(tk: { deltaMS: number }): void {
+        const fracao = 1 - Math.exp(-tk.deltaMS / MS_SUAVIZAR_CAMERA);
+        let dx = faltaX * fracao;
+        let dy = faltaY * fracao;
+        // Quando falta quase nada, termina de uma vez (sem ficar tremendo em frações de pixel).
+        if (Math.hypot(faltaX, faltaY) < 0.5) {
+            dx = faltaX;
+            dy = faltaY;
+        }
+        const antes = { x: mundo.x, y: mundo.y };
+        camera.moverPor(dx, dy);
+        faltaX -= dx;
+        faltaY -= dy;
+        // Bateu num limite da câmera (não andou o que devia): o que sobrou nesse eixo é descartado.
+        if (Math.abs(mundo.x - antes.x - dx) > 0.01) faltaX = 0;
+        if (Math.abs(mundo.y - antes.y - dy) > 0.01) faltaY = 0;
+        if (faltaX === 0 && faltaY === 0) camera.pararDeslize();
+    }
 
     /** Largura do tabuleiro NA TELA, em pixels (considera o zoom). */
     const larguraNaTela = (): number => estado.colunas * TAMANHO_CASA * zoom;
@@ -77,6 +104,7 @@ export function criarCamera(app: Application): Camera {
         },
 
         restaurar(z, x, y) {
+            camera.pararDeslize();
             zoom = limitar(z, ZOOM_MIN, ZOOM_MAX);
             mundo.scale.set(zoom);
             mundo.position.set(x, y);
@@ -91,12 +119,14 @@ export function criarCamera(app: Application): Camera {
         },
 
         centralizar() {
+            camera.pararDeslize();
             mundo.position.set((app.screen.width - larguraNaTela()) / 2, (app.screen.height - alturaNaTela()) / 2);
             camera.limitar();
             camera.aoMudarVisao?.();
         },
 
         ajustar() {
+            camera.pararDeslize();
             // A área LIVRE: a janela menos o que os painéis cobrem. Se os painéis ocuparem quase tudo (janela minúscula), usa a janela inteira.
             const folga = 2 * MARGEM_AJUSTE;
             const coberta = camera.areaCoberta?.() ?? { esquerda: 0, direita: 0 };
@@ -121,6 +151,22 @@ export function criarCamera(app: Application): Camera {
             camera.aoMudarVisao?.();
         },
 
+        deslizarPor(dx, dy) {
+            if (!deslizando) {
+                deslizando = true;
+                app.ticker.add(passoDoDeslize);
+            }
+            faltaX += dx;
+            faltaY += dy;
+        },
+
+        pararDeslize() {
+            if (deslizando) app.ticker.remove(passoDoDeslize);
+            deslizando = false;
+            faltaX = 0;
+            faltaY = 0;
+        },
+
         moverPor(dx, dy) {
             mundo.x += dx;
             mundo.y += dy;
@@ -129,6 +175,7 @@ export function criarCamera(app: Application): Camera {
         },
 
         aplicarZoom(novoZoom, pontoFixo) {
+            camera.pararDeslize();
             novoZoom = limitar(novoZoom, ZOOM_MIN, ZOOM_MAX);
             if (novoZoom === zoom) return;
 

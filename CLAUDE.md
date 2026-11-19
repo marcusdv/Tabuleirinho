@@ -48,7 +48,9 @@ tabuleiro/
   camera.ts           mundo do PixiJS, pan, zoom, ajustar à janela, limites, tela <-> mundo
   ferramenta.ts       contrato das ferramentas de arrasto (ativa, medindo, comecar/arrastar/soltar)
   desenho.ts          pinturas no mapa: lápis, borracha, elipse, retângulo, triângulo (por baixo dos tokens)
-  regua.ts            régua: mede de uma casa a outra (por cima de tudo)
+  regua.ts            régua: mede de uma casa a outra (por cima de tudo); `criarVisualDeMedida` desenha uma medida (a sua e as dos outros)
+  reguasDosOutros.ts  as réguas das OUTRAS pessoas da cena (na cor delas, com o nome)
+  pings.ts            o anel do ping no mapa e a SETA na borda da tela quando o ping está fora dela
   calibragem.ts       ferramenta "Alinhar mapa": retângulo de medição sobre o mapa
   mapa.ts             imagem de fundo, esticada sobre o tabuleiro inteiro (fica por baixo da grade)
   grade.ts            grade quadriculada e destaque da casa de destino
@@ -58,8 +60,12 @@ tabuleiro/
 ui/
   barra.ts            liga o zoom rápido e as configurações do TABULEIRO (colunas, linhas, grade, "Escolher mapa"...), que moram numa JANELA fora da coluna (`#mapas-tabuleiro`, só o mestre), aberta pelo ⚙ de cada mapa na aba Mapas
   abasEmLinhas.ts     as abas (coluna da direita e bolsa) que não cabem passam para a linha de baixo em partes IGUAIS (4 abas = 2 + 2)
+  atalhos.ts          os atalhos de uma tecla só (R = régua, Q = bolsa); a lista completa está em `docs/atalhos.md`
+  iconePing.ts        o ícone (SVG como máscara, na cor do tipo) de um tipo de ping, do menu e da roda
+  rodaPing.ts         a RODA DE PINGS (Shift + arrastar): 8 lados criados da lista `LADOS_DA_RODA_DE_PING`
+  menuMapa.ts         o menu do BOTÃO DIREITO no vazio do mapa: Ping (e um submenu com os 12 tipos, montado da tabela `DADOS_DAS_FORMAS_DE_PING` do config.ts), Régua, Borracha e (só o mestre) os pincéis do fog
   menuToken.ts        engrenagem (painel "Editar token"), lista de ações ("Add condição"...) e painel de condições
-  painelDados.ts      a barra "DADOS" no pé da coluna da direita (retrátil): d4..d1000, quantidade, modificador, Rolar
+  painelDados.ts      a barra "DADOS" da coluna da direita (retrátil), entre as mensagens do chat e o campo de mensagem (na aba Bolsa fica no pé da coluna): d4..d1000, quantidade, modificador, Rolar
   chat.ts             o chat: coluna vertical na direita (mais nova embaixo), cartões de rolagem com as peças em forma de dado (polígonos em SVG), animações
   bolsaMapas.ts       a aba "Mapas" da bolsa: a biblioteca de mapas (lista, Usar, Excluir, + Enviar mapa; só o mestre)
   bolsa.ts            a bolsa: aba da coluna da direita e tela cheia ("Abrir bolsa"): fichinhas dos tokens, fichas (documentos), grupos, favoritos, seleção em grupo, criação de tokens
@@ -112,7 +118,7 @@ O HTML da barra, dos menus e dos balões fica em `index.html` (~850 linhas) e o 
 - **Senha da mesa (opcional):** `SENHA_MESA=algo npm run servidor` exige `&senha=algo` no endereço de quem entra DE FORA (rede ou túnel); o mestre no computador do servidor não precisa.
 - **Segurança (para quando houver servidor):** tudo que vem de um navegador é dado não confiável. Ao mexer em chat, comandos, dados, fichas, imagens, nomes ou qualquer regra que o servidor precisará repetir, seguir as **regras de segurança do `BRAINSTORM.md`** (nunca `eval`; lista fechada de comandos com gramática estrita; limites antes de calcular; permissões sempre no servidor; texto só por `textContent`). Hoje as regras de validade vivem em `estado.ts` justamente para o servidor reaproveitá-las: **não mover validação só para a interface**.
 - **Código em português** (nomes e comentários) e **bem comentado**, de forma didática: o dono do projeto quer entender como cada parte funciona.
-- **Dica do mouse com o ATALHO entre parênteses (regra do dono, 14/11/2026):** todo botão que tem atalho de teclado mostra o atalho no `title`, ex.: "Abrir bolsa (B)", "Fechar sem medir (Esc)". Ao criar ou mudar um botão com atalho, seguir isso. A lista de atalhos novos ainda será discutida (ver `BRAINSTORM.md`, "ATALHOS DE TECLADO").
+- **Dica do mouse com o ATALHO entre parênteses (regra do dono, 14/11/2026):** todo botão que tem atalho de teclado mostra o atalho no `title`, ex.: "Abrir bolsa (B)", "Fechar sem medir (Esc)". Ao criar ou mudar um botão com atalho, seguir isso. **A lista de atalhos vive em `docs/atalhos.md`: ao criar ou mudar um atalho (teclado ou mouse), atualizar o documento.** Os de uma tecla só moram em `src/ui/atalhos.ts` (hoje: R = régua, Q = bolsa).
 - **Distâncias nas descrições em metros** (5 pés = 1,5 m), como no livro em português.
 - Tokens maiores são desenhados por baixo dos menores. Sobreposição de tokens é permitida.
 

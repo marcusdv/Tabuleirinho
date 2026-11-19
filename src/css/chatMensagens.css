@@ -275,7 +275,7 @@
     z-index: 3; /* acima dos cartões */
     left: 50%;
     translate: -50% 0;
-    bottom: 68px; /* logo acima do rodapé do campo de digitar (relativo ao #chat-painel) */
+    bottom: 12px; /* logo acima da barra de Dados, que fica entre as mensagens e o campo de digitar (relativo ao #chat-painel, que termina onde os Dados começam) */
     padding: 4px 12px;
     background: rgba(34, 34, 42, 0.96);
     border: 1px solid #ffd54f;
@@ -348,7 +348,7 @@
     overflow-wrap: anywhere; /* uma palavra que não cabe na linha quebra no meio, em vez de estourar a caixa */
     text-wrap: pretty; /* quebra mais natural: evita deixar uma palavra sozinha no fim do parágrafo */
 }
-/* O campo de enviar é o RODAPÉ do chat: uma linha de separação em cima, um fundo um pouco mais escuro e espaço próprio em volta,
+/* O campo de enviar é o RODAPÉ do chat (o último item da coluna, abaixo dos Dados): uma linha de separação em cima, um fundo um pouco mais escuro e espaço próprio em volta,
    para não parecer solto no meio das mensagens. */
 #chat-form {
     flex: none;

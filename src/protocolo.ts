@@ -10,12 +10,21 @@
 // (o token existe? essa posição cabe? o texto passa do limite?) é conferido depois, pelas regras de estado.ts.
 // =====================================================================
 
-import { MAX_ABAS_FICHA, MAX_ACOES_MESA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_NOME_VARIAVEL, MAX_CARACTERES_QUANTIA_ACAO, MAX_CARACTERES_TEXTO_FICHA, MAX_GRUPOS, MAX_STATUS_TOKEN, MAX_TOKENS_ACAO_EM_GRUPO, MAX_VALOR_VARIAVEL_QUE_MUDA } from "./config.ts";
+import { FORMAS_DE_PING, MAX_ABAS_FICHA, MAX_CASAS, MAX_PONTOS_REGUA, MAX_ACOES_MESA, MAX_CARACTERES_APELIDO, MAX_CARACTERES_IMAGEM_TOKEN, MAX_CARACTERES_NOME_VARIAVEL, MAX_CARACTERES_QUANTIA_ACAO, MAX_CARACTERES_TEXTO_FICHA, MAX_GRUPOS, MAX_STATUS_TOKEN, MAX_TOKENS_ACAO_EM_GRUPO, MAX_VALOR_VARIAVEL_QUE_MUDA } from "./config.ts";
 import { lerAcaoDaIniciativa, type AcaoDaIniciativa, type Iniciativa } from "./iniciativa.ts";
 import { idDeUsuarioValido, LIMITE_MAXIMO_POR_JOGADOR, type NivelDeAcesso, type Permissoes, type TipoDeItem } from "./permissoes.ts";
 import { limparDesenho, type Desenho, type NovoDesenho } from "./estado.ts";
 import { limparTraco, MAX_TRACOS_FOG, type TracoDeFog } from "./fog.ts";
 import type { AbaFicha, AcaoDaMesa, AcaoNova, Ficha, GradeDaMesa, Grupo, Mensagem, MudancasToken, Pasta, StatusDoToken, StatusNovo, Token, ValorDeStatus } from "./estado.ts";
+
+/** Os tipos de ping: ponto comum, "?" (Sumiu), "X" (Perigo), duas setas (Avançar), escudo (Ajuda) e os outros que estão em `DADOS_DAS_FORMAS_DE_PING` (config.ts). */
+export type FormaDePing = (typeof FORMAS_DE_PING)[number];
+
+/** Uma casa (coluna, linha) da régua. */
+export interface CasaDaRegua {
+    col: number;
+    row: number;
+}
 
 /** Um jogador conectado à mesa. */
 export interface Jogador {
@@ -99,6 +108,8 @@ export type PedidoDoCliente =
     | { tipo: "banir"; usuario: string; banir: boolean; nome?: string } // o MESTRE bane (ou desbane) um jogador da mesa: ele é desconectado e não consegue entrar de novo
     | { tipo: "definir_mestre"; usuario: string; mestre: boolean } // o MESTRE dá (ou tira) o poder de mestre a outro usuário (o dono do servidor nunca perde)
     | { tipo: "excluir_mapa"; id: string } // o MESTRE apaga um mapa da biblioteca (e o arquivo)
+    | { tipo: "ping"; col: number; row: number; forma: FormaDePing; cor: number } // um PING no mapa (em casas, com fração: o ponto exato clicado) com a `cor` do desenho escolhida (0xRRGGBB); o SERVIDOR confere, limita a frequência e avisa quem está na mesma cena e vê aquele ponto
+    | { tipo: "regua"; caminho: CasaDaRegua[] | null; cor: number } // a RÉGUA de quem mede (os pontos em casas; null = a medida sumiu) na `cor` do desenho escolhida: o servidor repassa a quem está na mesma cena
     | { tipo: "usar_cartao"; id: number; versao: number; aba: number; indice: number; token?: number | null }; // usa o CARTÃO de posição `indice` da ABA `aba` da ficha SALVA: o servidor calcula/rola as [expressões] e manda o cartão ao chat
 
 /** O que o servidor AVISA aos navegadores. */
@@ -138,12 +149,17 @@ export type EventoDoServidor =
     | { tipo: "token_colocado"; id: number; col: number; row: number; valores?: ValorDeStatus[] } // `valores`: os status temporários (nascem ao sair da bolsa; o SERVIDOR os calcula lendo a ficha)
     | { tipo: "token_guardado"; id: number }
     | { tipo: "mensagem"; mensagem: Mensagem } // texto do chat OU cartão de rolagem (criados só pelo servidor)
+    | { tipo: "ping"; col: number; row: number; forma: FormaDePing; cor: number; usuario: string; apelido: string; seu?: boolean } // um ping de alguém da sua cena (`seu`: foi você que pingou)
+    | { tipo: "regua"; usuario: string; apelido: string; caminho: CasaDaRegua[] | null; cor: number } // a régua de alguém da sua cena (null = sumiu: ele soltou a ferramenta, saiu ou mudou de mapa)
     | { tipo: "erro"; motivo: string };
 
 /** Limite do texto de um pedido ANTES de qualquer outra conta (o estado.ts aplica o limite de verdade). */
 const TEXTO_MAX_BRUTO = 1000;
 
 const eInteiro = (valor: unknown): valor is number => typeof valor === "number" && Number.isSafeInteger(valor);
+/** Uma cor 0xRRGGBB (inteiro de 0 a 16777215). */
+const eCor = (valor: unknown): valor is number => eInteiro(valor) && valor >= 0 && valor <= 0xffffff;
+const eNumero = (valor: unknown): valor is number => typeof valor === "number" && Number.isFinite(valor);
 const eTexto = (valor: unknown, maximo: number): valor is string => typeof valor === "string" && valor.length <= maximo;
 
 /** Uma lista de ids de grupos: só inteiros, no máximo MAX_GRUPOS (o sentido, se o grupo existe, é conferido por `limparGrupos`). null se for outra coisa. */
@@ -274,6 +290,25 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
             if (!Array.isArray(p.tracos) || p.tracos.length < 1 || p.tracos.length > MAX_TRACOS_FOG) return null;
             const tracos = p.tracos.map(limparTraco);
             return tracos.every((t) => t !== null) ? { tipo: "fog_pintar", tracos: tracos as TracoDeFog[] } : null;
+        }
+        case "ping": {
+            // O ponto em casas (com fração). Só confere a forma e o tamanho do número; o servidor limita ao tabuleiro da cena.
+            const limite = MAX_CASAS + 1;
+            const forma = (FORMAS_DE_PING as readonly unknown[]).includes(p.forma) ? (p.forma as FormaDePing) : null;
+            return forma && eCor(p.cor) && eNumero(p.col) && eNumero(p.row) && p.col >= -limite && p.col <= limite && p.row >= -limite && p.row <= limite ? { tipo: "ping", col: p.col, row: p.row, forma, cor: p.cor } : null;
+        }
+        case "regua": {
+            if (!eCor(p.cor)) return null;
+            if (p.caminho === null) return { tipo: "regua", caminho: null, cor: p.cor };
+            if (!Array.isArray(p.caminho) || p.caminho.length < 1 || p.caminho.length > MAX_PONTOS_REGUA + 1) return null;
+            const caminho: CasaDaRegua[] = [];
+            for (const c of p.caminho as unknown[]) {
+                if (typeof c !== "object" || c === null || Array.isArray(c)) return null;
+                const { col, row } = c as Record<string, unknown>;
+                if (!eInteiro(col) || !eInteiro(row) || col < 0 || col >= MAX_CASAS || row < 0 || row >= MAX_CASAS) return null;
+                caminho.push({ col, row });
+            }
+            return { tipo: "regua", caminho, cor: p.cor };
         }
         case "fog_preencher":
             return typeof p.cobrir === "boolean" ? { tipo: "fog_preencher", cobrir: p.cobrir } : null;

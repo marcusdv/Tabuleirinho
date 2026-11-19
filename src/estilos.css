@@ -24,6 +24,8 @@
 @import "./css/bolsaMarcas.css" layer(componentes); /* A BOLSA, 5ª parte: marcas das fichinhas e cartões, janela do tabuleiro. */
 @import "./css/bolsaPastas.css" layer(componentes); /* A BOLSA, 6ª parte: as PASTAS (só na tela cheia) */
 @import "./css/chatCartaoFicha.css" layer(componentes); /* O CARTÃO DE FICHA no chat (os cartões `(Nome)"""texto"""`). */
+@import "./css/rodaPing.css" layer(componentes); /* a roda de pings (Shift + arrastar) */
+@import "./css/menuMapa.css" layer(componentes); /* o menu do botão direito no vazio do mapa (Ping, Régua, Borracha, fog) */
 @import "./css/menuToken.css" layer(componentes); /* engrenagem e lista de ações do token, menu e balão das condições */
 @import "./css/diversos.css" layer(componentes); /* pílula online, cópia do token arrastado, menu da ficha na bolsa, recorte da imagem */
 @import "./css/editorFicha.css" layer(componentes); /* a janela da ficha, o painel lateral e a janela "Instruções" */

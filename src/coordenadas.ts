@@ -10,7 +10,7 @@ import {
     ICONE_CONDICAO_POR_CASA,
     MAX_CASAS,
     MIN_CASAS,
-    PARTE_VISIVEL_CAMERA,
+    MARGEM_LIVRE_CAMERA,
     PX_POR_CASA_ESTIMADO,
     TAMANHO_CASA,
     TAMANHOS_DE_CASA_COMUNS,
@@ -79,15 +79,14 @@ export function posicoesNoAnel(quantidade: number, raioAnel: number, diametroIco
  *   tabuleiro = tamanho do tabuleiro NA TELA nesse eixo (já multiplicado pelo zoom)
  */
 export function limitarEixo(posicao: number, tela: number, tabuleiro: number): number {
-    // O tabuleiro pode sair da janela (deixando espaço em branco em volta), desde que
-    // uma parte dele continue visível. Se o tabuleiro ou a janela forem menores que
-    // PARTE_VISIVEL_CAMERA, a parte obrigatória é o que couber.
-    const visivel = Math.min(PARTE_VISIVEL_CAMERA, tabuleiro, tela);
-
-    // Posição = onde a borda esquerda/topo do tabuleiro está na tela.
-    //   mínimo: o tabuleiro foi tanto para a esquerda/cima que só sobram `visivel` px dele (na ponta direita/baixo);
-    //   máximo: foi tanto para a direita/baixo que só sobram `visivel` px dele (na ponta esquerda/topo).
-    return limitar(posicao, visivel - tabuleiro, tela - visivel);
+    // Posição = onde a borda esquerda/topo do tabuleiro está na tela. O espaço vazio além do mapa nunca passa de MARGEM_LIVRE_CAMERA:
+    //   mínimo: o mapa foi para a esquerda/cima até sobrar a margem vazia na ponta direita/baixo (borda de trás do mapa em `tela - margem`);
+    //   máximo: o mapa foi para a direita/baixo até sobrar a margem vazia na ponta esquerda/topo.
+    let minimo = tela - MARGEM_LIVRE_CAMERA - tabuleiro;
+    let maximo = MARGEM_LIVRE_CAMERA;
+    // Mapa pequeno (ou zoom longe): os dois limites se cruzam. Aí ele anda só entre os dois valores (não some nem fica preso).
+    if (minimo > maximo) [minimo, maximo] = [maximo, minimo];
+    return limitar(posicao, minimo, maximo);
 }
 
 /**

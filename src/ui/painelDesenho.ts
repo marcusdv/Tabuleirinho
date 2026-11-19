@@ -29,7 +29,6 @@ export interface PainelDesenho {
     /** Uma pintura foi feita com esta cor: ela vai para a frente da pilha de cores recentes. */
     usarCor(cor: number): void;
     /** Mostra a medida da régua no painel (null = esconde). */
-    mostrarDistancia(texto: string | null): void;
 }
 
 function pegar<T extends HTMLElement>(id: string): T {
@@ -45,7 +44,6 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
     const seletor = pegar<HTMLInputElement>("desenho-cor");
     const amostras = pegar("desenho-amostras");
     const apagarTudo = pegar<HTMLButtonElement>("desenho-apagar-tudo");
-    const distancia = pegar("regua-resultado");
 
     let atual: NomeFerramenta = "mover";
 
@@ -146,9 +144,5 @@ export function criarPainelDesenho(opcoes: OpcoesPainelDesenho): PainelDesenho {
         },
         atualizar,
         usarCor,
-        mostrarDistancia(texto) {
-            distancia.hidden = texto === null;
-            distancia.textContent = texto === null ? "" : `Distância: ${texto}`;
-        },
     };
 }

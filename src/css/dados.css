@@ -1,7 +1,7 @@
 /* O painel de DADOS (no pé da coluna) e o comportamento da coluna em janelas estreitas e no celular. (Parte do antigo base.css: um trecho CONTÍGUO; a ORDEM importa, ver src/estilos.css.) */
 /* ===================================================================
-         PAINEL DE DADOS: uma BARRA no PÉ da coluna da direita ("Dados" + uma setinha), embaixo do chat (ou da bolsa). Clicar em qualquer ponto da barra
-         expande a caixa de dados ali mesmo, empurrando o chat para cima; clicar de novo recolhe. Não é mais uma caixa flutuante nem arrastável.
+         PAINEL DE DADOS: uma BARRA da coluna da direita ("Dados" + uma setinha), ENTRE as mensagens do chat e o campo de mensagem (na aba Bolsa, no pé da coluna).
+         Clicar em qualquer ponto da barra expande a caixa de dados ali mesmo, empurrando as mensagens para cima; clicar de novo recolhe. Não é mais uma caixa flutuante nem arrastável.
          =================================================================== */
 #dados {
     flex: none;

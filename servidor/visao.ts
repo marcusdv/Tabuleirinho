@@ -127,6 +127,8 @@ export function pecaOcultaPelaFog(c: Conexao, token: Token): boolean {
     if (c.mestre || token.copiaDe === null || token.guardado || !algumFogAtivo()) return false;
     return sobOFog(token.mapa, token.col + token.size / 2, token.row + token.size / 2);
 }
+/** Este ponto (em casas) do mapa está escondido de `c` pelo fog? (o mestre vê tudo) Usado pelo ping e pela régua dos outros. */
+export const pontoOcultoPara = (c: Conexao, mapa: string | null, col: number, row: number): boolean => !c.mestre && algumFogAtivo() && sobOFog(mapa, col, row);
 /** O ponto "representativo" de um desenho, em casas (as coordenadas dos desenhos já são em casas): o centro da forma, ou o 1º ponto do traço. */
 function pontoDoDesenho(d: Desenho): { col: number; row: number } {
     if (d.tipo === "livre") return { col: d.pontos[0]?.x ?? 0, row: d.pontos[0]?.y ?? 0 };

@@ -1,5 +1,5 @@
-/* ÍCONES SVG do dono (pasta `public/images/svgs/`): pincel e borracha. Cada um é uma MÁSCARA pintada com a cor do texto do botão (`currentColor`), então o ícone acompanha o
-   estado do botão (cinza normal, dourado quando ligado) sem mexer no arquivo. É o mesmo jeito do selo da ficha única (`unique.svg`). Uso: <span class="icone-svg icone-pincel"></span>. */
+/* ÍCONES SVG do dono (pasta `public/images/svgs/`): pincel, borracha, lápis, régua, ponteiro, círculo, quadrado, triângulo e os dos tipos de ping (`icone-ping`, com o arquivo em `--icone`; ficam na subpasta `public/images/svgs/pings/`). Cada um é uma MÁSCARA pintada com a cor do texto do botão (`currentColor`), então o ícone acompanha o
+   estado do botão (cinza normal, dourado quando ligado) sem mexer no arquivo. É o mesmo jeito do selo da ficha única (`unico.svg`). Uso: <span class="icone-svg icone-pincel"></span>. */
 .icone-svg {
     display: inline-block;
     width: 1.15em;
@@ -17,4 +17,32 @@
 .icone-borracha {
     -webkit-mask-image: url("/images/svgs/borracha.svg");
     mask-image: url("/images/svgs/borracha.svg");
+}
+.icone-lapis {
+    -webkit-mask-image: url("/images/svgs/lapis.svg");
+    mask-image: url("/images/svgs/lapis.svg");
+}
+.icone-regua {
+    -webkit-mask-image: url("/images/svgs/regua.svg");
+    mask-image: url("/images/svgs/regua.svg");
+}
+.icone-ponteiro {
+    -webkit-mask-image: url("/images/svgs/ponteiro.svg");
+    mask-image: url("/images/svgs/ponteiro.svg");
+}
+.icone-circulo {
+    -webkit-mask-image: url("/images/svgs/circulo.svg");
+    mask-image: url("/images/svgs/circulo.svg");
+}
+.icone-quadrado {
+    -webkit-mask-image: url("/images/svgs/quadrado.svg");
+    mask-image: url("/images/svgs/quadrado.svg");
+}
+.icone-triangulo {
+    -webkit-mask-image: url("/images/svgs/triangulo.svg");
+    mask-image: url("/images/svgs/triangulo.svg");
+}
+.icone-ping {
+    -webkit-mask-image: var(--icone); /* (o caminho vem do ui/iconePing.ts, um por tipo de ping) */
+    mask-image: var(--icone);
 }

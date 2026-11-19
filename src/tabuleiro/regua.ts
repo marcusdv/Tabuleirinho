@@ -9,21 +9,22 @@
 //
 // A medida NÃO é guardada no estado: fica na tela depois de soltar (para dar
 // tempo de ler) e some ao começar outra medida ou trocar de ferramenta.
+//
+// COMPARTILHADA (18/11/2026): o caminho medido (os pontos, em casas) vai ao servidor e os OUTROS da cena veem a régua de quem mede, na cor dele.
+// O desenho do caminho é `criarVisualDeMedida`, usado pela régua própria (dourada) e pelas dos outros (`reguasDosOutros.ts`).
 // =====================================================================
 
 import { Container, Graphics, Text, type PointData } from "pixi.js";
-import { MAX_PONTOS_REGUA, TAMANHO_CASA, PX_MIN_ARRASTO_REGUA } from "../config";
+import { COR_DA_MEDIDA_PADRAO, MAX_PONTOS_REGUA, TAMANHO_CASA, PX_MIN_ARRASTO_REGUA } from "../config";
 import { limitar } from "../coordenadas";
 import { distanciaEmCasas, textoDaDistancia } from "../desenhos";
 import { estado } from "../estado";
 import type { Camera } from "./camera";
 import type { FerramentaDeArrasto } from "./ferramenta";
 
-const COR_REGUA = 0xffd54f;
-
 export interface OpcoesRegua {
-    /** A medida mudou: o texto ("4 casas = 6 m"), ou null quando a régua some. */
-    aoMedir(texto: string | null): void;
+    /** O caminho mudou (os vértices em casas, ou null quando a régua some): quem compartilha a régua com os outros escuta isto. */
+    aoMudarCaminho?(vertices: Casa[] | null): void;
 }
 
 export interface Regua extends FerramentaDeArrasto {
@@ -31,14 +32,30 @@ export interface Regua extends FerramentaDeArrasto {
     definirAtiva(ativa: boolean): void;
     /** Redesenha a medida (o zoom mudou: o tamanho do texto e da linha na tela depende dele). */
     redesenhar(): void;
+    /** O texto da medida que está à vista ("6 m = 4 □"), ou null sem medida. A medida aparece só sobre o mapa (a caixa do painel Desenho não a mostra mais); isto serve aos testes. */
+    readonly texto: string | null;
+    /** A cor da régua: a cor de DESENHO escolhida agora (já redesenha a medida que está à vista). */
+    definirCor(cor: number): void;
 }
 
-interface Casa {
+/** Um caminho de medida: os vértices em casas (o 1º é o começo; o último, a ponta). */
+export interface Casa {
     col: number;
     row: number;
 }
 
-export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
+export interface VisualDeMedida {
+    /** Desenha o caminho (`fixados` = quantos vértices do começo são pontos FIXADOS; o resto é a ponta que segue o mouse). Devolve o texto ("4 □ = 6 m"), ou null se sumiu (caminho null ou com menos de 2 vértices). */
+    mostrar(vertices: Casa[] | null, fixados: number): string | null;
+    /** Quem é o dono (mostra o nome ao lado do texto da distância; vazio = sem nome). */
+    definirNome(nome: string): void;
+    /** A cor da linha e do contorno do rótulo (vale no próximo desenho). */
+    definirCor(cor: number): void;
+}
+
+/** A linha, os pontos e o rótulo de UMA medida, dentro do mundo (por cima de tudo). `cor` é a da linha e do contorno do rótulo. */
+export function criarVisualDeMedida(camera: Camera, corInicial: number): VisualDeMedida {
+    let cor = corInicial;
     const camada = new Container();
     camada.visible = false;
     camera.mundo.addChild(camada);
@@ -52,9 +69,67 @@ export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
     texto.anchor.set(0.5);
     rotulo.addChild(fundo, texto);
     camada.addChild(linha, rotulo);
+    let nome = "";
+
+    return {
+        definirNome(novo) {
+            nome = novo;
+        },
+        definirCor(nova) {
+            cor = nova;
+        },
+        mostrar(vertices, fixados) {
+            if (!vertices || vertices.length < 2) {
+                camada.visible = false;
+                return null;
+            }
+            // Re-adicionar ao mundo traz a régua para o TOPO (os tokens reordenados ficariam por cima).
+            camera.mundo.addChild(camada);
+            const z = camera.zoom;
+
+            // Todos os vértices do caminho (os fixados + a ponta que segue o mouse), no CENTRO das casas, em pixels do mundo.
+            const centros = vertices.map((c) => ({ x: (c.col + 0.5) * TAMANHO_CASA, y: (c.row + 0.5) * TAMANHO_CASA }));
+
+            // A linha passa por todos os vértices. Espessuras divididas pelo zoom: mantêm o tamanho na tela.
+            linha.clear();
+            linha.moveTo(centros[0].x, centros[0].y);
+            for (const c of centros.slice(1)) linha.lineTo(c.x, c.y);
+            linha.stroke({ width: 3 / z, color: cor, cap: "round", join: "round" });
+            centros.forEach((c, i) => {
+                // As curvas fixadas (nem o começo, nem a ponta) ganham um anel em volta, para se verem.
+                if (i > 0 && i < fixados) linha.circle(c.x, c.y, 11 / z).stroke({ width: 2 / z, color: cor });
+                linha.circle(c.x, c.y, 6 / z).fill(cor).stroke({ width: 2 / z, color: 0x1a1a1f });
+            });
+
+            // O total é a SOMA dos trechos: cada um conta pela maior diferença entre colunas e linhas.
+            let casas = 0;
+            for (let i = 1; i < vertices.length; i++) {
+                casas += distanciaEmCasas(vertices[i - 1].col, vertices[i - 1].row, vertices[i].col, vertices[i].row);
+            }
+            const mensagem = textoDaDistancia(casas);
+            texto.text = nome ? `${nome}: ${mensagem}` : mensagem;
+            const larguraRotulo = texto.width + 16;
+            const alturaRotulo = texto.height + 8;
+            fundo.clear().roundRect(-larguraRotulo / 2, -alturaRotulo / 2, larguraRotulo, alturaRotulo, alturaRotulo / 2)
+                .fill({ color: 0x1a1a1f, alpha: 0.92 })
+                .stroke({ width: 1.5, color: cor });
+            rotulo.scale.set(1 / z);
+            // O rótulo fica um pouco acima do meio do ÚLTIMO trecho (o que está sendo medido agora).
+            const a = centros[centros.length - 2], b = centros[centros.length - 1];
+            rotulo.position.set((a.x + b.x) / 2, (a.y + b.y) / 2 - 24 / z);
+
+            camada.visible = true;
+            return mensagem;
+        },
+    };
+}
+
+export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
+    const visual = criarVisualDeMedida(camera, COR_DA_MEDIDA_PADRAO);
 
     let ativa = false;
     let arrastando = false;
+    let textoAtual: string | null = null; // o texto da medida à vista
     // O caminho: `pontos` são os vértices FIXADOS (o 1º é onde a medida começou; os outros, as curvas
     // fixadas com o botão direito) e `fim` é a ponta que acompanha o mouse. Vazio = sem medida.
     let pontos: Casa[] = [];
@@ -70,50 +145,11 @@ export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
         };
     }
 
+    /** Redesenha (e conta a quem quiser saber: o painel, e a rede, que manda o caminho aos outros). */
     function desenhar(): void {
-        if (pontos.length === 0 || !fim) {
-            camada.visible = false;
-            opcoes.aoMedir(null);
-            return;
-        }
-        // Re-adicionar ao mundo traz a régua para o TOPO (os tokens reordenados ficariam por cima).
-        camera.mundo.addChild(camada);
-        const z = camera.zoom;
-
-        // Todos os vértices do caminho (os fixados + a ponta que segue o mouse), no CENTRO das casas, em pixels do mundo.
-        const vertices = [...pontos, fim];
-        const centros = vertices.map((c) => ({ x: (c.col + 0.5) * TAMANHO_CASA, y: (c.row + 0.5) * TAMANHO_CASA }));
-
-        // A linha passa por todos os vértices. Espessuras divididas pelo zoom: mantêm o tamanho na tela.
-        linha.clear();
-        linha.moveTo(centros[0].x, centros[0].y);
-        for (const c of centros.slice(1)) linha.lineTo(c.x, c.y);
-        linha.stroke({ width: 3 / z, color: COR_REGUA, cap: "round", join: "round" });
-        centros.forEach((c, i) => {
-            // As curvas fixadas (nem o começo, nem a ponta) ganham um anel em volta, para se verem.
-            if (i > 0 && i < pontos.length) linha.circle(c.x, c.y, 11 / z).stroke({ width: 2 / z, color: COR_REGUA });
-            linha.circle(c.x, c.y, 6 / z).fill(COR_REGUA).stroke({ width: 2 / z, color: 0x1a1a1f });
-        });
-
-        // O total é a SOMA dos trechos: cada um conta pela maior diferença entre colunas e linhas.
-        let casas = 0;
-        for (let i = 1; i < vertices.length; i++) {
-            casas += distanciaEmCasas(vertices[i - 1].col, vertices[i - 1].row, vertices[i].col, vertices[i].row);
-        }
-        const mensagem = textoDaDistancia(casas);
-        texto.text = mensagem;
-        const larguraRotulo = texto.width + 16;
-        const alturaRotulo = texto.height + 8;
-        fundo.clear().roundRect(-larguraRotulo / 2, -alturaRotulo / 2, larguraRotulo, alturaRotulo, alturaRotulo / 2)
-            .fill({ color: 0x1a1a1f, alpha: 0.92 })
-            .stroke({ width: 1.5, color: COR_REGUA });
-        rotulo.scale.set(1 / z);
-        // O rótulo fica um pouco acima do meio do ÚLTIMO trecho (o que está sendo medido agora).
-        const a = centros[centros.length - 2], b = centros[centros.length - 1];
-        rotulo.position.set((a.x + b.x) / 2, (a.y + b.y) / 2 - 24 / z);
-
-        camada.visible = true;
-        opcoes.aoMedir(mensagem);
+        const vertices = pontos.length > 0 && fim ? [...pontos, fim] : null;
+        textoAtual = visual.mostrar(vertices, pontos.length);
+        opcoes.aoMudarCaminho?.(vertices);
     }
 
     return {
@@ -122,6 +158,9 @@ export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
         },
         get medindo() {
             return arrastando;
+        },
+        get texto() {
+            return textoAtual;
         },
 
         definirAtiva(nova) {
@@ -135,6 +174,11 @@ export function criarRegua(camera: Camera, opcoes: OpcoesRegua): Regua {
         },
 
         redesenhar: desenhar,
+
+        definirCor(cor) {
+            visual.definirCor(cor);
+            if (fim) desenhar();
+        },
 
         comecar(ponto) {
             if (!ativa) return;

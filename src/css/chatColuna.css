@@ -58,8 +58,9 @@
     display: flex;
     flex-direction: column;
 }
-#chat.aba-bolsa #chat-painel {
-    display: none;
+#chat.aba-bolsa #chat-painel,
+#chat.aba-bolsa #chat-form {
+    display: none; /* (o campo de mensagem é do chat: não aparece na aba Bolsa) */
 }
 #chat:not(.aba-bolsa) #bolsa {
     display: none;

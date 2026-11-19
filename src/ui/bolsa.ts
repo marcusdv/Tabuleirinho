@@ -385,7 +385,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                     ficha.append(vinculo);
                     ficha.title += ` · Ficha: ${fichaDoToken.nome}`;
                     if (fichaDeJogador(fichaDoToken.id)) {
-                        // O SELO de ficha única (o mesmo `unique.svg` do cartão da ficha), ao lado do arquivo: este token pertence a uma ficha única (pedido do dono, 17/11/2026).
+                        // O SELO de ficha única (o mesmo `unico.svg` do cartão da ficha), ao lado do arquivo: este token pertence a uma ficha única (pedido do dono, 17/11/2026).
                         const selo = document.createElement("span");
                         selo.className = "item-unica";
                         selo.setAttribute("aria-hidden", "true");
@@ -1477,7 +1477,7 @@ export function criarBolsa(opcoes: OpcoesBolsa): Bolsa {
                     // "Ficha Token Único" (tem recursos): um marcador dourado no canto superior esquerdo. (O mesmo "outro lado" do selinho "tem ficha" da fichinha do token.)
                     const unica = document.createElement("span");
                     unica.className = "item-unica";
-                    unica.textContent = ""; // (o CSS desenha o ícone unique.svg)
+                    unica.textContent = ""; // (o CSS desenha o ícone unico.svg)
                     unica.setAttribute("aria-hidden", "true");
                     doc.append(unica);
                     doc.title += " · Ficha Token Único: só pode ter um token por cena (em outra cena pode aparecer, com os mesmos valores)";

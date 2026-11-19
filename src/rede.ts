@@ -73,6 +73,9 @@ export function criarRede(opcoes: OpcoesRede): Rede {
     }
     conectar();
 
+    // Ao sair da página (fechar a aba, recarregar, navegar), avisa o servidor na hora com um fechamento limpo, para o nome sair da lista de online sem esperar o batimento.
+    window.addEventListener("pagehide", () => ws?.close(1000, "Saiu da página."));
+
     return {
         get ativa() {
             return ativa;

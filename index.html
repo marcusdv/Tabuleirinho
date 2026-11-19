@@ -23,10 +23,11 @@
                 <button id="zoom-ajustar" title="Ajustar o mapa à tela">⤢</button>
             </div>
 
-            <!-- ACESSO RÁPIDO às ferramentas mais usadas (régua, lápis, borracha): fica FIXO abaixo do zoom e liga as mesmas ferramentas do painel Desenho (ui/painelDesenho.ts). Clicar na que já está ligada volta para "Mover". -->
+            <!-- ACESSO RÁPIDO às ferramentas mais usadas (ponteiro = Mover, régua, lápis, borracha): fica FIXO abaixo do zoom e liga as mesmas ferramentas do painel Desenho (ui/painelDesenho.ts). Clicar na que já está ligada volta para "Mover". -->
             <div id="atalhos-rapidos" class="controle">
-                <button type="button" data-atalho="regua" aria-pressed="false" title="Régua (clique de novo para voltar a Mover)">📏</button>
-                <button type="button" data-atalho="lapis" aria-pressed="false" title="Lápis (clique de novo para voltar a Mover)">✎</button>
+                <button type="button" data-atalho="mover" aria-pressed="true" class="ativo" title="Mover e selecionar (Esc). Arrastar a tela: botão do meio do mouse, ou Espaço + botão esquerdo" aria-label="Mover"><span class="icone-svg icone-ponteiro" aria-hidden="true"></span></button>
+                <button type="button" data-atalho="regua" aria-pressed="false" title="Régua (R) (clique de novo para voltar a Mover)" aria-label="Régua"><span class="icone-svg icone-regua" aria-hidden="true"></span></button>
+                <button type="button" data-atalho="lapis" aria-pressed="false" title="Lápis (clique de novo para voltar a Mover)" aria-label="Lápis"><span class="icone-svg icone-lapis" aria-hidden="true"></span></button>
                 <button type="button" data-atalho="borracha" aria-pressed="false" title="Borracha (clique de novo para voltar a Mover)" aria-label="Borracha"><span class="icone-svg icone-borracha" aria-hidden="true"></span></button>
             </div>
 
@@ -45,17 +46,17 @@
                                 class="botao-largo ativo"
                                 data-ferramenta="mover"
                                 aria-pressed="true"
-                                title="Mover tokens e a visão (Esc)"
+                                title="Mover tokens e selecionar (Esc). Arrastar a tela: botão do meio do mouse, ou Espaço + botão esquerdo"
                             >
-                                <span class="ferramenta-icone" aria-hidden="true">✥</span><span class="ferramenta-nome">Mover</span>
+                                <span class="ferramenta-icone" aria-hidden="true"><span class="icone-svg icone-ponteiro"></span></span><span class="ferramenta-nome">Mover</span>
                             </button>
                             <button
                                 class="botao-largo"
                                 data-ferramenta="regua"
                                 aria-pressed="false"
-                                title="Medir a distância (1 casa = 1,5 m). Para medir curvas: com o botão esquerdo apertado, clique com o direito para fixar um ponto"
+                                title="Medir a distância (1 casa = 1,5 m) (R). Para medir curvas: com o botão esquerdo apertado, clique com o direito para fixar um ponto"
                             >
-                                <span class="ferramenta-icone" aria-hidden="true">📏</span><span class="ferramenta-nome">Régua</span>
+                                <span class="ferramenta-icone" aria-hidden="true"><span class="icone-svg icone-regua"></span></span><span class="ferramenta-nome">Régua</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -63,7 +64,7 @@
                                 aria-pressed="false"
                                 title="Desenhar à mão livre"
                             >
-                                <span class="ferramenta-icone" aria-hidden="true">✎</span><span class="ferramenta-nome">Lápis</span>
+                                <span class="ferramenta-icone" aria-hidden="true"><span class="icone-svg icone-lapis"></span></span><span class="ferramenta-nome">Lápis</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -79,7 +80,7 @@
                                 aria-pressed="false"
                                 title="Elipse: arraste de um canto ao oposto da caixa (só contorno)"
                             >
-                                <span class="ferramenta-icone" aria-hidden="true">◯</span><span class="ferramenta-nome">Elipse</span>
+                                <span class="ferramenta-icone" aria-hidden="true"><span class="icone-svg icone-circulo"></span></span><span class="ferramenta-nome">Elipse</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -87,7 +88,7 @@
                                 aria-pressed="false"
                                 title="Retângulo: arraste de um canto ao oposto (só contorno)"
                             >
-                                <span class="ferramenta-icone" aria-hidden="true">▭</span><span class="ferramenta-nome">Retângulo</span>
+                                <span class="ferramenta-icone" aria-hidden="true"><span class="icone-svg icone-quadrado"></span></span><span class="ferramenta-nome">Retângulo</span>
                             </button>
                             <button
                                 class="botao-largo"
@@ -95,10 +96,9 @@
                                 aria-pressed="false"
                                 title="Triângulo: arraste os cantos da caixa dele (só contorno)"
                             >
-                                <span class="ferramenta-icone" aria-hidden="true">△</span><span class="ferramenta-nome">Triângulo</span>
+                                <span class="ferramenta-icone" aria-hidden="true"><span class="icone-svg icone-triangulo"></span></span><span class="ferramenta-nome">Triângulo</span>
                             </button>
                         </div>
-                        <div id="regua-resultado" hidden></div>
                     </section>
 
                     <section>
@@ -210,9 +210,9 @@
                     <section>
                         <h2>Formato</h2>
                         <div id="fog-formas">
-                            <button type="button" class="botao-largo ativo" data-forma="circulo" aria-pressed="true" aria-label="Círculo" title="Pincel redondo"><span class="ferramenta-icone" aria-hidden="true">◯</span></button>
-                            <button type="button" class="botao-largo" data-forma="quadrado" aria-pressed="false" aria-label="Quadrado" title="Pincel quadrado"><span class="ferramenta-icone" aria-hidden="true">▭</span></button>
-                            <button type="button" class="botao-largo" data-forma="triangulo" aria-pressed="false" aria-label="Triângulo" title="Pincel triangular (a ponta para cima)"><span class="ferramenta-icone" aria-hidden="true">△</span></button>
+                            <button type="button" class="botao-largo ativo" data-forma="circulo" aria-pressed="true" aria-label="Círculo" title="Pincel redondo"><span class="ferramenta-icone" aria-hidden="true"><span class="icone-svg icone-circulo"></span></span></button>
+                            <button type="button" class="botao-largo" data-forma="quadrado" aria-pressed="false" aria-label="Quadrado" title="Pincel quadrado"><span class="ferramenta-icone" aria-hidden="true"><span class="icone-svg icone-quadrado"></span></span></button>
+                            <button type="button" class="botao-largo" data-forma="triangulo" aria-pressed="false" aria-label="Triângulo" title="Pincel triangular (a ponta para cima)"><span class="ferramenta-icone" aria-hidden="true"><span class="icone-svg icone-triangulo"></span></span></button>
                         </div>
                     </section>
                     <section>
@@ -230,6 +230,25 @@
                     </section>
                 </div>
             </aside>
+        </div>
+
+        <!-- MENU DO BOTÃO DIREITO no espaço vazio do mapa (ui/menuMapa.ts): Ping, Régua e Borracha para todos; os pincéis do fog só para o mestre. -->
+        <div id="menu-mapa" role="menu" aria-label="Ações no mapa" hidden>
+            <!-- O PING comum é o próprio item; as formas especiais abrem num submenu ao lado (passar o mouse, ou a seta → do teclado). Clicar no item Ping, e não numa forma, faz o ping comum. -->
+            <div class="menu-mapa-grupo">
+                <button type="button" role="menuitem" data-acao="ping" aria-haspopup="menu" title="Chama a atenção de todos para este ponto (passe o mouse para ver os outros tipos). Atalho: Shift + clique; Shift + arrastar abre a roda de pings"><span class="menu-mapa-icone" aria-hidden="true">◎</span>Ping<span class="menu-mapa-seta" aria-hidden="true">▸</span></button>
+                <div class="menu-mapa-extras" role="menu" aria-label="Tipos de ping"><!-- os tipos vêm da tabela do config.ts (ui/menuMapa.ts) --></div>
+            </div>
+            <button type="button" role="menuitem" data-acao="regua" title="Medir a distância (1 casa = 1,5 m); todos veem a sua medida (R)"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-regua"></span></span>Régua<kbd class="menu-mapa-atalho">R</kbd></button>
+            <button type="button" role="menuitem" data-acao="borracha" title="Apagar o desenho que ela tocar"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-borracha"></span></span>Borracha</button>
+            <button type="button" role="menuitem" data-acao="fog-revelar" class="so-mestre" title="Borracha de fog: pinta para REVELAR o mapa"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-borracha"></span></span>Borracha de fog</button>
+            <button type="button" role="menuitem" data-acao="fog-cobrir" class="so-mestre" title="Pincel de fog: pinta para COBRIR o mapa de novo"><span class="menu-mapa-icone" aria-hidden="true"><span class="icone-svg icone-pincel"></span></span>Pincel de fog</button>
+        </div>
+
+        <!-- A RODA DE PINGS (ui/rodaPing.ts): Shift + botão esquerdo arrastado no mapa. O mouse aponta um dos 4 lados (como no League of Legends); soltar faz o ping daquele tipo; no meio, o ping comum. Só desenho: o mouse passa por cima. -->
+        <div id="roda-ping" aria-hidden="true" hidden>
+            <div class="roda-centro" data-forma="comum"><span>◎</span></div>
+            <!-- os lados da roda são criados pelo ui/rodaPing.ts (tabela do config.ts) -->
         </div>
 
         <!-- A JANELA DO TABULEIRO (colunas, linhas, mapa de fundo, grade): fora da caixa do chat; abre pelo botão ⚙ de cada mapa na aba Mapas (só o mestre). Ids usados no ui/barra.ts e ui/bolsaMapas.ts. -->
@@ -355,11 +374,6 @@
                 <div id="chat-faixa" tabindex="0"></div>
                 <!-- Aviso de mensagem nova: só aparece quando chega mensagem com a lista ROLADA para cima (a pessoa está lendo as antigas). -->
                 <button id="chat-novas" type="button" hidden aria-label="Ir para a mensagem mais recente">↓ Novas mensagens</button>
-                <form id="chat-form" autocomplete="off">
-                    <input id="chat-texto" type="text" placeholder="Escreva uma mensagem" aria-label="Mensagem do chat" />
-                    <span id="chat-contador" title="Caracteres usados / limite">0/72</span>
-                    <button id="chat-enviar" type="submit">Enviar</button>
-                </form>
             </div>
             <!-- Bolsa: guarda tokens e fichas (arrastar do mapa para cá e daqui para o mapa). Ids usados no ui/bolsa.ts. -->
             <aside id="bolsa" aria-label="Bolsa de tokens">
@@ -389,7 +403,7 @@
                         <button id="bolsa-selecao-excluir" type="button" class="bolsa-botao-pequeno">Excluir</button>
                         <button id="bolsa-selecao-limpar" type="button" class="bolsa-botao-pequeno" title="Tirar a seleção (Esc)">Cancelar</button>
                     </div>
-                    <button id="bolsa-fechar" hidden title="Fechar a bolsa (Esc)">✕ Fechar</button>
+                    <button id="bolsa-fechar" hidden title="Fechar a bolsa (Esc ou Q)">✕ Fechar</button>
                     <!-- As ABAS da carteira: "Tokens" (o que a bolsa já era) e "Fichas" (fichas de personagem). Ficam numa linha
                          só delas, embaixo do título, nos três tamanhos. Ids usados no ui/bolsa.ts. -->
                     <div id="bolsa-abas" role="tablist" aria-label="Seções da bolsa">
@@ -490,9 +504,9 @@
                     </div>
                 </section>
                 <!-- "Abrir bolsa": abre a bolsa em TELA CHEIA (criar e editar tokens, fichas e mapas). Fica no PÉ da bolsa do canto, fora da linha das abas e dos filtros; na tela cheia some (ela tem o botão Fechar). -->
-                <button id="bolsa-gerenciar" type="button" class="bolsa-botao-pequeno" title="Abrir a bolsa em tela cheia (criar e editar tokens e fichas)" aria-label="Abrir a bolsa em tela cheia">⤢ Abrir bolsa</button>
+                <button id="bolsa-gerenciar" type="button" class="bolsa-botao-pequeno" title="Abrir a bolsa em tela cheia (criar e editar tokens e fichas) (Q)" aria-label="Abrir a bolsa em tela cheia">⤢ Abrir bolsa</button>
             </aside>
-                    <!-- Painel de DADOS: uma BARRA no pé da coluna da direita (embaixo do chat ou da bolsa). Clicar nela expande a caixa de dados ali mesmo (para cima). Ids usados no ui/painelDados.ts. -->
+                    <!-- Painel de DADOS: uma BARRA da coluna da direita, entre as mensagens do chat e o campo de mensagem (na aba Bolsa, no pé da coluna). Clicar nela expande a caixa de dados ali mesmo (para cima). Ids usados no ui/painelDados.ts. -->
             <aside id="dados" aria-label="Dados">
                 <div class="cabecalho">
                     <h1>Dados</h1>
@@ -526,6 +540,12 @@
                     </div>
                 </div>
             </aside>
+            <!-- O CAMPO DE MENSAGEM do chat: o ÚLTIMO item da coluna, DEPOIS (embaixo) dos Dados, que ficam entre as mensagens e este campo (pedido do dono, 18/11/2026). Some na aba Bolsa. -->
+            <form id="chat-form" autocomplete="off">
+                <input id="chat-texto" type="text" placeholder="Escreva uma mensagem" aria-label="Mensagem do chat" />
+                <span id="chat-contador" title="Caracteres usados / limite">0/72</span>
+                <button id="chat-enviar" type="submit">Enviar</button>
+            </form>
         </section>
 
         <!-- Painel da calibragem, no canto inferior direito (escondido até ligar "Alinhar mapa"). Ids usados no ui/painelCalibragem.ts. -->

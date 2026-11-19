@@ -2,7 +2,7 @@
 /* ===== AS MARCAS DA FICHINHA DO TOKEN, numa FAIXA no alto com posições FIXAS (pedido do dono, 17/11/2026): o símbolo da ficha (um ARQUIVO) à esquerda, a ESTRELA sempre no centro e os GRUPOS à
    direita. A estrela não depende mais de quantos grupos há (antes ela ficava num lugar que mudava e encostava nas bolinhas). Só valem para a fichinha de TOKEN; o cartão das fichas tem as dele. ===== */
 .ficha .item-ficha-vinculo {
-    /* o ARQUIVO: o ícone `public/images/svgs/file.svg` (contorno preto) como máscara, pintado num cinza quase invisível (pedido do dono, 17/11/2026) */
+    /* o ARQUIVO: o ícone `public/images/svgs/arquivo.svg` (contorno preto) como máscara, pintado num cinza quase invisível (pedido do dono, 17/11/2026) */
     left: 4px;
     top: 3px;
     width: 12px;
@@ -10,10 +10,10 @@
     font-size: 0;
     line-height: 0;
     background: rgba(201, 201, 212, 0.22); /* QUASE INVISÍVEL (pedido do dono, 17/11/2026): um cinza bem apagado, só para quem procura; antes dourado */
-    -webkit-mask: url("/images/svgs/file.svg") center / contain no-repeat;
-    mask: url("/images/svgs/file.svg") center / contain no-repeat;
+    -webkit-mask: url("/images/svgs/arquivo.svg") center / contain no-repeat;
+    mask: url("/images/svgs/arquivo.svg") center / contain no-repeat;
 }
-/* O SELO de ficha única no token: o mesmo `unique.svg`, CINZA quase invisível como o arquivo, logo ao lado dele (pedido do dono, 17/11/2026). */
+/* O SELO de ficha única no token: o mesmo `unico.svg`, CINZA quase invisível como o arquivo, logo ao lado dele (pedido do dono, 17/11/2026). */
 .ficha .item-unica {
     position: absolute;
     left: 16px;
@@ -21,8 +21,8 @@
     width: 11px;
     height: 11px;
     background: rgba(201, 201, 212, 0.22);
-    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
-    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    -webkit-mask: url("/images/svgs/unico.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unico.svg") center / contain no-repeat;
     pointer-events: none;
 }
 #bolsa.expandida .ficha .item-unica {
@@ -113,7 +113,7 @@
     line-height: 18px;
 }
 
-/* O chip de FICHAS ÚNICAS (filtro): azul, com o selo `unique.svg` (o mesmo do cartão da ficha única). */
+/* O chip de FICHAS ÚNICAS (filtro): azul, com o selo `unico.svg` (o mesmo do cartão da ficha única). */
 .bolsa-chip.chip-unica {
     --cor-grupo: #4aa3ff;
 }
@@ -122,8 +122,8 @@
     width: 12px;
     height: 12px;
     background: #4aa3ff;
-    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
-    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    -webkit-mask: url("/images/svgs/unico.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unico.svg") center / contain no-repeat;
 }
 
 /* O selo de ficha única no MENU de filtros da bolsa (no lugar da bolinha azul). */
@@ -132,8 +132,8 @@
     width: 14px;
     height: 14px;
     background: #4aa3ff;
-    -webkit-mask: url("/images/svgs/unique.svg") center / contain no-repeat;
-    mask: url("/images/svgs/unique.svg") center / contain no-repeat;
+    -webkit-mask: url("/images/svgs/unico.svg") center / contain no-repeat;
+    mask: url("/images/svgs/unico.svg") center / contain no-repeat;
 }
 
 /* A JANELA DO TABULEIRO (colunas, linhas, mapa de fundo, grade), FORA da caixa do chat; abre pelo ⚙ de cada mapa (ui/bolsaMapas.ts). */

@@ -1,0 +1,81 @@
+/* A RODA DE PINGS (ui/rodaPing.ts): centrada no ponto onde o Shift + botão foi apertado. Os lados são criados pelo JavaScript e cada um guarda o deslocamento a partir do centro em `--dx` e `--dy`.
+   O mouse passa por cima (pointer-events: none); só o JavaScript escolhe o lado. */
+#roda-ping {
+    position: fixed;
+    z-index: 24;
+    width: 0;
+    height: 0;
+    pointer-events: none;
+}
+#roda-ping[hidden] {
+    display: none;
+}
+#roda-ping .roda-centro,
+#roda-ping .roda-setor {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #4a4a58;
+    border-radius: 50%;
+    background: rgba(26, 26, 31, 0.92);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+    transition: transform 90ms ease-out, background 90ms ease-out, border-color 90ms ease-out;
+}
+#roda-ping .roda-centro {
+    left: -17px;
+    top: -17px;
+    width: 34px;
+    height: 34px;
+    color: #e6e6ea;
+    font-size: 16px;
+}
+#roda-ping .roda-setor {
+    left: -25px;
+    top: -25px;
+    width: 50px;
+    height: 50px;
+    transform: translate(var(--dx), var(--dy));
+}
+#roda-ping .roda-setor .icone-svg {
+    width: 27px;
+    height: 27px;
+}
+/* O lado escolhido cresce, ganha contorno dourado e mostra o nome. */
+#roda-ping .escolhido {
+    z-index: 1; /* (por cima dos vizinhos) */
+    border-color: #ffd54f;
+    background: #33333f;
+}
+#roda-ping .roda-setor.escolhido {
+    transform: translate(var(--dx), var(--dy)) scale(1.22);
+}
+#roda-ping .roda-centro.escolhido {
+    transform: scale(1.2);
+}
+#roda-ping .roda-setor.escolhido::after {
+    content: attr(data-nome);
+    position: absolute;
+    top: calc(100% + 4px);
+    padding: 1px 7px;
+    border-radius: 9px;
+    background: rgba(26, 26, 31, 0.95);
+    color: #e6e6ea;
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+}
+#roda-ping .roda-setor.acima.escolhido::after {
+    top: auto;
+    bottom: calc(100% + 4px);
+}
+#roda-ping .roda-setor.nome-direita.escolhido::after {
+    top: 50%;
+    left: calc(100% + 6px);
+    translate: 0 -50%;
+}
+#roda-ping .roda-setor.nome-esquerda.escolhido::after {
+    top: 50%;
+    right: calc(100% + 6px);
+    translate: 0 -50%;
+}

@@ -1,0 +1,95 @@
+/* O MENU DO BOTÃO DIREITO no vazio do mapa (ui/menuMapa.ts): uma lista pequena junto ao cursor. Mesma cara dos botões da lista de ações do token. */
+#menu-mapa {
+    position: fixed;
+    z-index: 23; /* (acima dos painéis e dos menus do token) */
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 170px;
+    padding: 4px;
+    border: 1px solid #4a4a58;
+    border-radius: 10px;
+    background: #22222a;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+#menu-mapa[hidden] {
+    display: none;
+}
+#menu-mapa button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #e6e6ea;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: left;
+    cursor: pointer;
+}
+#menu-mapa button:hover:not(:disabled),
+#menu-mapa button:focus-visible {
+    background: #33333f;
+    outline: none;
+}
+#menu-mapa button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+.menu-mapa-icone {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    flex: none;
+    font-size: 15px;
+}
+
+/* O grupo do PING: o item Ping e, ao lado, o submenu com as formas (aparece ao passar o mouse ou com o foco dentro; `.extras-esquerda` o abre para o outro lado quando não cabe à direita). */
+.menu-mapa-grupo {
+    position: relative;
+}
+.menu-mapa-grupo > button {
+    width: 100%;
+}
+.menu-mapa-seta {
+    margin-left: auto;
+    opacity: 0.6;
+    font-size: 11px;
+}
+.menu-mapa-atalho {
+    margin-left: auto;
+    padding: 0 6px;
+    border: 1px solid #4a4a58;
+    border-radius: 4px;
+    font: inherit;
+    font-size: 11px;
+    line-height: 16px;
+    opacity: 0.7;
+}
+.menu-mapa-extras {
+    position: absolute;
+    top: -5px;
+    left: calc(100% + 2px);
+    display: none;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 150px;
+    padding: 4px;
+    border: 1px solid #4a4a58;
+    border-radius: 10px;
+    background: #22222a;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+.menu-mapa-grupo:hover > .menu-mapa-extras,
+.menu-mapa-grupo:focus-within > .menu-mapa-extras {
+    display: flex;
+}
+#menu-mapa.extras-esquerda .menu-mapa-extras {
+    left: auto;
+    right: calc(100% + 2px);
+}

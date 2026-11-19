@@ -62,11 +62,6 @@
     background: #2f2f3a;
     cursor: pointer;
 }
-#regua-resultado {
-    margin-top: 6px;
-    font-size: 12px;
-    color: #ffd54f;
-}
 #desenho-amostras + .seletor-cor-botao {
     margin-top: 8px; /* a barra de "outra cor" respira em relação às amostras */
 }

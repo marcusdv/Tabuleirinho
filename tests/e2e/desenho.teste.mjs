@@ -31,7 +31,8 @@ async function arrastar(de, para, botao = "left", passos = 10) {
 const ferr = (nome) => p.click(`button[data-ferramenta="${nome}"]`);
 const cls = async (nome) => (await p.locator(`button[data-ferramenta="${nome}"]`).getAttribute("class")) || "";
 const fill = (hex) => definirCor(p, "#desenho-cor", hex); // (pelo seletor de cor do site: abre a caixa, digita o código e fecha)
-const dist = () => p.locator("#regua-resultado").evaluate((e) => (e.hidden ? null : e.textContent));
+// A medida da régua (a caixa de distância do painel Desenho foi removida: agora ela aparece só sobre o mapa; o gancho do `npm run dev` entrega o texto).
+const dist = () => p.evaluate(() => window.__tabuleirinho.distanciaDaRegua());
 // Centro de uma casa (col,row) na tela, com o tabuleiro 18x10 em zoom 100% (origem 124,80)
 const casa = (c, r) => ({ x: 124 + (c + 0.5) * 64, y: 80 + (r + 0.5) * 64 });
 
@@ -46,20 +47,20 @@ await p.screenshot({ path: `${S}/d0_painel.png` });
 await ferr("regua");
 ok("B1) Régua ficou ativa e Mover não", (await cls("regua")).includes("ativo") && !(await cls("mover")).includes("ativo"));
 await arrastar(casa(4, 2), casa(8, 5)); // dc=4, dr=3 -> 4 casas
-ok("B2) (4,2)->(8,5): 6 m = 4 □", (await dist()) === "Distância: 6 m = 4 □", await dist());
+ok("B2) (4,2)->(8,5): 6 m = 4 □", (await dist()) === "6 m = 4 □", await dist());
 const linha = await cor(AMARELO, { x0: 340, x1: 1060, y0: 0, y1: 560 }, `${S}/d1_regua.png`); // (a região para antes da coluna da direita, que tem o traço amarelo da aba)
 ok("B3) a linha amarela da régua aparece (e continua após soltar)", linha.n > 200 && linha.x0 < 450 && linha.x1 > 600, `${linha.n} px, x ${linha.x0}..${linha.x1}`);
 await arrastar(casa(4, 2), casa(5, 2));
-ok("B4) uma casa: '1,5 m = 1 □' (vírgula decimal)", (await dist()) === "Distância: 1,5 m = 1 □", await dist());
+ok("B4) uma casa: '1,5 m = 1 □' (vírgula decimal)", (await dist()) === "1,5 m = 1 □", await dist());
 await arrastar(casa(4, 0), casa(11, 3)); // diagonal conta 1: max(7,3)=7 (as casas das colunas 0 a 3 ficam atrás da gaveta do Desenho)
-ok("B5) (4,0)->(11,3): 10,5 m = 7 □ (diagonal = 1 casa)", (await dist()) === "Distância: 10,5 m = 7 □", await dist());
+ok("B5) (4,0)->(11,3): 10,5 m = 7 □ (diagonal = 1 casa)", (await dist()) === "10,5 m = 7 □", await dist());
 await arrastar(casa(4, 4), casa(4, 4), "left", 2);
 ok("B6) um CLIQUE (sem arrastar) NÃO mostra a régua: ela só aparece ao arrastar (e a medida anterior some)", (await dist()) === null, String(await dist()));
 await arrastar({ x: casa(4, 4).x - 12, y: casa(4, 4).y }, { x: casa(4, 4).x + 12, y: casa(4, 4).y });
-ok("B6b) arrastando dentro da mesma casa a régua aparece: 0 m = 0 □", (await dist()) === "Distância: 0 m = 0 □", await dist());
+ok("B6b) arrastando dentro da mesma casa a régua aparece: 0 m = 0 □", (await dist()) === "0 m = 0 □", await dist());
 await arrastar(casa(4, 1), casa(8, 1));
 await p.click("#zoom-mais"); await p.waitForTimeout(300); // zoom com a régua visível: não quebra
-ok("B7) mudar o zoom com a régua na tela mantém a medida", (await dist()) === "Distância: 6 m = 4 □");
+ok("B7) mudar o zoom com a régua na tela mantém a medida", (await dist()) === "6 m = 4 □");
 await p.evaluate(() => { window.__tabuleirinho.camera.aplicarZoom(1); window.__tabuleirinho.camera.centralizar(); }); await p.waitForTimeout(500); // (o botão "Voltar ao padrão" fica na gaveta do Tabuleiro, fechada aqui)
 await ferr("mover");
 const amarelosB8 = (await cor(AMARELO, { x0: 340, x1: 1040, y0: 60, y1: 430 }, `${S}/d1b.png`)).n; // (só o mapa livre: a bolsa do canto e a barra têm detalhes dourados)
