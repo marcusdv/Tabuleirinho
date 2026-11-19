@@ -132,7 +132,7 @@ import {
     type Token,
 } from "../src/estado.ts";
 import { aplicarAcaoDaIniciativa, definirIniciativa, iniciativaComoObjeto } from "../src/iniciativa.ts";
-import { ABAS_THORIN, IMAGEM_GOBLIN, NOME_CLERIGA, NOME_GOBLIN, NOME_THORIN, TEXTO_CLERIGA, TEXTO_GOBLIN } from "../src/exemplos.ts";
+import { ABAS_THORIN, IMAGEM_GOBLIN, NOME_CLERIGA, NOME_DADOS, NOME_GOBLIN, NOME_THORIN, TEXTO_CLERIGA, TEXTO_DADOS, TEXTO_GOBLIN } from "../src/exemplos.ts";
 import { analisarAbas, rolarCartaoDaAnalise, rolarConta, rolarDaAnalise, type AnaliseDaFicha } from "../src/formulas.ts";
 import type { ValorDeStatus } from "../src/estado.ts";
 import { gastar, novoBalde, passouOIntervalo, type Balde } from "../src/limite.ts";
@@ -613,16 +613,18 @@ async function excluirGrupoNoServidor(c: Conexao, id: number): Promise<void> {
 // (`src/exemplos.ts`). A marca `exemplos` em `dados/mesa.json` impede que voltem se o dono as apagar; SEM_EXEMPLOS=1 desliga (os testes automáticos usam isto).
 const SEM_EXEMPLOS = process.env.SEM_EXEMPLOS === "1";
 let exemplosCriados = false;
+let exemploDeDadosCriado = false; // a ficha "Teste de Dados" (uma rolagem de cada dado) também tem marca própria: mesas antigas a recebem UMA vez
 let exemploDeCuraCriado = false; // a Clériga Aurora (o token que cura) tem a marca própria: mesas que já tinham os outros exemplos também a recebem, UMA vez
 let mapasDeExemploCriados = false;
-/** Cria as fichas de exemplo (cada uma com o seu token na bolsa). `quais`: "todos" (mesa nova) ou "cura" (só a Clériga, numa mesa que já tinha os outros exemplos). */
-async function semearExemplos(quais: "todos" | "cura" = "todos"): Promise<void> {
+/** Cria as fichas de exemplo (cada uma com o seu token na bolsa). `quais`: "todos" (mesa nova), "cura" (só a Clériga) ou "dados" (só o Teste de Dados), numa mesa que já tinha os outros exemplos. */
+async function semearExemplos(quais: "todos" | "cura" | "dados" = "todos"): Promise<void> {
     const todos = [
         { nome: NOME_GOBLIN, abas: [{ nome: "Página 1", texto: TEXTO_GOBLIN }], cor: 0x2f5d2a, corBorda: 0xffffff, imagem: IMAGEM_GOBLIN as string | null },
         { nome: NOME_THORIN, abas: ABAS_THORIN, cor: 0x2a4a7a, corBorda: 0xffd54f, imagem: null as string | null },
         { nome: NOME_CLERIGA, abas: [{ nome: "Página 1", texto: TEXTO_CLERIGA }], cor: 0xf1c40f, corBorda: 0xffffff, imagem: null as string | null },
+        { nome: NOME_DADOS, abas: [{ nome: "Página 1", texto: TEXTO_DADOS }], cor: 0x8e44ad, corBorda: 0xffffff, imagem: null as string | null },
     ];
-    const exemplos = quais === "cura" ? todos.filter((e) => e.nome === NOME_CLERIGA) : todos;
+    const exemplos = quais === "cura" ? todos.filter((e) => e.nome === NOME_CLERIGA) : quais === "dados" ? todos.filter((e) => e.nome === NOME_DADOS) : todos;
     for (const e of exemplos) {
         const ficha = montarFicha();
         const abas = normalizarAbas(e.abas);
@@ -640,7 +642,7 @@ async function semearExemplos(quais: "todos" | "cura" = "todos"): Promise<void> 
 
 /** Grava `dados/mesa.json` com o estado de AGORA (tamanho do tabuleiro e status da mesa). */
 function gravarMesaAtual(): Promise<void> {
-    return gravarMesa({ colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, valores: todosOsValoresDasFichas(), exemplos: exemplosCriados, exemploDeCura: exemploDeCuraCriado, mapa: mapaAtual, mapasDeExemplo: mapasDeExemploCriados, iniciativa: iniciativaComoObjeto(), grade: estado.grade }).catch((falha) => console.error("Não foi possível gravar mesa.json:", falha));
+    return gravarMesa({ colunas: estado.colunas, linhas: estado.linhas, status: estado.statusDaMesa, acoes: estado.acoesDaMesa, valores: todosOsValoresDasFichas(), exemplos: exemplosCriados, exemploDeCura: exemploDeCuraCriado, exemploDeDados: exemploDeDadosCriado, mapa: mapaAtual, mapasDeExemplo: mapasDeExemploCriados, iniciativa: iniciativaComoObjeto(), grade: estado.grade }).catch((falha) => console.error("Não foi possível gravar mesa.json:", falha));
 }
 
 /** A pasta de um token: os tokens da BOLSA (modelos) em `dados/tokens/`, as PEÇAS do tabuleiro em `dados/pecas/`. */
@@ -1755,8 +1757,9 @@ try {
         await semearExemplos();
         exemplosCriados = true;
         exemploDeCuraCriado = true; // (a mesa nova já recebeu a Clériga junto)
+        exemploDeDadosCriado = true; // (e o Teste de Dados)
         await gravarMesaAtual(); // (guarda a marca: se o dono apagar os exemplos, eles não voltam)
-        console.log("Fichas de exemplo criadas: Goblin Guerreiro, Thorin Escudo-de-Carvalho e Clériga Aurora (com seus tokens na bolsa).");
+        console.log("Fichas de exemplo criadas: Goblin Guerreiro, Thorin Escudo-de-Carvalho, Clériga Aurora e Teste de Dados (com seus tokens na bolsa).");
     }
     if (mesa?.exemploDeCura === true || exemploDeCuraCriado) exemploDeCuraCriado = true;
     else if (!SEM_EXEMPLOS) {
@@ -1765,6 +1768,14 @@ try {
         exemploDeCuraCriado = true;
         await gravarMesaAtual();
         console.log("Ficha de exemplo criada: Clériga Aurora (o token que cura, com rolagens {cura} e {dano}).");
+    }
+    if (mesa?.exemploDeDados === true || exemploDeDadosCriado) exemploDeDadosCriado = true;
+    else if (!SEM_EXEMPLOS) {
+        // Uma mesa que já existia (criada antes do Teste de Dados): ela ganha só essa ficha, uma vez; se o dono a apagar, não volta.
+        await semearExemplos("dados");
+        exemploDeDadosCriado = true;
+        await gravarMesaAtual();
+        console.log("Ficha de exemplo criada: Teste de Dados (uma rolagem de cada dado, para ver as cores).");
     }
     console.log(`${estado.fichas.length} ficha(s), ${estado.tokens.length} token(s) e ${estado.grupos.length} grupo(s) carregado(s) de ${PASTA_DE_DADOS}`);
 } catch (falha) {

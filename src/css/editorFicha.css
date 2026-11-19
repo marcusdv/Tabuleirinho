@@ -275,41 +275,51 @@
 #editor-ficha-previa .rolagem-previa.com-erro .rolagem-previa-nome {
     text-decoration: underline wavy #ff6b6b;
 }
-/* CORES DOS DADOS NAS FICHAS (só aqui: o chat não tem cor por tipo).
-   - Os BOTÕES da lista lateral de rolagens usam a cor de CADA tipo de dado (o botão, no texto e no fundo, pelo PRIMEIRO dado da fórmula; e o ícone de cada dado).
-   - No TEXTO da ficha (a leitura) só o d20 tem cor (azul); todos os outros dados ficam com as cores de sempre (pedido do dono: cores demais confundiam a leitura). */
-#editor-ficha-lateral li.rolagem[data-lados="4"],
-#editor-ficha-lateral .rolagem-dado[data-lados="4"] {
-    --cor-dado: #ffb74d;
+/* CORES DOS DADOS NAS FICHAS (o chat tem as suas próprias cores). UMA paleta só, nas variáveis `--dado-N` logo abaixo: para trocar uma cor, mude AQUI.
+   Vale na lista lateral de rolagens, na LEITURA (o botão da rolagem e cada termo de dado da fórmula, pelo tipo do dado) e no NOME da rolagem do modo de edição.
+   É a paleta ANTIGA (a que a lista lateral sempre teve), com mudanças pedidas pelo dono (19/11/2026): d8 verde (a cor da cura), d10 roxo e d12 vermelho; o d4 virou rosa e o d6 voltou ao verde-água (o laranja dava um fundo marrom). Em 19/11/2026 foram testadas e recusadas paletas com neons, branco, ciano, amarelo e laranja (ver docs/historico.md). O dono testou uma paleta nova (d20 dourado, d4 roxo...) em 19/11/2026, não gostou e só ficou com essas duas cores (ver docs/historico.md). */
+#editor-ficha-lateral,
+#editor-ficha-previa,
+#editor-ficha-cores {
+    --dado-4: #f06292; /* rosa (o d4 era laranja/amarelo: tingido sobre o painel escuro vira marrom/oliva; este rosa era o d10 da paleta antiga) */
+    --dado-6: #4db6ac; /* verde-água (paleta antiga; o laranja que o d6 teve dava um fundo MARROM, que o dono não gostou) */
+    --dado-8: #66d17a; /* verde (pedido do dono: a cor da cura; o d8 antigo era roxo #ba68c8) */
+    --dado-10: #ba68c8; /* roxo (pedido do dono; era o d8 antigo) */
+    --dado-12: #ff5252; /* vermelho (pedido do dono; o d12 antigo era verde-limão #dce775) */
+    --dado-20: #6aa7ff; /* azul (paleta antiga) */
+    --dado-100: #ff8a65; /* salmão (paleta antiga) */
+    --dado-1000: #9fa8da; /* lilás acinzentado (paleta antiga) */
 }
-#editor-ficha-lateral li.rolagem[data-lados="6"],
-#editor-ficha-lateral .rolagem-dado[data-lados="6"] {
-    --cor-dado: #4db6ac;
+/* Quem tem `data-lados` (o botão, o termo e o ícone do dado, o nome da rolagem) pega a cor do SEU tipo de dado. `--texto-dado` é a cor do TEXTO dentro de um fundo tingido pela própria cor: hoje é a
+   cor do dado, pura (a paleta antiga tem contraste bastante); numa paleta mais escura, clarear aqui (ex.: color-mix(in srgb, var(--cor-dado) 65%, white)) resolve os 3 lugares de uma vez. */
+:is(#editor-ficha-lateral, #editor-ficha-previa, #editor-ficha-cores) [data-lados] {
+    --texto-dado: var(--cor-dado);
 }
-#editor-ficha-lateral li.rolagem[data-lados="8"],
-#editor-ficha-lateral .rolagem-dado[data-lados="8"] {
-    --cor-dado: #ba68c8;
+:is(#editor-ficha-lateral, #editor-ficha-previa, #editor-ficha-cores) [data-lados="4"] {
+    --cor-dado: var(--dado-4);
 }
-#editor-ficha-lateral li.rolagem[data-lados="10"],
-#editor-ficha-lateral .rolagem-dado[data-lados="10"] {
-    --cor-dado: #f06292;
+:is(#editor-ficha-lateral, #editor-ficha-previa, #editor-ficha-cores) [data-lados="6"] {
+    --cor-dado: var(--dado-6);
 }
-#editor-ficha-lateral li.rolagem[data-lados="12"],
-#editor-ficha-lateral .rolagem-dado[data-lados="12"] {
-    --cor-dado: #dce775;
+:is(#editor-ficha-lateral, #editor-ficha-previa, #editor-ficha-cores) [data-lados="8"] {
+    --cor-dado: var(--dado-8);
 }
-#editor-ficha-lateral li.rolagem[data-lados="20"],
-#editor-ficha-lateral .rolagem-dado[data-lados="20"] {
-    --cor-dado: #6aa7ff;
+:is(#editor-ficha-lateral, #editor-ficha-previa, #editor-ficha-cores) [data-lados="10"] {
+    --cor-dado: var(--dado-10);
 }
-#editor-ficha-lateral li.rolagem[data-lados="100"],
-#editor-ficha-lateral .rolagem-dado[data-lados="100"] {
-    --cor-dado: #ff8a65;
+:is(#editor-ficha-lateral, #editor-ficha-previa, #editor-ficha-cores) [data-lados="12"] {
+    --cor-dado: var(--dado-12);
 }
-#editor-ficha-lateral li.rolagem[data-lados="1000"],
-#editor-ficha-lateral .rolagem-dado[data-lados="1000"] {
-    --cor-dado: #9fa8da;
+:is(#editor-ficha-lateral, #editor-ficha-previa, #editor-ficha-cores) [data-lados="20"] {
+    --cor-dado: var(--dado-20);
 }
+:is(#editor-ficha-lateral, #editor-ficha-previa, #editor-ficha-cores) [data-lados="100"] {
+    --cor-dado: var(--dado-100);
+}
+:is(#editor-ficha-lateral, #editor-ficha-previa, #editor-ficha-cores) [data-lados="1000"] {
+    --cor-dado: var(--dado-1000);
+}
+/* A lista lateral: o botão leva o fundo e o nome na cor do PRIMEIRO dado da fórmula. */
 #editor-ficha-lateral #editor-ficha-rolagens li.rolagem[data-lados] {
     background: color-mix(in srgb, var(--cor-dado) 24%, #2f2f3a);
 }
@@ -318,24 +328,24 @@
     background: color-mix(in srgb, var(--cor-dado) 38%, #2f2f3a);
 }
 #editor-ficha-lateral li.rolagem[data-lados] .nome {
-    color: var(--cor-dado);
+    color: var(--texto-dado);
 }
-/* No texto: SÓ o d20 é azul (o botão da rolagem com d20, o termo "1d20" e o ícone dele). */
-#editor-ficha-previa .rolagem-previa[data-lados="20"],
-#editor-ficha-previa .termo-dado[data-lados="20"],
-#editor-ficha-previa .rolagem-dado[data-lados="20"] {
-    --cor-dado: #6aa7ff;
-}
-#editor-ficha-previa .termo-dado:not([data-lados="20"]),
-#editor-ficha-previa .rolagem-dado:not([data-lados="20"]) {
-    --cor-dado: initial; /* (não herda o azul do botão: um "1d6" ao lado de um "1d20" fica sem cor) */
-}
-#editor-ficha-previa .rolagem-previa[data-lados="20"] .rolagem-previa-nome {
-    color: var(--cor-dado);
+/* A leitura: o botão da rolagem (o nome) na cor do primeiro dado; cada termo "1d6" da fórmula e o ícone dele ficam na cor do próprio dado (a regra `.termo-dado`, abaixo). */
+#editor-ficha-previa .rolagem-previa[data-lados] .rolagem-previa-nome {
+    color: var(--texto-dado);
     background: color-mix(in srgb, var(--cor-dado) 18%, transparent);
 }
-#editor-ficha-previa .rolagem-previa[data-lados="20"]:hover .rolagem-previa-nome {
+#editor-ficha-previa .rolagem-previa[data-lados]:hover .rolagem-previa-nome {
     background: color-mix(in srgb, var(--cor-dado) 34%, transparent);
+}
+/* O modo de edição: o NOME da rolagem (a palavra com função) também na cor do primeiro dado. */
+#editor-ficha-cores .trecho.rolagem-nome[data-lados] {
+    color: var(--texto-dado);
+    background: color-mix(in srgb, var(--cor-dado) 20%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--cor-dado) 45%, transparent);
+}
+#editor-ficha-cores .trecho.rolagem-nome[data-lados]:hover {
+    background: color-mix(in srgb, var(--cor-dado) 38%, transparent);
 }
 /* ROLAGENS: cada DADO ("1d4", "1d6"...) tem o seu ícone (o formato do dado do chat, desenhado por ui/formaDado.ts). Sem cor própria (nenhuma `--cor-dado`) o ícone e o termo ficam neutros. */
 .rolagem-dado {

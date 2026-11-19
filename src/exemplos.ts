@@ -55,3 +55,36 @@ export const TEXTO_CLERIGA = [
     "Se o alvo for um morto-vivo, ele sofre [2d6]{dano} de dano radiante.",
     '"""',
 ].join("\n");
+
+// A FICHA "TESTE DE DADOS" (19/11/2026, pedido do dono): uma rolagem de CADA dado (d4 a d1000), para ver as cores dos dados na lista lateral, na leitura e no modo de edição, e para conferir
+// o resto do que a ficha mostra com rolagens: fórmulas com vários dados (a cor de cada termo), rolagem sem nome, variável (a caixa do cálculo) e um nome comprido (reticências). Sem recursos:
+// pode ter vários tokens. Para mudar as cores, ver o bloco "CORES DOS DADOS NAS FICHAS" em `src/css/editorFicha.css`.
+export const NOME_DADOS = "Teste de Dados";
+export const TEXTO_DADOS = [
+    "# Teste de Dados",
+    "Clique em qualquer rolagem (na lista da direita ou aqui no texto) para rolar. Serve para ver a cor de cada dado.",
+    "",
+    "## Um de cada dado",
+    "(Dado d4)[1d4]",
+    "(Dado d6)[1d6]",
+    "(Dado d8)[1d8]",
+    "(Dado d10)[1d10]",
+    "(Dado d12)[1d12]",
+    "(Dado d20)[1d20]",
+    "(Dado d100)[1d100]",
+    "(Dado d1000)[1d1000]",
+    "",
+    "## Vários dados juntos",
+    "O botão leva a cor do PRIMEIRO dado; cada termo da fórmula leva a cor do seu.",
+    "(Ataque furtivo)[1d20 + 2d6 + 1d4]",
+    "(Golpe pesado)[1d12 + 1d8 + 1d10]",
+    "(Percentil)[1d100 + 1d10]",
+    "",
+    "## Sem nome e com variável",
+    "Sem nome, a fórmula fica à mostra: [1d20 + 1d6]",
+    "BONUS:: 3",
+    "(Ataque com bônus)[1d20 + BONUS]",
+    "",
+    "## Nome comprido",
+    "(Um nome bem comprido para testar as reticências do botão)[1d8]",
+].join("\n");

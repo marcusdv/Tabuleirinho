@@ -2505,7 +2505,7 @@ async function iniciar(): Promise<void> {
     // começando se familiarizar com o texto das fichas (`src/exemplos.ts`). No modo LOCAL isto vale toda vez que a página abre (o modo local não guarda nada); online é o SERVIDOR que
     // as cria, uma vez (`servidor/servidor.ts`). Ficam de fora dos testes automáticos (o navegador deles se diz automatizado: eles contam fichas e tokens e esperam a mesa vazia).
     if (!rede && !navigator.webdriver) {
-        void import("./exemplos").then(({ ABAS_THORIN, IMAGEM_GOBLIN, NOME_CLERIGA, NOME_GOBLIN, NOME_THORIN, TEXTO_CLERIGA, TEXTO_GOBLIN }) => {
+        void import("./exemplos").then(({ ABAS_THORIN, IMAGEM_GOBLIN, NOME_CLERIGA, NOME_DADOS, NOME_GOBLIN, NOME_THORIN, TEXTO_CLERIGA, TEXTO_DADOS, TEXTO_GOBLIN }) => {
             const ficha = criarFicha();
             if (!ficha) return;
             ficha.nome = NOME_GOBLIN;
@@ -2527,6 +2527,14 @@ async function iniciar(): Promise<void> {
                 fichaCleriga.abas[0].texto = TEXTO_CLERIGA;
                 const tokenCleriga = criarToken(0xf1c40f, 1, NOME_CLERIGA, null, 0xffffff, fichaCleriga.id);
                 if (tokenCleriga) tokens.adicionar(tokenCleriga);
+            }
+            // O TESTE DE DADOS: uma rolagem de cada dado (d4 a d1000), para ver as cores dos dados nas fichas (ver `TEXTO_DADOS` em src/exemplos.ts).
+            const fichaDados = criarFicha();
+            if (fichaDados) {
+                fichaDados.nome = NOME_DADOS;
+                fichaDados.abas[0].texto = TEXTO_DADOS;
+                const tokenDados = criarToken(0x8e44ad, 1, NOME_DADOS, null, 0xffffff, fichaDados.id);
+                if (tokenDados) tokens.adicionar(tokenDados);
             }
             bolsa.atualizarFichas();
             bolsa.atualizar();

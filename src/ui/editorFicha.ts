@@ -737,7 +737,11 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
             if (resultado !== undefined) span.dataset.resultado = String(resultado);
             if (trecho.tipo === "rolagem-nome") {
                 span.title = trecho.erro ? trecho.dica : `Clique para rolar: ${trecho.dica}`; // ao passar o mouse: a fórmula já calculada (ou o erro)
-                if (trecho.rolagem !== null) span.dataset.rolagem = String(trecho.rolagem);
+                if (trecho.rolagem !== null) {
+                    span.dataset.rolagem = String(trecho.rolagem);
+                    const principal = dadoPrincipal(analise.rolagens[trecho.rolagem]?.formula ?? "");
+                    if (principal !== null) span.dataset.lados = String(principal); // (o nome ganha a cor do primeiro dado da fórmula)
+                }
             }
             if (trecho.tipo === "cartao-nome") {
                 span.title = trecho.erro ? trecho.dica : `Clique para mandar o cartão ao chat: ${trecho.dica}`;
@@ -1132,7 +1136,8 @@ function criarJanelaFicha(raiz: HTMLElement, opcoes: OpcoesJanela, gancho: Ganch
                 acrescentarTexto(linha.slice(cursor, ini));
                 const botao = document.createElement("span");
                 botao.className = "rolagem-previa" + (rolagem.erro ? " com-erro" : "");
-                if (TEM_D20.test(rolagem.formula)) botao.dataset.lados = "20"; // (no TEXTO só o d20 tem cor: azul; os outros dados ficam como sempre)
+                const principal = dadoPrincipal(rolagem.formula);
+                if (principal !== null) botao.dataset.lados = String(principal); // (o botão ganha a cor do PRIMEIRO dado da fórmula; cada termo "1d6" da fórmula tem a sua, pelo `data-lados` dele)
                 botao.dataset.rolagem = String(indice);
                 botao.setAttribute("role", "button");
                 // Sem `title`: a dica do navegador demora. O cálculo aparece NA HORA numa caixa própria (`dicaDeRolagem`, logo abaixo de `desenharPrevia`); o `aria-label` mantém o botão acessível.
