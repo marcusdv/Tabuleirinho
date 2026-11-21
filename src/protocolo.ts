@@ -80,8 +80,8 @@ export type PedidoDoCliente =
     | { tipo: "definir_tamanho"; colunas: number; linhas: number } // mudar o tamanho do tabuleiro (trocar de mapa, botões de colunas/linhas, Alinhar mapa): o SERVIDOR é quem decide e avisa todos
     | { tipo: "colocar_modelo"; modelo: number; col: number; row: number; valores?: { id: number; atual: number }[]; condicoes?: string[] } // arrastar um token da BOLSA para o tabuleiro: o SERVIDOR cria uma PEÇA (cópia temporária); `valores`/`condicoes` só no "Desfazer" de uma remoção
     | { tipo: "enviar_mensagem"; texto: string }
-    | { tipo: "rolar_dados"; lados: number; quantidade: number; modificador: number }
-    | { tipo: "rolar_conta"; texto: string } // o "/r" do chat: uma conta com dados (o servidor confere, sorteia e manda o cartão)
+    | { tipo: "rolar_dados"; lados: number; quantidade: number; modificador: number; secreta?: boolean } // `secreta` = MODO MESTRE (clique direito): só o(s) mestre(s) e quem rolou veem o resultado; vale também em `rolar_conta`, `rolar_ficha` e `usar_cartao`
+    | { tipo: "rolar_conta"; texto: string; secreta?: boolean } // o "/r" do chat: uma conta com dados (o servidor confere, sorteia e manda o cartão)
     | { tipo: "criar_token"; nome: string; cor: number; corBorda: number; tamanho: number; imagem: string | null; ficha?: number | null } // o SERVIDOR dá o id e cria o arquivo (`ficha` = "Gerar um token" a partir de uma ficha)
     | { tipo: "editar_token"; id: number; mudancas: MudancasToken } // nome, tamanho, cores, imagem e/ou a emanação (aura)
     | { tipo: "duplicar_token"; id: number } // DUPLICA um token da bolsa (igual, com ficha, grupos e pasta; sem o favorito; ficha ÚNICA fica vazia): o SERVIDOR cria o arquivo e responde com "token_criado"
@@ -96,7 +96,7 @@ export type PedidoDoCliente =
     | { tipo: "criar_grupo"; nome: string; cor: number } // o SERVIDOR dá o id e cria o arquivo em dados/grupos/
     | { tipo: "editar_grupo"; id: number; nome?: string; cor?: number }
     | { tipo: "excluir_grupo"; id: number } // apaga o grupo E a marca dele em todos os tokens e fichas (os itens ficam)
-    | { tipo: "rolar_ficha"; id: number; versao: number; aba: number; indice: number; token?: number | null } // rola a rolagem de posição `indice` da ABA `aba` da ficha SALVA (na versão `versao`)
+    | { tipo: "rolar_ficha"; id: number; versao: number; aba: number; indice: number; token?: number | null; secreta?: boolean } // rola a rolagem de posição `indice` da ABA `aba` da ficha SALVA (na versão `versao`)
     | { tipo: "definir_mapa"; id: string | null; colunas?: number; linhas?: number } // o MESTRE troca o mapa atual (null = nenhum); o servidor confere que ele existe e avisa todos
     | { tipo: "desenhar"; desenho: NovoDesenho; ref?: string } // um desenho novo (lápis ou forma) no mapa atual; o SERVIDOR confere, dá o id e o autor e avisa todos (`ref` volta junto, para quem desenhou reconhecer o seu)
     | { tipo: "apagar_desenhos"; ids: number[] } // apagar desenhos (a borracha, o Ctrl+Z, "Apagar tudo"): o servidor apaga só os que a pessoa pode (o mestre, todos; os outros, os próprios)
@@ -117,7 +117,7 @@ export type PedidoDoCliente =
     | { tipo: "ping"; col: number; row: number; forma: FormaDePing; cor: number } // um PING no mapa (em casas, com fração: o ponto exato clicado) com a `cor` do desenho escolhida (0xRRGGBB); o SERVIDOR confere, limita a frequência e avisa quem está na mesma cena e vê aquele ponto
     | { tipo: "regua"; caminho: CasaDaRegua[] | null; cor: number } // a RÉGUA de quem mede (os pontos em casas; null = a medida sumiu) na `cor` do desenho escolhida: o servidor repassa a quem está na mesma cena
     | { tipo: "area_previa"; area: DadosDaArea | null; cor: number; alfa?: number } // a PRÉVIA de uma área de efeito que a pessoa está posicionando (null = sumiu: ela fixou, cancelou ou soltou a ferramenta) na `cor` do desenho: o servidor repassa a quem está na mesma cena (não é guardada; a área fixada vai por `desenhar`)
-    | { tipo: "usar_cartao"; id: number; versao: number; aba: number; indice: number; token?: number | null }; // usa o CARTÃO de posição `indice` da ABA `aba` da ficha SALVA: o servidor calcula/rola as [expressões] e manda o cartão ao chat
+    | { tipo: "usar_cartao"; id: number; versao: number; aba: number; indice: number; token?: number | null; secreta?: boolean }; // usa o CARTÃO de posição `indice` da ABA `aba` da ficha SALVA: o servidor calcula/rola as [expressões] e manda o cartão ao chat
 
 /** O que o servidor AVISA aos navegadores. */
 export type EventoDoServidor =
@@ -172,6 +172,8 @@ const eInteiro = (valor: unknown): valor is number => typeof valor === "number" 
 const eCor = (valor: unknown): valor is number => eInteiro(valor) && valor >= 0 && valor <= 0xffffff;
 const eNumero = (valor: unknown): valor is number => typeof valor === "number" && Number.isFinite(valor);
 const eTexto = (valor: unknown, maximo: number): valor is string => typeof valor === "string" && valor.length <= maximo;
+/** O campo `secreta` (MODO MESTRE) de um pedido de rolagem: ausente ou booleano. Qualquer outra coisa invalida o pedido (nada de valor estranho passando como "talvez"). */
+const eSecretaValida = (valor: unknown): boolean => valor === undefined || typeof valor === "boolean";
 
 /** Uma lista de ids de grupos: só inteiros, no máximo MAX_GRUPOS (o sentido, se o grupo existe, é conferido por `limparGrupos`). null se for outra coisa. */
 function lerListaDeIds(bruto: unknown): number[] | null {
@@ -372,10 +374,10 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
         case "enviar_mensagem":
             return eTexto(p.texto, TEXTO_MAX_BRUTO) ? { tipo: "enviar_mensagem", texto: p.texto } : null;
         case "rolar_conta":
-            return eTexto(p.texto, TEXTO_MAX_BRUTO) ? { tipo: "rolar_conta", texto: p.texto } : null;
+            return eTexto(p.texto, TEXTO_MAX_BRUTO) && eSecretaValida(p.secreta) ? { tipo: "rolar_conta", texto: p.texto, ...(p.secreta === true && { secreta: true }) } : null;
         case "rolar_dados":
-            return eInteiro(p.lados) && eInteiro(p.quantidade) && eInteiro(p.modificador)
-                ? { tipo: "rolar_dados", lados: p.lados, quantidade: p.quantidade, modificador: p.modificador }
+            return eInteiro(p.lados) && eInteiro(p.quantidade) && eInteiro(p.modificador) && eSecretaValida(p.secreta)
+                ? { tipo: "rolar_dados", lados: p.lados, quantidade: p.quantidade, modificador: p.modificador, ...(p.secreta === true && { secreta: true }) }
                 : null;
         case "criar_token":
             return eTexto(p.nome, TEXTO_MAX_BRUTO) &&
@@ -440,12 +442,12 @@ export function lerPedido(bruto: unknown): PedidoDoCliente | null {
         case "excluir_ficha":
             return eInteiro(p.id) ? { tipo: "excluir_ficha", id: p.id } : null;
         case "rolar_ficha":
-            return eInteiro(p.id) && eInteiro(p.versao) && eInteiro(p.aba) && eInteiro(p.indice) && (p.token === undefined || p.token === null || eInteiro(p.token))
-                ? { tipo: "rolar_ficha", id: p.id, versao: p.versao, aba: p.aba, indice: p.indice, ...(p.token !== undefined && { token: p.token }) }
+            return eInteiro(p.id) && eInteiro(p.versao) && eInteiro(p.aba) && eInteiro(p.indice) && (p.token === undefined || p.token === null || eInteiro(p.token)) && eSecretaValida(p.secreta)
+                ? { tipo: "rolar_ficha", id: p.id, versao: p.versao, aba: p.aba, indice: p.indice, ...(p.token !== undefined && { token: p.token }), ...(p.secreta === true && { secreta: true }) }
                 : null;
         case "usar_cartao":
-            return eInteiro(p.id) && eInteiro(p.versao) && eInteiro(p.aba) && eInteiro(p.indice) && (p.token === undefined || p.token === null || eInteiro(p.token))
-                ? { tipo: "usar_cartao", id: p.id, versao: p.versao, aba: p.aba, indice: p.indice, ...(p.token !== undefined && { token: p.token }) }
+            return eInteiro(p.id) && eInteiro(p.versao) && eInteiro(p.aba) && eInteiro(p.indice) && (p.token === undefined || p.token === null || eInteiro(p.token)) && eSecretaValida(p.secreta)
+                ? { tipo: "usar_cartao", id: p.id, versao: p.versao, aba: p.aba, indice: p.indice, ...(p.token !== undefined && { token: p.token }), ...(p.secreta === true && { secreta: true }) }
                 : null;
         case "editar_ficha": {
             if (!eInteiro(p.id) || !eInteiro(p.versao)) return null;

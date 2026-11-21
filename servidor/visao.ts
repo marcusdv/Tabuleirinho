@@ -5,7 +5,8 @@
 // =====================================================================
 
 import { WebSocket } from "ws";
-import { buscarToken, todosOsValoresDasFichas, valoresDaFichaComoObjeto, estado, pastaEAcima, type Desenho, type Ficha, type Pasta, type Token } from "../src/estado.ts";
+import { buscarToken, todosOsValoresDasFichas, valoresDaFichaComoObjeto, estado, pastaEAcima, type Desenho, type Ficha, type Mensagem, type Pasta, type Token } from "../src/estado.ts";
+import { MAX_MENSAGENS_CHAT } from "../src/config.ts";
 import type { ValorDeStatus } from "../src/estado.ts";
 import { nivelNaPasta, podeEditar, podeExcluir, podeLer, temPoderDeMestre, type NivelEfetivo } from "../src/permissoes.ts";
 import { desenhosDoMapa } from "./desenhos.ts";
@@ -14,11 +15,36 @@ import { mascaraParaTexto, type TracoDeFog } from "../src/fog.ts";
 import { nivelDoUsuario, permissoes } from "./acesso.ts";
 import { type RegistroDeMapa } from "../src/protocolo.ts";
 import { listaDeMapas } from "./mapas.ts";
-import { type Conexao, conexoes, enviar, erro, avisarCada } from "./conexoes.ts";
+import { type Conexao, conexoes, enviar, erro, avisarCada, avisarTodos } from "./conexoes.ts";
 import { mapaAtual, mapaDaConexao, tamanhoDoMapa, gradeDoMapa, registroComCena } from "./cenas.ts";
 import { ehFavoritoDe } from "./preferencias.ts";
 
 export const SEM_PERMISSAO = "Você não tem permissão para isso.";
+
+// --- ROLAGENS EM MODO MESTRE (pedido do dono, 19/11/2026) ---
+// Uma rolagem feita com o clique direito "em modo mestre" é uma mensagem `secreta`: só o(s) MESTRE(s) e quem rolou a veem. O servidor guarda, À PARTE, quem rolou (o id de usuário nunca vai
+// na mensagem: o navegador só recebe `secreta: true`, para desenhar o cadeado). Tudo que manda ou lê mensagens do chat passa por aqui, para nenhum caminho vazar uma rolagem secreta.
+const donosDasSecretas = new Map<number, string>();
+
+/** Esta pessoa pode ver esta mensagem? Mensagens comuns: todos. Secretas: o mestre e quem rolou. */
+export function mensagemVisivelPara(c: Pick<Conexao, "mestre" | "usuario">, m: Pick<Mensagem, "id" | "secreta">): boolean {
+    return m.secreta !== true || c.mestre || donosDasSecretas.get(m.id) === c.usuario;
+}
+
+/** O histórico do chat que ESTA pessoa recebe ao entrar (sem as rolagens secretas das quais ela não participa). */
+export const mensagensVisiveisPara = (c: Pick<Conexao, "mestre" | "usuario">): Mensagem[] => estado.mensagens.filter((m) => mensagemVisivelPara(c, m));
+
+/** Anuncia uma mensagem nova do chat: a todos, ou, se é secreta (rolada em modo mestre por `autor`), só ao(s) mestre(s) e a quem rolou. */
+export function avisarMensagem(autor: Pick<Conexao, "usuario">, mensagem: Mensagem): void {
+    if (mensagem.secreta !== true) return avisarTodos({ tipo: "mensagem", mensagem });
+    donosDasSecretas.set(mensagem.id, autor.usuario);
+    if (donosDasSecretas.size > MAX_MENSAGENS_CHAT * 2) {
+        // (o chat guarda só as últimas mensagens: os donos de mensagens que já saíram dele não servem mais)
+        const vivas = new Set(estado.mensagens.map((m) => m.id));
+        for (const id of donosDasSecretas.keys()) if (!vivas.has(id)) donosDasSecretas.delete(id);
+    }
+    avisarCada((c) => (mensagemVisivelPara(c, mensagem) ? { tipo: "mensagem", mensagem } : null));
+}
 
 /** O nível de `c` sobre um token. As PEÇAS do tabuleiro seguem o MODELO delas (o token da bolsa). O mestre não passa por aqui. */
 export function nivelNoToken(c: Conexao, token: Token): NivelEfetivo {

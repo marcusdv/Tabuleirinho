@@ -1,0 +1,46 @@
+/* O MENU DE ROLAGEM (ui/menuRolagem.ts): o que abre com o clique direito num dado ou numa rolagem ("Rolar livre" e "Rolar em modo mestre"). Mesma cara do menu do mapa.
+   Fica acima das janelas de ficha (z-index de 50 a 55) e da dica do cálculo (58); abaixo da caixa de confirmar (60). */
+#menu-rolagem {
+    position: fixed;
+    z-index: 59;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 200px;
+    padding: 4px;
+    border: 1px solid #4a4a58;
+    border-radius: 10px;
+    background: #22222a;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5);
+}
+#menu-rolagem button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding: 6px 10px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #e6e6ea;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+#menu-rolagem button:hover,
+#menu-rolagem button:focus-visible {
+    background: #33333f;
+    outline: none;
+}
+#menu-rolagem .menu-rolagem-titulo {
+    font-size: 13px;
+    font-weight: 600;
+}
+#menu-rolagem .menu-rolagem-detalhe {
+    font-size: 11px;
+    color: #9a9aab;
+}
+/* O modo mestre leva um destaque discreto (o dourado do cadeado das mensagens secretas no chat). */
+#menu-rolagem button[data-modo="mestre"] .menu-rolagem-titulo {
+    color: #ffd54f;
+}

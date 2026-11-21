@@ -99,8 +99,37 @@ import {
     definirTodosOsValoresDasFichas,
     definirValoresDaFicha,
     motivoParaNaoColocar,
-    sincronizarValoresDaFicha, temIniciativaNaFicha, montarPasta, receberPasta, limparNomeDePasta, podeMoverPasta, excluirPasta, moverParaPasta, definirPastas } from "./estado";
-import { ATRASO_ROLAGEM_MS, AUTOR_PROVISORIO, COLUNAS_INICIAIS, COR_INICIAL_DESENHO, LINHAS_INICIAIS, MS_DESLIZE_MAX, MS_DESLIZE_MIN, MS_DESLIZE_PADRAO, MS_PAUSA_NO_PONTO_DA_REGUA, MS_POR_CASA_DO_DESLIZE, MS_MIN_ENTRE_PINGS, MS_PAGINA_PARADA, MS_RECARGA_PING, MS_RECARGA_ROLAGEM, RAJADA_PINGS, RAJADA_ROLAGENS, SENSIBILIDADE_ZOOM_RODA, TEMPO_AVISO_MAPA_MS, TEMPO_DESFAZER_MS } from "./config";
+    sincronizarValoresDaFicha,
+    temIniciativaNaFicha,
+    montarPasta,
+    receberPasta,
+    limparNomeDePasta,
+    podeMoverPasta,
+    excluirPasta,
+    moverParaPasta,
+    definirPastas,
+} from "./estado";
+import {
+    ATRASO_ROLAGEM_MS,
+    AUTOR_PROVISORIO,
+    COLUNAS_INICIAIS,
+    COR_INICIAL_DESENHO,
+    LINHAS_INICIAIS,
+    MS_DESLIZE_MAX,
+    MS_DESLIZE_MIN,
+    MS_DESLIZE_PADRAO,
+    MS_PAUSA_NO_PONTO_DA_REGUA,
+    MS_POR_CASA_DO_DESLIZE,
+    MS_MIN_ENTRE_PINGS,
+    MS_PAGINA_PARADA,
+    MS_RECARGA_PING,
+    MS_RECARGA_ROLAGEM,
+    RAJADA_PINGS,
+    RAJADA_ROLAGENS,
+    SENSIBILIDADE_ZOOM_RODA,
+    TEMPO_AVISO_MAPA_MS,
+    TEMPO_DESFAZER_MS,
+} from "./config";
 import { distanciaEmCasas } from "./desenhos";
 import { preverGrade } from "./coordenadas";
 import { gastar, novoBalde, paginaParada, passouOIntervalo } from "./limite";
@@ -109,7 +138,15 @@ import { criarCamera } from "./tabuleiro/camera";
 import { criarDesenho, type FerramentaDesenho } from "./tabuleiro/desenho";
 import { criarGrade } from "./tabuleiro/grade";
 import { atualizarTexturasCondicoes, carregarTexturasCondicoes } from "./tabuleiro/iconesCondicoes";
-import { CONDICOES, CONDICOES_DE_FABRICA, definirCondicoes, ehDeFabrica, ordenarCondicoes, podeExcluirCondicao, type Condicao } from "./condicoes";
+import {
+    CONDICOES,
+    CONDICOES_DE_FABRICA,
+    definirCondicoes,
+    ehDeFabrica,
+    ordenarCondicoes,
+    podeExcluirCondicao,
+    type Condicao,
+} from "./condicoes";
 import { criarBolsaCondicoes } from "./ui/bolsaCondicoes";
 import { ativarInteracao } from "./tabuleiro/interacao";
 import { criarMapa } from "./tabuleiro/mapa";
@@ -118,7 +155,15 @@ import { criarPings } from "./tabuleiro/pings";
 import { criarReguasDosOutros } from "./tabuleiro/reguasDosOutros";
 import { criarFerramentaDeArea } from "./tabuleiro/area";
 import { criarAreasDosOutros } from "./tabuleiro/areasDosOutros";
-import { areaDaEmanacao, casasDaArea, casasParaMetros, chaveDaCasa, conjuntoDeCasas, type DadosDaArea, type EmanacaoDoToken } from "./areas";
+import {
+    areaDaEmanacao,
+    casasDaArea,
+    casasParaMetros,
+    chaveDaCasa,
+    conjuntoDeCasas,
+    type DadosDaArea,
+    type EmanacaoDoToken,
+} from "./areas";
 import { criarPainelArea } from "./ui/painelArea";
 import { criarMenuMapa, ICONE_DA_FORMA, type ItemSobOPonto } from "./ui/menuMapa";
 import { criarRodaPing } from "./ui/rodaPing";
@@ -129,12 +174,29 @@ import { criarBolsa } from "./ui/bolsa";
 import { criarBolsaMapas } from "./ui/bolsaMapas";
 import { definirBiblioteca, definirGradeDaMesa, definirMapa, definirMapaAtual } from "./estado";
 import type { Desenho, NovoDesenho } from "./estado";
-import { ALFA_MAX_EMANACAO, DADOS_DAS_FORMAS_DE_AREA, ALFA_MIN_EMANACAO, CHAVE_VISOES, MAX_BYTES_MAPA, MAX_CONDICOES, MAX_EMANACAO_TOKEN, MAX_HISTORICO_DESENHO, MAX_TOKENS_ACAO_EM_GRUPO, MS_ENVIO_REGUA, TAMANHO_CASA } from "./config";
+import {
+    ALFA_MAX_EMANACAO,
+    DADOS_DAS_FORMAS_DE_AREA,
+    ALFA_MIN_EMANACAO,
+    CHAVE_VISOES,
+    MAX_BYTES_MAPA,
+    MAX_CONDICOES,
+    MAX_EMANACAO_TOKEN,
+    MAX_HISTORICO_DESENHO,
+    MAX_TOKENS_ACAO_EM_GRUPO,
+    MS_ENVIO_REGUA,
+    TAMANHO_CASA,
+} from "./config";
 import { guardarPreferencia, lerPreferencia } from "./ui/preferencias";
 import { criarEditorImagem } from "./ui/editorImagem";
 import { analisarAbas, rolarCartaoDaAnalise, rolarConta, rolarDaAnalise } from "./formulas";
 import { criarAjudaFichas } from "./ui/ajudaFichas";
-import { aplicarAcaoDaIniciativa, definirIniciativa, iniciativa as estadoIniciativa, type AcaoDaIniciativa } from "./iniciativa";
+import {
+    aplicarAcaoDaIniciativa,
+    definirIniciativa,
+    iniciativa as estadoIniciativa,
+    type AcaoDaIniciativa,
+} from "./iniciativa";
 import { criarIniciativa } from "./ui/iniciativa";
 import { criarInfoTipoFicha } from "./ui/infoTipoFicha";
 import { criarConfirmacao } from "./ui/confirmar";
@@ -197,7 +259,10 @@ async function iniciar(): Promise<void> {
             e.preventDefault();
             const retangulo = app.canvas.getBoundingClientRect();
             const ponto = { x: e.clientX - retangulo.left, y: e.clientY - retangulo.top };
-            camera.aplicarZoom(camera.zoom * Math.exp(-Math.max(-300, Math.min(300, e.deltaY)) * SENSIBILIDADE_ZOOM_RODA), ponto);
+            camera.aplicarZoom(
+                camera.zoom * Math.exp(-Math.max(-300, Math.min(300, e.deltaY)) * SENSIBILIDADE_ZOOM_RODA),
+                ponto,
+            );
         },
         { passive: false },
     );
@@ -219,7 +284,9 @@ async function iniciar(): Promise<void> {
     // ---------------------------------------------------------------
     // (`ids` guarda os ids que os desenhos TINHAM: quando um desenho volta, ele ganha um id novo, e `trocarId` atualiza o histórico para as ações mais antigas continuarem valendo)
     type AcaoDeDesfazer = { tipo: "criou"; id: number } | { tipo: "apagou"; desenhos: NovoDesenho[]; ids: number[] };
-    type AcaoDeRefazer = { tipo: "recriar"; desenhos: NovoDesenho[]; ids: number[] } | { tipo: "apagarDe"; ids: number[] };
+    type AcaoDeRefazer =
+        | { tipo: "recriar"; desenhos: NovoDesenho[]; ids: number[] }
+        | { tipo: "apagarDe"; ids: number[] };
     const historicoDesfazer: AcaoDeDesfazer[] = [];
     const historicoRefazer: AcaoDeRefazer[] = [];
     let idTemporarioDeDesenho = -1;
@@ -250,7 +317,11 @@ async function iniciar(): Promise<void> {
     /** Guarda um desenho novo no estado (online: com id temporário) e o envia ao servidor. `atrasoMs` espaça o envio quando vários são criados de uma vez (desfazer um "apagar tudo"). */
     function guardarDesenho(novo: NovoDesenho, atrasoMs = 0): Desenho {
         if (!rede?.ativa) return adicionarDesenho(novo);
-        const temporario = { ...novo, id: idTemporarioDeDesenho--, ...(meuUsuario && { autor: meuUsuario }) } as Desenho;
+        const temporario = {
+            ...novo,
+            id: idTemporarioDeDesenho--,
+            ...(meuUsuario && { autor: meuUsuario }),
+        } as Desenho;
         receberDesenho(temporario);
         const ref = String(temporario.id);
         desenhosPendentes.set(ref, temporario.id);
@@ -322,7 +393,11 @@ async function iniciar(): Promise<void> {
                 const existentes = estado.desenhos.filter((d) => acao.ids.includes(d.id) && podeApagarAqui(d));
                 if (existentes.length === 0) continue;
                 apagarDesenhosSemHistorico(existentes);
-                historicoDesfazer.push({ tipo: "apagou", desenhos: existentes.map(semIdentidade), ids: existentes.map((d) => d.id) });
+                historicoDesfazer.push({
+                    tipo: "apagou",
+                    desenhos: existentes.map(semIdentidade),
+                    ids: existentes.map((d) => d.id),
+                });
             }
             apagandoAgora = null;
             aposMudarDesenhos();
@@ -372,7 +447,11 @@ async function iniciar(): Promise<void> {
             return true;
         },
         podeMudarGrade: () => !rede?.ativa || estado.mestre,
-        aoMudarTamanhoTabuleiro, aoAlternarCalibragem: alternarCalibragem, aoEscolherMapa: escolherMapa, aoVoltarAoPadrao: voltarAoPadrao });
+        aoMudarTamanhoTabuleiro,
+        aoAlternarCalibragem: alternarCalibragem,
+        aoEscolherMapa: escolherMapa,
+        aoVoltarAoPadrao: voltarAoPadrao,
+    });
     grade.definirAjustes(barra.ajustesDaGrade()); // os ajustes da grade que a pessoa deixou guardados (mostrar, espessura e cor)
 
     // O modo ONLINE (protótipo, só com ?online no endereço): enquanto `rede.ativa`, as ações abaixo vão para o SERVIDOR, que
@@ -406,8 +485,15 @@ async function iniciar(): Promise<void> {
             const comandoR = /^\/r(?:\s+(.*))?$/i.exec(texto);
             if (comandoR) {
                 const conta = (comandoR[1] ?? "").trim();
-                if (conta === "") return void aviso.mostrar("Use /r e uma conta com dados e números. Ex.: /r 2d6+3 ou /r (1d20+5)*2", { duracaoMs: TEMPO_AVISO_MAPA_MS });
-                if (!podeRolarAgora()) return void aviso.mostrar("Calma! Você está rolando rápido demais.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+                if (conta === "")
+                    return void aviso.mostrar(
+                        "Use /r e uma conta com dados e números. Ex.: /r 2d6+3 ou /r (1d20+5)*2",
+                        { duracaoMs: TEMPO_AVISO_MAPA_MS },
+                    );
+                if (!podeRolarAgora())
+                    return void aviso.mostrar("Calma! Você está rolando rápido demais.", {
+                        duracaoMs: TEMPO_AVISO_MAPA_MS,
+                    });
                 comAtrasoDeRolagem(() => {
                     if (rede?.ativa) {
                         rede.enviar({ tipo: "rolar_conta", texto: conta });
@@ -465,14 +551,20 @@ async function iniciar(): Promise<void> {
     }
 
     criarPainelDados({
-        aoRolar: (lados, quantidade, modificador) => {
+        aoRolar: (lados, quantidade, modificador, secreta = false) => {
             if (!podeRolarAgora()) return avisarLimiteNoBotao();
             comAtrasoDeRolagem(() => {
                 if (rede?.ativa) {
-                    rede.enviar({ tipo: "rolar_dados", lados, quantidade, modificador });
+                    rede.enviar({
+                        tipo: "rolar_dados",
+                        lados,
+                        quantidade,
+                        modificador,
+                        ...(secreta && { secreta: true }),
+                    }); // (modo mestre: o SERVIDOR só mostra a mestres e a quem rolou)
                     return;
                 }
-                adicionarRolagem(AUTOR_PROVISORIO, rolarDados(lados, quantidade, modificador)); // 1) estado
+                adicionarRolagem(AUTOR_PROVISORIO, rolarDados(lados, quantidade, modificador), secreta); // 1) estado (modo local: só uma pessoa, então o modo mestre só põe o cadeado)
                 chat.atualizar(); // 2) interface
             });
         },
@@ -487,7 +579,12 @@ async function iniciar(): Promise<void> {
     const painelIniciativa = criarIniciativa({
         aoAcao: (acao) => aplicarAcaoIniciativa(acao),
         aoClicarPersonagem: (tokenId) => pingarNoToken(tokenId),
-        confirmarLimpar: () => confirmacao.perguntar({ titulo: "Limpar a iniciativa?", mensagem: "A lista, a vez e a rodada serão apagadas para todos.", confirmar: "Limpar" }),
+        confirmarLimpar: () =>
+            confirmacao.perguntar({
+                titulo: "Limpar a iniciativa?",
+                mensagem: "A lista, a vez e a rodada serão apagadas para todos.",
+                confirmar: "Limpar",
+            }),
     });
 
     const painelCalibragem = criarPainelCalibragem({
@@ -552,38 +649,64 @@ async function iniciar(): Promise<void> {
             }
             if (ajustarValorDaFicha(id, nome, delta).ok) aplicarValoresDaFicha(id); // modo local: tudo aqui
         },
-        aoRolar: (id, versao, aba, indice, token) => {
+        aoRolar: (id, versao, aba, indice, token, secreta = false) => {
             if (!podeRolarAgora()) return mensagemDeLimite; // (o editor da ficha mostra o texto no aviso dele)
             if (rede?.ativa) {
-                comAtrasoDeRolagem(() => rede?.enviar({ tipo: "rolar_ficha", id, versao, aba, indice, token })); // o SERVIDOR sorteia e o cartão chega pelo chat (evento "mensagem")
+                comAtrasoDeRolagem(() =>
+                    rede?.enviar({
+                        tipo: "rolar_ficha",
+                        id,
+                        versao,
+                        aba,
+                        indice,
+                        token,
+                        ...(secreta && { secreta: true }),
+                    }),
+                ); // o SERVIDOR sorteia e o cartão chega pelo chat (evento "mensagem")
                 return null;
             }
             const ficha = estado.fichas.find((f) => f.id === id);
             if (!ficha) return "Essa ficha não existe.";
-            const analise = analisarAbas(ficha.abas.map((a) => a.texto), valoresAtuaisDaFicha(id))[aba]; // (as variáveis valem para a ficha toda; as rolagens são da aba; as variáveis que mudam valem o valor ATUAL)
+            const analise = analisarAbas(
+                ficha.abas.map((a) => a.texto),
+                valoresAtuaisDaFicha(id),
+            )[aba]; // (as variáveis valem para a ficha toda; as rolagens são da aba; as variáveis que mudam valem o valor ATUAL)
             if (!analise) return "Essa página não existe.";
             const resultado = rolarDaAnalise(analise, indice, ficha.nome, Math.random); // modo local: sorteia aqui mesmo
             if (!resultado.ok) return resultado.erro;
             comAtrasoDeRolagem(() => {
-                adicionarRolagemDeFicha(AUTOR_PROVISORIO, resultado.valor, tokenDaRolagem(id, token));
+                adicionarRolagemDeFicha(AUTOR_PROVISORIO, resultado.valor, tokenDaRolagem(id, token), secreta);
                 chat.atualizar();
             });
             return null;
         },
-        aoUsarCartao: (id, versao, aba, indice, token) => {
+        aoUsarCartao: (id, versao, aba, indice, token, secreta = false) => {
             if (!podeRolarAgora()) return mensagemDeLimite; // (o limite anti-spam é o mesmo das rolagens)
             if (rede?.ativa) {
-                comAtrasoDeRolagem(() => rede?.enviar({ tipo: "usar_cartao", id, versao, aba, indice, token })); // o SERVIDOR calcula, rola e o cartão chega pelo chat (evento "mensagem")
+                comAtrasoDeRolagem(() =>
+                    rede?.enviar({
+                        tipo: "usar_cartao",
+                        id,
+                        versao,
+                        aba,
+                        indice,
+                        token,
+                        ...(secreta && { secreta: true }),
+                    }),
+                ); // o SERVIDOR calcula, rola e o cartão chega pelo chat (evento "mensagem")
                 return null;
             }
             const ficha = estado.fichas.find((f) => f.id === id);
             if (!ficha) return "Essa ficha não existe.";
-            const analise = analisarAbas(ficha.abas.map((a) => a.texto), valoresAtuaisDaFicha(id))[aba];
+            const analise = analisarAbas(
+                ficha.abas.map((a) => a.texto),
+                valoresAtuaisDaFicha(id),
+            )[aba];
             if (!analise) return "Essa página não existe.";
             const resultado = rolarCartaoDaAnalise(analise, indice, ficha.nome, Math.random); // modo local: calcula e rola aqui mesmo
             if (!resultado.ok) return resultado.erro;
             comAtrasoDeRolagem(() => {
-                adicionarCartaoDeFicha(AUTOR_PROVISORIO, resultado.valor, tokenDaRolagem(id, token));
+                adicionarCartaoDeFicha(AUTOR_PROVISORIO, resultado.valor, tokenDaRolagem(id, token), secreta);
                 chat.atualizar();
             });
             return null;
@@ -599,13 +722,15 @@ async function iniciar(): Promise<void> {
                 paraTrocar
                     ? {
                           titulo: "Trocar de ficha sem salvar?",
-                          mensagem: "Esta ficha tem alterações que ainda não foram salvas.\nSe você abrir a outra ficha nesta janela sem salvar, elas serão perdidas. (Para ficar com as duas à vista, fixe esta ficha antes.)",
+                          mensagem:
+                              "Esta ficha tem alterações que ainda não foram salvas.\nSe você abrir a outra ficha nesta janela sem salvar, elas serão perdidas. (Para ficar com as duas à vista, fixe esta ficha antes.)",
                           confirmar: "Descartar e abrir a outra",
                           ...(podeSalvar && { alternativa: "Salvar e abrir a outra" }),
                       }
                     : {
                           titulo: "Fechar sem salvar?",
-                          mensagem: "Esta ficha tem alterações que ainda não foram salvas.\nSe você fechar sem salvar, elas serão perdidas.",
+                          mensagem:
+                              "Esta ficha tem alterações que ainda não foram salvas.\nSe você fechar sem salvar, elas serão perdidas.",
                           confirmar: "Fechar sem salvar",
                           ...(podeSalvar && { alternativa: "Salvar e fechar" }),
                       },
@@ -705,7 +830,10 @@ async function iniciar(): Promise<void> {
         const status = statusDaAcao(token, acao);
         const valor = status ? token.valores.find((v) => v.id === status.id) : undefined;
         if (!status || !valor) {
-            aviso.mostrar(`"${token.nome}" não tem ${status ? `valor de ${rotuloDoStatus(status)}` : "o status desta ação"}: ele precisa de uma ficha com a variável do status.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            aviso.mostrar(
+                `"${token.nome}" não tem ${status ? `valor de ${rotuloDoStatus(status)}` : "o status desta ação"}: ele precisa de uma ficha com a variável do status.`,
+                { duracaoMs: TEMPO_AVISO_MAPA_MS },
+            );
             return;
         }
         modalAcao.abrir({
@@ -738,7 +866,9 @@ async function iniciar(): Promise<void> {
     function iniciativaMudou(): void {
         painelIniciativa.atualizar();
         // A borda suave e pulsante no token de quem tem a vez: só com a iniciativa CONFIRMADA (fora do modo de edição) e se a vez é de um token.
-        const comAVez = estadoIniciativa.editando ? undefined : estadoIniciativa.entradas.find((e) => e.id === estadoIniciativa.vez);
+        const comAVez = estadoIniciativa.editando
+            ? undefined
+            : estadoIniciativa.entradas.find((e) => e.id === estadoIniciativa.vez);
         tokens.destacarVez(comAVez?.token ?? null);
     }
 
@@ -761,7 +891,12 @@ async function iniciar(): Promise<void> {
             adicionarRolagemDeFicha(AUTOR_PROVISORIO, rolado.resultado, token.id);
             chat.atualizar();
         }
-        aplicarAcaoIniciativa({ acao: "adicionar", nome: token.nome, valor: rolado ? Math.round(rolado.total) : 0, token: id });
+        aplicarAcaoIniciativa({
+            acao: "adicionar",
+            nome: token.nome,
+            valor: rolado ? Math.round(rolado.total) : 0,
+            token: id,
+        });
     }
 
     /**
@@ -774,7 +909,12 @@ async function iniciar(): Promise<void> {
         const mensagem = estado.mensagens.find((m) => m.id === idDaMensagem);
         const token = mensagem?.token !== undefined ? buscarToken(mensagem.token) : undefined;
         painelIniciativa.abrir();
-        aplicarAcaoIniciativa({ acao: "adicionar", nome: token?.nome ?? mensagem?.rolagemFicha?.ficha ?? mensagem?.cartaoFicha?.ficha ?? "Criatura", valor: Math.round(total), token: token?.id ?? null });
+        aplicarAcaoIniciativa({
+            acao: "adicionar",
+            nome: token?.nome ?? mensagem?.rolagemFicha?.ficha ?? mensagem?.cartaoFicha?.ficha ?? "Criatura",
+            valor: Math.round(total),
+            token: token?.id ?? null,
+        });
     }
 
     /** Qual token está sob este ponto da tela? Só vale com o ponteiro sobre o TABULEIRO (o chat, a bolsa e as barras ficam por cima do canvas e não contam). */
@@ -789,7 +929,13 @@ async function iniciar(): Promise<void> {
      */
     function darDanoArrastado(token: Token, idDaMensagem: number, indice?: number, dado?: number): void {
         if (rede?.ativa) {
-            rede.enviar({ tipo: "arrastar_resultado", token: token.id, mensagem: idDaMensagem, ...(indice !== undefined && { indice }), ...(dado !== undefined && { dado }) });
+            rede.enviar({
+                tipo: "arrastar_resultado",
+                token: token.id,
+                mensagem: idDaMensagem,
+                ...(indice !== undefined && { indice }),
+                ...(dado !== undefined && { dado }),
+            });
             return;
         }
         const total = totalDaRolagem(idDaMensagem, indice, dado);
@@ -858,7 +1004,10 @@ async function iniciar(): Promise<void> {
         }
         const peca = criarPeca(modelo.id, col, row); // 1) estado (os status nascem agora, lendo a ficha)
         if (!peca) {
-            aviso.mostrar(`Não foi possível colocar "${modelo.nome}": a posição não vale ou a mesa já tem o máximo de peças.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            aviso.mostrar(
+                `Não foi possível colocar "${modelo.nome}": a posição não vale ou a mesa já tem o máximo de peças.`,
+                { duracaoMs: TEMPO_AVISO_MAPA_MS },
+            );
             return;
         }
         tokens.adicionar(peca); // 2) desenho no mapa
@@ -870,7 +1019,10 @@ async function iniciar(): Promise<void> {
      */
     /** O aviso de quem tentou tirar do mapa uma peça que não pode. */
     function avisarSemPermissaoParaTirar(nome: string): void {
-        aviso.mostrar(`Você não tem permissão para tirar "${nome}" do mapa: só quem tem acesso a ele (dono, leitor ou editor) e o mestre.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        aviso.mostrar(
+            `Você não tem permissão para tirar "${nome}" do mapa: só quem tem acesso a ele (dono, leitor ou editor) e o mestre.`,
+            { duracaoMs: TEMPO_AVISO_MAPA_MS },
+        );
     }
 
     function removerPeca(peca: Token): void {
@@ -880,8 +1032,15 @@ async function iniciar(): Promise<void> {
 
     /** Apaga a peça (sem avisar) e devolve a função que a recria do jeito que estava (o "Desfazer"). */
     function removerPecaSemAviso(peca: Token): () => void {
-        const foto = { modelo: peca.copiaDe as number, col: peca.col, row: peca.row, valores: peca.valores.filter((v) => !v.oculto).map((v) => ({ id: v.id, atual: v.atual })), condicoes: [...peca.condicoes] };
-        if (rede?.ativa) rede.enviar({ tipo: "excluir_token", id: peca.id }); // o servidor apaga o arquivo e avisa todos
+        const foto = {
+            modelo: peca.copiaDe as number,
+            col: peca.col,
+            row: peca.row,
+            valores: peca.valores.filter((v) => !v.oculto).map((v) => ({ id: v.id, atual: v.atual })),
+            condicoes: [...peca.condicoes],
+        };
+        if (rede?.ativa)
+            rede.enviar({ tipo: "excluir_token", id: peca.id }); // o servidor apaga o arquivo e avisa todos
         else removerTokenDoJogo(peca.id);
         return () => desfazerPeca(foto);
     }
@@ -898,7 +1057,13 @@ async function iniciar(): Promise<void> {
         aviso.mostrar(`${escolhidos.length} tokens selecionados.`, {
             chave: "selecao",
             duracaoMs: 24 * 60 * 60 * 1000,
-            acao: { rotulo: "Remover do tabuleiro", aoClicar: () => { removerVarios(escolhidos); tokens.limparSelecao(); } },
+            acao: {
+                rotulo: "Remover do tabuleiro",
+                aoClicar: () => {
+                    removerVarios(escolhidos);
+                    tokens.limparSelecao();
+                },
+            },
         });
     }
 
@@ -928,15 +1093,34 @@ async function iniciar(): Promise<void> {
         }
         if (desfazeres.length === 0) return;
         bolsa.atualizar();
-        const texto = desfazeres.length === 1 ? "1 token foi removido do tabuleiro." : `${desfazeres.length} tokens foram removidos do tabuleiro.`;
-        aviso.mostrar(texto, { duracaoMs: TEMPO_DESFAZER_MS, acao: { rotulo: "Desfazer", aoClicar: () => desfazeres.forEach((d) => d()) } });
+        const texto =
+            desfazeres.length === 1
+                ? "1 token foi removido do tabuleiro."
+                : `${desfazeres.length} tokens foram removidos do tabuleiro.`;
+        aviso.mostrar(texto, {
+            duracaoMs: TEMPO_DESFAZER_MS,
+            acao: { rotulo: "Desfazer", aoClicar: () => desfazeres.forEach((d) => d()) },
+        });
     }
 
-    function desfazerPeca(foto: { modelo: number; col: number; row: number; valores: { id: number; atual: number }[]; condicoes: string[] }): void {
+    function desfazerPeca(foto: {
+        modelo: number;
+        col: number;
+        row: number;
+        valores: { id: number; atual: number }[];
+        condicoes: string[];
+    }): void {
         const modelo = buscarToken(foto.modelo);
         if (!modelo || modelo.copiaDe !== null) return; // (o token da bolsa foi excluído nesse meio tempo)
         if (rede?.ativa) {
-            rede.enviar({ tipo: "colocar_modelo", modelo: foto.modelo, col: foto.col, row: foto.row, valores: foto.valores, condicoes: foto.condicoes });
+            rede.enviar({
+                tipo: "colocar_modelo",
+                modelo: foto.modelo,
+                col: foto.col,
+                row: foto.row,
+                valores: foto.valores,
+                condicoes: foto.condicoes,
+            });
             return;
         }
         const peca = montarPeca(foto.modelo, foto.col, foto.row);
@@ -987,13 +1171,23 @@ async function iniciar(): Promise<void> {
      * Exclusão EM GRUPO (vários itens selecionados na bolsa): UMA confirmação com o número de itens. Online, cada exclusão é um pedido ao servidor
      * (que limita as mensagens por segundo): os pedidos saem em fila, um a cada 50 ms (20 por segundo), para nenhum ser ignorado.
      */
-    async function excluirVariosComConfirmacao(tipo: "tokens" | "fichas", nomes: string[], excluirUm: (i: number) => void, semConfirmar = false): Promise<void> {
+    async function excluirVariosComConfirmacao(
+        tipo: "tokens" | "fichas",
+        nomes: string[],
+        excluirUm: (i: number) => void,
+        semConfirmar = false,
+    ): Promise<void> {
         const arquivos = rede?.ativa ? "Os arquivos deles no servidor também serão apagados.\n" : "";
         const confirmou =
             semConfirmar ||
             (await confirmacao.perguntar({
                 titulo: `Excluir ${nomes.length} ${tipo}`,
-                mensagem: `Excluir ${nomes.length} ${tipo}?\n${nomes.slice(0, 5).map((n) => `• ${n}`).join("\n")}${nomes.length > 5 ? `\n… e mais ${nomes.length - 5}` : ""}\n${arquivos}Isso não pode ser desfeito.`,
+                mensagem: `Excluir ${nomes.length} ${tipo}?\n${nomes
+                    .slice(0, 5)
+                    .map((n) => `• ${n}`)
+                    .join(
+                        "\n",
+                    )}${nomes.length > 5 ? `\n… e mais ${nomes.length - 5}` : ""}\n${arquivos}Isso não pode ser desfeito.`,
                 confirmar: "Excluir",
             }));
         if (!confirmou) return;
@@ -1040,7 +1234,10 @@ async function iniciar(): Promise<void> {
         if (!estado.mestre && token.somenteMapa === true) return;
         if (!ficha && token.ficha !== null && !estado.mestre) {
             // O token TEM ficha, mas ela não foi compartilhada com esta pessoa (o token e a ficha são liberados separados: compartilhar a pasta do token não leva a ficha).
-            aviso.mostrar(`A ficha de "${token.nome}" não foi compartilhada com você. Peça ao mestre para compartilhar a ficha (ou a pasta dela).`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            aviso.mostrar(
+                `A ficha de "${token.nome}" não foi compartilhada com você. Peça ao mestre para compartilhar a ficha (ou a pasta dela).`,
+                { duracaoMs: TEMPO_AVISO_MAPA_MS },
+            );
             return;
         }
         if (!ficha) {
@@ -1090,8 +1287,20 @@ async function iniciar(): Promise<void> {
     // O PAINEL DE AÇÕES dos tokens no mapa (pedido do dono, 17/11/2026): UM token (clique direito) ou VÁRIOS selecionados. Só oferece o que todos podem receber, e o valor se digita num CAMPO
     // dentro do próprio painel (sem janela). Ver ui/menuGrupoMapa.ts.
     const menuGrupo = criarMenuGrupoMapa({
-        aoAplicar: (acaoId, texto, lista) => (lista.length === 1 ? aplicarAcaoDoJogo(lista[0].id, acaoId, texto) : aplicarAcaoEmVariosDoJogo(lista.map((t) => t.id), acaoId, texto)),
-        aoCondicao: (condicaoId, ligar, lista) => condicaoEmVarios(lista.map((t) => t.id), condicaoId, ligar),
+        aoAplicar: (acaoId, texto, lista) =>
+            lista.length === 1
+                ? aplicarAcaoDoJogo(lista[0].id, acaoId, texto)
+                : aplicarAcaoEmVariosDoJogo(
+                      lista.map((t) => t.id),
+                      acaoId,
+                      texto,
+                  ),
+        aoCondicao: (condicaoId, ligar, lista) =>
+            condicaoEmVarios(
+                lista.map((t) => t.id),
+                condicaoId,
+                ligar,
+            ),
     });
     fecharPainelDeAcoes = () => menuGrupo.fechar();
 
@@ -1107,7 +1316,8 @@ async function iniciar(): Promise<void> {
     function extrasDoPainel(token: Token): ExtraDoPainel[] {
         const extras: ExtraDoPainel[] = [];
         const modelo = token.copiaDe !== null ? buscarToken(token.copiaDe) : token;
-        if (token.emanacao && modelo) { // (qualquer pessoa pode tirar a emanação de qualquer token: pedido do dono, 19/11/2026)
+        if (token.emanacao && modelo) {
+            // (qualquer pessoa pode tirar a emanação de qualquer token: pedido do dono, 19/11/2026)
             extras.push({
                 texto: "Remover emanação",
                 dica: "O token deixa de emanar a área em volta dele",
@@ -1119,11 +1329,20 @@ async function iniciar(): Promise<void> {
                 },
             });
         }
-        if (!estado.mestre) return extras;
+        // MARCUS: Removi isso porque eu queria o adiciona a inicaitiva a todos os jogadores, mas meus tokens de claude tinham acabado
+        //if (!estado.mestre) return extras;
         return [
             ...extras,
-            { texto: "Adicionar à iniciativa", dica: "Põe este token na ordem de combate (a caixa Iniciativa, na pilha da esquerda)", aoClicar: () => adicionarTokenNaIniciativa(token.id) },
-            { texto: "+ Nova ação", dica: "Criar ou excluir ações (valem para todos os tokens)", aoClicar: () => modalAcoes.abrir() },
+            {
+                texto: "Adicionar à iniciativa",
+                dica: "Põe este token na ordem de combate (a caixa Iniciativa, na pilha da esquerda)",
+                aoClicar: () => adicionarTokenNaIniciativa(token.id),
+            },
+            {
+                texto: "+ Nova ação",
+                dica: "Criar ou excluir ações (valem para todos os tokens)",
+                aoClicar: () => modalAcoes.abrir(),
+            },
         ];
     }
     /** Dano ou cura em vários tokens: online o SERVIDOR rola os dados UMA vez e aplica a todos; no modo local, aqui. */
@@ -1132,12 +1351,18 @@ async function iniciar(): Promise<void> {
             rede.enviar({ tipo: "aplicar_acao_varios", tokens: ids, acao: acaoId, valor: texto });
             return;
         }
-        const feito = aplicarAcaoEmVarios(ids.flatMap((id) => buscarToken(id) ?? []), acaoId, texto, Math.random);
+        const feito = aplicarAcaoEmVarios(
+            ids.flatMap((id) => buscarToken(id) ?? []),
+            acaoId,
+            texto,
+            Math.random,
+        );
         if (!feito.ok) {
             aviso.mostrar(feito.erro, { duracaoMs: TEMPO_AVISO_MAPA_MS });
             return;
         }
-        for (const { token, resultado } of feito.itens) tokens.redesenhar(token, resultado.efeito === "reduzir" ? "dano" : "cura"); // as barras mudam na hora (e as peças piscam: dano ou cura, sempre)
+        for (const { token, resultado } of feito.itens)
+            tokens.redesenhar(token, resultado.efeito === "reduzir" ? "dano" : "cura"); // as barras mudam na hora (e as peças piscam: dano ou cura, sempre)
         const acao = estado.acoesDaMesa.find((a) => a.id === acaoId);
         adicionarMensagem(AUTOR_PROVISORIO, `${acao?.nome ?? "Ação"} ${feito.quantia} em ${feito.itens.length} tokens`);
         chat.atualizar();
@@ -1172,7 +1397,15 @@ async function iniciar(): Promise<void> {
         aoCriarToken: ({ nome, cor, corBorda, tamanho, imagem, ficha }) => {
             if (rede?.ativa) {
                 // Online quem cria é o SERVIDOR (cria o arquivo na hora); o token chega pelo evento "token_criado".
-                rede.enviar({ tipo: "criar_token", nome, cor, corBorda, tamanho, imagem, ...(ficha !== undefined && { ficha }) });
+                rede.enviar({
+                    tipo: "criar_token",
+                    nome,
+                    cor,
+                    corBorda,
+                    tamanho,
+                    imagem,
+                    ...(ficha !== undefined && { ficha }),
+                });
                 return "enviado";
             }
             const token = criarToken(cor, tamanho, nome, imagem, corBorda, ficha ?? null); // 1) estado (o token nasce guardado na bolsa, com os status da mesa)
@@ -1197,10 +1430,21 @@ async function iniciar(): Promise<void> {
         aoRecolherPecas: (modelo) => {
             // Só as peças deste token no mapa (cena) em que estou: as de outros mapas ficam onde estão.
             const pecas = estado.tokens.filter((t) => t.copiaDe === modelo && !t.guardado && t.mapa === estado.mapaId);
-            if (pecas.length === 0) return void aviso.mostrar("Nenhuma peça deste token está neste mapa.", { duracaoMs: 2500 });
+            if (pecas.length === 0)
+                return void aviso.mostrar("Nenhuma peça deste token está neste mapa.", { duracaoMs: 2500 });
             removerVarios(pecas); // (já avisa quantas saíram, com "Desfazer", e respeita as permissões)
         },
-        aoCompartilhar: (item, id, nome) => jogadores.compartilhar(item, id, nome, item === "tokens" ? buscarToken(id)?.grupos : item === "fichas" ? estado.fichas.find((f) => f.id === id)?.grupos : undefined),
+        aoCompartilhar: (item, id, nome) =>
+            jogadores.compartilhar(
+                item,
+                id,
+                nome,
+                item === "tokens"
+                    ? buscarToken(id)?.grupos
+                    : item === "fichas"
+                      ? estado.fichas.find((f) => f.id === id)?.grupos
+                      : undefined,
+            ),
         // PASTAS da bolsa (ui/pastas.ts): online, o SERVIDOR confere (permissões) e avisa; no modo local, muda o estado aqui mesmo.
         aoCriarPasta: (tipo, nome, pai) => {
             if (rede?.ativa) return void rede.enviar({ tipo: "criar_pasta", tipoDaPasta: tipo, nome, pai });
@@ -1219,12 +1463,18 @@ async function iniciar(): Promise<void> {
             atualizarListasDaBolsa();
         },
         aoExcluirPasta: (pasta) =>
-            void confirmacao.perguntar({ titulo: "Excluir pasta?", mensagem: `A pasta "${pasta.nome}" será apagada. O que está dentro dela (pastas, tokens e fichas) NÃO é apagado: sobe para a pasta de cima.`, confirmar: "Excluir pasta" }).then((sim) => {
-                if (!sim) return;
-                if (rede?.ativa) return void rede.enviar({ tipo: "excluir_pasta", id: pasta.id });
-                excluirPasta(pasta.id);
-                atualizarListasDaBolsa();
-            }),
+            void confirmacao
+                .perguntar({
+                    titulo: "Excluir pasta?",
+                    mensagem: `A pasta "${pasta.nome}" será apagada. O que está dentro dela (pastas, tokens e fichas) NÃO é apagado: sobe para a pasta de cima.`,
+                    confirmar: "Excluir pasta",
+                })
+                .then((sim) => {
+                    if (!sim) return;
+                    if (rede?.ativa) return void rede.enviar({ tipo: "excluir_pasta", id: pasta.id });
+                    excluirPasta(pasta.id);
+                    atualizarListasDaBolsa();
+                }),
         aoMoverParaPasta: (tipo, ids, pasta) => {
             if (rede?.ativa) return void rede.enviar({ tipo: "mover_para_pasta", item: tipo, ids, pasta });
             moverParaPasta(tipo, ids, pasta);
@@ -1268,7 +1518,15 @@ async function iniciar(): Promise<void> {
             alteracoes.forEach((alteracao, i) => {
                 const { id, ...mudancas } = alteracao;
                 if (rede?.ativa) {
-                    setTimeout(() => rede?.enviar(tipo === "tokens" ? { tipo: "editar_token", id, mudancas } : { tipo: "marcar_ficha", id, ...mudancas }), i * 50);
+                    setTimeout(
+                        () =>
+                            rede?.enviar(
+                                tipo === "tokens"
+                                    ? { tipo: "editar_token", id, mudancas }
+                                    : { tipo: "marcar_ficha", id, ...mudancas },
+                            ),
+                        i * 50,
+                    );
                 } else if (tipo === "tokens") {
                     editarToken(id, mudancas);
                 } else {
@@ -1295,15 +1553,24 @@ async function iniciar(): Promise<void> {
         },
         aoExcluirGrupo: (grupo) => void excluirGrupoComConfirmacao(grupo),
         aoExcluirTokens: (lista) =>
-            void excluirVariosComConfirmacao("tokens", lista.map((t) => t.nome), (i) => {
-                if (rede?.ativa) rede.enviar({ tipo: "excluir_token", id: lista[i].id });
-                else removerTokenDoJogo(lista[i].id);
-            }),
+            void excluirVariosComConfirmacao(
+                "tokens",
+                lista.map((t) => t.nome),
+                (i) => {
+                    if (rede?.ativa) rede.enviar({ tipo: "excluir_token", id: lista[i].id });
+                    else removerTokenDoJogo(lista[i].id);
+                },
+            ),
         aoExcluirFichas: (lista) =>
-            void excluirVariosComConfirmacao("fichas", lista.map((f) => f.nome), (i) => {
-                if (rede?.ativa) rede.enviar({ tipo: "excluir_ficha", id: lista[i].id });
-                else removerFichaDoJogo(lista[i].id);
-            }, lista.every(fichaVazia)), // (todas vazias: nada a perder, sem confirmação)
+            void excluirVariosComConfirmacao(
+                "fichas",
+                lista.map((f) => f.nome),
+                (i) => {
+                    if (rede?.ativa) rede.enviar({ tipo: "excluir_ficha", id: lista[i].id });
+                    else removerFichaDoJogo(lista[i].id);
+                },
+                lista.every(fichaVazia),
+            ), // (todas vazias: nada a perder, sem confirmação)
         aoAbrirFicha: (ficha) => {
             // A bolsa em TELA CHEIA NÃO fecha ao abrir uma ficha (pedido do dono, 14/11/2026): a janela da ficha (flutuante, z-index 50) fica por cima dela.
             // O Esc dentro da ficha fecha só a ficha (`stopPropagation` em `ui/editorFicha.ts`); com o foco fora dela, o Esc é da bolsa.
@@ -1357,13 +1624,21 @@ async function iniciar(): Promise<void> {
         aoMoverJogadores: () => rede?.enviar({ tipo: "mover_jogadores" }),
         aoExcluir: (m) =>
             void confirmacao
-                .perguntar({ titulo: "Excluir mapa?", mensagem: `O mapa "${m.nome}" será apagado do servidor, para todos.`, confirmar: "Excluir mapa" })
+                .perguntar({
+                    titulo: "Excluir mapa?",
+                    mensagem: `O mapa "${m.nome}" será apagado do servidor, para todos.`,
+                    confirmar: "Excluir mapa",
+                })
                 .then((sim) => {
                     if (sim && rede?.ativa) rede.enviar({ tipo: "excluir_mapa", id: m.id });
                 }),
-        aoMudarQuemVe: (m, todos, usuarios) => rede?.enviar({ tipo: "definir_quem_ve_mapa", id: m.id, todos, usuarios }),
+        aoMudarQuemVe: (m, todos, usuarios) =>
+            rede?.enviar({ tipo: "definir_quem_ve_mapa", id: m.id, todos, usuarios }),
         jogadoresConhecidos: () => jogadores.jogadoresConhecidos(),
-        jogadoresNoMapa: (id) => listaDeJogadores.filter((j) => j.mapa === id && j.mestre !== true).map((j) => ({ nome: j.apelido, semPermissao: j.semPermissao === true })),
+        jogadoresNoMapa: (id) =>
+            listaDeJogadores
+                .filter((j) => j.mapa === id && j.mestre !== true)
+                .map((j) => ({ nome: j.apelido, semPermissao: j.semPermissao === true })),
     });
 
     // A VISÃO (zoom e posição da câmera) é lembrada POR MAPA, neste navegador (localStorage): ao trocar de mapa e voltar, ou ao reabrir o site, a câmera volta onde estava.
@@ -1404,7 +1679,12 @@ async function iniciar(): Promise<void> {
     // à vista e nada muda. Se chegar outra troca no meio, só a mais nova vale (`versaoDoMapa`); se a imagem falhar, nada muda e aparece um aviso.
     let versaoDoMapa = 0;
     let depoisDoMapa: (() => void) | null = null; // (só quem pediu a troca tem algo a fazer depois: ajustar a visão e dizer a previsão de colunas e linhas)
-    async function trocarMapa(id: string | null, colunas?: number, linhas?: number, depois?: (() => void) | null): Promise<void> {
+    async function trocarMapa(
+        id: string | null,
+        colunas?: number,
+        linhas?: number,
+        depois?: (() => void) | null,
+    ): Promise<void> {
         try {
             await trocarMapaDeVerdade(id, colunas, linhas, depois);
         } finally {
@@ -1412,7 +1692,12 @@ async function iniciar(): Promise<void> {
             document.body.classList.add("mesa-pronta");
         }
     }
-    async function trocarMapaDeVerdade(id: string | null, colunas?: number, linhas?: number, depois?: (() => void) | null): Promise<void> {
+    async function trocarMapaDeVerdade(
+        id: string | null,
+        colunas?: number,
+        linhas?: number,
+        depois?: (() => void) | null,
+    ): Promise<void> {
         const minha = ++versaoDoMapa;
         if (id !== null) {
             aviso.mostrar("Carregando o mapa…", { duracaoMs: 180000 }); // (fica até a imagem chegar: é escondido logo abaixo)
@@ -1437,7 +1722,8 @@ async function iniciar(): Promise<void> {
         fecharMenusDoToken();
         balao.esconder();
         tokens.reconstruir(); // (cada mapa guarda os seus tokens: saem os do mapa antigo e entram os deste)
-        if (colunas !== undefined && linhas !== undefined) aplicarTamanho(definirTamanhoTabuleiro(colunas, linhas)); // (o mesmo cálculo do servidor: os tokens que ficaram fora são puxados para dentro)
+        if (colunas !== undefined && linhas !== undefined)
+            aplicarTamanho(definirTamanhoTabuleiro(colunas, linhas)); // (o mesmo cálculo do servidor: os tokens que ficaram fora são puxados para dentro)
         else mapa.ajustar();
         grade.desenhar(); // (o fundo e a cor das linhas da grade dependem de haver mapa)
         barra.atualizar();
@@ -1451,7 +1737,10 @@ async function iniciar(): Promise<void> {
     function avisarSeMapaFoiReduzido(): void {
         const r = mapa.reducao();
         if (!r) return;
-        aviso.mostrar(`Mapa reduzido de ${r.de.largura}×${r.de.altura} para ${r.para.largura}×${r.para.altura} px para caber na placa de vídeo deste computador. As casas e os tokens não mudam: só a nitidez. Mapas grandes demais pesam no desempenho: recomendamos excluí-los da aba Mapas (o mestre faz isso) e usar uma imagem menor.`, { duracaoMs: 14000 });
+        aviso.mostrar(
+            `Mapa reduzido de ${r.de.largura}×${r.de.altura} para ${r.para.largura}×${r.para.altura} px para caber na placa de vídeo deste computador. As casas e os tokens não mudam: só a nitidez. Mapas grandes demais pesam no desempenho: recomendamos excluí-los da aba Mapas (o mestre faz isso) e usar uma imagem menor.`,
+            { duracaoMs: 14000 },
+        );
     }
 
     /** O MESTRE escolheu um mapa da biblioteca: o pedido leva o tamanho previsto pela imagem (colunas × linhas, como ao escolher um arquivo); o servidor avisa todos com o mapa e o tamanho JUNTOS, e cada navegador troca quando a imagem chegar. */
@@ -1468,7 +1757,11 @@ async function iniciar(): Promise<void> {
                     : `Mapa: estimativa de ${previsao.colunas} colunas × ${previsao.linhas} linhas pelo tamanho da imagem. Ajuste pelos botões ou use "Alinhar mapa".`,
             );
         };
-        rede.enviar({ tipo: "definir_mapa", id: m.id, ...(previsao && { colunas: previsao.colunas, linhas: previsao.linhas }) });
+        rede.enviar({
+            tipo: "definir_mapa",
+            id: m.id,
+            ...(previsao && { colunas: previsao.colunas, linhas: previsao.linhas }),
+        });
     }
 
     /** O MESTRE enviou uma imagem (pelo botão "+ Enviar mapa" ou por "Escolher mapa", online): vai ao servidor por HTTP (a imagem NUNCA vai pelo WebSocket), que confere tipo, pixels e tamanho; se der certo, vira o mapa de todos. */
@@ -1478,21 +1771,37 @@ async function iniciar(): Promise<void> {
             if (erro) mostrarAvisoDoMapa(texto);
         };
         if (!estado.mestre) return dizer("Só o mestre pode enviar mapas.", true);
-        if (arquivo.size > MAX_BYTES_MAPA) return dizer(`Imagem grande demais (${(arquivo.size / 1048576).toFixed(1)} MB): o máximo é ${MAX_BYTES_MAPA / 1048576} MB.`, true);
+        if (arquivo.size > MAX_BYTES_MAPA)
+            return dizer(
+                `Imagem grande demais (${(arquivo.size / 1048576).toFixed(1)} MB): o máximo é ${MAX_BYTES_MAPA / 1048576} MB.`,
+                true,
+            );
         dizer("Enviando…");
         try {
-            const nome = arquivo.name.replace(/\.[^.]*$/, "").replace(/[_-]+/g, " ").trim();
-            const resposta = await fetch(`/mapas?nome=${encodeURIComponent(nome)}${new URLSearchParams(location.search).has("papel") ? "&papel=" + encodeURIComponent(new URLSearchParams(location.search).get("papel") ?? "") : ""}`, { method: "POST", body: arquivo }); // (o servidor lê o TIPO pelos bytes, não pelo que se diz aqui)
+            const nome = arquivo.name
+                .replace(/\.[^.]*$/, "")
+                .replace(/[_-]+/g, " ")
+                .trim();
+            const resposta = await fetch(
+                `/mapas?nome=${encodeURIComponent(nome)}${new URLSearchParams(location.search).has("papel") ? "&papel=" + encodeURIComponent(new URLSearchParams(location.search).get("papel") ?? "") : ""}`,
+                { method: "POST", body: arquivo },
+            ); // (o servidor lê o TIPO pelos bytes, não pelo que se diz aqui)
             const corpo = (await resposta.json().catch(() => null)) as (RegistroDeMapa & { erro?: string }) | null;
-            if (!resposta.ok || !corpo || typeof corpo.id !== "string") return dizer(corpo?.erro ?? `O servidor recusou a imagem (erro ${resposta.status}).`, true);
+            if (!resposta.ok || !corpo || typeof corpo.id !== "string")
+                return dizer(corpo?.erro ?? `O servidor recusou a imagem (erro ${resposta.status}).`, true);
             dizer(`"${corpo.nome}" enviado.`);
             usarMapaDaBiblioteca(corpo);
             // "Este mapa terá fog?" (pré-selecionado como SIM; pedido do dono): o fog do mapa novo começa todo coberto, e o mestre vai revelando. O pedido vai DEPOIS do `definir_mapa` (o servidor
             // aplica o tamanho do mapa primeiro, e a máscara nasce do tamanho certo). Cancelar = o mapa fica sem fog (dá para ligar depois, no painel Fog).
             void confirmacao
-                .perguntar({ titulo: "Este mapa terá fog?", mensagem: `Com fog, "${corpo.nome}" começa todo coberto e os jogadores só veem o que você revelar (e nem recebem as peças e os desenhos sob a névoa).\nCancelar deixa o mapa sem fog; dá para ligar depois no painel "Fog".`, confirmar: "Sim, com fog" })
+                .perguntar({
+                    titulo: "Este mapa terá fog?",
+                    mensagem: `Com fog, "${corpo.nome}" começa todo coberto e os jogadores só veem o que você revelar (e nem recebem as peças e os desenhos sob a névoa).\nCancelar deixa o mapa sem fog; dá para ligar depois no painel "Fog".`,
+                    confirmar: "Sim, com fog",
+                })
                 .then((sim) => {
-                    if (sim && rede?.ativa) rede.enviar({ tipo: "fog_ativar", mapa: corpo.id, ativo: true, cobrirTudo: true });
+                    if (sim && rede?.ativa)
+                        rede.enviar({ tipo: "fog_ativar", mapa: corpo.id, ativo: true, cobrirTudo: true });
                 });
         } catch {
             dizer("Não foi possível enviar: sem conexão com o servidor.", true);
@@ -1502,7 +1811,13 @@ async function iniciar(): Promise<void> {
     // O BACKUP DA CAMPANHA (botão da aba Jogadores, só do mestre; ver ui/backup.ts).
     criarBotaoBackup({
         online: () => rede?.ativa === true,
-        confirmar: () => confirmacao.perguntar({ titulo: "Baixar o backup da campanha?", mensagem: "Será baixado um arquivo .zip com TODOS os dados da campanha: fichas, tokens, grupos, mapas (com as imagens), desenhos e permissões. Pode ser grande.", confirmar: "Baixar backup" }),
+        confirmar: () =>
+            confirmacao.perguntar({
+                titulo: "Baixar o backup da campanha?",
+                mensagem:
+                    "Será baixado um arquivo .zip com TODOS os dados da campanha: fichas, tokens, grupos, mapas (com as imagens), desenhos e permissões. Pode ser grande.",
+                confirmar: "Baixar backup",
+            }),
         avisar: (texto) => mostrarAvisoDoMapa(texto),
     });
 
@@ -1514,7 +1829,8 @@ async function iniciar(): Promise<void> {
     });
     /** Liga ou desliga o fog do mapa (depois de o mestre confirmar). Online, o servidor confirma e avisa; no modo local, é feito aqui (ligar coloca um fog novo, todo coberto; desligar o remove). */
     function aplicarLigarFog(ativo: boolean): void {
-        if (rede?.ativa) return void rede.enviar({ tipo: "fog_ativar", mapa: estado.mapaId ?? "_", ativo, cobrirTudo: true });
+        if (rede?.ativa)
+            return void rede.enviar({ tipo: "fog_ativar", mapa: estado.mapaId ?? "_", ativo, cobrirTudo: true });
         estado.fog = { ativo, mascara: ativo ? novaMascara(estado.colunas, estado.linhas, true) : null };
         if (!ativo && ferramentaAtual.startsWith("fog-")) escolherFerramenta("mover");
         fog.atualizar();
@@ -1525,11 +1841,22 @@ async function iniciar(): Promise<void> {
         aoAlternar: (ativo) => {
             // Ligar ou desligar o fog muda o que TODOS veem: pede confirmação (pedido do dono, 18/11/2026). Cancelando, a caixinha volta ao que era.
             const pergunta = ativo
-                ? { titulo: "Ligar o fog neste mapa?", mensagem: "O mapa começa todo coberto: os jogadores só veem o que você revelar (e nem recebem as peças e os desenhos sob a névoa).", confirmar: "Ligar o fog" }
-                : { titulo: "Desligar o fog neste mapa?", mensagem: "Os jogadores passam a ver o mapa, as peças e os desenhos todos.\nAo ligar de novo, o mapa volta todo coberto.", confirmar: "Desligar o fog" };
+                ? {
+                      titulo: "Ligar o fog neste mapa?",
+                      mensagem:
+                          "O mapa começa todo coberto: os jogadores só veem o que você revelar (e nem recebem as peças e os desenhos sob a névoa).",
+                      confirmar: "Ligar o fog",
+                  }
+                : {
+                      titulo: "Desligar o fog neste mapa?",
+                      mensagem:
+                          "Os jogadores passam a ver o mapa, as peças e os desenhos todos.\nAo ligar de novo, o mapa volta todo coberto.",
+                      confirmar: "Desligar o fog",
+                  };
             void confirmacao.perguntar(pergunta).then((sim) => (sim ? aplicarLigarFog(ativo) : painelFog.atualizar()));
         },
-        aoEscolher: (modo) => escolherFerramenta(modo === null ? "mover" : modo === "cobrir" ? "fog-cobrir" : "fog-revelar"),
+        aoEscolher: (modo) =>
+            escolherFerramenta(modo === null ? "mover" : modo === "cobrir" ? "fog-cobrir" : "fog-revelar"),
         aoEscolherForma: (forma) => fog.definirForma(forma),
         aoEscolherAlinhamento: (a) => fog.definirAlinhamento(a),
         aoMudarRaio: (x, y) => fog.definirRaio(x, y),
@@ -1543,7 +1870,11 @@ async function iniciar(): Promise<void> {
         if (!aberto && fogEstavaAberto && ferramentaAtual.startsWith("fog-")) escolherFerramenta("mover");
         fogEstavaAberto = aberto;
     };
-    if (caixaDoFog) new MutationObserver(sincronizarPincelComABarra).observe(caixaDoFog, { attributes: true, attributeFilter: ["class"] });
+    if (caixaDoFog)
+        new MutationObserver(sincronizarPincelComABarra).observe(caixaDoFog, {
+            attributes: true,
+            attributeFilter: ["class"],
+        });
     // O contorno do pincel acompanha o mouse ANTES de clicar (o mestre vê o formato e o tamanho que vai pintar).
     const pontoNoCanvas = (e: PointerEvent): { x: number; y: number } => {
         const r = app.canvas.getBoundingClientRect();
@@ -1553,7 +1884,11 @@ async function iniciar(): Promise<void> {
     app.canvas.addEventListener("pointerleave", () => fog.pairar(null));
     // Enquanto o mestre configura o mapa (janela do tabuleiro: colunas, linhas, grade), a névoa some, para ele ver o mapa limpo.
     const janelaDoTabuleiro = document.getElementById("mapas-tabuleiro");
-    if (janelaDoTabuleiro) new MutationObserver(() => fog.ocultar(!janelaDoTabuleiro.hidden)).observe(janelaDoTabuleiro, { attributes: true, attributeFilter: ["hidden"] });
+    if (janelaDoTabuleiro)
+        new MutationObserver(() => fog.ocultar(!janelaDoTabuleiro.hidden)).observe(janelaDoTabuleiro, {
+            attributes: true,
+            attributeFilter: ["hidden"],
+        });
 
     let emPan = false; // (a tela está sendo arrastada agora: o balão dos tokens fica quieto)
     const tokens = criarTokens(camera, grade, texturas, {
@@ -1563,7 +1898,12 @@ async function iniciar(): Promise<void> {
             // (Com a coluna MINIMIZADA acontece o mesmo: ela reabre já na Bolsa.)
             if (lateral.aba === "chat" || lateral.minimizada) {
                 const coluna = (document.getElementById("chat") as HTMLElement).getBoundingClientRect();
-                if (ponto.x >= coluna.left && ponto.x <= coluna.right && ponto.y >= coluna.top && ponto.y <= coluna.bottom) {
+                if (
+                    ponto.x >= coluna.left &&
+                    ponto.x <= coluna.right &&
+                    ponto.y >= coluna.top &&
+                    ponto.y <= coluna.bottom
+                ) {
                     lateral.escolher("bolsa");
                     lateral.minimizar(false);
                 }
@@ -1583,7 +1923,11 @@ async function iniciar(): Promise<void> {
         // Online: o token já mudou aqui (para o arrasto ficar fluido) e o servidor é avisado; ele confere e avisa todos.
         aoSoltarToken: (token) => {
             if (!rede?.ativa) return;
-            rede.enviar(token.guardado ? { tipo: "guardar_token", id: token.id } : { tipo: "colocar_token", id: token.id, col: token.col, row: token.row });
+            rede.enviar(
+                token.guardado
+                    ? { tipo: "guardar_token", id: token.id }
+                    : { tipo: "colocar_token", id: token.id, col: token.col, row: token.row },
+            );
         },
         aoIniciarArrasto: () => {
             fecharMenusDoToken();
@@ -1602,9 +1946,19 @@ async function iniciar(): Promise<void> {
                 // Com VÁRIOS selecionados, o mestre também pode ROLAR A INICIATIVA de todos: cada um rola a SUA (a rolagem "Iniciativa" da própria ficha), separada. Só aparece se TODOS têm essa rolagem.
                 const extrasDeVarios =
                     estado.mestre && escolhidos.every(temIniciativaNaFicha)
-                        ? [{ texto: `Rolar iniciativa (${escolhidos.length})`, dica: "Cada token selecionado rola a iniciativa da própria ficha e entra na ordem de combate", aoClicar: () => escolhidos.forEach((t, i) => window.setTimeout(() => adicionarTokenNaIniciativa(t.id), i * 80)) }]
+                        ? [
+                              {
+                                  texto: `Rolar iniciativa (${escolhidos.length})`,
+                                  dica: "Cada token selecionado rola a iniciativa da própria ficha e entra na ordem de combate",
+                                  aoClicar: () =>
+                                      escolhidos.forEach((t, i) =>
+                                          window.setTimeout(() => adicionarTokenNaIniciativa(t.id), i * 80),
+                                      ),
+                              },
+                          ]
                         : [];
-                if (ancora && escolhidos.length <= MAX_TOKENS_ACAO_EM_GRUPO) menuGrupo.abrir(ancora.x + ancora.largura + 8, ancora.y, escolhidos, extrasDeVarios);
+                if (ancora && escolhidos.length <= MAX_TOKENS_ACAO_EM_GRUPO)
+                    menuGrupo.abrir(ancora.x + ancora.largura + 8, ancora.y, escolhidos, extrasDeVarios);
                 return;
             }
             menu.abrir(token.id); // (a engrenagem de configuração, em cima do token)
@@ -1645,12 +1999,22 @@ async function iniciar(): Promise<void> {
     function salvarCondicao(condicao: Condicao): void {
         if (rede?.ativa) return void rede.enviar({ tipo: "salvar_condicao", condicao });
         const existe = CONDICOES.some((c) => c.id === condicao.id);
-        if (!existe && CONDICOES.length >= MAX_CONDICOES) return void aviso.mostrar(`A mesa já tem ${MAX_CONDICOES} condições (o máximo). Exclua alguma para criar outra.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
-        void condicoesMudaram(existe ? CONDICOES.map((c) => (c.id === condicao.id ? condicao : c)) : [...CONDICOES, condicao]);
+        if (!existe && CONDICOES.length >= MAX_CONDICOES)
+            return void aviso.mostrar(
+                `A mesa já tem ${MAX_CONDICOES} condições (o máximo). Exclua alguma para criar outra.`,
+                { duracaoMs: TEMPO_AVISO_MAPA_MS },
+            );
+        void condicoesMudaram(
+            existe ? CONDICOES.map((c) => (c.id === condicao.id ? condicao : c)) : [...CONDICOES, condicao],
+        );
     }
     /** Excluir uma condição (depois de confirmar): ela sai da lista e de todos os tokens que a tinham. */
     async function excluirCondicao(condicao: Condicao): Promise<void> {
-        if (!podeExcluirCondicao(condicao.id)) return void aviso.mostrar(`A condição ${condicao.nome} não pode ser excluída: o jogo a usa para o X vermelho do token.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        if (!podeExcluirCondicao(condicao.id))
+            return void aviso.mostrar(
+                `A condição ${condicao.nome} não pode ser excluída: o jogo a usa para o X vermelho do token.`,
+                { duracaoMs: TEMPO_AVISO_MAPA_MS },
+            );
         const quantos = estado.tokens.filter((t) => t.condicoes.includes(condicao.id)).length;
         const confirmou = await confirmacao.perguntar({
             titulo: `Excluir a condição "${condicao.nome}"?`,
@@ -1669,7 +2033,10 @@ async function iniciar(): Promise<void> {
     /** "Restaurar as de fábrica": recria as de fábrica que foram excluídas (as que existem ficam como estão). */
     function restaurarCondicoes(): void {
         if (rede?.ativa) return void rede.enviar({ tipo: "restaurar_condicoes" });
-        void condicoesMudaram([...CONDICOES, ...CONDICOES_DE_FABRICA.filter((f) => !CONDICOES.some((c) => c.id === f.id))]);
+        void condicoesMudaram([
+            ...CONDICOES,
+            ...CONDICOES_DE_FABRICA.filter((f) => !CONDICOES.some((c) => c.id === f.id)),
+        ]);
     }
     const bolsaCondicoes = criarBolsaCondicoes({
         editarImagem: (arquivo, corFundo) => editorImagem.editar(arquivo, corFundo),
@@ -1724,19 +2091,31 @@ async function iniciar(): Promise<void> {
             return;
         }
         if (reguaTemporizador) return; // (já há um envio marcado: ele leva o estado mais novo)
-        reguaTemporizador = window.setTimeout(() => {
-            reguaTemporizador = 0;
-            enviarReguaAgora();
-        }, Math.max(0, reguaEnviadaEm + MS_ENVIO_REGUA - performance.now()));
+        reguaTemporizador = window.setTimeout(
+            () => {
+                reguaTemporizador = 0;
+                enviarReguaAgora();
+            },
+            Math.max(0, reguaEnviadaEm + MS_ENVIO_REGUA - performance.now()),
+        );
     }
     const regua = criarRegua(camera, {
         aoMudarCaminho: compartilharRegua,
         aoComecar: (casa) => {
             // O token que ocupa a casa onde a medida começou (o menor, se há vários; só os que a pessoa pode usar): ele é SELECIONADO.
             esconderBotaoMover();
-            tokenDaRegua = estado.tokens
-                .filter((t) => naCenaAtual(t) && podeUsarToken(t) && casa.col >= t.col && casa.col < t.col + t.size && casa.row >= t.row && casa.row < t.row + t.size)
-                .sort((a, b) => a.size - b.size)[0] ?? null;
+            tokenDaRegua =
+                estado.tokens
+                    .filter(
+                        (t) =>
+                            naCenaAtual(t) &&
+                            podeUsarToken(t) &&
+                            casa.col >= t.col &&
+                            casa.col < t.col + t.size &&
+                            casa.row >= t.row &&
+                            casa.row < t.row + t.size,
+                    )
+                    .sort((a, b) => a.size - b.size)[0] ?? null;
             if (tokenDaRegua) tokens.selecionar(tokenDaRegua.id);
         },
         aoSoltar: (vertices) => {
@@ -1764,14 +2143,18 @@ async function iniciar(): Promise<void> {
     async function moverPelaRegua(): Promise<void> {
         const caminho = caminhoDaRegua;
         const alvo = tokenDaRegua ? buscarToken(tokenDaRegua.id) : undefined;
-        if (movendoPelaRegua || !alvo || !caminho || caminho.length < 2 || !naCenaAtual(alvo) || !podeUsarToken(alvo)) return;
+        if (movendoPelaRegua || !alvo || !caminho || caminho.length < 2 || !naCenaAtual(alvo) || !podeUsarToken(alvo))
+            return;
         const destinos: { col: number; row: number; pontoFixado: boolean }[] = [];
         let anterior = { col: alvo.col, row: alvo.row };
         for (let i = 1; i < caminho.length; i++) {
             const col = alvo.col + (caminho[i].col - caminho[0].col);
             const row = alvo.row + (caminho[i].row - caminho[0].row);
             if (col === anterior.col && row === anterior.row) continue; // (um ponto repetido: não há o que andar)
-            if (!posicaoValida(alvo, col, row)) return void aviso.mostrar(`O caminho sai do tabuleiro: "${alvo.nome}" não cabe lá.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            if (!posicaoValida(alvo, col, row))
+                return void aviso.mostrar(`O caminho sai do tabuleiro: "${alvo.nome}" não cabe lá.`, {
+                    duracaoMs: TEMPO_AVISO_MAPA_MS,
+                });
             destinos.push({ col, row, pontoFixado: i < caminho.length - 1 });
             anterior = { col, row };
         }
@@ -1780,7 +2163,13 @@ async function iniciar(): Promise<void> {
         esconderBotaoMover();
         let de = { col: alvo.col, row: alvo.row };
         for (const destino of destinos) {
-            const ms = Math.min(MS_DESLIZE_MAX, Math.max(MS_DESLIZE_MIN, distanciaEmCasas(de.col, de.row, destino.col, destino.row) * MS_POR_CASA_DO_DESLIZE));
+            const ms = Math.min(
+                MS_DESLIZE_MAX,
+                Math.max(
+                    MS_DESLIZE_MIN,
+                    distanciaEmCasas(de.col, de.row, destino.col, destino.row) * MS_POR_CASA_DO_DESLIZE,
+                ),
+            );
             deslizeAgendado.set(alvo.id, ms);
             if (rede?.ativa) rede.enviar({ tipo: "colocar_token", id: alvo.id, col: destino.col, row: destino.row });
             else {
@@ -1823,10 +2212,13 @@ async function iniciar(): Promise<void> {
             return;
         }
         if (areaTemporizador) return; // (já há um envio marcado: ele leva o estado mais novo)
-        areaTemporizador = window.setTimeout(() => {
-            areaTemporizador = 0;
-            enviarAreaAgora();
-        }, Math.max(0, areaEnviadaEm + MS_ENVIO_REGUA - performance.now()));
+        areaTemporizador = window.setTimeout(
+            () => {
+                areaTemporizador = 0;
+                enviarAreaAgora();
+            },
+            Math.max(0, areaEnviadaEm + MS_ENVIO_REGUA - performance.now()),
+        );
     }
     const ferramentaDeArea = criarFerramentaDeArea(camera, {
         aoMudarPrevia: compartilharArea,
@@ -1839,7 +2231,10 @@ async function iniciar(): Promise<void> {
         // A emanação sai do corpo inteiro da criatura: o token à vista no mapa atual (`naCenaAtual`, a mesma regra do desenho dos tokens) que ocupa a casa; se há mais de um, o menor.
         corpoEm: (col, row) => {
             const peca = estado.tokens
-                .filter((t) => naCenaAtual(t) && col >= t.col && col < t.col + t.size && row >= t.row && row < t.row + t.size)
+                .filter(
+                    (t) =>
+                        naCenaAtual(t) && col >= t.col && col < t.col + t.size && row >= t.row && row < t.row + t.size,
+                )
                 .sort((a, b) => a.size - b.size)[0];
             return peca ? { id: peca.id, col: peca.col, row: peca.row, size: peca.size } : null;
         },
@@ -1848,11 +2243,24 @@ async function iniciar(): Promise<void> {
             const clicado = buscarToken(idDoToken);
             const alvo = clicado && clicado.copiaDe !== null ? buscarToken(clicado.copiaDe) : clicado;
             if (!clicado || !alvo) return;
-            const nova: EmanacaoDoToken = { casas: Math.min(MAX_EMANACAO_TOKEN, emanacao.casas), cor: emanacao.cor, alfa: Math.min(ALFA_MAX_EMANACAO, Math.max(ALFA_MIN_EMANACAO, emanacao.alfa)) };
+            const nova: EmanacaoDoToken = {
+                casas: Math.min(MAX_EMANACAO_TOKEN, emanacao.casas),
+                cor: emanacao.cor,
+                alfa: Math.min(ALFA_MAX_EMANACAO, Math.max(ALFA_MIN_EMANACAO, emanacao.alfa)),
+            };
             const atual = alvo.emanacao;
-            const igual = !!atual && atual.casas === nova.casas && atual.cor === nova.cor && Math.abs(atual.alfa - nova.alfa) < 0.005;
+            const igual =
+                !!atual &&
+                atual.casas === nova.casas &&
+                atual.cor === nova.cor &&
+                Math.abs(atual.alfa - nova.alfa) < 0.005;
             definirEmanacaoDoModelo(alvo, igual ? null : nova);
-            aviso.mostrar(igual ? `"${alvo.nome}" parou de emanar.` : `"${alvo.nome}" agora emana ${casasParaMetros(nova.casas).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m. Clique de novo para parar.`, { duracaoMs: TEMPO_AVISO_MAPA_MS });
+            aviso.mostrar(
+                igual
+                    ? `"${alvo.nome}" parou de emanar.`
+                    : `"${alvo.nome}" agora emana ${casasParaMetros(nova.casas).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m. Clique de novo para parar.`,
+                { duracaoMs: TEMPO_AVISO_MAPA_MS },
+            );
         },
     });
     const painelArea = criarPainelArea({
@@ -1880,20 +2288,24 @@ async function iniciar(): Promise<void> {
     app.ticker.add(() => {
         ultimoQuadroEm = performance.now();
     });
-    const telaParada = (): boolean => paginaParada(document.hidden, performance.now() - ultimoQuadroEm, MS_PAGINA_PARADA);
+    const telaParada = (): boolean =>
+        paginaParada(document.hidden, performance.now() - ultimoQuadroEm, MS_PAGINA_PARADA);
 
     /** Um clique na caixa de um personagem da INICIATIVA: faz um ping (comum) em cima da peça dele no tabuleiro, para todos acharem de quem é a vez. Se a peça não está neste mapa, só avisa. */
     function pingarNoToken(tokenId: number): void {
         const peca = buscarToken(tokenId);
-        if (!peca || peca.guardado) return void aviso.mostrar("Este personagem não está no tabuleiro.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
-        if (peca.mapa !== estado.mapaId) return void aviso.mostrar("Este personagem está em outro mapa.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        if (!peca || peca.guardado)
+            return void aviso.mostrar("Este personagem não está no tabuleiro.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        if (peca.mapa !== estado.mapaId)
+            return void aviso.mostrar("Este personagem está em outro mapa.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
         pingar(peca.col + peca.size / 2, peca.row + peca.size / 2, "comum"); // (o centro do bloco do token: `col`/`row` é o canto superior esquerdo)
     }
 
     /** Faz um ping no ponto (col, row) (em casas, com fração): online o SERVIDOR repassa a quem está na cena (e o seu volta por ele); no modo local, só você vê. */
     function pingar(col: number, row: number, forma: FormaDePing): void {
         if (!passouOIntervalo(ultimoPingEm, MS_MIN_ENTRE_PINGS)) return; // o "mini delay" entre um ping e o seguinte: ignorado em silêncio (o servidor repete a regra)
-        if (!gastar(baldeDePings, RAJADA_PINGS, MS_RECARGA_PING)) return void aviso.mostrar("Calma! Você está pingando rápido demais.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+        if (!gastar(baldeDePings, RAJADA_PINGS, MS_RECARGA_PING))
+            return void aviso.mostrar("Calma! Você está pingando rápido demais.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
         ultimoPingEm = Date.now();
         if (rede?.ativa) rede.enviar({ tipo: "ping", col, row, forma, cor: corDoDesenho });
         else pings.mostrar(col, row, forma, corDoDesenho, "Você");
@@ -1913,7 +2325,8 @@ async function iniciar(): Promise<void> {
         },
         aoLimparAreas: () => limparAreas(),
         haAreasParaLimpar,
-        tamanhoDaArea: (forma) => `${casasParaMetros(painelArea.tamanhoDe(forma)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m`,
+        tamanhoDaArea: (forma) =>
+            `${casasParaMetros(painelArea.tamanhoDe(forma)).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m`,
         fogAtivo: () => estado.fog.ativo,
     });
 
@@ -1924,12 +2337,17 @@ async function iniciar(): Promise<void> {
     function itensSobOPonto(col: number, row: number): ItemSobOPonto[] {
         const chave = chaveDaCasa(Math.floor(col), Math.floor(row));
         const itens: ItemSobOPonto[] = [];
-        const areas = estado.desenhos.filter((d) => d.tipo === "area" && podeApagarAqui(d) && conjuntoDeCasas(casasDaArea(d)).has(chave)).toReversed();
+        const areas = estado.desenhos
+            .filter((d) => d.tipo === "area" && podeApagarAqui(d) && conjuntoDeCasas(casasDaArea(d)).has(chave))
+            .toReversed();
         for (const d of areas) {
             if (d.tipo !== "area") continue;
             const nome = DADOS_DAS_FORMAS_DE_AREA[d.forma].nome;
             itens.push({
-                texto: areas.length === 1 ? "Remover área" : `Remover área (${nome} ${casasParaMetros(d.casas).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m)`,
+                texto:
+                    areas.length === 1
+                        ? "Remover área"
+                        : `Remover área (${nome} ${casasParaMetros(d.casas).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} m)`,
                 dica: `Apaga esta área de efeito (${nome}); Ctrl+Z desfaz`,
                 icone: ICONE_DA_FORMA[d.forma],
                 aoClicar: () => {
@@ -1940,7 +2358,10 @@ async function iniciar(): Promise<void> {
                 },
             });
         }
-        const emanando = estado.tokens.filter((t) => naCenaAtual(t) && t.emanacao && conjuntoDeCasas(casasDaArea(areaDaEmanacao(t, t.emanacao))).has(chave));
+        const emanando = estado.tokens.filter(
+            (t) =>
+                naCenaAtual(t) && t.emanacao && conjuntoDeCasas(casasDaArea(areaDaEmanacao(t, t.emanacao))).has(chave),
+        );
         for (const t of emanando) {
             const modelo = t.copiaDe !== null ? buscarToken(t.copiaDe) : t;
             if (!modelo) continue;
@@ -1992,7 +2413,13 @@ async function iniciar(): Promise<void> {
             balao.esconder();
             const mundo = camera.telaParaMundo(ponto);
             const caixa = app.canvas.getBoundingClientRect();
-            menuMapa.abrir(ponto.x + caixa.left, ponto.y + caixa.top, mundo.x / TAMANHO_CASA, mundo.y / TAMANHO_CASA, itensSobOPonto(mundo.x / TAMANHO_CASA, mundo.y / TAMANHO_CASA));
+            menuMapa.abrir(
+                ponto.x + caixa.left,
+                ponto.y + caixa.top,
+                mundo.x / TAMANHO_CASA,
+                mundo.y / TAMANHO_CASA,
+                itensSobOPonto(mundo.x / TAMANHO_CASA, mundo.y / TAMANHO_CASA),
+            );
         },
     });
 
@@ -2258,7 +2685,11 @@ async function iniciar(): Promise<void> {
                     void condicoesMudaram(evento.condicoes);
                     return;
                 case "condicao_salva":
-                    void condicoesMudaram(CONDICOES.some((c) => c.id === evento.condicao.id) ? CONDICOES.map((c) => (c.id === evento.condicao.id ? evento.condicao : c)) : [...CONDICOES, evento.condicao]);
+                    void condicoesMudaram(
+                        CONDICOES.some((c) => c.id === evento.condicao.id)
+                            ? CONDICOES.map((c) => (c.id === evento.condicao.id ? evento.condicao : c))
+                            : [...CONDICOES, evento.condicao],
+                    );
                     return;
                 case "condicao_excluida":
                     void condicoesMudaram(CONDICOES.filter((c) => c.id !== evento.id));
@@ -2345,7 +2776,9 @@ async function iniciar(): Promise<void> {
                     return;
                 case "fog_definido": {
                     // O fog do mapa em que estou (a máscara inteira): liga a camada ou a desliga.
-                    const mascara = evento.ativo ? mascaraDoTexto(evento.colunas ?? 0, evento.linhas ?? 0, evento.bits) : null;
+                    const mascara = evento.ativo
+                        ? mascaraDoTexto(evento.colunas ?? 0, evento.linhas ?? 0, evento.bits)
+                        : null;
                     estado.fog = { ativo: evento.ativo && mascara !== null, mascara };
                     if (!estado.fog.ativo && ferramentaAtual.startsWith("fog-")) escolherFerramenta("mover");
                     fog.atualizar();
@@ -2414,7 +2847,9 @@ async function iniciar(): Promise<void> {
                 case "papel":
                     estado.mestre = evento.mestre; // foi promovido ou rebaixado
                     aplicarPapel();
-                    aviso.mostrar(evento.mestre ? "Você agora é mestre." : "Você deixou de ser mestre.", { duracaoMs: TEMPO_AVISO_MAPA_MS });
+                    aviso.mostrar(evento.mestre ? "Você agora é mestre." : "Você deixou de ser mestre.", {
+                        duracaoMs: TEMPO_AVISO_MAPA_MS,
+                    });
                     return;
                 case "token_colocado": {
                     const token = buscarToken(evento.id);
@@ -2505,41 +2940,53 @@ async function iniciar(): Promise<void> {
     // começando se familiarizar com o texto das fichas (`src/exemplos.ts`). No modo LOCAL isto vale toda vez que a página abre (o modo local não guarda nada); online é o SERVIDOR que
     // as cria, uma vez (`servidor/servidor.ts`). Ficam de fora dos testes automáticos (o navegador deles se diz automatizado: eles contam fichas e tokens e esperam a mesa vazia).
     if (!rede && !navigator.webdriver) {
-        void import("./exemplos").then(({ ABAS_THORIN, IMAGEM_GOBLIN, NOME_CLERIGA, NOME_DADOS, NOME_GOBLIN, NOME_THORIN, TEXTO_CLERIGA, TEXTO_DADOS, TEXTO_GOBLIN }) => {
-            const ficha = criarFicha();
-            if (!ficha) return;
-            ficha.nome = NOME_GOBLIN;
-            ficha.abas[0].texto = TEXTO_GOBLIN;
-            const token = criarToken(0x2f5d2a, 1, NOME_GOBLIN, IMAGEM_GOBLIN, 0xffffff, ficha.id); // (nasce na bolsa, com a ficha atribuída e o HP lendo PV)
-            if (token) tokens.adicionar(token);
-            // A ficha de JOGADOR (tem recursos) e o token dela: a barra de vida mostra o PV da ficha, ao vivo. Duas páginas: a ficha e os itens mágicos.
-            const fichaJogador = criarFicha();
-            if (fichaJogador) {
-                fichaJogador.nome = NOME_THORIN;
-                fichaJogador.abas = ABAS_THORIN.map((a) => ({ ...a }));
-                const tokenJogador = criarToken(0x2a4a7a, 1, NOME_THORIN, null, 0xffd54f, fichaJogador.id);
-                if (tokenJogador) tokens.adicionar(tokenJogador);
-            }
-            // A CLÉRIGA AURORA: o token que CURA (rolagens com a etiqueta {cura}; ver src/exemplos.ts), para testar arrastar o número do chat até uma criatura.
-            const fichaCleriga = criarFicha();
-            if (fichaCleriga) {
-                fichaCleriga.nome = NOME_CLERIGA;
-                fichaCleriga.abas[0].texto = TEXTO_CLERIGA;
-                const tokenCleriga = criarToken(0xf1c40f, 1, NOME_CLERIGA, null, 0xffffff, fichaCleriga.id);
-                if (tokenCleriga) tokens.adicionar(tokenCleriga);
-            }
-            // O TESTE DE DADOS: uma rolagem de cada dado (d4 a d1000), para ver as cores dos dados nas fichas (ver `TEXTO_DADOS` em src/exemplos.ts).
-            const fichaDados = criarFicha();
-            if (fichaDados) {
-                fichaDados.nome = NOME_DADOS;
-                fichaDados.abas[0].texto = TEXTO_DADOS;
-                const tokenDados = criarToken(0x8e44ad, 1, NOME_DADOS, null, 0xffffff, fichaDados.id);
-                if (tokenDados) tokens.adicionar(tokenDados);
-            }
-            bolsa.atualizarFichas();
-            bolsa.atualizar();
-            editorFicha.restaurarFixadas((id) => estado.fichas.find((f) => f.id === id)); // (modo local: as fichas de exemplo nascem sempre com os mesmos números, então as fixadas voltam também)
-        });
+        void import("./exemplos").then(
+            ({
+                ABAS_THORIN,
+                IMAGEM_GOBLIN,
+                NOME_CLERIGA,
+                NOME_DADOS,
+                NOME_GOBLIN,
+                NOME_THORIN,
+                TEXTO_CLERIGA,
+                TEXTO_DADOS,
+                TEXTO_GOBLIN,
+            }) => {
+                const ficha = criarFicha();
+                if (!ficha) return;
+                ficha.nome = NOME_GOBLIN;
+                ficha.abas[0].texto = TEXTO_GOBLIN;
+                const token = criarToken(0x2f5d2a, 1, NOME_GOBLIN, IMAGEM_GOBLIN, 0xffffff, ficha.id); // (nasce na bolsa, com a ficha atribuída e o HP lendo PV)
+                if (token) tokens.adicionar(token);
+                // A ficha de JOGADOR (tem recursos) e o token dela: a barra de vida mostra o PV da ficha, ao vivo. Duas páginas: a ficha e os itens mágicos.
+                const fichaJogador = criarFicha();
+                if (fichaJogador) {
+                    fichaJogador.nome = NOME_THORIN;
+                    fichaJogador.abas = ABAS_THORIN.map((a) => ({ ...a }));
+                    const tokenJogador = criarToken(0x2a4a7a, 1, NOME_THORIN, null, 0xffd54f, fichaJogador.id);
+                    if (tokenJogador) tokens.adicionar(tokenJogador);
+                }
+                // A CLÉRIGA AURORA: o token que CURA (rolagens com a etiqueta {cura}; ver src/exemplos.ts), para testar arrastar o número do chat até uma criatura.
+                const fichaCleriga = criarFicha();
+                if (fichaCleriga) {
+                    fichaCleriga.nome = NOME_CLERIGA;
+                    fichaCleriga.abas[0].texto = TEXTO_CLERIGA;
+                    const tokenCleriga = criarToken(0xf1c40f, 1, NOME_CLERIGA, null, 0xffffff, fichaCleriga.id);
+                    if (tokenCleriga) tokens.adicionar(tokenCleriga);
+                }
+                // O TESTE DE DADOS: uma rolagem de cada dado (d4 a d1000), para ver as cores dos dados nas fichas (ver `TEXTO_DADOS` em src/exemplos.ts).
+                const fichaDados = criarFicha();
+                if (fichaDados) {
+                    fichaDados.nome = NOME_DADOS;
+                    fichaDados.abas[0].texto = TEXTO_DADOS;
+                    const tokenDados = criarToken(0x8e44ad, 1, NOME_DADOS, null, 0xffffff, fichaDados.id);
+                    if (tokenDados) tokens.adicionar(tokenDados);
+                }
+                bolsa.atualizarFichas();
+                bolsa.atualizar();
+                editorFicha.restaurarFixadas((id) => estado.fichas.find((f) => f.id === id)); // (modo local: as fichas de exemplo nascem sempre com os mesmos números, então as fixadas voltam também)
+            },
+        );
     }
 
     // O app terminou de montar a interface: o painel de Desenho e o de Dados (cujo conteúdo é criado por aqui) deixam de ficar escondidos.
@@ -2557,7 +3004,10 @@ async function iniciar(): Promise<void> {
             pingsNaTela: () => pings.naTela, // (só para os testes: quantos pings estão na tela agora)
             setasDePing: () => pings.setasVisiveis, // (só para os testes: quantas setas de ping estão à vista)
             previaDaArea: () => ferramentaDeArea.previa, // (só para os testes: a área que acompanha o mouse agora, com a direção)
-            mensagemDeTeste: (m: Mensagem) => { receberMensagem(m); chat.atualizar(); }, // (só para os testes: põe uma mensagem pronta no chat, ex.: uma rolagem de ficha com a etiqueta {cura})
+            mensagemDeTeste: (m: Mensagem) => {
+                receberMensagem(m);
+                chat.atualizar();
+            }, // (só para os testes: põe uma mensagem pronta no chat, ex.: uma rolagem de ficha com a etiqueta {cura})
             selecionadosIds: () => tokens.selecionados.map((t) => t.id), // (só para os testes: os tokens selecionados agora)
             posicaoDoDesenhoDoToken: (id: number) => tokens.posicaoDoDesenho(id), // (só para os testes: onde o desenho do token está agora; durante um deslize difere do estado)
             textoDaArea: () => ferramentaDeArea.texto, // (só para os testes: a medida da área que está sendo posicionada)
@@ -2567,8 +3017,23 @@ async function iniciar(): Promise<void> {
             // arquivos de dados/tokens/ do servidor, ou nascem pela bolsa). Os dados dos tokens de teste ficam em tests/e2e/ajuda.mjs.
             // Só para os testes: muda o tamanho do tabuleiro SEM passar pela rede (o app abre em 25 × 22; a maioria dos testes foi escrita para 18 × 10).
             definirTamanho: (colunas: number, linhas: number) => mudarTamanho(colunas, linhas),
-            semear: (lista: Omit<Token, "condicoes" | "favorito" | "grupos" | "ficha" | "status" | "valores" | "copiaDe">[]) => {
-                for (const dados of lista) tokens.adicionar(receberToken({ ...dados, condicoes: [], favorito: false, grupos: [], ficha: null, status: statusPadrao(), valores: [], copiaDe: null, mapa: null }));
+            semear: (
+                lista: Omit<Token, "condicoes" | "favorito" | "grupos" | "ficha" | "status" | "valores" | "copiaDe">[],
+            ) => {
+                for (const dados of lista)
+                    tokens.adicionar(
+                        receberToken({
+                            ...dados,
+                            condicoes: [],
+                            favorito: false,
+                            grupos: [],
+                            ficha: null,
+                            status: statusPadrao(),
+                            valores: [],
+                            copiaDe: null,
+                            mapa: null,
+                        }),
+                    );
                 bolsa.atualizar();
             },
             estado,

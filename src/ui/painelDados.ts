@@ -11,11 +11,12 @@ import { CHAVE_DADOS_RECOLHIDO, DADO_INICIAL, DADOS_DISPONIVEIS, MAX_MODIFICADOR
 import { limitar } from "../coordenadas";
 import { formulaDosDados } from "../dados";
 import { alternarRecolhida } from "./animarPainel";
+import { abrirMenuDeRolagem } from "./menuRolagem";
 import { guardarPreferencia, lerPreferencia } from "./preferencias";
 
 export interface OpcoesPainelDados {
-    /** O usuário apertou "Rolar" com estes valores. */
-    aoRolar(lados: number, quantidade: number, modificador: number): void;
+    /** O usuário apertou "Rolar" com estes valores. `secreta` = MODO MESTRE (clique direito): só o mestre (e quem rolou) vê o resultado. */
+    aoRolar(lados: number, quantidade: number, modificador: number, secreta?: boolean): void;
 }
 
 function pegar<T extends HTMLElement>(id: string): T {
@@ -45,6 +46,13 @@ export function criarPainelDados(opcoes: OpcoesPainelDados): void {
         botao.addEventListener("click", () => {
             lados = n;
             atualizar();
+        });
+        // CLIQUE DIREITO no dado: escolhe o dado e abre o menu "Rolar livre / Rolar em modo mestre" (rola com a quantidade e o modificador de agora).
+        botao.addEventListener("contextmenu", (e) => {
+            e.preventDefault();
+            lados = n;
+            atualizar();
+            abrirMenuDeRolagem(e.clientX, e.clientY, (secreta) => opcoes.aoRolar(lados, quantidade, modificador, secreta));
         });
         lista.appendChild(botao);
         botoesDados.set(n, botao);
@@ -130,6 +138,10 @@ export function criarPainelDados(opcoes: OpcoesPainelDados): void {
     ligarCampo(campoModificador, definirModificador);
 
     botaoRolar.addEventListener("click", () => opcoes.aoRolar(lados, quantidade, modificador));
+    botaoRolar.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        abrirMenuDeRolagem(e.clientX, e.clientY, (secreta) => opcoes.aoRolar(lados, quantidade, modificador, secreta));
+    });
 
     // --- Recolher/expandir: o painel é uma BARRA no pé da coluna da direita; clicar em QUALQUER ponto dela (não só no botão) alterna. A caixa abre para
     // CIMA, então a setinha aponta ▴ quando está recolhida (clique para abrir) e ▾ quando está aberta (clique para fechar): ela GIRA 180° (CSS). ---

@@ -109,7 +109,10 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
             const botao = document.createElement("button");
             botao.className = "acao-token acao-dinamica";
             botao.textContent = acao.nome; // (o nome vem do usuário: textContent)
-            botao.title = `${acao.nome}: ${acao.efeito === "reduzir" ? "tira do" : "soma ao"} ${(() => { const st = estado.statusDaMesa.find((s) => s.id === acao.status); return st ? rotuloDoStatus(st) : "status"; })()}`;
+            botao.title = `${acao.nome}: ${acao.efeito === "reduzir" ? "tira do" : "soma ao"} ${(() => {
+                const st = estado.statusDaMesa.find((s) => s.id === acao.status);
+                return st ? rotuloDoStatus(st) : "status";
+            })()}`;
             botao.addEventListener("click", () => {
                 const id = tokenAberto;
                 fechar();
@@ -117,8 +120,7 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
             });
             acoes.append(botao);
         }
-        // Iniciativa, criar e excluir ações: só do MESTRE (o servidor também recusa).
-        if (!estado.mestre) return;
+        // Iniciativa, criar e excluir ações:
         const iniciativa = document.createElement("button");
         iniciativa.className = "acao-token acao-dinamica";
         iniciativa.textContent = "Adicionar à iniciativa";
@@ -187,7 +189,9 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
     botaoMortoRapido.addEventListener("click", () => {
         if (tokenAberto !== null) opcoes.aoAlternarCondicao(tokenAberto, "Morto");
     });
-    botaoMortoRapido.addEventListener("mouseenter", () => opcoes.dica.mostrar("Morto", menuCondicoes, botaoMortoRapido));
+    botaoMortoRapido.addEventListener("mouseenter", () =>
+        opcoes.dica.mostrar("Morto", menuCondicoes, botaoMortoRapido),
+    );
     botaoMortoRapido.addEventListener("mouseleave", () => opcoes.dica.esconder(menuCondicoes));
     topoCondicoes.appendChild(botaoMortoRapido);
     /** O atalho do "Morto" acompanha a lista: o ícone e o nome (o mestre pode ter editado), e some se a condição foi excluída. */
@@ -229,7 +233,13 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
      * A altura é limitada ao espaço livre acima (o conteúdo rola se não couber).
      * Só vai para BAIXO dos botões se acima não houver espaço útil e embaixo houver mais.
      */
-    function posicionarPainel(painel: HTMLElement, esquerda: number, topoBotoes: number, alturaBotoes: number, preferirAbaixo = false): void {
+    function posicionarPainel(
+        painel: HTMLElement,
+        esquerda: number,
+        topoBotoes: number,
+        alturaBotoes: number,
+        preferirAbaixo = false,
+    ): void {
         // Mede a altura NATURAL (sem limite) para decidir onde ele fica e quão alto.
         painel.style.maxHeight = "none";
         const natural = painel.offsetHeight;
@@ -281,24 +291,43 @@ export function criarMenuToken(opcoes: OpcoesMenuToken): MenuToken {
         const larguraLista = acoes.offsetWidth;
         const alturaLista = acoes.offsetHeight;
         const esquerdaLista = limitar(ancora.x, MARGEM_JANELA, window.innerWidth - larguraLista - MARGEM_JANELA);
-        const topoLista = limitar(baseDoToken + AFASTAMENTO_OPCOES_TOKEN, MARGEM_JANELA, window.innerHeight - alturaLista - MARGEM_JANELA);
+        const topoLista = limitar(
+            baseDoToken + AFASTAMENTO_OPCOES_TOKEN,
+            MARGEM_JANELA,
+            window.innerHeight - alturaLista - MARGEM_JANELA,
+        );
         acoes.style.left = `${esquerdaLista}px`;
         acoes.style.top = `${topoLista}px`;
 
         // 2) A ENGRENAGEM ACIMA do token, no canto superior DIREITO: alinhada à borda direita dele.
-        const esquerdaEngrenagem = limitar(ancora.x + ancora.largura - LADO_ENGRENAGEM, MARGEM_JANELA, window.innerWidth - LADO_ENGRENAGEM - MARGEM_JANELA);
-        const topoEngrenagem = limitar(ancora.y - AFASTAMENTO_OPCOES_TOKEN - LADO_ENGRENAGEM, MARGEM_JANELA, window.innerHeight - LADO_ENGRENAGEM - MARGEM_JANELA);
+        const esquerdaEngrenagem = limitar(
+            ancora.x + ancora.largura - LADO_ENGRENAGEM,
+            MARGEM_JANELA,
+            window.innerWidth - LADO_ENGRENAGEM - MARGEM_JANELA,
+        );
+        const topoEngrenagem = limitar(
+            ancora.y - AFASTAMENTO_OPCOES_TOKEN - LADO_ENGRENAGEM,
+            MARGEM_JANELA,
+            window.innerHeight - LADO_ENGRENAGEM - MARGEM_JANELA,
+        );
         engrenagem.style.left = `${esquerdaEngrenagem}px`;
         engrenagem.style.top = `${topoEngrenagem}px`;
 
         // O painel da engrenagem abre para CIMA dela; o de condições abre NA FRENTE do token (centralizado sobre ele; pedido do dono).
         if (painelAberto === "condicoes") posicionarNaFrente(menuCondicoes, ancora);
-        else if (painelAberto === "engrenagem") posicionarPainel(menuEngrenagem, esquerdaEngrenagem, topoEngrenagem, LADO_ENGRENAGEM);
+        else if (painelAberto === "engrenagem")
+            posicionarPainel(menuEngrenagem, esquerdaEngrenagem, topoEngrenagem, LADO_ENGRENAGEM);
 
         // Os ESCUDOS: um em cima (engrenagem e o painel dela, descendo até o topo do token) e um embaixo (lista e o painel de condições, subindo até a base do token). Nenhum cobre o token.
         const rects = (...e: HTMLElement[]): DOMRect[] => e.map((x) => x.getBoundingClientRect());
-        cobrir(escudoDeCima, rects(engrenagem, ...(painelAberto === "engrenagem" ? [menuEngrenagem] : [])), "baixo", ancora.y);
-        if (acoes.hidden) escudoDeBaixo.hidden = true; // (sem a lista, não há o que proteger embaixo: o painel de ações é uma caixa sólida)
+        cobrir(
+            escudoDeCima,
+            rects(engrenagem, ...(painelAberto === "engrenagem" ? [menuEngrenagem] : [])),
+            "baixo",
+            ancora.y,
+        );
+        if (acoes.hidden)
+            escudoDeBaixo.hidden = true; // (sem a lista, não há o que proteger embaixo: o painel de ações é uma caixa sólida)
         else cobrir(escudoDeBaixo, rects(acoes), "cima", baseDoToken);
         // O painel de condições (na frente do token) tem o seu escudo: só a área dele.
         if (painelAberto === "condicoes") cobrir(escudoDoPainel, rects(menuCondicoes), "baixo", 0);

@@ -28,6 +28,7 @@
 @import "./css/rodaPing.css" layer(componentes); /* a roda de pings (Shift + arrastar) */
 @import "./css/reguaMover.css" layer(componentes); /* o botão Mover da régua */
 @import "./css/menuMapa.css" layer(componentes); /* o menu do botão direito no vazio do mapa (Ping, Régua, Borracha, fog) */
+@import "./css/menuRolagem.css" layer(componentes); /* o menu do botão direito num dado ou rolagem (Rolar livre / Rolar em modo mestre) */
 @import "./css/menuToken.css" layer(componentes); /* engrenagem e lista de ações do token, menu e balão das condições */
 @import "./css/diversos.css" layer(componentes); /* pílula online, cópia do token arrastado, menu da ficha na bolsa, recorte da imagem */
 @import "./css/editorFicha.css" layer(componentes); /* a janela da ficha, o painel lateral e a janela "Instruções" */

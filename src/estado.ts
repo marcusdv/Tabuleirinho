@@ -219,6 +219,7 @@ export interface Mensagem {
     rolagemFicha?: RolagemDeFicha; // só nas mensagens de uma ROLAGEM DE FICHA (o `texto` então é o nome, a fórmula e o total)
     cartaoFicha?: CartaoRolado; // só nas mensagens de um CARTÃO DE FICHA, `(Nome)"""texto"""` (o `texto` então é só o nome do cartão; o chat desenha o cartão a partir daqui)
     token?: number; // o id do TOKEN pelo qual a ficha foi aberta ao rolar (o chat mostra o ícone dele); só o id: se o token sumir, volta o ícone padrão
+    secreta?: boolean; // rolada em MODO MESTRE (clique direito no dado): só o(s) mestre(s) e quem rolou veem a mensagem (o SERVIDOR é quem filtra; o chat só desenha o cadeado)
     hora: number; // quando foi enviada (milissegundos desde 1970, como Date.now())
 }
 
@@ -242,9 +243,9 @@ export function adicionarMensagem(autor: string, texto: string): Mensagem | null
  * total (ex.: "2d6+3 = 12") para quem só lê texto.
  * No multiplayer, o servidor sorteia e envia este evento.
  */
-export function adicionarRolagem(autor: string, rolagem: Rolagem): Mensagem {
+export function adicionarRolagem(autor: string, rolagem: Rolagem, secreta = false): Mensagem {
     const texto = `${formulaDosDados(rolagem.quantidade, rolagem.lados, rolagem.modificador)} = ${rolagem.total}`;
-    return guardarMensagem({ id: proximoIdMensagem++, autor, texto, rolagem, hora: Date.now() });
+    return guardarMensagem({ id: proximoIdMensagem++, autor, texto, rolagem, hora: Date.now(), ...(secreta && { secreta: true }) });
 }
 
 /**
@@ -253,12 +254,12 @@ export function adicionarRolagem(autor: string, rolagem: Rolagem): Mensagem {
  * No multiplayer, o servidor sorteia e envia este evento.
  */
 /** Um CARTÃO de uma ficha foi usado: vai para o chat (com o ícone do token pelo qual a ficha foi aberta, se houver). */
-export function adicionarCartaoDeFicha(autor: string, cartaoFicha: CartaoRolado, token?: number): Mensagem {
-    return guardarMensagem({ id: proximoIdMensagem++, autor, texto: `${cartaoFicha.nome} (${cartaoFicha.ficha})`, cartaoFicha, hora: Date.now(), ...(token !== undefined && { token }) });
+export function adicionarCartaoDeFicha(autor: string, cartaoFicha: CartaoRolado, token?: number, secreta = false): Mensagem {
+    return guardarMensagem({ id: proximoIdMensagem++, autor, texto: `${cartaoFicha.nome} (${cartaoFicha.ficha})`, cartaoFicha, hora: Date.now(), ...(token !== undefined && { token }), ...(secreta && { secreta: true }) });
 }
-export function adicionarRolagemDeFicha(autor: string, rolagemFicha: RolagemDeFicha, token?: number): Mensagem {
+export function adicionarRolagemDeFicha(autor: string, rolagemFicha: RolagemDeFicha, token?: number, secreta = false): Mensagem {
     const texto = `${rolagemFicha.nome}: ${rolagemFicha.formula} = ${rolagemFicha.total}`;
-    return guardarMensagem({ id: proximoIdMensagem++, autor, texto, rolagemFicha, hora: Date.now(), ...(token !== undefined && { token }) });
+    return guardarMensagem({ id: proximoIdMensagem++, autor, texto, rolagemFicha, hora: Date.now(), ...(token !== undefined && { token }), ...(secreta && { secreta: true }) });
 }
 
 /**
